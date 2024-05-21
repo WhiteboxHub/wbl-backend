@@ -26,8 +26,8 @@ mysql connector - python
 *Clone the repository*:
 
     bash
-    git clone https://github.com/yourusername/fastapi-auth.git
-    cd fastapi-auth
+    https://github.com/WhiteboxHub/wbl-backend.git
+    cd WhiteboxHub-wbl-backend
     
 
 *Create a virtual environment and activate it*:
