@@ -1,34 +1,21 @@
-
 from passlib.context import CryptContext
 import mysql.connector
 from mysql.connector import Error
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
 
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
     'password': os.getenv('DB_PASSWORD'),
     'database': os.getenv('DB_DATABASE'),
+    'port': os.getenv('DB_PORT')
 }
 
-
-
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def fetch_resources():
-    conn = mysql.connector.connect(**db_config)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM whiteboxqa.recording;")
-        data = cursor.fetchall()
-        return data 
-    finally:
-        conn.close()
 
 def fetch_batch_recordings(batch):
     conn = mysql.connector.connect(**db_config)
@@ -37,11 +24,9 @@ def fetch_batch_recordings(batch):
         query = "SELECT * FROM whiteboxqa.recording WHERE batchname = %s;"
         cursor.execute(query, (batch,))
         data = cursor.fetchall()
-        return data 
-    
+        return data
     finally:
         conn.close()
-
 
 def fetch_keyword_recordings(keyword):
     conn = mysql.connector.connect(**db_config)
@@ -50,8 +35,19 @@ def fetch_keyword_recordings(keyword):
         query = "SELECT * FROM whiteboxqa.recording WHERE description LIKE %s;"
         cursor.execute(query, ('%' + keyword + '%',))
         data = cursor.fetchall()
-        return data 
-    
+        return data
+    finally:
+        conn.close()
+
+
+def fetch_keyword_presentation(keyword):
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        query = "SELECT * FROM whiteboxqa.course_material WHERE description LIKE %s;"
+        cursor.execute(query, ('%' + keyword + '%',))
+        data = cursor.fetchall()
+        return data
     finally:
         conn.close()
 
@@ -81,3 +77,9 @@ def insert_user(username: str, password: str, email: str, phone: int, Zip: int, 
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
+
+
+
+
+
+
