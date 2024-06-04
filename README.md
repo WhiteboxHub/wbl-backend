@@ -19,6 +19,14 @@ VS code (1.89.1)
 MySQL Workbench
 Postman
 
+
+To install fastapi
+
+pip install uvicorn.
+pip install uvicorn[standard]
+pip install mysql-connector-python
+
+
 CMD-
 fastapi[all]
 mysql connector - python 
