@@ -21,11 +21,11 @@ Postman
 
 
 To install fastapi
-
+```
 pip install uvicorn.
 pip install uvicorn[standard]
 pip install mysql-connector-python
-
+```
 
 CMD-
 fastapi[all]
