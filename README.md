@@ -15,21 +15,12 @@ Using FastAPI to perform the backend operations and establishing the connection 
 
 ## Installation
 
+```
 VS code (1.89.1)
 MySQL Workbench
 Postman
-
-
-To install fastapi
-```
-pip install uvicorn.
-pip install uvicorn[standard]
-pip install mysql-connector-python
 ```
 
-CMD-
-fastapi[all]
-mysql connector - python 
 
 *Clone the repository*:
 
@@ -45,66 +36,36 @@ mysql connector - python
     source venv/bin/activate  # On Windows: venv\Scripts\activate
     
 
-*Install the dependencies*:
+*Install the dependencies  in terminal
+*:
 
-    bash
-    pip install fastapi uvicorn sqlalchemy databases pymysql passlib[bcrypt] python-jose python-multipart
-
+```
+    pip install fastapi
+    pip install uvicorn.
+    pip install uvicorn[standard]
+    pip install mysql-connector-python
+    pip install python-jose
+    pip install passlib 
+```
 *Set up the MySQL database*:
 
-    - Install MySQL and create a new database:
-
-        sql
-        CREATE DATABASE fastapi_auth;
-        CREATE USER 'fastapi_user'@'localhost' IDENTIFIED BY 'password';
-        GRANT ALL PRIVILEGES ON fastapi_auth.* TO 'fastapi_user'@'localhost';
-        FLUSH PRIVILEGES;
-![Logo](https://fastapi.tiangolo.com/.png)
-
-
-## Configuration
-
-
-1. **Update the DATABASE_URL in database.py** to match your MySQL credentials:
-
-    python
-    DATABASE_URL = "mysql+pymysql://fastapi_user:password@localhost/fastapi_auth"
+    - Install MySQL and login credentials
     
-
-2. **Update the SECRET_KEY in auth.py**:
-
-    python
-    SECRET_KEY = "your_secret_key"
-    
-## Documentation
-
-## Configuration
-
-1. **Update the DATABASE_URL in database.py** to match your MySQL credentials:
-
-    python
-    DATABASE_URL = "mysql+pymysql://fastapi_user:password@localhost/fastapi_auth"
-    
-
-2. **Update the SECRET_KEY in auth.py**:
-
-    python
-    SECRET_KEY = "your_secret_key"
 
 
 ## Environment Variables
 
 To run this project, you will need to add the following environment variables to your .env file
 
-`API_KEY`
+`DB_HOST`
 
-`ANOTHER_API_KEY`
+`DB_USER`
 
-`DATABASE_URL`
+`DB_PASSWORD`
+
+`DB_DATABASE`
 
 `SECRET_KEY`
-
-`ENVIRONMENT`
 
 
 ## API Reference
