@@ -20,52 +20,59 @@ VS code (1.89.1)
 MySQL Workbench
 Postman
 ```
+   
 
-
-*Clone the repository*:
-
-    bash
-    https://github.com/WhiteboxHub/wbl-backend.git
-    cd WhiteboxHub-wbl-backend
+## Create a virtual environment and activate it:
+```
+python -m venv YOUR_FOLDER_NAME
+```
     
+### for mac/linux platforms:  
+```
+source YOUR_FOLDER_NAME/bin/activate
+```
 
-*Create a virtual environment and activate it*:
-
-    bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
+### for Windows platforms   
+```
+cd YOUR_FOLDER_NAME\Scripts
+activate
+```
     
+## Clone the repository
+``` 
+git clone https://github.com/WhiteboxHub/wbl-backend.git 
+cd wbl-backend
+```
 
-*Install the dependencies  in terminal
-*:
+## Install the dependencies  in terminal:
 
 ```
-    pip install fastapi
-    pip install uvicorn.
-    pip install uvicorn[standard]
-    pip install mysql-connector-python
-    pip install python-jose
-    pip install passlib 
+pip install fastapi
+pip install uvicorn
+pip install uvicorn[standard]
+pip install mysql-connector-python
+pip install python-jose
+pip install passlib 
 ```
-*Set up the MySQL database*:
 
-    - Install MySQL and login credentials
+## Set up the MySQL database:
+
+- Install MySQL and login credentials
     
-
-
 ## Environment Variables
-
 To run this project, you will need to add the following environment variables to your .env file
 
-`DB_HOST`
+`DB_HOST=00.000.00.00`
 
-`DB_USER`
+`DB_USER=UserName`
 
-`DB_PASSWORD`
+`DB_PASSWORD=Password`
 
-`DB_DATABASE`
+`DB_NAME=DbName`
 
-`SECRET_KEY`
+`DB_PORT=Port`
+
+`SECRET_KEY=SecretKey`
 
 
 ## API Reference
