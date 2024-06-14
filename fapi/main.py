@@ -1,7 +1,7 @@
-
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from models import UserCreate, Token, UserRegistration
+from fastapi.middleware.cors import CORSMiddleware
 from db import insert_user, get_user_by_username, verify_md5_hash, fetch_batch_recordings, fetch_keyword_recordings, fetch_keyword_presentation
 from auth import create_access_token, verify_token, md5_hash
 from dotenv import load_dotenv
@@ -12,6 +12,14 @@ load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust this list to include your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -61,7 +69,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Not a Valid User / Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(data={"sub": user["uname"]})
@@ -86,7 +94,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
-@app.get("/recordings")
+@app.get("/recording")
 async def get_recordings(batch: str = None, search: str = None, current_user: dict = Depends(get_current_user)):
     if batch:
         recording = fetch_batch_recordings(batch)
