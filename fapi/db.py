@@ -44,6 +44,40 @@ def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: s
     finally:
         cursor.close()
         conn.close()
+        
+def fetch_batches():
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+            SELECT batchname
+            FROM whiteboxqa.recording
+            GROUP BY batchname
+            ORDER BY batchname DESC;
+        """
+        cursor.execute(query)
+        batches = cursor.fetchall()
+        return batches
+    finally:
+        conn.close()
+
+def fetch_batches():
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+            SELECT batchname
+            FROM whiteboxqa.recording
+            GROUP BY batchname
+            ORDER BY batchname DESC;
+        """
+        cursor.execute(query)
+        batches = cursor.fetchall()
+        return batches
+    finally:
+        conn.close()
+
+
 
 def fetch_batch_recordings(batch):
     conn = mysql.connector.connect(**db_config)
@@ -60,7 +94,7 @@ def fetch_keyword_recordings(keyword):
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # use dictionary cursor
-        query = "SELECT * FROM whiteboxqa.recording WHERE description LIKE %s;"
+        query = "SELECT * FROM whiteboxqa.recording WHERE description LIKE %s ORDER BY classdate DESC;"
         cursor.execute(query, ('%' + keyword + '%',))
         data = cursor.fetchall()
         return data
@@ -83,7 +117,7 @@ def fetch_keyword_presentation(keyword):
         }
         type_code = type_mapping.get(keyword)
         if type_code:
-            query = "SELECT * FROM whiteboxqa.course_material WHERE type = %s;"
+            query = "SELECT * FROM whiteboxqa.course_material WHERE type = %s ORDER BY name ASC;;"
             cursor.execute(query, (type_code,))
             data = cursor.fetchall()
             return data
@@ -107,7 +141,8 @@ def get_user_by_username(uname: str):
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # use dictionary cursor
-        cursor.execute("SELECT id, uname, passwd FROM whiteboxqa.authuser WHERE uname = %s;", (uname,))
+        # cursor.execute("SELECT id, uname, passwd FROM whiteboxqa.authuser WHERE uname = %s;", (uname,))
+        cursor.execute("SELECT * FROM whiteboxqa.authuser WHERE uname = %s;", (uname,))
         result = cursor.fetchone()
         return result
     finally:

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from models import UserCreate, Token, UserRegistration
 from fastapi.middleware.cors import CORSMiddleware
-from db import insert_user, get_user_by_username, verify_md5_hash, fetch_batch_recordings, fetch_keyword_recordings, fetch_keyword_presentation
+from db import insert_user,fetch_batches, get_user_by_username, verify_md5_hash, fetch_batch_recordings, fetch_keyword_recordings, fetch_keyword_presentation
 from auth import create_access_token, verify_token, md5_hash
 from dotenv import load_dotenv
 import os
@@ -38,7 +38,6 @@ async def register_user(user: UserRegistration):
     if (existing_user):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
     hashed_password = md5_hash(user.passwd)
-
     insert_user(
         uname=user.uname,
         passwd=hashed_password,
@@ -65,6 +64,7 @@ async def register_user(user: UserRegistration):
 # Login endpoint
 @app.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    
     user = await authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -82,6 +82,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     try:
         payload = verify_token(token)
         username: str = payload.get("sub")
@@ -95,25 +96,38 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 @app.get("/recording")
-async def get_recordings(batch: str = None, search: str = None, current_user: dict = Depends(get_current_user)):
-    if batch:
-        recording = fetch_batch_recordings(batch)
-        if recording:
-            return {"recording": recording}
+async def get_recordings(batchname: str = None, search: str = None, current_user: dict = Depends(get_current_user)):
+# async def get_recordings(batchname: str = None, search: str = None):
+    # print(current_user)
+    try:
+        batches = fetch_batches()  # Fetch all batch names regardless of whether batchname is provided or not
+        
+        if batchname:
+            # Fetch all recordings for a specific batch if batchname is provided
+            batch_recordings = fetch_batch_recordings(batchname)
+            if not batch_recordings:
+                raise HTTPException(status_code=404, detail="Batch recordings not found")
         else:
-            raise HTTPException(status_code=404, detail="No recording found for the given batch")
+            batch_recordings = None  # Set batch_recordings to None if batchname is not provided
+        
+        if search:
+            # Fetch recordings based on keyword search
+            recording = fetch_keyword_recordings(search)
+            if recording:
+                return {"batches": batches, "batch_recordings": batch_recordings, "recording": recording}
+            else:
+                raise HTTPException(status_code=404, detail="No recording found for the given name")
 
-    if search:
-        recording = fetch_keyword_recordings(search)
-        if recording:
-            return {"recording": recording}
-        else:
-            raise HTTPException(status_code=404, detail="No recording found for the given name")
+        return {"batches": batches, "batch_recordings": batch_recordings}
 
-    raise HTTPException(status_code=400, detail="No valid query parameter provided")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @app.get("/presentation")
 async def get_presentation(search: str = None, current_user: dict = Depends(get_current_user)):
+# async def get_presentation(search: str = None ):
     if search:
         presentation = fetch_keyword_presentation(search)
         if presentation:
@@ -135,3 +149,9 @@ async def verify_token_endpoint(token: Token):
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+# Fetch user details endpoint
+@app.get("/user_dashboard")
+async def read_users_me(current_user: dict = Depends(get_current_user)):
+    return current_user
