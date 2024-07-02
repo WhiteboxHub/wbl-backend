@@ -224,12 +224,14 @@ from db import (
     fetch_batch_recordings, fetch_keyword_recordings, fetch_keyword_presentation, 
     fetch_sessions_by_type
 )
-from auth import create_access_token, verify_token, md5_hash
+from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
+from utils import md5_hash
 from dotenv import load_dotenv
 from jose import JWTError
 from typing import List
 import os
 
+# from auth import JWTBearer
 # Load environment variables from .env file
 load_dotenv()
 
@@ -254,6 +256,9 @@ async def authenticate_user(uname: str, passwd: str):
     if not user or not verify_md5_hash(passwd, user["passwd"]):
         return False
     return user
+
+#applying middleware funcion
+app.add_middleware(JWTAuthorizationMiddleware)
 
 # Signup endpoint
 @app.post("/signup")
@@ -310,7 +315,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         payload = verify_token(token)
         username: str = payload.get("sub")
         if username is None:
-            raise credentials_exception
+            raise credentials_exception 
     except JWTError:
         raise credentials_exception
     user = await get_user_by_username(username)
@@ -319,6 +324,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 # Recordings endpoint
+# @app.get("/recording",dependencies=[Depends(JWTBearer())])
 @app.get("/recording")
 # async def get_recordings(batchname: str = None, search: str = None, current_user: dict = Depends(get_current_user)):
 async def get_recordings(batchname: str = None, search: str = None):
@@ -394,3 +400,24 @@ async def get_sessions(category: str = None):
         return {"sessions": sessions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.get("/batches")
+async def get_batches(batchname:str=None, search: str = None):
+    try:
+        batch_recordings = None
+        if batchname:
+            batch_recordings = await fetch_batch_recordings(batchname)
+            if not batch_recordings:
+                raise HTTPException(status_code=404, detail="Batch recordings not found")
+        
+        if search:
+            recording = await fetch_keyword_recordings(search)
+            if recording:
+                return {"batch_recordings": batch_recordings, "recording": recording}
+            else:
+                raise HTTPException(status_code=404, detail="No recording found for the given name")
+        return {"batch_recordings": batch_recordings}
+    except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))

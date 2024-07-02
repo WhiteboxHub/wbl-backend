@@ -280,7 +280,7 @@ from mysql.connector import Error
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from auth import md5_hash, verify_md5_hash
+from utils import md5_hash,verify_md5_hash
 from passlib.context import CryptContext
 import asyncio
 
