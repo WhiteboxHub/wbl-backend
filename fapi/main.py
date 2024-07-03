@@ -202,12 +202,13 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from models import UserCreate, Token, UserRegistration
 from fastapi.middleware.cors import CORSMiddleware
 from db import (
-    insert_user, fetch_batches, get_user_by_username,  
+    insert_user, fetch_batches, get_user_by_username, verify_md5_hash, 
     fetch_batch_recordings, fetch_keyword_recordings, fetch_keyword_presentation, 
-    fetch_sessions_by_type
+    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording
 )
 from utils import md5_hash,verify_md5_hash
 from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
+from utils import md5_hash
 from dotenv import load_dotenv
 from jose import JWTError
 from typing import List
@@ -241,6 +242,9 @@ async def authenticate_user(uname: str, passwd: str):
     if not user or not verify_md5_hash(passwd, user["passwd"]):
         return False
     return user
+
+#applying middleware funcion
+app.add_middleware(JWTAuthorizationMiddleware)
 
 # Signup endpoint
 @app.post("/signup")
@@ -308,22 +312,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # Recordings endpoint
 @app.get("/recording")
 # async def get_recordings(batchname: str = None, search: str = None, current_user: dict = Depends(get_current_user)):
-async def get_recordings(batchname: str = None, search: str = None):
+async def get_recordings(subject:str=None,batchname: str = None, search: str = None):
     try:
-        batches = await fetch_batches()  # Fetch all batch names regardless of whether batchname is provided or not
-        
-        batch_recordings = None
-        if batchname:
-            batch_recordings = await fetch_batch_recordings(batchname)
-            if not batch_recordings:
-                raise HTTPException(status_code=404, detail="Batch recordings not found")
-        
+        batches = await fetch_course_batches(subject)  # Fetch all batch names regardless of whether batchname is provided or not
         if search:
             recording = await fetch_keyword_recordings(search)
             if recording:
                 return {"batches": batches, "batch_recordings": batch_recordings, "recording": recording}
             else:
-                raise HTTPException(status_code=404, detail="No recording found for the given name")
+                raise HTTPException(status_code=204, detail="No recording found for the given name")
+        
+        if batchname:
+            batch_recordings = await fetch_subject_batch_recording(subject,batchname)
+            # if not batch_recordings:
+            #     raise HTTPException(status_code=204, detail="no data found")
+            return {"batches": batches, "batch_recordings": batch_recordings}
+        else:
+            batch_recordings = await fetch_subject_batch_recording(subject,batches[0]['batchname'])
 
         return {"batches": batches, "batch_recordings": batch_recordings}
     except Exception as e:
@@ -384,12 +389,28 @@ async def get_sessions(category: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+#End Point to get batches info based on the course input
+@app.get("/batches")
+async def get_batches(course:str=None):
+    try:
+        batches = await fetch_course_batches(course)
+        return {"batches": batches}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
-
-
-
-
-
+# End Point to get Recodings of batches basd on subject and batch 
+# and also covers search based on subject and search keyword
+@app.get("/getrecordings")
+async def get_recordings(subject:str=None,batchname:str=None,search:str=None):
+    
+    try:
+        if search:
+            print('search started')
+            recording = await fetch_keyword_recordings(subject,search)
+            return {"batch_recordings": recording}
+            
+        recordings = await fetch_subject_batch_recording(subject,batchname)
+        return {"batch_recordings": recordings}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

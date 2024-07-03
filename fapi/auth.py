@@ -66,7 +66,9 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
             return JSONResponse(status_code=401,content={'detail':'unauthorized'})     
         except Exception as e:
             # Catch any other unexpected exceptions
-            print(f'Unexpected error: {e}')
+            if not apiToken:
+                return JSONResponse(status_code=401,content={'detail':'Unauthorized user'})
+            
             return JSONResponse(status_code=500,content={'detail':str(e)})
         response = await call_next(request)
         return response
