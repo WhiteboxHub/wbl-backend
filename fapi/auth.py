@@ -67,7 +67,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 300
 
 #middleware to check authorization of a token
 # class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
@@ -154,7 +154,9 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
             return JSONResponse(status_code=401,content={'detail':'unauthorized'})     
         except Exception as e:
             # Catch any other unexpected exceptions
-            print(f'Unexpected error: {e}')
+            if not apiToken:
+                return JSONResponse(status_code=401,content={'detail':'Unauthorized user'})
+            
             return JSONResponse(status_code=500,content={'detail':str(e)})
         response = await call_next(request)
         return response
