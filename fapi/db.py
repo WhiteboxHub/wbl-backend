@@ -221,3 +221,36 @@ async def fetch_sessions_by_type(category: str = None):
     finally:
         conn.close()
         
+
+
+async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO whiteboxqa.leads (
+                name,email, phone,notes) VALUES (%s, %s, %s, %s);
+        """
+        values = (
+            name, email, phone,message)
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+    except Error as e:
+        print(f"Error inserting user: {e}")
+        raise HTTPException(status_code=500, detail="your response have already been sent")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+def course_content():
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM whiteboxqa.course_content;")
+        data = cursor.fetchall()
+        return data 
+    finally:
+        conn.close()

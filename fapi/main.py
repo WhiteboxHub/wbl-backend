@@ -199,12 +199,12 @@
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from models import UserCreate, Token, UserRegistration
+from models import UserCreate, Token, UserRegistration,ContactForm
 from fastapi.middleware.cors import CORSMiddleware
 from db import (
     insert_user, fetch_batches, get_user_by_username, verify_md5_hash, 
     fetch_batch_recordings, fetch_keyword_recordings, fetch_keyword_presentation, 
-    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording
+    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content
 )
 from utils import md5_hash,verify_md5_hash
 from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
@@ -411,3 +411,26 @@ async def get_recordings(course:str=None,batchname:str=None,search:str=None):
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.post("/contact")
+async def contact(user: ContactForm):
+        
+    await user_contact(
+        name=user.name,
+        email=user.email,
+        phone=user.phone,
+        message=user.message
+        
+        )
+    return {"message": "Message Sent Successfully"}
+
+
+@app.get("/coursecontent")
+def get_course_content():
+    content = course_content()
+    return {"coursecontent": content}
+
+
+
