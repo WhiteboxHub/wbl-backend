@@ -243,8 +243,6 @@ async def authenticate_user(uname: str, passwd: str):
         return False
     return user
 
-#applying middleware funcion
-app.add_middleware(JWTAuthorizationMiddleware)
 
 # Signup endpoint
 @app.post("/signup")
@@ -310,7 +308,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 # Recordings endpoint
-@app.get("/recording")
+@app.get("/recordingg")
 # async def get_recordings(batchname: str = None, search: str = None, current_user: dict = Depends(get_current_user)):
 async def get_recordings(subject:str=None,batchname: str = None, search: str = None):
     try:
@@ -401,16 +399,15 @@ async def get_batches(course:str=None):
 
 # End Point to get Recodings of batches basd on subject and batch 
 # and also covers search based on subject and search keyword
-@app.get("/getrecordings")
-async def get_recordings(subject:str=None,batchname:str=None,search:str=None):
-    
+@app.get("/recording")
+async def get_recordings(course:str=None,batchname:str=None,search:str=None):
     try:
         if search:
-            print('search started')
-            recording = await fetch_keyword_recordings(subject,search)
+            # print('search started')
+            recording = await fetch_keyword_recordings(course,search)
             return {"batch_recordings": recording}
             
-        recordings = await fetch_subject_batch_recording(subject,batchname)
+        recordings = await fetch_subject_batch_recording(course,batchname)
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

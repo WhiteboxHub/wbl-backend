@@ -73,13 +73,19 @@ async def fetch_course_batches(subject:str=None):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
+        # query = f"""
+        #         SELECT batchname 
+        #         FROM whiteboxqa.batch
+        #         WHERE subject = '{subject}'
+        #         GROUP BY batchname
+        #         ORDER BY batchname DESC;
+        #         """
         query = f"""
                 SELECT batchname 
-                FROM whiteboxqa.batch
-                WHERE subject = '{subject}'
+                FROM whiteboxqa.recording
+                WHERE course = '{subject}'
                 GROUP BY batchname
                 ORDER BY batchname DESC;
-
                 """
         await loop.run_in_executor(None, cursor.execute, query)
         batches = cursor.fetchall()
