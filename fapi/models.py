@@ -29,6 +29,11 @@ class UserRegistration(BaseModel):
     last: Optional[str] = None
     
     
+class ContactForm(BaseModel):
+    name: str
+    email: str
+    phone: str
+    message: str
     
     
     # uname: str
