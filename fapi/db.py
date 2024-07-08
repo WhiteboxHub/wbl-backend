@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from utils import md5_hash,verify_md5_hash
 from passlib.context import CryptContext
 import asyncio
-
+import copy
+from collections import OrderedDict
 load_dotenv()
 
 db_config = {
@@ -50,6 +51,26 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         conn.close()
 
 
+
+
+#fucntion to merge batchs
+def merge_batches(q1_response,q2_response):
+    # Combine the two lists
+    all_batches = q1_response + q2_response
+    
+    # print(all_batches)
+    seen_batches = set()
+    unique_batches = []
+
+
+    for batch in all_batches:
+        print(batch['batchname'])
+        if batch['batchname'] not in seen_batches:
+            seen_batches.add(batch['batchname'])
+            unique_batches.append(batch)
+    # Sort unique_batches by batchname in descending order (latest to oldest)
+    unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
+    return unique_batches
 #function to fetch batch names based on courses
 async def fetch_course_batches(subject:str=None):
     loop = asyncio.get_event_loop()
@@ -70,9 +91,27 @@ async def fetch_course_batches(subject:str=None):
                 GROUP BY batchname
                 ORDER BY batchname DESC;
                 """
+
+        batchquery = f"""
+                SELECT batchname 
+                FROM whiteboxqa.batch
+                WHERE subject = '{subject}'
+                GROUP BY batchname
+                ORDER BY batchname DESC;
+                """
+       
+        
         await loop.run_in_executor(None, cursor.execute, query)
         batches = cursor.fetchall()
-        return batches
+        
+        await loop.run_in_executor(None, cursor.execute, batchquery)
+        r1 = cursor.fetchall()
+        merged_response = merge_batches(r1,batches)
+        return merged_response
+        # return batches
+    except Error as e:
+        print(f"Error: {e}")
+        return []
     finally:
         conn.close()
 
@@ -182,3 +221,36 @@ async def fetch_sessions_by_type(category: str = None):
     finally:
         conn.close()
         
+
+
+async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO whiteboxqa.leads (
+                name,email, phone,notes) VALUES (%s, %s, %s, %s);
+        """
+        values = (
+            name, email, phone,message)
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+    except Error as e:
+        print(f"Error inserting user: {e}")
+        raise HTTPException(status_code=500, detail="your response have already been sent")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+def course_content():
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM whiteboxqa.course_content;")
+        data = cursor.fetchall()
+        return data 
+    finally:
+        conn.close()

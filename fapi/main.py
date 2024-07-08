@@ -1,11 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from models import UserCreate, Token, UserRegistration
+from models import UserCreate, Token, UserRegistration,ContactForm
 from fastapi.middleware.cors import CORSMiddleware
 from db import (
     insert_user,get_user_by_username, verify_md5_hash, 
     fetch_keyword_recordings, fetch_keyword_presentation, 
-    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording
+    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content
 )
 from utils import md5_hash,verify_md5_hash
 from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
@@ -156,6 +156,8 @@ async def get_sessions(category: str = None):
 @app.get("/batches")
 async def get_batches(course:str=None):
     try:
+        if not course:
+            return {"details":"Course subject Expected","batches":[]}
         batches = await fetch_course_batches(course)
         return {"batches": batches}
     except Exception as e:
@@ -164,13 +166,50 @@ async def get_batches(course:str=None):
 
 # End Point to get Recodings of batches basd on subject and batch 
 # and also covers search based on subject and search keyword
+<<<<<<< HEAD
+@app.get("/getrecordings")
+async def get_recordings(subject:str=None,batchname:str=None,search:str=None):
+=======
 @app.get("/recording")
 async def get_recordings(course:str=None,batchname:str=None,search:str=None):
+>>>>>>> d5bb256b52dae488a0a7efc899588d1f2fc3955b
     try:
+        if not subject:
+            return {"Details":"subject expected"}
+        if not batchname and not search:
+            return {"details":"Batchname or Search Keyword expected"}
         if search:
+<<<<<<< HEAD
+            recording = await fetch_keyword_recordings(subject,search)
+=======
+            # print('search started')
             recording = await fetch_keyword_recordings(course,search)
+>>>>>>> d5bb256b52dae488a0a7efc899588d1f2fc3955b
             return {"batch_recordings": recording}
         recordings = await fetch_subject_batch_recording(course,batchname)
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.post("/contact")
+async def contact(user: ContactForm):
+        
+    await user_contact(
+        name=user.name,
+        email=user.email,
+        phone=user.phone,
+        message=user.message
+        
+        )
+    return {"message": "Message Sent Successfully"}
+
+
+@app.get("/coursecontent")
+def get_course_content():
+    content = course_content()
+    return {"coursecontent": content}
+
+
+
