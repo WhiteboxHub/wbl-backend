@@ -215,7 +215,7 @@
 
 
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status,Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from models import UserCreate, Token, UserRegistration
 from fastapi.middleware.cors import CORSMiddleware
@@ -407,6 +407,8 @@ async def get_sessions(category: str = None):
 @app.get("/batches")
 async def get_batches(course:str=None):
     try:
+        if not course:
+            return {"details":"Course subject Expected","batches":[]}
         batches = await fetch_course_batches(course)
         return {"batches": batches}
     except Exception as e:
@@ -417,10 +419,12 @@ async def get_batches(course:str=None):
 # and also covers search based on subject and search keyword
 @app.get("/getrecordings")
 async def get_recordings(subject:str=None,batchname:str=None,search:str=None):
-    
     try:
+        if not subject:
+            return {"Details":"subject expected"}
+        if not batchname and not search:
+            return {"details":"Batchname or Search Keyword expected"}
         if search:
-            print('search started')
             recording = await fetch_keyword_recordings(subject,search)
             return {"batch_recordings": recording}
             

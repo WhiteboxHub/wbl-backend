@@ -283,7 +283,8 @@ from dotenv import load_dotenv
 from utils import md5_hash,verify_md5_hash
 from passlib.context import CryptContext
 import asyncio
-
+import copy
+from collections import OrderedDict
 load_dotenv()
 
 db_config = {
@@ -343,6 +344,26 @@ async def fetch_batches():
     finally:
         conn.close()
 
+
+
+#fucntion to merge batchs
+def merge_batches(q1_response,q2_response):
+    # Combine the two lists
+    all_batches = q1_response + q2_response
+    
+    # print(all_batches)
+    seen_batches = set()
+    unique_batches = []
+
+
+    for batch in all_batches:
+        print(batch['batchname'])
+        if batch['batchname'] not in seen_batches:
+            seen_batches.add(batch['batchname'])
+            unique_batches.append(batch)
+    # Sort unique_batches by batchname in descending order (latest to oldest)
+    unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
+    return unique_batches
 #function to fetch batch names based on courses
 async def fetch_course_batches(subject:str=None):
     loop = asyncio.get_event_loop()
@@ -351,15 +372,33 @@ async def fetch_course_batches(subject:str=None):
         cursor = conn.cursor(dictionary=True)
         query = f"""
                 SELECT batchname 
-                FROM whiteboxqa.batch
-                WHERE subject = '{subject}'
+                FROM whiteboxqa.recording
+                WHERE course = '{subject}'
                 GROUP BY batchname
                 ORDER BY batchname DESC;
 
                 """
+
+        batchquery = f"""
+                SELECT batchname 
+                FROM whiteboxqa.batch
+                WHERE subject = '{subject}'
+                GROUP BY batchname
+                ORDER BY batchname DESC;
+                """
+       
+        
         await loop.run_in_executor(None, cursor.execute, query)
         batches = cursor.fetchall()
-        return batches
+        
+        await loop.run_in_executor(None, cursor.execute, batchquery)
+        r1 = cursor.fetchall()
+        merged_response = merge_batches(r1,batches)
+        return merged_response
+        # return batches
+    except Error as e:
+        print(f"Error: {e}")
+        return []
     finally:
         conn.close()
 
