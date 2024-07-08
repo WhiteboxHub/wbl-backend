@@ -166,25 +166,18 @@ async def get_batches(course:str=None):
 
 # End Point to get Recodings of batches basd on subject and batch 
 # and also covers search based on subject and search keyword
-<<<<<<< HEAD
-@app.get("/getrecordings")
-async def get_recordings(subject:str=None,batchname:str=None,search:str=None):
-=======
+
 @app.get("/recording")
 async def get_recordings(course:str=None,batchname:str=None,search:str=None):
->>>>>>> d5bb256b52dae488a0a7efc899588d1f2fc3955b
     try:
         if not subject:
             return {"Details":"subject expected"}
         if not batchname and not search:
             return {"details":"Batchname or Search Keyword expected"}
         if search:
-<<<<<<< HEAD
             recording = await fetch_keyword_recordings(subject,search)
-=======
             # print('search started')
             recording = await fetch_keyword_recordings(course,search)
->>>>>>> d5bb256b52dae488a0a7efc899588d1f2fc3955b
             return {"batch_recordings": recording}
         recordings = await fetch_subject_batch_recording(course,batchname)
         return {"batch_recordings": recordings}
