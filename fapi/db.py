@@ -49,23 +49,6 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         cursor.close()
         conn.close()
 
-# Async function to fetch batch names from the database
-async def fetch_batches():
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = """
-            SELECT batchname
-            FROM whiteboxqa.recording
-            GROUP BY batchname
-            ORDER BY batchname DESC;
-        """
-        await loop.run_in_executor(None, cursor.execute, query)
-        batches = cursor.fetchall()
-        return batches
-    finally:
-        conn.close()
 
 #function to fetch batch names based on courses
 async def fetch_course_batches(subject:str=None):
@@ -99,7 +82,6 @@ async def fetch_subject_batch_recording(subject:str=None,batchname:str=None):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        # print(batchname,subject)
         query = f"""
                 SELECT * 
                 FROM whiteboxqa.recording
@@ -111,31 +93,6 @@ async def fetch_subject_batch_recording(subject:str=None,batchname:str=None):
         return recordings
     finally:
         conn.close()
-# Async function to fetch recordings for a specific batch
-async def fetch_batch_recordings(batch):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM whiteboxqa.recording WHERE batchname = %s;"
-        await loop.run_in_executor(None, cursor.execute, query, (batch,))
-        data = cursor.fetchall()
-        return data
-    finally:
-        conn.close()
-
-# # Async function to fetch recordings based on a keyword
-# async def fetch_keyword_recordings(keyword):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT * FROM whiteboxqa.recording WHERE description LIKE %s ORDER BY classdate DESC;"
-#         await loop.run_in_executor(None, cursor.execute, query, ('%' + keyword + '%',))
-#         data = cursor.fetchall()
-#         return data
-#     finally:
-#         conn.close()
 
 
 async def fetch_keyword_recordings(subject,keyword):
@@ -154,6 +111,8 @@ async def fetch_keyword_recordings(subject,keyword):
         return data
     finally:
         conn.close()
+        
+        
 # Async function to fetch presentations based on a keyword
 async def fetch_keyword_presentation(keyword):
     loop = asyncio.get_event_loop()
@@ -191,6 +150,7 @@ async def fetch_keyword_presentation(keyword):
         cursor.close()
         conn.close()
 
+
 # Async function to fetch a user by username
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
@@ -203,6 +163,7 @@ async def get_user_by_username(uname: str):
         return result
     finally:
         conn.close()
+
 
 # Async function to fetch sessions by category
 async def fetch_sessions_by_type(category: str = None):
