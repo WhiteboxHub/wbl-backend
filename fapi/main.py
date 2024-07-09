@@ -122,17 +122,37 @@ async def get_presentation(search: str = None):
     raise HTTPException(status_code=400, detail="No valid query parameter provided")
 
 # Token verification endpoint
+# @app.post("/verify_token")
+# async def verify_token_endpoint(token: Token):
+#     try:
+#         payload = verify_token(token.access_token)
+#         return payload
+#     except JWTError:
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Invalid token",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+
+
 @app.post("/verify_token")
 async def verify_token_endpoint(token: Token):
-    try:
-        payload = verify_token(token.access_token)
-        return payload
-    except JWTError:
+    payload = verify_token(token.access_token)
+    if isinstance(payload, JSONResponse):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=payload.status_code,
+            detail=payload.content['detail']
         )
+    return {"valid": True}
+
+# @app.post("/verify_token")
+# async def verify_token_endpoint(token: Token):
+#     try:
+#         payload = verify_token(token.access_token)
+#         return payload
+#     except HTTPException as e:
+#         raise e
+
 
 # Fetch user details endpoint
 @app.get("/user_dashboard")
@@ -170,12 +190,12 @@ async def get_batches(course:str=None):
 @app.get("/recording")
 async def get_recordings(course:str=None,batchname:str=None,search:str=None):
     try:
-        if not subject:
+        if not course:
             return {"Details":"subject expected"}
         if not batchname and not search:
             return {"details":"Batchname or Search Keyword expected"}
         if search:
-            recording = await fetch_keyword_recordings(subject,search)
+            recording = await fetch_keyword_recordings(course,search)
             # print('search started')
             recording = await fetch_keyword_recordings(course,search)
             return {"batch_recordings": recording}
@@ -183,8 +203,6 @@ async def get_recordings(course:str=None,batchname:str=None,search:str=None):
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 @app.post("/contact")
 async def contact(user: ContactForm):

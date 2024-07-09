@@ -82,16 +82,23 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return encoded_jwt
 
 # Function to verify token
+# def verify_token(token: str):
+#     try:
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         return payload
+#     # except JWTError as e:
+#     #     raise ValueError(f"Token verification failed: {str(e)}")
+#     except ExpiredSignatureError:
+#             return JSONResponse(status_code=401,content={'detail':'Login Session Expired'})
+#     except JWTError:
+#             # print('jwterror')
+#             return JSONResponse(status_code=401,content={'detail':'unauthorized'})     
+    
 def verify_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    # except JWTError as e:
-    #     raise ValueError(f"Token verification failed: {str(e)}")
     except ExpiredSignatureError:
-            return JSONResponse(status_code=401,content={'detail':'Login Session Expired'})
+        return JSONResponse(status_code=401, content={'detail': 'Login Session Expired'})
     except JWTError:
-            # print('jwterror')
-            return JSONResponse(status_code=401,content={'detail':'unauthorized'})     
-    
-
+        return JSONResponse(status_code=401, content={'detail': 'Unauthorized'})

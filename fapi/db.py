@@ -51,8 +51,6 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         conn.close()
 
 
-
-
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
     # Combine the two lists
@@ -71,6 +69,7 @@ def merge_batches(q1_response,q2_response):
     # Sort unique_batches by batchname in descending order (latest to oldest)
     unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
     return unique_batches
+
 #function to fetch batch names based on courses
 async def fetch_course_batches(subject:str=None):
     loop = asyncio.get_event_loop()
@@ -243,12 +242,10 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
         cursor.close()
         conn.close()
 
-
-
 def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
         cursor.execute("SELECT * FROM whiteboxqa.course_content;")
         data = cursor.fetchall()
         return data 
