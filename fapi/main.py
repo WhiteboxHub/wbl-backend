@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from jose import JWTError
 from typing import List
 import os
+from fastapi.responses import JSONResponse
 
 # Load environment variables from .env file
 load_dotenv()
@@ -121,37 +122,19 @@ async def get_presentation(search: str = None):
             raise HTTPException(status_code=404, detail="No Data found for the given name")
     raise HTTPException(status_code=400, detail="No valid query parameter provided")
 
+
 # Token verification endpoint
-# @app.post("/verify_token")
-# async def verify_token_endpoint(token: Token):
-#     try:
-#         payload = verify_token(token.access_token)
-#         return payload
-#     except JWTError:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid token",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-
-
 @app.post("/verify_token")
 async def verify_token_endpoint(token: Token):
-    payload = verify_token(token.access_token)
-    if isinstance(payload, JSONResponse):
+    try:
+        payload = verify_token(token.access_token)
+        return payload
+    except JWTError:
         raise HTTPException(
-            status_code=payload.status_code,
-            detail=payload.content['detail']
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    return {"valid": True}
-
-# @app.post("/verify_token")
-# async def verify_token_endpoint(token: Token):
-#     try:
-#         payload = verify_token(token.access_token)
-#         return payload
-#     except HTTPException as e:
-#         raise e
 
 
 # Fetch user details endpoint
@@ -187,6 +170,7 @@ async def get_batches(course:str=None):
 # End Point to get Recodings of batches basd on subject and batch 
 # and also covers search based on subject and search keyword
 
+
 @app.get("/recording")
 async def get_recordings(course:str=None,batchname:str=None,search:str=None):
     try:
@@ -203,6 +187,7 @@ async def get_recordings(course:str=None,batchname:str=None,search:str=None):
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/contact")
 async def contact(user: ContactForm):
