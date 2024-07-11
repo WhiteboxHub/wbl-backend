@@ -166,8 +166,48 @@ async def fetch_keyword_recordings(subject,keyword):
         conn.close()
         
         
-# Async function to fetch presentations based on a keyword
-async def fetch_keyword_presentation(keyword):
+# # Async function to fetch presentations based on a keyword
+# async def fetch_keyword_presentation(keyword):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         type_mapping = {
+#             "Presentations": "P",
+#             "Cheatsheets": "C",
+#             "Diagrams": "D",
+#             "Installations": "I",
+#             "Templates": "T",
+#             "Books": "B",
+#             "Softwares": "S",
+#             "Miscellaneous": "M"
+#         }
+#         type_code = type_mapping.get(keyword)
+#         if type_code:
+#             query = "SELECT * FROM whiteboxqa.course_material WHERE type = %s ORDER BY name ASC;"
+#             await loop.run_in_executor(None, cursor.execute, query, (type_code,))
+#             data = cursor.fetchall()
+#             return data
+#         else:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Invalid keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Miscellaneous"
+#             )
+#     except mysql.connector.Error as err:
+#         print(f"Error: {err}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Database error occurred"
+#         )
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+
+
+
+
+async def fetch_keyword_presentation(keyword, category):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
@@ -184,8 +224,18 @@ async def fetch_keyword_presentation(keyword):
         }
         type_code = type_mapping.get(keyword)
         if type_code:
-            query = "SELECT * FROM whiteboxqa.course_material WHERE type = %s ORDER BY name ASC;"
-            await loop.run_in_executor(None, cursor.execute, query, (type_code,))
+            query = """
+            SELECT * FROM whiteboxqa.course_material 
+            WHERE type = %s AND (courseid = 0 OR courseid = %s);
+            """
+            courseid_mapping = {
+                "QA": 1,
+                "UI": 2,
+                "ML": 4
+            }
+            selected_courseid = courseid_mapping.get(category)
+
+            await loop.run_in_executor(None, cursor.execute, query, (type_code, selected_courseid))
             data = cursor.fetchall()
             return data
         else:
