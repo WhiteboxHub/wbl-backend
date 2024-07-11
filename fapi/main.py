@@ -110,17 +110,37 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-# Presentation endpoint
-@app.get("/presentation")
-# async def get_presentation(search: str = None, current_user: dict = Depends(get_current_user)):
-async def get_presentation(search: str = None):
-    if search:
-        presentation = await fetch_keyword_presentation(search)
-        if presentation:
-            return {"presentation": presentation}
-        else:
-            raise HTTPException(status_code=404, detail="No Data found for the given name")
-    raise HTTPException(status_code=400, detail="No valid query parameter provided")
+# # Presentation endpoint
+# @app.get("/presentation")
+# # async def get_presentation(search: str = None, current_user: dict = Depends(get_current_user)):
+# async def get_presentation(search: str = None):
+#     if search:
+#         presentation = await fetch_keyword_presentation(search)
+#         if presentation:
+#             return {"presentation": presentation}
+#         else:
+#             raise HTTPException(status_code=404, detail="No Data found for the given name")
+#     raise HTTPException(status_code=400, detail="No valid query parameter provided")
+
+
+
+
+@app.get("/materials/{keyword}/{category}")
+async def get_materials(keyword: str, category: str):
+    valid_categories = ["QA", "UI", "ML"]
+    if category not in valid_categories:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid category. Please select one of: QA, UI, ML"
+        )
+
+    try:
+        data = await fetch_keyword_presentation(keyword, category)
+        return JSONResponse(content=data)
+    except HTTPException as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+
+
 
 
 # Token verification endpoint
