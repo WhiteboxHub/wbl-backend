@@ -101,4 +101,4 @@ def verify_token(token: str):
     except ExpiredSignatureError:
         return JSONResponse(status_code=401, content={'detail': 'Login Session Expired'})
     except JWTError:
-        return JSONResponse(status_code=401, content={'detail': 'Unauthorized'})
+        return JSONResponse(status_code=401, content={'detail': 'Unauthorized - invalid User, please login again'})
