@@ -125,23 +125,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
 
 
-@app.get("/materials/{keyword}/{category}")
-async def get_materials(keyword: str, category: str):
-    valid_categories = ["QA", "UI", "ML"]
-    if category not in valid_categories:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid category. Please select one of: QA, UI, ML"
-        )
-
-    try:
-        data = await fetch_keyword_presentation(keyword, category)
-        return JSONResponse(content=data)
-    except HTTPException as e:
-        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
-
-
-
 
 # Token verification endpoint
 @app.post("/verify_token")
