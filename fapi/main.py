@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status,Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from models import UserCreate, Token, UserRegistration,ContactForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,6 +43,10 @@ async def authenticate_user(uname: str, passwd: str):
     user = await get_user_by_username(uname)
     if not user or not verify_md5_hash(passwd, user["passwd"]):
         return False
+    
+    if user["status"] != 'active':
+        return "inactive"  # User status is not active
+    
     return user
 
 
@@ -77,18 +81,28 @@ async def register_user(user: UserRegistration):
     )
     return {"message": "User registered successfully"}
 
+
 # Login endpoint
 @app.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
-    if not user:
+    
+    if user == "inactive":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="PLease Contact Recruiting '+1 925-557-1053' ",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    elif not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Not a Valid User / Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # At this point, user should contain the user data if authentication is successful
     access_token = create_access_token(data={"sub": user["uname"]})
     return {"access_token": access_token, "token_type": "bearer"}
+
 
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -110,18 +124,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-# Presentation endpoint
-@app.get("/presentation")
-# async def get_presentation(search: str = None, current_user: dict = Depends(get_current_user)):
-async def get_presentation(search: str = None):
-    if search:
-        presentation = await fetch_keyword_presentation(search)
-        if presentation:
-            return {"presentation": presentation}
-        else:
-            raise HTTPException(status_code=404, detail="No Data found for the given name")
-    raise HTTPException(status_code=400, detail="No valid query parameter provided")
+@app.get("/materials")
+async def get_materials(course: str = Query(...), search: str = Query(...)):
+    valid_courses = ["QA", "UI", "ML"]
+    if course.upper() not in valid_courses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid course. Please select one of: QA, UI, ML"
+        )
 
+    try:
+        data = await fetch_keyword_presentation(search, course)
+        return JSONResponse(content=data)
+    except HTTPException as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+    
 
 # Token verification endpoint
 @app.post("/verify_token")

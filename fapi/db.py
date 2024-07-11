@@ -19,8 +19,9 @@ db_config = {
     'port': os.getenv('DB_PORT')
 }
 
+# Async function to insert a user into the database
 async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
-                      instructor: str = None, override: str = None, status: str = "inactive", lastlogin: str = None, 
+                      instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
                       registereddate: str = None, level3date: str = None):
@@ -28,42 +29,26 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor()
-
-        # Insert into whiteboxqa.authuser
-        query_authuser = """
+        query = """
             INSERT INTO whiteboxqa.authuser (
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
                 message, registereddate, level3date
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """
-        values_authuser = (
-            uname, passwd, dailypwd, team, level, instructor, override, "inactive", 
+        values = (
+            uname, passwd, dailypwd, team, level, instructor, override, status, 
             lastlogin, logincount, fullname, phone, address, city, Zip, country, 
             message, registereddate, level3date
         )
-        await loop.run_in_executor(None, cursor.execute, query_authuser, values_authuser)
-        
-        # Insert into whiteboxqa.leads
-        query_leads = """
-            INSERT INTO whiteboxqa.leads (
-                name, email, phone, status, address, city, Zip, country
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        values_leads = (
-            fullname, uname, phone, "Open", address, city, Zip, country
-        )
-        await loop.run_in_executor(None, cursor.execute, query_leads, values_leads)
-        
+        await loop.run_in_executor(None, cursor.execute, query, values)
         conn.commit()
-    except mysql.connector.Error as e:
+    except Error as e:
         print(f"Error inserting user: {e}")
         raise HTTPException(status_code=500, detail="Error inserting user")
     finally:
         cursor.close()
         conn.close()
-
-
 
 
 #fucntion to merge batchs
@@ -91,13 +76,7 @@ async def fetch_course_batches(subject:str=None):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        # query = f"""
-        #         SELECT batchname 
-        #         FROM whiteboxqa.batch
-        #         WHERE subject = '{subject}'
-        #         GROUP BY batchname
-        #         ORDER BY batchname DESC;
-        #         """
+       
         query = f"""
                 SELECT batchname 
                 FROM whiteboxqa.recording
@@ -166,8 +145,7 @@ async def fetch_keyword_recordings(subject,keyword):
         conn.close()
         
         
-# Async function to fetch presentations based on a keyword
-async def fetch_keyword_presentation(keyword):
+async def fetch_keyword_presentation(search, course):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
@@ -182,16 +160,26 @@ async def fetch_keyword_presentation(keyword):
             "Softwares": "S",
             "Miscellaneous": "M"
         }
-        type_code = type_mapping.get(keyword)
+        type_code = type_mapping.get(search)
         if type_code:
-            query = "SELECT * FROM whiteboxqa.course_material WHERE type = %s ORDER BY name ASC;"
-            await loop.run_in_executor(None, cursor.execute, query, (type_code,))
+            query = """
+            SELECT * FROM whiteboxqa.course_material 
+            WHERE type = %s AND (courseid = 0 OR courseid = %s) ORDER BY name ASC;
+            """
+            courseid_mapping = {
+                "QA": 1,
+                "UI": 2,
+                "ML": 4
+            }
+            selected_courseid = courseid_mapping.get(course.upper())
+
+            await loop.run_in_executor(None, cursor.execute, query, (type_code, selected_courseid))
             data = cursor.fetchall()
             return data
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Miscellaneous"
+                detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Miscellaneous"
             )
     except mysql.connector.Error as err:
         print(f"Error: {err}")
@@ -243,8 +231,8 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO whiteboxqa.contact_feedback (
-                name,email, phone,message) VALUES (%s, %s, %s, %s);
+            INSERT INTO whiteboxqa.leads (
+                name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
             name, email, phone,message)
