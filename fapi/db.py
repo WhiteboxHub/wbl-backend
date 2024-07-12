@@ -240,7 +240,7 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
         conn.commit()
     except Error as e:
         print(f"Error inserting user: {e}")
-        raise HTTPException(status_code=500, detail="your response have already been sent")
+        raise HTTPException(status_code=409, detail="Response already sent!")
     finally:
         cursor.close()
         conn.close()
@@ -249,7 +249,7 @@ def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        cursor.execute("SELECT * FROM whiteboxqa.course_content;")
+        cursor.execute("SELECT * FROM whiteboxqa.new_course_content")
         data = cursor.fetchall()
         return data 
     finally:

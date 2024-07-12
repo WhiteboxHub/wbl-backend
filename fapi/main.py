@@ -216,7 +216,7 @@ async def contact(user: ContactForm):
         message=user.message
         
         )
-    return {"message": "Message Sent Successfully"}
+    return {"detail": "Message Sent Successfully"}
 
 
 @app.get("/coursecontent")
