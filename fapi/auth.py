@@ -7,7 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi import Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from db import get_user_by_username
+from fapi.db import get_user_by_username
 
 
 # Load environment variables from .env file
