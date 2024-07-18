@@ -1,4 +1,3 @@
-# from fapi.utils import md5_hash,verify_md5_hash
 from utils import md5_hash,verify_md5_hash
 import mysql.connector
 from fastapi import HTTPException, status

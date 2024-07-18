@@ -1,12 +1,3 @@
-# from fapi.models import UserCreate, Token, UserRegistration,ContactForm
-# from fapi.db import (
-#     insert_user,get_user_by_username, verify_md5_hash, 
-#     fetch_keyword_recordings, fetch_keyword_presentation, 
-#     fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content
-# )
-# from fapi.utils import md5_hash,verify_md5_hash
-# from fapi.auth import create_access_token, verify_token,JWTAuthorizationMiddleware
-# from fapi.utils import md5_hash
 from models import UserCreate, Token, UserRegistration,ContactForm
 from db import (
     insert_user,get_user_by_username, verify_md5_hash, 
