@@ -1,15 +1,24 @@
-from fastapi import FastAPI, Depends, HTTPException, status,Query
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fapi.models import UserCreate, Token, UserRegistration,ContactForm
-from fastapi.middleware.cors import CORSMiddleware
-from fapi.db import (
+# from fapi.models import UserCreate, Token, UserRegistration,ContactForm
+# from fapi.db import (
+#     insert_user,get_user_by_username, verify_md5_hash, 
+#     fetch_keyword_recordings, fetch_keyword_presentation, 
+#     fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content
+# )
+# from fapi.utils import md5_hash,verify_md5_hash
+# from fapi.auth import create_access_token, verify_token,JWTAuthorizationMiddleware
+# from fapi.utils import md5_hash
+from models import UserCreate, Token, UserRegistration,ContactForm
+from db import (
     insert_user,get_user_by_username, verify_md5_hash, 
     fetch_keyword_recordings, fetch_keyword_presentation, 
     fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content
 )
-from fapi.utils import md5_hash,verify_md5_hash
-from fapi.auth import create_access_token, verify_token,JWTAuthorizationMiddleware
-from fapi.utils import md5_hash
+from utils import md5_hash,verify_md5_hash
+from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
+from utils import md5_hash
+from fastapi import FastAPI, Depends, HTTPException, status,Query
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from jose import JWTError
 from typing import List

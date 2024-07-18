@@ -1,3 +1,5 @@
+# from fapi.db import get_user_by_username
+from db import get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
@@ -7,7 +9,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi import Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fapi.db import get_user_by_username
 
 
 # Load environment variables from .env file
@@ -18,7 +19,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 3
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 
 # Simple in-memory cache dictionary
@@ -81,18 +82,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Function to verify token
-# def verify_token(token: str):
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         return payload
-#     # except JWTError as e:
-#     #     raise ValueError(f"Token verification failed: {str(e)}")
-#     except ExpiredSignatureError:
-#             return JSONResponse(status_code=401,content={'detail':'Login Session Expired'})
-#     except JWTError:
-#             # print('jwterror')
-#             return JSONResponse(status_code=401,content={'detail':'unauthorized'})     
     
 def verify_token(token: str):
     try:

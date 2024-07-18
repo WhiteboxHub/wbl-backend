@@ -1,10 +1,11 @@
+# from fapi.utils import md5_hash,verify_md5_hash
+from utils import md5_hash,verify_md5_hash
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from fapi.utils import md5_hash,verify_md5_hash
 from passlib.context import CryptContext
 import asyncio
 import copy
