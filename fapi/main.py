@@ -15,7 +15,11 @@ from jose import JWTError
 from typing import List
 import os
 from fastapi.responses import JSONResponse
-
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from jinja2 import Environment,FileSystemLoader
+from contactMailTemplet import ContactMail_HTML_templete
 # Load environment variables from .env file
 load_dotenv()
 
@@ -216,7 +220,28 @@ async def contact(user: ContactForm):
         message=user.message
         
         )
-    return {"detail": "Message Sent Successfully"}
+    def sendEmail():
+        from_Email = os.getenv('EMAIL_USER')
+        password = os.getenv('EMAIL_PASS')
+        to_email = os.getenv('TO_RECRUITING_EMAIL')
+        html_content = ContactMail_HTML_templete(user.name,user.email,user.phone,user.message)
+        msg = MIMEMultipart()
+        msg['From'] = from_Email
+        msg['To'] = to_email
+        msg['Subject'] = 'WBL Contact lead generated'
+
+        msg.attach(MIMEText(html_content, 'html'))
+        try:
+            server = smtplib.SMTP('smtp.gmail.com',587)
+            server.starttls()
+            server.login(from_Email,password)
+            text = msg.as_string()
+            server.sendmail(from_Email,to_email,text)
+            server.quit()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
+    sendEmail()
+    return {"detail": "Message Sent Successfully Our Team will Reachout to you"}
 
 
 @app.get("/coursecontent")
