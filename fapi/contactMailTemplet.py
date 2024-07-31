@@ -81,7 +81,7 @@ def ContactMail_HTML_templete(name, email, phone, message):
                 <td>{phone}</td>
             </tr>
             <tr>
-                <td class='left'>PHONE</td>
+                <td class='left'>Contact Date</td>
                 <td>{date.today()}</td>
             </tr>
             <tr>

@@ -5,10 +5,7 @@ from mysql.connector import Error
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from passlib.context import CryptContext
 import asyncio
-import copy
-from collections import OrderedDict
 load_dotenv()
 
 db_config = {
@@ -76,15 +73,6 @@ async def fetch_course_batches(subject:str=None):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-       
-        query = f"""
-                SELECT batchname 
-                FROM whiteboxqa.recording
-                WHERE course = '{subject}'
-                GROUP BY batchname
-                ORDER BY batchname DESC;
-                """
-
         batchquery = f"""
                 SELECT batchname 
                 FROM whiteboxqa.batch
@@ -92,16 +80,9 @@ async def fetch_course_batches(subject:str=None):
                 GROUP BY batchname
                 ORDER BY batchname DESC;
                 """
-       
-        
-        await loop.run_in_executor(None, cursor.execute, query)
-        batches = cursor.fetchall()
-        
         await loop.run_in_executor(None, cursor.execute, batchquery)
         r1 = cursor.fetchall()
-        merged_response = merge_batches(r1,batches)
-        return merged_response
-        # return batches
+        return r1
     except Error as e:
         print(f"Error: {e}")
         return []

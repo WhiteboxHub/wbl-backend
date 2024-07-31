@@ -18,7 +18,6 @@ from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from jinja2 import Environment,FileSystemLoader
 from contactMailTemplet import ContactMail_HTML_templete
 # Load environment variables from .env file
 load_dotenv()
@@ -200,8 +199,6 @@ async def get_recordings(course:str=None,batchname:str=None,search:str=None):
         if not batchname and not search:
             return {"details":"Batchname or Search Keyword expected"}
         if search:
-            recording = await fetch_keyword_recordings(course,search)
-            # print('search started')
             recording = await fetch_keyword_recordings(course,search)
             return {"batch_recordings": recording}
         recordings = await fetch_subject_batch_recording(course,batchname)
