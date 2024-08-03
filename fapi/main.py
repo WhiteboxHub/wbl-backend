@@ -28,10 +28,10 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this list to include your frontend URL
+    allow_origins= ["http://localhost:3000","https://whitebox-learning.com", "https://www.whitebox-learning.com","http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],   
 )
 
 # OAuth2PasswordBearer instance
@@ -88,8 +88,7 @@ async def register_user(user: UserRegistration):
 # Login endpoint
 @app.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)
-    
+    user = await authenticate_user(form_data.username, form_data.password)    
     if user == "inactive":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -221,15 +220,17 @@ async def contact(user: ContactForm):
         from_Email = os.getenv('EMAIL_USER')
         password = os.getenv('EMAIL_PASS')
         to_email = os.getenv('TO_RECRUITING_EMAIL')
+        smtp_server = os.getenv('SMTP_SERVER')
+        smtp_port = os.getenv('SMTP_PORT')
         html_content = ContactMail_HTML_templete(user.name,user.email,user.phone,user.message)
         msg = MIMEMultipart()
         msg['From'] = from_Email
         msg['To'] = to_email
         msg['Subject'] = 'WBL Contact lead generated'
-
         msg.attach(MIMEText(html_content, 'html'))
         try:
-            server = smtplib.SMTP('smtp.gmail.com',587)
+            # server = smtplib.SMTP('smtp.gmail.com',587)
+            server = smtplib.SMTP(smtp_server, int(smtp_port))
             server.starttls()
             server.login(from_Email,password)
             text = msg.as_string()
