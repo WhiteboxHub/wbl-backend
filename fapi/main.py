@@ -2,7 +2,7 @@ from models import UserCreate, Token, UserRegistration,ContactForm
 from db import (
     insert_user,get_user_by_username, verify_md5_hash, 
     fetch_keyword_recordings, fetch_keyword_presentation, 
-    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content
+    fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content,fetch_candidate_id_by_email
 )
 from utils import md5_hash,verify_md5_hash
 from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
@@ -41,20 +41,23 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 # #applying middleware funcion
 # app.add_middleware(JWTAuthorizationMiddleware)
 
-# Function to authenticate user
 async def authenticate_user(uname: str, passwd: str):
     user = await get_user_by_username(uname)
     if not user or not verify_md5_hash(passwd, user["passwd"]):
         return False
-    
+        
     if user["status"] != 'active':
         return "inactive"  # User status is not active
     
-    return user
+    # Fetch candidateid from the candidate table
+    candidate_info = await fetch_candidate_id_by_email(uname)
+    if candidate_info is None:
+        return "no_candidate_info"
+    
+    return {**user, "candidateid": candidate_info["candidateid"]}
 
 
-# Signup endpoint
-@app.post("/signup")
+@app.post("/api/signup")
 async def register_user(user: UserRegistration):
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
@@ -80,19 +83,29 @@ async def register_user(user: UserRegistration):
         country=user.country,
         message=user.message,
         registereddate=user.registereddate,
-        level3date=user.level3date
+        level3date=user.level3date,
+        candidate_info={
+            'name': user.fullname,
+            'enrolleddate': user.registereddate,
+            'email': user.uname,
+            'phone': user.phone,
+            'address': user.address,
+            'city': user.city,
+            'country': user.country,
+            'zip': user.Zip,
+            'status': user.status
+        }
     )
     return {"message": "User registered successfully"}
 
 
-# Login endpoint
-@app.post("/login", response_model=Token)
+@app.post("/api/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)    
     if user == "inactive":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="PLease Contact Recruiting '+1 925-557-1053' ",
+            detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
             headers={"WWW-Authenticate": "Bearer"},
         )
     elif not user:
@@ -101,9 +114,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Not a Valid User / Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # At this point, user should contain the user data if authentication is successful
-    access_token = create_access_token(data={"sub": user["uname"]})
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Fetch candidate ID using the username (email)
+    candidate = await fetch_candidate_id_by_email(form_data.username)
+    candidate_id = candidate.get("candidateid") if candidate else None
+    
+    # Generate access token
+    access_token = create_access_token(data={"sub": user["uname"], "candidateid": candidate_id})
+    
+    return {"access_token": access_token, "token_type": "bearer", "candidateid": candidate_id}
 
 
 # Function to get the current user based on the token
@@ -126,7 +145,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-@app.get("/materials")
+@app.get("/api/materials")
 async def get_materials(course: str = Query(...), search: str = Query(...)):
     valid_courses = ["QA", "UI", "ML"]
     if course.upper() not in valid_courses:
@@ -143,7 +162,7 @@ async def get_materials(course: str = Query(...), search: str = Query(...)):
     
 
 # Token verification endpoint
-@app.post("/verify_token")
+@app.post("/api/verify_token")
 async def verify_token_endpoint(token: Token):
     try:
         payload = verify_token(token.access_token)
@@ -157,13 +176,13 @@ async def verify_token_endpoint(token: Token):
 
 
 # Fetch user details endpoint
-@app.get("/user_dashboard")
+@app.get("/api/user_dashboard")
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
 # Sessions endpoint
-@app.get("/sessions")
+@app.get("/api/sessions")
 async def get_sessions(category: str = None):
     try:
         sessions = await fetch_sessions_by_type(category)
@@ -175,7 +194,8 @@ async def get_sessions(category: str = None):
 
 
 #End Point to get batches info based on the course input
-@app.get("/batches")
+
+@app.get("/api/batches")
 async def get_batches(course:str=None):
     try:
         if not course:
@@ -190,7 +210,7 @@ async def get_batches(course:str=None):
 # and also covers search based on subject and search keyword
 
 
-@app.get("/recording")
+@app.get("/api/recording")
 async def get_recordings(course:str=None,batchname:str=None,search:str=None):
     try:
         if not course:
@@ -206,43 +226,54 @@ async def get_recordings(course:str=None,batchname:str=None,search:str=None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/contact")
+# @app.post("/api/contact")
+# async def contact(user: ContactForm):
+        
+#     await user_contact(
+#         name=user.name,
+#         email=user.email,
+#         phone=user.phone,
+#         message=user.message
+        
+#         )
+#     def sendEmail():
+#         from_Email = os.getenv('EMAIL_USER')
+#         password = os.getenv('EMAIL_PASS')
+#         to_email = os.getenv('TO_RECRUITING_EMAIL')
+#         smtp_server = os.getenv('SMTP_SERVER')
+#         smtp_port = os.getenv('SMTP_PORT')
+#         html_content = ContactMail_HTML_templete(user.name,user.email,user.phone,user.message)
+#         msg = MIMEMultipart()
+#         msg['From'] = from_Email
+#         msg['To'] = to_email
+#         msg['Subject'] = 'WBL Contact lead generated'
+#         msg.attach(MIMEText(html_content, 'html'))
+#         try:
+#             # server = smtplib.SMTP('smtp.gmail.com',587)
+#             server = smtplib.SMTP(smtp_server, int(smtp_port))
+#             server.starttls()
+#             server.login(from_Email,password)
+#             text = msg.as_string()
+#             server.sendmail(from_Email,to_email,text)
+#             server.quit()
+#         except Exception as e:
+#             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
+#     sendEmail()
+#     return {"detail": "Message Sent Successfully Our Team will Reachout to you"}
+
+@app.post("/api/contact")
 async def contact(user: ContactForm):
         
     await user_contact(
         name=user.name,
         email=user.email,
         phone=user.phone,
-        message=user.message
-        
+        message=user.message        
         )
-    def sendEmail():
-        from_Email = os.getenv('EMAIL_USER')
-        password = os.getenv('EMAIL_PASS')
-        to_email = os.getenv('TO_RECRUITING_EMAIL')
-        smtp_server = os.getenv('SMTP_SERVER')
-        smtp_port = os.getenv('SMTP_PORT')
-        html_content = ContactMail_HTML_templete(user.name,user.email,user.phone,user.message)
-        msg = MIMEMultipart()
-        msg['From'] = from_Email
-        msg['To'] = to_email
-        msg['Subject'] = 'WBL Contact lead generated'
-        msg.attach(MIMEText(html_content, 'html'))
-        try:
-            # server = smtplib.SMTP('smtp.gmail.com',587)
-            server = smtplib.SMTP(smtp_server, int(smtp_port))
-            server.starttls()
-            server.login(from_Email,password)
-            text = msg.as_string()
-            server.sendmail(from_Email,to_email,text)
-            server.quit()
-        except Exception as e:
-            raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
-    sendEmail()
     return {"detail": "Message Sent Successfully Our Team will Reachout to you"}
 
 
-@app.get("/coursecontent")
+@app.get("/api/coursecontent")
 def get_course_content():
     content = course_content()
     return {"coursecontent": content}

@@ -3,9 +3,10 @@ import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
-from typing import Optional
+from typing import Optional,Dict
 from dotenv import load_dotenv
 import asyncio
+
 load_dotenv()
 
 db_config = {
@@ -17,36 +18,85 @@ db_config = {
 }
 
 # Async function to insert a user into the database
+# async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
+#                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
+#                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
+#                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
+#                       registereddate: str = None, level3date: str = None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+#         query = """
+#             INSERT INTO whiteboxqa.authuser (
+#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
+#                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
+#                 message, registereddate, level3date
+#             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+#         """
+#         values = (
+#             uname, passwd, dailypwd, team, level, instructor, override, status, 
+#             lastlogin, logincount, fullname, phone, address, city, Zip, country, 
+#             message, registereddate, level3date
+#         )
+#         await loop.run_in_executor(None, cursor.execute, query, values)
+#         conn.commit()
+#     except Error as e:
+#         print(f"Error inserting user: {e}")
+#         raise HTTPException(status_code=500, detail="Error inserting user")
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+
+# Async function to insert a user into the database
 async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
-                      registereddate: str = None, level3date: str = None):
+                      registereddate: str = None, level3date: str = None, candidate_info: Dict[str, Optional[str]] = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor()
-        query = """
+        
+        # Insert into authuser table
+        query1 = """
             INSERT INTO whiteboxqa.authuser (
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
                 message, registereddate, level3date
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """
-        values = (
+        values1 = (
             uname, passwd, dailypwd, team, level, instructor, override, status, 
             lastlogin, logincount, fullname, phone, address, city, Zip, country, 
             message, registereddate, level3date
         )
-        await loop.run_in_executor(None, cursor.execute, query, values)
+        await loop.run_in_executor(None, cursor.execute, query1, values1)
+        
+        # Insert into candidate table
+        query2 = """
+            INSERT INTO whiteboxqa.candidate (
+                name, enrolleddate, email, course, phone, status, address, city, country, zip
+            ) VALUES (%s, %s, %s, 'QA', %s,'active', %s, %s, %s, %s);
+        """
+        values2 = (
+            candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
+            candidate_info['phone'], candidate_info['address'], 
+            candidate_info['city'], candidate_info['country'], candidate_info['zip']
+        )
+        await loop.run_in_executor(None, cursor.execute, query2, values2)
+
         conn.commit()
     except Error as e:
         print(f"Error inserting user: {e}")
+        conn.rollback()
         raise HTTPException(status_code=500, detail="Error inserting user")
     finally:
         cursor.close()
         conn.close()
-
+        
 
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
@@ -74,7 +124,7 @@ async def fetch_course_batches(subject:str=None):
     try:
         cursor = conn.cursor(dictionary=True)
         batchquery = f"""
-                SELECT batchname 
+                SELECT batchname,batchid 
                 FROM whiteboxqa.batch
                 WHERE subject = '{subject}'
                 GROUP BY batchname
@@ -186,6 +236,22 @@ async def get_user_by_username(uname: str):
     finally:
         conn.close()
 
+
+# ------------------------------------
+
+
+async def fetch_candidate_id_by_email(email: str):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT candidateid FROM candidate WHERE email = %s;"
+        await loop.run_in_executor(None, cursor.execute, query, (email,))
+        result = cursor.fetchone()
+        return result
+    finally:
+        conn.close()
+# ------------------------------------
 
 # Async function to fetch sessions by category
 async def fetch_sessions_by_type(category: str = None):
