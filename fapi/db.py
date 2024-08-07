@@ -140,15 +140,32 @@ async def fetch_course_batches(subject:str=None):
         conn.close()
 
 #function to fetch recording with subject and batchname
-async def fetch_subject_batch_recording(subject:str=None,batchname:str=None):
+# async def fetch_subject_batch_recording(subject:str=None,batchname:str=None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = f"""
+#                 SELECT * 
+#                 FROM whiteboxqa.recording
+#                 WHERE batchname = '{batchname}' 
+#                 AND (course = '{subject}' OR course = 'COMMON');
+#                 """
+#         await loop.run_in_executor(None, cursor.execute, query)
+#         recordings = cursor.fetchall()
+#         return recordings
+#     finally:
+#         conn.close()
+
+async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
         query = f"""
                 SELECT * 
-                FROM whiteboxqa.recording
-                WHERE batchname = '{batchname}' 
+                FROM whiteboxqa.new_recording_1
+                WHERE batchid = {batchid} 
                 AND (course = '{subject}' OR course = 'COMMON');
                 """
         await loop.run_in_executor(None, cursor.execute, query)
@@ -164,10 +181,10 @@ async def fetch_keyword_recordings(subject,keyword):
     try:
         cursor = conn.cursor(dictionary=True)
         query = """SELECT * 
-                FROM whiteboxqa.recording 
+                FROM whiteboxqa.new_recording_1 
                 WHERE (course = %s OR course = 'COMMON') 
                 AND description LIKE %s 
-                ORDER BY classdate DESC;"""
+                ORDER BY classdate ASC;"""
       
         await loop.run_in_executor(None, cursor.execute, query,( subject,'%' + keyword + '%',))
         data = cursor.fetchall()
@@ -300,4 +317,29 @@ def course_content():
         data = cursor.fetchall()
         return data 
     finally:
+        conn.close()
+
+
+def unsubscribe_user(email: str) -> (bool, str):
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT remove FROM massemail WHERE email = %s", (email,))
+        result = cursor.fetchone()
+
+        if result is None:
+            return False, "User not found"
+
+        if result[0] == 'Y':
+            return True, "Already unsubscribed"
+
+        cursor.execute("UPDATE massemail SET remove = 'Y' WHERE email = %s", (email,))
+        conn.commit()
+
+        return True, "Successfully unsubscribed"
+    except Error as e:
+        print(f"Error: {e}")
+        return False, "An error occurred"
+    finally:
+        cursor.close()
         conn.close()

@@ -3,6 +3,7 @@ from db import (
     insert_user,get_user_by_username, verify_md5_hash, 
     fetch_keyword_recordings, fetch_keyword_presentation, 
     fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content,fetch_candidate_id_by_email
+    ,unsubscribe_user
 )
 from utils import md5_hash,verify_md5_hash
 from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
@@ -19,6 +20,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from contactMailTemplet import ContactMail_HTML_templete
+from pydantic import BaseModel, EmailStr
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -210,21 +213,37 @@ async def get_batches(course:str=None):
 # and also covers search based on subject and search keyword
 
 
+# @app.get("/api/recording")
+# async def get_recordings(course:str=None,batchname:str=None,search:str=None):
+#     try:
+#         if not course:
+#             return {"Details":"subject expected"}
+#         if not batchname and not search:
+#             return {"details":"Batchname or Search Keyword expected"}
+#         if search:
+#             recording = await fetch_keyword_recordings(course,search)
+#             return {"batch_recordings": recording}
+#         recordings = await fetch_subject_batch_recording(course,batchname)
+#         return {"batch_recordings": recordings}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/recording")
-async def get_recordings(course:str=None,batchname:str=None,search:str=None):
+async def get_recordings(course: str = None, batchid: int = None, search: str = None):
     try:
         if not course:
-            return {"Details":"subject expected"}
-        if not batchname and not search:
-            return {"details":"Batchname or Search Keyword expected"}
+            return {"details": "Course expected"}
+        if not batchid and not search:
+            return {"details": "Batchid or Search Keyword expected"}
         if search:
-            recording = await fetch_keyword_recordings(course,search)
-            return {"batch_recordings": recording}
-        recordings = await fetch_subject_batch_recording(course,batchname)
+            recordings = await fetch_keyword_recordings(course, search)
+            return {"batch_recordings": recordings}
+        recordings = await fetch_subject_batch_recording(course, batchid)
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 
 # @app.post("/api/contact")
 # async def contact(user: ContactForm):
@@ -278,5 +297,13 @@ def get_course_content():
     content = course_content()
     return {"coursecontent": content}
 
+class EmailRequest(BaseModel):
+    email: EmailStr
 
-
+@app.put("/api/unsubscribe")
+def unsubscribe(request: EmailRequest):
+    status, message = unsubscribe_user(request.email)
+    if status:
+        return {"message": message}
+    else:
+        raise HTTPException(status_code=404, detail=message)
