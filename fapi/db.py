@@ -18,38 +18,6 @@ db_config = {
 }
 
 # Async function to insert a user into the database
-# async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
-#                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
-#                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
-#                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
-#                       registereddate: str = None, level3date: str = None):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = """
-#             INSERT INTO whiteboxqa.authuser (
-#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
-#                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
-#                 message, registereddate, level3date
-#             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-#         """
-#         values = (
-#             uname, passwd, dailypwd, team, level, instructor, override, status, 
-#             lastlogin, logincount, fullname, phone, address, city, Zip, country, 
-#             message, registereddate, level3date
-#         )
-#         await loop.run_in_executor(None, cursor.execute, query, values)
-#         conn.commit()
-#     except Error as e:
-#         print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=500, detail="Error inserting user")
-#     finally:
-#         cursor.close()
-#         conn.close()
-
-
-# Async function to insert a user into the database
 async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
@@ -101,9 +69,7 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
     # Combine the two lists
-    all_batches = q1_response + q2_response
-    
-    # print(all_batches)
+    all_batches = q1_response + q2_response    
     seen_batches = set()
     unique_batches = []
 
@@ -139,23 +105,6 @@ async def fetch_course_batches(subject:str=None):
     finally:
         conn.close()
 
-#function to fetch recording with subject and batchname
-# async def fetch_subject_batch_recording(subject:str=None,batchname:str=None):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = f"""
-#                 SELECT * 
-#                 FROM whiteboxqa.recording
-#                 WHERE batchname = '{batchname}' 
-#                 AND (course = '{subject}' OR course = 'COMMON');
-#                 """
-#         await loop.run_in_executor(None, cursor.execute, query)
-#         recordings = cursor.fetchall()
-#         return recordings
-#     finally:
-#         conn.close()
 
 async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
     loop = asyncio.get_event_loop()
@@ -240,7 +189,6 @@ async def fetch_keyword_presentation(search, course):
         conn.close()
 
 
-# Async function to fetch a user by username
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -254,9 +202,6 @@ async def get_user_by_username(uname: str):
         conn.close()
 
 
-# ------------------------------------
-
-
 async def fetch_candidate_id_by_email(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -268,7 +213,7 @@ async def fetch_candidate_id_by_email(email: str):
         return result
     finally:
         conn.close()
-# ------------------------------------
+
 
 # Async function to fetch sessions by category
 async def fetch_sessions_by_type(category: str = None):
@@ -287,7 +232,6 @@ async def fetch_sessions_by_type(category: str = None):
     finally:
         conn.close()
         
-
 
 async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
     loop = asyncio.get_event_loop()

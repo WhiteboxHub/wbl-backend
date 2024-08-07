@@ -37,6 +37,7 @@ app.add_middleware(
     allow_headers=["*"],   
 )
 
+
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -47,17 +48,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 async def authenticate_user(uname: str, passwd: str):
     user = await get_user_by_username(uname)
     if not user or not verify_md5_hash(passwd, user["passwd"]):
-        return False
-        
+        return None
+
     if user["status"] != 'active':
         return "inactive"  # User status is not active
-    
+
     # Fetch candidateid from the candidate table
     candidate_info = await fetch_candidate_id_by_email(uname)
-    if candidate_info is None:
-        return "no_candidate_info"
-    
-    return {**user, "candidateid": candidate_info["candidateid"]}
+    candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
+    return {**user, "candidateid": candidateid}
+
 
 
 @app.post("/api/signup")
@@ -104,7 +104,7 @@ async def register_user(user: UserRegistration):
 
 @app.post("/api/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)    
+    user = await authenticate_user(form_data.username, form_data.password)
     if user == "inactive":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -117,16 +117,21 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Not a Valid User / Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Fetch candidate ID using the username (email)
-    candidate = await fetch_candidate_id_by_email(form_data.username)
-    candidate_id = candidate.get("candidateid") if candidate else None
-    
-    # Generate access token
-    access_token = create_access_token(data={"sub": user["uname"], "candidateid": candidate_id})
-    
-    return {"access_token": access_token, "token_type": "bearer", "candidateid": candidate_id}
 
+    # Ensure user is a dictionary
+    if not isinstance(user, dict):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid user object returned from authentication",
+        )
+
+    # Create token payload with candidateid
+    access_token = create_access_token(data={"sub": user["uname"], "candidateid": user["candidateid"]})
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
 
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -207,26 +212,6 @@ async def get_batches(course:str=None):
         return {"batches": batches}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# End Point to get Recodings of batches basd on subject and batch 
-# and also covers search based on subject and search keyword
-
-
-# @app.get("/api/recording")
-# async def get_recordings(course:str=None,batchname:str=None,search:str=None):
-#     try:
-#         if not course:
-#             return {"Details":"subject expected"}
-#         if not batchname and not search:
-#             return {"details":"Batchname or Search Keyword expected"}
-#         if search:
-#             recording = await fetch_keyword_recordings(course,search)
-#             return {"batch_recordings": recording}
-#         recordings = await fetch_subject_batch_recording(course,batchname)
-#         return {"batch_recordings": recordings}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/recording")
