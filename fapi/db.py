@@ -106,16 +106,66 @@ async def fetch_course_batches(subject:str=None):
         conn.close()
 
 
+# async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = f"""
+#                 SELECT * 
+#                 FROM whiteboxqa.new_recording_1
+#                 WHERE batchid = {batchid} 
+#                 AND (course = '{subject}' OR course = 'COMMON');
+#                 """
+#         await loop.run_in_executor(None, cursor.execute, query)
+#         recordings = cursor.fetchall()
+#         return recordings
+#     finally:
+#         conn.close()
+
+
+# async def fetch_keyword_recordings(subject,keyword):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = """SELECT * 
+#                 FROM whiteboxqa.new_recording_1 
+#                 WHERE (course = %s OR course = 'COMMON') 
+#                 AND description LIKE %s 
+#                 ORDER BY classdate ASC;"""
+      
+#         await loop.run_in_executor(None, cursor.execute, query,( subject,'%' + keyword + '%',))
+#         data = cursor.fetchall()
+#         return data
+#     finally:
+#         conn.close()
+
+
+
 async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
         query = f"""
-                SELECT * 
-                FROM whiteboxqa.new_recording_1
-                WHERE batchid = {batchid} 
-                AND (course = '{subject}' OR course = 'COMMON');
+                SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
+                FROM new_recording nr
+                JOIN new_recording_batch rb ON nr.id = rb.recording_id
+                JOIN batch b ON rb.batch_id = b.batchid
+                JOIN new_course_subject ncs ON b.courseid = ncs.course_id
+                JOIN new_course nc ON ncs.course_id = nc.id
+                WHERE nc.alias = '{subject}'
+                AND b.batchid = {batchid}
+                AND nr.new_subject_id IN (
+                SELECT subject_id
+                FROM new_course_subject
+                WHERE course_id = (
+                SELECT id
+                FROM new_course
+                WHERE alias = '{subject}'
+                )
+                );
                 """
         await loop.run_in_executor(None, cursor.execute, query)
         recordings = cursor.fetchall()
@@ -124,24 +174,46 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
         conn.close()
 
 
-async def fetch_keyword_recordings(subject,keyword):
+# async def fetch_keyword_recordings(subject, keyword):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = """SELECT * 
+#                 FROM whiteboxqa.new_recording_1 
+#                 WHERE (course = %s OR course = 'COMMON') 
+#                 AND description LIKE %s 
+#                 ORDER BY classdate ASC;"""
+#         await loop.run_in_executor(None, cursor.execute, query, (subject, '%' + keyword + '%'))
+#         data = cursor.fetchall()
+#         return data
+#     finally:
+#         conn.close()
+
+
+async def fetch_keyword_recordings(subject: str, keyword: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = """SELECT * 
-                FROM whiteboxqa.new_recording_1 
-                WHERE (course = %s OR course = 'COMMON') 
-                AND description LIKE %s 
-                ORDER BY classdate ASC;"""
-      
-        await loop.run_in_executor(None, cursor.execute, query,( subject,'%' + keyword + '%',))
-        data = cursor.fetchall()
-        return data
+        query = """
+                SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
+                FROM new_recording nr
+                JOIN new_recording_batch rb ON nr.id = rb.recording_id
+                JOIN batch b ON rb.batch_id = b.batchid
+                JOIN new_course_subject ncs ON b.courseid = ncs.course_id
+                JOIN new_course nc ON ncs.course_id = nc.id
+                WHERE nc.alias = %s
+                  AND nr.description LIKE %s
+                ORDER BY nr.classdate DESC;
+                """
+        await loop.run_in_executor(None, cursor.execute, query, (subject, '%' + keyword + '%'))
+        recordings = cursor.fetchall()
+        return recordings
     finally:
         conn.close()
-        
-        
+
+            
 async def fetch_keyword_presentation(search, course):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))

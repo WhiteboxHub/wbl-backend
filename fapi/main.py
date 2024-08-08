@@ -214,6 +214,21 @@ async def get_batches(course:str=None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# @app.get("/api/recording")
+# async def get_recordings(course: str = None, batchid: int = None, search: str = None):
+#     try:
+#         if not course:
+#             return {"details": "Course expected"}
+#         if not batchid and not search:
+#             return {"details": "Batchid or Search Keyword expected"}
+#         if search:
+#             recordings = await fetch_keyword_recordings(course, search)
+#             return {"batch_recordings": recordings}
+#         recordings = await fetch_subject_batch_recording(course, batchid)
+#         return {"batch_recordings": recordings}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+    
 @app.get("/api/recording")
 async def get_recordings(course: str = None, batchid: int = None, search: str = None):
     try:
@@ -228,6 +243,7 @@ async def get_recordings(course: str = None, batchid: int = None, search: str = 
         return {"batch_recordings": recordings}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
     
 
 # @app.post("/api/contact")
