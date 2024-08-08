@@ -1,4 +1,4 @@
-from models import UserCreate, Token, UserRegistration,ContactForm
+from models import EmailRequest, UserCreate, Token, UserRegistration,ContactForm
 from db import (
     insert_user,get_user_by_username, verify_md5_hash, 
     fetch_keyword_recordings, fetch_keyword_presentation, 
@@ -20,7 +20,6 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from contactMailTemplet import ContactMail_HTML_templete
-from pydantic import BaseModel, EmailStr
 
 # Load environment variables from .env file
 load_dotenv()
@@ -238,12 +237,18 @@ async def get_recordings(course: str = None, batchid: int = None, search: str = 
             return {"details": "Batchid or Search Keyword expected"}
         if search:
             recordings = await fetch_keyword_recordings(course, search)
+            if not recordings:
+                raise HTTPException(status_code=404, detail="No recordings found for the provided search keyword.")
             return {"batch_recordings": recordings}
         recordings = await fetch_subject_batch_recording(course, batchid)
+        if not recordings:
+            raise HTTPException(status_code=404, detail="No recordings found for the provided course and batch.")
         return {"batch_recordings": recordings}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
     
 
 # @app.post("/api/contact")
@@ -297,9 +302,6 @@ async def contact(user: ContactForm):
 def get_course_content():
     content = course_content()
     return {"coursecontent": content}
-
-class EmailRequest(BaseModel):
-    email: EmailStr
 
 @app.put("/api/unsubscribe")
 def unsubscribe(request: EmailRequest):

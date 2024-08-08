@@ -336,7 +336,7 @@ def course_content():
         conn.close()
 
 
-def unsubscribe_user(email: str) -> (bool, str):
+def unsubscribe_user(email: str) -> (bool, str): # type: ignore
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor()
