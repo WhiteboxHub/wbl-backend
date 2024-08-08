@@ -91,7 +91,7 @@ async def fetch_course_batches(subject:str=None):
         cursor = conn.cursor(dictionary=True)
         batchquery = f"""
                 SELECT batchname,batchid 
-                FROM whiteboxqa.batch
+                FROM whiteboxqa.new_batch
                 WHERE subject = '{subject}'
                 GROUP BY batchname
                 ORDER BY batchname DESC;
@@ -152,7 +152,7 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
                 SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
                 FROM new_recording nr
                 JOIN new_recording_batch rb ON nr.id = rb.recording_id
-                JOIN batch b ON rb.batch_id = b.batchid
+                JOIN new_batch b ON rb.batch_id = b.batchid
                 JOIN new_course_subject ncs ON b.courseid = ncs.course_id
                 JOIN new_course nc ON ncs.course_id = nc.id
                 WHERE nc.alias = '{subject}'
@@ -200,7 +200,7 @@ async def fetch_keyword_recordings(subject: str, keyword: str):
                 SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
                 FROM new_recording nr
                 JOIN new_recording_batch rb ON nr.id = rb.recording_id
-                JOIN batch b ON rb.batch_id = b.batchid
+                JOIN new_batch b ON rb.batch_id = b.batchid
                 JOIN new_course_subject ncs ON b.courseid = ncs.course_id
                 JOIN new_course nc ON ncs.course_id = nc.id
                 WHERE nc.alias = %s
