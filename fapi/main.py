@@ -1,6 +1,6 @@
 from models import EmailRequest, UserCreate, Token, UserRegistration,ContactForm
 from db import (
-    insert_user,get_user_by_username, verify_md5_hash, 
+    insert_login_history, insert_user,get_user_by_username, update_login_info, verify_md5_hash, 
     fetch_keyword_recordings, fetch_keyword_presentation, 
     fetch_sessions_by_type,fetch_course_batches,fetch_subject_batch_recording,user_contact,course_content,fetch_candidate_id_by_email
     ,unsubscribe_user
@@ -8,7 +8,7 @@ from db import (
 from utils import md5_hash,verify_md5_hash
 from auth import create_access_token, verify_token,JWTAuthorizationMiddleware
 from utils import md5_hash
-from fastapi import FastAPI, Depends, HTTPException, status,Query
+from fastapi import FastAPI, Depends, HTTPException, Request, status,Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -102,7 +102,7 @@ async def register_user(user: UserRegistration):
 
 
 @app.post("/api/login", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
     if user == "inactive":
         raise HTTPException(
@@ -123,6 +123,14 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Invalid user object returned from authentication",
         )
+    useragent = request.headers.get('User-Agent', '')
+
+    # Update login count and last login timestamp
+    print(user)
+    await update_login_info(user["id"])
+
+    # Insert login history
+    await insert_login_history(user["id"], request.client.host, useragent)
 
     # Create token payload with candidateid
     access_token = create_access_token(data={"sub": user["uname"], "candidateid": user["candidateid"]})
