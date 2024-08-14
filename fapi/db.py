@@ -1,4 +1,4 @@
-from utils import md5_hash,verify_md5_hash,hash_password
+from fapi.utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -59,7 +59,7 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
 
         conn.commit()
     except Error as e:
-        print(f"Error inserting user: {e}")
+        # print(f"Error inserting user: {e}")
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error inserting user")
     finally:
@@ -79,7 +79,7 @@ async def update_login_info(user_id: int):
         await loop.run_in_executor(None, cursor.execute, query, (user_id,))
         conn.commit()
     except Error as e:
-        print(f"Error updating login info: {e}")
+        # print(f"Error updating login info: {e}")
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error updating login info")
     finally:
@@ -98,7 +98,7 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
         conn.commit()
     except Error as e:
-        print(f"Error inserting login history: {e}")
+        # print(f"Error inserting login history: {e}")
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error inserting login history")
     finally:
@@ -115,7 +115,7 @@ def merge_batches(q1_response,q2_response):
 
 
     for batch in all_batches:
-        print(batch['batchname'])
+        # print(batch['batchname'])
         if batch['batchname'] not in seen_batches:
             seen_batches.add(batch['batchname'])
             unique_batches.append(batch)
@@ -140,47 +140,10 @@ async def fetch_course_batches(subject:str=None):
         r1 = cursor.fetchall()
         return r1
     except Error as e:
-        print(f"Error: {e}")
+        # print(f"Error: {e}")
         return []
     finally:
         conn.close()
-
-
-# async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = f"""
-#                 SELECT * 
-#                 FROM whiteboxqa.new_recording_1
-#                 WHERE batchid = {batchid} 
-#                 AND (course = '{subject}' OR course = 'COMMON');
-#                 """
-#         await loop.run_in_executor(None, cursor.execute, query)
-#         recordings = cursor.fetchall()
-#         return recordings
-#     finally:
-#         conn.close()
-
-
-# async def fetch_keyword_recordings(subject,keyword):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = """SELECT * 
-#                 FROM whiteboxqa.new_recording_1 
-#                 WHERE (course = %s OR course = 'COMMON') 
-#                 AND description LIKE %s 
-#                 ORDER BY classdate ASC;"""
-      
-#         await loop.run_in_executor(None, cursor.execute, query,( subject,'%' + keyword + '%',))
-#         data = cursor.fetchall()
-#         return data
-#     finally:
-#         conn.close()
-
 
 
 async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
@@ -212,23 +175,6 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
         return recordings
     finally:
         conn.close()
-
-
-# async def fetch_keyword_recordings(subject, keyword):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = """SELECT * 
-#                 FROM whiteboxqa.new_recording_1 
-#                 WHERE (course = %s OR course = 'COMMON') 
-#                 AND description LIKE %s 
-#                 ORDER BY classdate ASC;"""
-#         await loop.run_in_executor(None, cursor.execute, query, (subject, '%' + keyword + '%'))
-#         data = cursor.fetchall()
-#         return data
-#     finally:
-#         conn.close()
 
 
 async def fetch_keyword_recordings(subject: str, keyword: str):
@@ -291,7 +237,7 @@ async def fetch_keyword_presentation(search, course):
                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Miscellaneous"
             )
     except mysql.connector.Error as err:
-        print(f"Error: {err}")
+        # print(f"Error: {err}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error occurred"
@@ -359,7 +305,7 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
         await loop.run_in_executor(None, cursor.execute, query, values)
         conn.commit()
     except Error as e:
-        print(f"Error inserting user: {e}")
+        # print(f"Error inserting user: {e}")
         raise HTTPException(status_code=409, detail="Response already sent!")
     finally:
         cursor.close()
@@ -394,7 +340,7 @@ def unsubscribe_user(email: str) -> (bool, str): # type: ignore
 
         return True, "Successfully unsubscribed"
     except Error as e:
-        print(f"Error: {e}")
+        # print(f"Error: {e}")
         return False, "An error occurred"
     finally:
         cursor.close()
@@ -421,23 +367,12 @@ async def update_user_password(uname: str, new_password: str):
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="User not found")
     except Error as e:
-        print(f"Error updating password: {e}")
+        # print(f"Error updating password: {e}")
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error updating password")
     finally:
         cursor.close()
-        conn.close()
-        
-# async def get_user_by_email(email: str):
-#     conn = mysql.connector.connect(**db_config)
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         cursor.execute("SELECT * FROM users WHERE uname = %s", (email,))
-#         user = cursor.fetchone()
-#         return user
-#     finally:
-#         cursor.close()
-#         conn.close()
+        conn.close()      
         
 async def get_user_by_email(email: str):
     try:
@@ -450,7 +385,7 @@ async def get_user_by_email(email: str):
             result = cursor.fetchone()
             return result
     except Error as e:
-        print(f"Error: {e}")
+        # print(f"Error: {e}")
     finally:
         if conn.is_connected():
             cursor.close()
