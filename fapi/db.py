@@ -65,7 +65,46 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
     finally:
         cursor.close()
         conn.close()
-        
+
+async def update_login_info(user_id: int):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        query = """
+            UPDATE whiteboxqa.authuser 
+            SET lastlogin = NOW(), logincount = logincount + 1 
+            WHERE id = %s;
+        """
+        await loop.run_in_executor(None, cursor.execute, query, (user_id,))
+        conn.commit()
+    except Error as e:
+        print(f"Error updating login info: {e}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail="Error updating login info")
+    finally:
+        cursor.close()
+        conn.close()
+
+async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        query = """
+            INSERT INTO whiteboxqa.loginhistory (loginid, logindatetime, ipaddress, useragent) 
+            VALUES (%s, NOW(), %s, %s);
+        """
+        await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
+        conn.commit()
+    except Error as e:
+        print(f"Error inserting login history: {e}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail="Error inserting login history")
+    finally:
+        cursor.close()
+        conn.close()
+    
 
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
