@@ -1,4 +1,4 @@
-from db import get_user_by_username
+from fapi.db import get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
