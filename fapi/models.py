@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -27,35 +26,12 @@ class UserRegistration(BaseModel):
     registereddate: Optional[str] = None
     level3date: Optional[str] = None
     last: Optional[str] = None
-    
-    
+
 class ContactForm(BaseModel):
     name: str
     email: str
     phone: str
     message: str
-    
-    
-    # uname: str
-    # passwd: str
-    # dailypwd: str=None 
-    # team:str =None
-    # level:str =None
-    # instructor:str =None
-    # override:str=None
-    # status:str=None
-    # lastlogin:str=None
-    # logincount:str=None
-    # fullname: str
-    # phone: str
-    # address: str
-    # city:str
-    # Zip:str
-    # country:str
-    # message:str
-    # registereddate:str=None
-    # level3date:str=None
-    # last:str=None
 
 class Token(BaseModel):
     access_token: str
@@ -63,3 +39,10 @@ class Token(BaseModel):
 
 class EmailRequest(BaseModel):
     email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str

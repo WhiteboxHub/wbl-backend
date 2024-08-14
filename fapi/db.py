@@ -1,11 +1,12 @@
-from utils import md5_hash,verify_md5_hash
+from utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
 from typing import Optional,Dict
-from dotenv import load_dotenv
 import asyncio
+from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -356,6 +357,73 @@ def unsubscribe_user(email: str) -> (bool, str): # type: ignore
     except Error as e:
         print(f"Error: {e}")
         return False, "An error occurred"
+    finally:
+        cursor.close()
+        conn.close()
+        
+        
+        
+async def update_user_password(uname: str, new_password: str):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        
+        # Hash the new password
+        hashed_password = md5_hash(new_password)
+        
+        # Update the user's password
+        query = "UPDATE whiteboxqa.authuser SET passwd = %s WHERE uname = %s;"
+        values = (hashed_password, uname)
+        
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+    except Error as e:
+        print(f"Error updating password: {e}")
+        conn.rollback()
+        raise HTTPException(status_code=500, detail="Error updating password")
+    finally:
+        cursor.close()
+        conn.close()
+        
+# async def get_user_by_email(email: str):
+#     conn = mysql.connector.connect(**db_config)
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         cursor.execute("SELECT * FROM users WHERE uname = %s", (email,))
+#         user = cursor.fetchone()
+#         return user
+#     finally:
+#         cursor.close()
+#         conn.close()
+        
+async def get_user_by_email(email: str):
+    try:
+        # Establish connection
+        conn = mysql.connector.connect(**db_config)
+        if conn.is_connected():
+            cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get results as dictionaries
+            query = "SELECT * FROM authuser WHERE uname = %s"
+            cursor.execute(query, (email,))
+            result = cursor.fetchone()
+            return result
+    except Error as e:
+        print(f"Error: {e}")
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()        
+
+async def update_user_password(email: str, new_password: str):
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        hashed_password = hash_password(new_password)
+        cursor.execute("UPDATE authuser SET passwd = %s WHERE uname = %s", (hashed_password, email))
+        conn.commit()
     finally:
         cursor.close()
         conn.close()
