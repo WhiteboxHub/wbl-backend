@@ -57,6 +57,18 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         )
         await loop.run_in_executor(None, cursor.execute, query2, values2)
 
+        #get the last inserted ID to for candidate_ID
+        candidate_id = cursor.lastrowid
+
+         ## Insert the candidate_id into the candidate_resume table
+        query3 = """
+            INSERT INTO whiteboxqa.candidate_resume (
+                candidate_id
+            ) VALUES (%s);
+        """
+        values3 = (candidate_id,)
+        await loop.run_in_executor(None, cursor.execute, query3, values3)
+
         conn.commit()
     except Error as e:
         print(f"Error inserting user: {e}")
