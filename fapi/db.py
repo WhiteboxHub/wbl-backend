@@ -1,4 +1,4 @@
-from fapi.utils import md5_hash,verify_md5_hash,hash_password
+from utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -48,7 +48,7 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         query2 = """
             INSERT INTO whiteboxqa.candidate (
                 name, enrolleddate, email, course, phone, status, address, city, country, zip
-            ) VALUES (%s, %s, %s, 'QA', %s,'active', %s, %s, %s, %s);
+            ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
         """
         values2 = (
             candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
@@ -386,6 +386,8 @@ async def get_user_by_email(email: str):
             return result
     except Error as e:
         # print(f"Error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
     finally:
         if conn.is_connected():
             cursor.close()

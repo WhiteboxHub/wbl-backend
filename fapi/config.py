@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -6,11 +7,12 @@ class Settings(BaseSettings):
     MAIL_FROM: str
     MAIL_PORT: int
     MAIL_SERVER: str
-    MAIL_STARTTLS: bool  # Use MAIL_STARTTLS instead of MAIL_TLS
+    MAIL_STARTTLS: bool
     MAIL_SSL_TLS: bool
 
     class Config:
-        env_file = ".env"  # Ensure this points to the correct .env file
+        # Conditionally load the .env file if ENVIRONMENT is "development"
+        env_file = ".env" if os.getenv("ENV") == "development" else None
 
 # Instantiate settings
 conf = Settings()
