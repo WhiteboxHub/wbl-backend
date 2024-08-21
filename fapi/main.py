@@ -7,7 +7,6 @@ from db import (
 )
 from utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash
-from config import conf
 from contactMailTemplet import ContactMail_HTML_templete
 from mail_service import send_reset_password_email
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body
