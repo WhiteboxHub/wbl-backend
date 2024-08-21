@@ -194,16 +194,25 @@ async def fetch_keyword_recordings(subject: str, keyword: str):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = """
-                SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
+        # SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
+                # FROM new_recording nr
+                # JOIN new_recording_batch rb ON nr.id = rb.recording_id
+                # JOIN new_batch b ON rb.batch_id = b.batchid
+                # JOIN new_course_subject ncs ON b.courseid = ncs.course_id
+                # JOIN new_course nc ON ncs.course_id = nc.id
+                # WHERE nc.alias = %s
+                # AND nr.description LIKE %s
+                # ORDER BY nr.classdate DESC;
+        query = """                
+                SELECT DISTINCT nr.id,nr.batchname, nr.description, nr.type,nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
                 FROM new_recording nr
-                JOIN new_recording_batch rb ON nr.id = rb.recording_id
-                JOIN new_batch b ON rb.batch_id = b.batchid
-                JOIN new_course_subject ncs ON b.courseid = ncs.course_id
-                JOIN new_course nc ON ncs.course_id = nc.id
-                WHERE nc.alias = %s
-                  AND nr.description LIKE %s
-                ORDER BY nr.classdate DESC;
+                JOIN new_subject ns ON nr.new_subject_id = ns.id
+                JOIN new_course_subject ncs ON ns.id = ncs.subject_id
+                JOIN new_course nc ON ncs.course_id = nc.id               
+                WHERE nc.alias =%s
+               	    
+                AND nr.description LIKE %s
+                ORDER BY nr.classdate DESC;               
                 """
         await loop.run_in_executor(None, cursor.execute, query, (subject, '%' + keyword + '%'))
         recordings = cursor.fetchall()
