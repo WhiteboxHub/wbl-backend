@@ -1,14 +1,14 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword
-from fapi.db import (
+from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword
+from db import (
     insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
     fetch_sessions_by_type, fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
     unsubscribe_user, update_user_password ,get_user_by_email, update_user_password
 )
-from fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash
-from fapi.config import conf
-from fapi.mail_service import send_reset_password_email
+from utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
+from auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash
+from config import conf
+from mail_service import send_reset_password_email
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from fapi.contactMailTemplet import ContactMail_HTML_templete
+from contactMailTemplet import ContactMail_HTML_templete
 from datetime import datetime, timedelta
 
 # Load environment variables from .env file

@@ -1,4 +1,4 @@
-from fapi.utils import md5_hash,verify_md5_hash,hash_password
+from utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -397,7 +397,7 @@ async def get_user_by_email(email: str):
             result = cursor.fetchone()
             return result
     except Error as e:
-        # print(f"Error: {e}")
+        print(f"Error: {e}")
     finally:
         if conn.is_connected():
             cursor.close()

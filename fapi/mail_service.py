@@ -1,6 +1,6 @@
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
-from fapi.config import conf  # Import the Settings object from config.py
+from config import conf  # Import the Settings object from config.py
 
 # Use the settings object from config.py to initialize ConnectionConfig
 mail_conf = ConnectionConfig(
