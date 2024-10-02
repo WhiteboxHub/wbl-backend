@@ -8,6 +8,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi import Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional  # Add this line
+from datetime import timedelta  # Ensure this is also imported if you're using timedelta
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -123,3 +126,20 @@ def verify_password_reset_token(token: str):
 # Function to hash the new password
 def get_password_hash(password: str):
     return hashlib.md5(password.encode()).hexdigest()
+
+# ------------------------------------------------------------------------------------------------------
+
+
+# Function to create access token for Google user
+def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=60)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    return encoded_jwt
+
+
+# ------------------------------------------------------------------------------------------------------

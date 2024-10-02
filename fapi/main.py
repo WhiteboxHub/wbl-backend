@@ -1,15 +1,15 @@
-from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword
+from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate
 from db import (
     insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
     fetch_sessions_by_type, fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
-    unsubscribe_user, update_user_password ,get_user_by_email, update_user_password
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db
 )
 from utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash
+from auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
 from contactMailTemplet import ContactMail_HTML_templete
 from mail_service import send_reset_password_email
-from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -21,12 +21,16 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
+import jwt
+
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()
+
+router = APIRouter()
 
 # Add CORS middleware
 app.add_middleware(
@@ -40,7 +44,109 @@ app.add_middleware(
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Retrieve the secret key from environment variables
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is not set")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
+
 # app.add_middleware(JWTAuthorizationMiddleware)
+
+# ------------------------------------------------------------------------------------
+# @app.post("/api/google_users/")
+# async def register_google_user(user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+#     if existing_user:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+#     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
+#     return {"message": "Google user registered successfully!"}
+
+
+# @app.post("/api/google_login/")
+# async def login_google_user(user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+#     if existing_user is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+#     if existing_user['status'] == 'inactive':
+#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     # Generate token upon successful login
+#     token_data = {
+#         "sub": existing_user['uname'],
+#         "name": existing_user['fullname'],
+#         "google_id": existing_user['googleId'],
+#     }
+#     access_token = create_google_access_token(data=token_data)
+
+#     return {
+#         "access_token": access_token,
+#         "token_type": "bearer"
+#     }
+
+
+@app.post("/api/check_user/")
+async def check_user_exists(user: GoogleUserCreate):
+    existing_user = await get_google_user_by_email(user.email)
+    if existing_user:
+        return {"exists": True, "status": existing_user['status']}
+    return {"exists": False}
+
+
+@app.post("/api/google_users/")
+async def register_google_user(user: GoogleUserCreate):
+    existing_user = await get_google_user_by_email(user.email)
+    
+    if existing_user:
+        if existing_user['status'] == 'active':
+            return {"message": "User already registered and active, please log in."}
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+    await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
+    return {"message": "Google user registered successfully!"}
+
+@app.post("/api/google_login/")
+async def login_google_user(user: GoogleUserCreate):
+    existing_user = await get_google_user_by_email(user.email)
+    if existing_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if existing_user['status'] == 'inactive':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+    # Generate token upon successful login
+    token_data = {
+        "sub": existing_user['uname'],
+        "name": existing_user['fullname'],
+        "google_id": existing_user['googleId'],
+    }
+    access_token = create_google_access_token(data=token_data)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
+@app.post("/api/verify_google_token/")
+async def verify_google_token(token: str):
+    try:
+        # Remove extra quotes from token if present
+        if token.startswith('"') and token.endswith('"'):
+            token = token[1:-1]
+        
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+# ------------------------------------------------------------------------------------
 
 async def authenticate_user(uname: str, passwd: str):
     user = await get_user_by_username(uname)

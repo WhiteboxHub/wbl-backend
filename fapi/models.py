@@ -46,3 +46,16 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
+
+
+# class UserCreate(BaseModel):
+#     email: str
+#     name: str   
+#     google_id: str
+
+
+# Model for Google user creation
+class GoogleUserCreate(BaseModel):
+    name: str
+    email: str
+    google_id: str
