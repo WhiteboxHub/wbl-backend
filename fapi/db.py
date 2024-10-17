@@ -56,6 +56,22 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
             VALUES (%s, %s, 'active', 'ML');
         """
         await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+# -----------------insert into candidate_resume table-----------------
+
+
+# ------------------------------------------------------------------------------------
+         # Get the last inserted ID for candidate_ID
+        candidate_id = cursor.lastrowid
+
+        # Insert the candidate_id into the candidate_resume table
+        query3 = """
+            INSERT INTO whiteboxqa.candidate_resume (candidate_id) 
+            VALUES (%s);
+        """
+        await loop.run_in_executor(None, cursor.execute, query3, (candidate_id,))
+
+# ------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 
         conn.commit()
     except Error as e:
