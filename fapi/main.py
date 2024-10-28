@@ -386,7 +386,7 @@ def unsubscribe(request: EmailRequest):
 
 @app.post("/api/forget-password")
 async def forget_password(request: ResetPasswordRequest):
-    user = await get_user_by_email(request.email)
+    user = await get_user_by_username(request.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     token = create_reset_token(user["uname"])
