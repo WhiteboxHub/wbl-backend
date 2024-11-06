@@ -647,10 +647,10 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
                 message, registereddate, level3date
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'inactive', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """
         values1 = (
-            uname, passwd, dailypwd, team, level, instructor, override, status, 
+            uname, passwd, dailypwd, team, level, instructor, override, 
             lastlogin, logincount, fullname, phone, address, city, Zip, country, 
             message, registereddate, level3date
         )
