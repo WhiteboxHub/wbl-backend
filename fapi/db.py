@@ -523,16 +523,7 @@
 
 
 
-
-
-
-
-
-
-
-
-
-from fapi.utils import md5_hash,verify_md5_hash,hash_password
+from utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -869,13 +860,13 @@ async def fetch_keyword_presentation(search, course):
         type_code = type_mapping.get(search)
         if type_code:
             query = """
-            SELECT * FROM whiteboxqa.course_material 
+            SELECT * FROM whiteboxqa.new_course_material 
             WHERE type = %s AND (courseid = 0 OR courseid = %s) ORDER BY name ASC;
             """
             courseid_mapping = {
                 "QA": 1,
                 "UI": 2,
-                "ML": 4
+                "ML": 3
             }
             selected_courseid = courseid_mapping.get(course.upper())
 

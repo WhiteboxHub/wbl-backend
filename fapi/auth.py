@@ -1,4 +1,4 @@
-from fapi.db import get_user_by_username
+from db import get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
@@ -20,7 +20,8 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 720
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+# ACCESS_TOKEN_EXPIRE_MINUTES = 1
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 15  # Token expiry time for password reset
 
 # Simple in-memory cache dictionary
@@ -81,9 +82,6 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-
-
     
 def verify_token(token: str):
     try:
@@ -95,15 +93,13 @@ def verify_token(token: str):
         return JSONResponse(status_code=401, content={'detail': 'Unauthorized - invalid User, please login again'})
 
 
-
-
 # Function to create access token
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+# def create_access_token(data: dict, expires_delta: timedelta = None):
+#     to_encode = data.copy()
+#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+#     to_encode.update({"exp": expire})
+#     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+#     return encoded_jwt
 
 # Function to create password reset token
 def generate_password_reset_token(email: str):
@@ -131,15 +127,27 @@ def get_password_hash(password: str):
 
 
 # Function to create access token for Google user
+# def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+#     to_encode = data.copy()
+#     if expires_delta:
+#         expire = datetime.utcnow() + expires_delta
+#     else:
+#         expire = datetime.utcnow() + timedelta(minutes=60)
+#     to_encode.update({"exp": expire})
+#     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+#     return encoded_jwt
+
 def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
+    
+    # Set expiration based on expires_delta or default to ACCESS_TOKEN_EXPIRE_MINUTES
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=60)
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 
 # ------------------------------------------------------------------------------------------------------
