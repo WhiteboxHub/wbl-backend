@@ -330,7 +330,7 @@
 #             "Templates": "T",
 #             "Books": "B",
 #             "Softwares": "S",
-#             "Miscellaneous": "M"
+#             "Newsletters": "N"
 #         }
 #         type_code = type_mapping.get(search)
 #         if type_code:
@@ -351,7 +351,7 @@
 #         else:
 #             raise HTTPException(
 #                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Miscellaneous"
+#                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
 #             )
 #     except mysql.connector.Error as err:
 #         # print(f"Error: {err}")
@@ -855,13 +855,26 @@ async def fetch_keyword_presentation(search, course):
             "Templates": "T",
             "Books": "B",
             "Softwares": "S",
-            "Miscellaneous": "M"
+            "Newsletters": "N"
         }
         type_code = type_mapping.get(search)
         if type_code:
             query = """
             SELECT * FROM whiteboxqa.new_course_material 
-            WHERE type = %s AND (courseid = 0 OR courseid = %s) ORDER BY name ASC;
+            WHERE type = %s 
+            AND (courseid = 0 OR courseid = %s)
+            ORDER BY CASE
+            WHEN name = 'Software Architecture' THEN 1
+            WHEN name = 'SDLC' THEN 2
+            WHEN name = 'JIRA-Agile' THEN 3
+            WHEN name = 'HTTP' THEN 4
+            WHEN name = 'Web Services' THEN 5
+            WHEN name = 'UNIX - Shell Scripting' THEN 6
+            WHEN name = 'MY SQL' THEN 7
+            WHEN name = 'Git' THEN 8
+            WHEN name = 'json' THEN 9
+            ELSE 10 -- Topics not explicitly listed will appear after the specified ones
+            END;
             """
             courseid_mapping = {
                 "QA": 1,
@@ -876,7 +889,7 @@ async def fetch_keyword_presentation(search, course):
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Miscellaneous"
+                detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
             )
     except mysql.connector.Error as err:
         # print(f"Error: {err}")
