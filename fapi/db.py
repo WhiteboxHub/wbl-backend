@@ -901,6 +901,101 @@ async def fetch_keyword_presentation(search, course):
         cursor.close()
         conn.close()
 
+# Async function to fetch sessions dynamically by category and course
+
+# async def fetch_sessions_by_type(category: str = None, course: str = None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+
+#         # Course mapping to get course_id dynamically
+#         course_mapping = {
+#             "QA": 1,
+#             "UI": 2,
+#             "ML": 3
+#         }
+
+#         # Map course to course_id, default to None if course is invalid
+#         course_id = course_mapping.get(course.upper(), None)
+
+#         if not course_id:
+#             raise HTTPException(status_code=400, detail="Invalid course specified")
+
+#         # Build the query with dynamic course_id and category
+#         query = """
+#             SELECT ns.* 
+#             FROM new_session ns
+#             JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+#             WHERE ncs.course_id = %s
+#             AND ns.type = %s
+#             ORDER BY ns.sessiondate DESC;
+#         """
+
+#         # Execute the query with course_id and category as parameters
+#         await loop.run_in_executor(None, cursor.execute, query, (course_id, category))
+
+#         # Fetch and return the results
+#         sessions = cursor.fetchall()
+#         return sessions
+
+#     except mysql.connector.Error as err:
+#         # Handle database errors
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Database query failed: {err}"
+#         )
+
+#     finally:
+#         conn.close()
+
+
+async def fetch_sessions_by_type(category: str = None, course: str = None):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Course mapping to get course_id dynamically
+        course_mapping = {
+            "QA": 1,
+            "UI": 2,
+            "ML": 3
+        }
+
+        # Map course to course_id, default to None if course is invalid
+        course_id = course_mapping.get(course.upper(), None)
+
+        if not course_id:
+            raise HTTPException(status_code=400, detail="Invalid course specified")
+
+        # Build the query with dynamic course_id and category
+        query = """
+            SELECT ns.* 
+            FROM new_session ns
+            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+            WHERE ncs.course_id = %s
+            AND  ns.type = %s
+            ORDER BY ns.sessiondate DESC;
+        """
+
+        # Execute the query with course_id and category as parameters
+        await loop.run_in_executor(None, cursor.execute, query, (course_id, category, category))
+
+        # Fetch and return the results
+        sessions = cursor.fetchall()
+        return sessions
+
+    except mysql.connector.Error as err:
+        # Handle database errors
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database query failed: {err}"
+        )
+
+    finally:
+        conn.close()
+
 
 # async def get_user_by_username(uname: str):
 #     loop = asyncio.get_event_loop()
@@ -929,7 +1024,7 @@ async def fetch_candidate_id_by_email(email: str):
 
 
 # Async function to fetch sessions by category
-async def fetch_sessions_by_type(category: str = None):
+# async def fetch_sessions_by_type(category: str = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
@@ -944,7 +1039,128 @@ async def fetch_sessions_by_type(category: str = None):
         return sessions
     finally:
         conn.close()
+async def fetch_sessions_by_type(category: str = None, course: str = None):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Course mapping to get course_id dynamically
+        course_mapping = {
+            "QA": 1,
+            "UI": 2,
+            "ML": 3
+        }
+
+        # Map course to course_id, default to None if course is invalid
+        course_id = course_mapping.get(course.upper(), None)
+
+        if not course_id:
+            raise HTTPException(status_code=400, detail="Invalid course specified")
+
+        # Build the query with dynamic course_id and category
+        query = """
+            SELECT ns.* 
+            FROM new_session ns
+            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+            WHERE ncs.course_id = %s
+            AND ns.type = %s
+            ORDER BY ns.sessiondate DESC;
+        """
+
+        # Execute the query with course_id and category as parameters
+        await loop.run_in_executor(None, cursor.execute, query, (course_id, category))
+
+        # Fetch and return the results
+        sessions = cursor.fetchall()
+        return sessions
+
+    except mysql.connector.Error as err:
+        # Handle database errors
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database query failed: {err}"
+        )
+
+    finally:
+        conn.close()
+# async def fetch_sessions_by_type(course: str, category: str = None):
+#     # Define the mapping inside fetch_sessions_by_type
+#     course_id_mapping = {
+#         "ML": 3,
+#         "UI": 2,
+#         "QA": 1
+#     }
+    
+#     # Get the course_id from the mapping
+#     course_id = course_id_mapping.get(course)
+#     if course_id is None:
+#         raise ValueError("Invalid course")
+
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    
+#     try:
+#         cursor = conn.cursor(dictionary=True)
         
+#         # SQL query to fetch sessions based on course_id and type
+#         if category:
+#             query = """
+#                 SELECT ns.*
+#                 FROM new_session ns
+#                 JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+#                 WHERE ncs.course_id = %s AND ns.type = %s
+#                 ORDER BY ns.sessiondate DESC;
+#             """
+#             await loop.run_in_executor(None, cursor.execute, query, (course_id, category))
+#         else:
+#             query = """
+                
+#             """
+#             await loop.run_in_executor(None, cursor.execute, query, (course_id,))
+
+#         sessions = cursor.fetchall()
+#         return sessions
+#     finally:
+#         conn.close()
+
+# async def fetch_sessions_by_type(course: str, category: str):
+#     # Define the mapping inside fetch_sessions_by_type
+#     course_id_mapping = {
+#         "ML": 3,
+#         "UI": 2,
+#         "QA": 1
+#     }
+    
+#     # Get the course_id from the mapping
+#     course_id = course_id_mapping.get(course)
+#     if course_id is None:
+#         raise ValueError("Invalid course")
+
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+        
+#         # SQL query to fetch sessions based on course_id and type
+#         query = """
+#             SELECT ns.*
+#             FROM new_session ns
+#             JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+#             WHERE ncs.course_id = %s AND ns.type = %s
+#             ORDER BY ns.sessiondate DESC;
+#         """
+        
+#         # Execute the query with both course_id and category
+#         params = (course_id, category)
+#         await loop.run_in_executor(None, cursor.execute, query, params)
+
+#         sessions = cursor.fetchall()
+#         return sessions
+#     finally:
+#         conn.close()
+
 
 async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
     loop = asyncio.get_event_loop()

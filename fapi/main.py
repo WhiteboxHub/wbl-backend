@@ -301,15 +301,62 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 # Sessions endpoint
+# @app.get("/api/sessions")
+# async def get_sessions(category: str = None):
+#     try:
+#         sessions = await fetch_sessions_by_type(category)
+#         if not sessions:
+#             raise HTTPException(status_code=404, detail="Sessions not found")
+#         return {"sessions": sessions}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/sessions")
-async def get_sessions(category: str = None):
+async def get_sessions(category: str, course: str):
     try:
-        sessions = await fetch_sessions_by_type(category)
+        # Define the mapping for course abbreviations to course IDs
+        course_id_mapping = {
+            "ML": 3,  # Machine Learning
+            "UI": 2,  # UI/UX
+            "QA": 1   # Quality Assurance
+        }
+
+        # Map the course abbreviation to a course_id
+        course_id = course_id_mapping.get(course)
+        if course_id is None:
+            raise HTTPException(status_code=400, detail=f"Invalid course: {course}")
+
+        # Fetch sessions using the category and course_id
+        sessions = await fetch_sessions_by_type(category=category, course=course)
+        
         if not sessions:
             raise HTTPException(status_code=404, detail="Sessions not found")
+        
         return {"sessions": sessions}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Sessions endpoint
+# @app.get("/api/sessions")
+# async def get_sessions(category: str = None, course: str = None):
+#     try:
+#         # Fetch sessions using both category and course parameters
+#         sessions = await fetch_sessions_by_type(category, course)
+
+#         # If no sessions are found, return 404
+#         if not sessions:
+#             raise HTTPException(status_code=404, detail="Sessions not found")
+        
+#         # Return the sessions in a response
+#         return {"sessions": sessions}
+    
+#     except Exception as e:
+#         # If there's any error, return a 500 status code with the error message
+#         raise HTTPException(status_code=500, detail=str(e))
+
 
 # End Point to get batches info based on the course input
 @app.get("/api/batches")
