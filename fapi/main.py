@@ -1,6 +1,6 @@
 from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate
 from db import (
-    insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+    COURSE_MAPPING, fetch_sessions_by_type_and_course, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
     fetch_sessions_by_type, fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
@@ -14,7 +14,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from jose import JWTError
-from typing import List
+from typing import List, Optional
 import os
 from fastapi.responses import JSONResponse
 import smtplib
@@ -300,7 +300,7 @@ async def get_materials(course: str = Query(...), search: str = Query(...)):
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-# Sessions endpoint
+#sessions endpoint
 # @app.get("/api/sessions")
 # async def get_sessions(category: str = None):
 #     try:
@@ -311,52 +311,16 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
 
-
+# Updated API endpoint to fetch sessions based on category and course
 @app.get("/api/sessions")
-async def get_sessions(category: str, course: str):
+async def get_sessions(category: str = None, course: str = None):
     try:
-        # Define the mapping for course abbreviations to course IDs
-        course_id_mapping = {
-            "ML": 3,  # Machine Learning
-            "UI": 2,  # UI/UX
-            "QA": 1   # Quality Assurance
-        }
-
-        # Map the course abbreviation to a course_id
-        course_id = course_id_mapping.get(course)
-        if course_id is None:
-            raise HTTPException(status_code=400, detail=f"Invalid course: {course}")
-
-        # Fetch sessions using the category and course_id
-        sessions = await fetch_sessions_by_type(category=category, course=course)
-        
+        sessions = await fetch_sessions_by_type(category, course)
         if not sessions:
             raise HTTPException(status_code=404, detail="Sessions not found")
-        
         return {"sessions": sessions}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# Sessions endpoint
-# @app.get("/api/sessions")
-# async def get_sessions(category: str = None, course: str = None):
-#     try:
-#         # Fetch sessions using both category and course parameters
-#         sessions = await fetch_sessions_by_type(category, course)
-
-#         # If no sessions are found, return 404
-#         if not sessions:
-#             raise HTTPException(status_code=404, detail="Sessions not found")
-        
-#         # Return the sessions in a response
-#         return {"sessions": sessions}
-    
-#     except Exception as e:
-#         # If there's any error, return a 500 status code with the error message
-#         raise HTTPException(status_code=500, detail=str(e))
-
 
 # End Point to get batches info based on the course input
 @app.get("/api/batches")
