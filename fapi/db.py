@@ -902,6 +902,7 @@ async def fetch_keyword_presentation(search, course):
         conn.close()
 
 
+# old code for sessions
 # Async function to fetch sessions by category
 # async def fetch_sessions_by_type(category: str = None):
 #     loop = asyncio.get_event_loop()
@@ -920,92 +921,52 @@ async def fetch_keyword_presentation(search, course):
 #         conn.close()
 
 
-
-# Function to fetch sessions based on category (type) and course
-# async def fetch_sessions_by_type(category: str = None, course: str = None):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-        
-#         # If both category and course are provided, filter sessions accordingly
-#         if category and course:
-#             query = """
-#                 SELECT ns.*
-#                 FROM new_session ns
-#                 JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-#                 WHERE ncs.course_id =%s
-#                 AND ns.type =%s
-#                 ORDER BY ns.sessiondate desc;
-#             """
-#             await loop.run_in_executor(None, cursor.execute, query, (category, course))
-        
-#         # If only category is provided, filter sessions by category
-#         elif category:
-#             query = "SELECT * FROM whiteboxqa.new_session WHERE type = %s ORDER BY sessiondate DESC;"
-#             await loop.run_in_executor(None, cursor.execute, query, (category,))
-        
-#         # If only course is provided, filter sessions by course
-#         elif course:
-#             query = """
-#                 SELECT ns.* 
-#                 FROM whiteboxqa.new_session AS ns
-#                 JOIN new_course_subject AS ncs ON ns.subjectid = ncs.subject_id
-#                 WHERE ncs.course_id = %s
-#                 ORDER BY ns.sessiondate DESC;
-#             """
-#             await loop.run_in_executor(None, cursor.execute, query, (course,))
-        
-#         # If neither category nor course is provided, fetch all sessions
-#         else:
-#             query = "SELECT * FROM whiteboxqa.new_session ORDER BY type ASC;"
-#             await loop.run_in_executor(None, cursor.execute, query)
-        
-#         sessions = cursor.fetchall()
-#         return sessions
-#     finally:
-#         conn.close()
-async def fetch_sessions_by_type(category: str = None, course: str = None):
-    # Define a mapping from course name to course_id
-    course_mapping = {
-        "ML": 3,
-        "UI": 2,
-        "QA": 1
-    }
-
+# newly added functions ###################################################
+async def fetch_types():
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        
-        # Ensure both category (type) and course are provided
-        if not category or not course:
-            raise ValueError("Both category (type) and course must be provided.")
-        
-        # Map the provided course to its corresponding course_id
-        if course not in course_mapping:
-            raise ValueError(f"Invalid course: {course}")
-        
-        course_id = course_mapping[course]
-        
-        query = """
-            SELECT ns.* 
-            FROM new_session ns
-            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-            WHERE ncs.course_id = %s
-            AND ns.type = %s
-            ORDER BY ns.sessiondate DESC;
-        """
-        
-        # Execute the query with the mapped course_id and category
-        await loop.run_in_executor(None, cursor.execute, query, (course_id, category))
-        
-        sessions = cursor.fetchall()
-        return sessions
+        query = "SELECT DISTINCT type FROM new_session ORDER BY type ASC;"
+        await loop.run_in_executor(None, cursor.execute, query)
+        types = cursor.fetchall()
+        return types
     finally:
         conn.close()
 
 
+async def fetch_sessions_by_type(course_id: int, session_type: str):
+    # Validate course_id
+    if not course_id or not session_type:
+        raise HTTPException(status_code=400, detail="Invalid course_id or session_type")
+    print(course_id)
+    print(session_type)
+
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+        
+        query = """
+            SELECT ns.*
+            FROM new_session ns
+            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+            WHERE ncs.course_id = %s
+              AND ns.type = %s
+            ORDER BY ns.sessiondate desc;
+        """
+        
+        # Log the query and parameters
+        print("Executing query:", query)
+        print("With parameters:", (course_id, session_type))
+        
+        await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
+        sessions = cursor.fetchall()
+        return sessions
+    finally:
+        conn.close()
+##########################################
 
 # async def get_user_by_username(uname: str):
 #     loop = asyncio.get_event_loop()
@@ -1033,172 +994,7 @@ async def fetch_candidate_id_by_email(email: str):
         conn.close()
 
 
-# Async function to fetch sessions by category
-# async def fetch_sessions_by_type(category: str = None):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        if category:
-            query = "SELECT  * FROM whiteboxqa.session WHERE type = %s ORDER BY sessiondate DESC;"
-            await loop.run_in_executor(None, cursor.execute, query, (category,))
-        else:
-            query = "SELECT *  FROM whiteboxqa.session ORDER BY type ASC;"
-            await loop.run_in_executor(None, cursor.execute, query)
-        sessions = cursor.fetchall()
-        return sessions
-    finally:
-        conn.close()
-# async def fetch_sessions(course: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
 
-#         course_mapping = {
-#             "QA": 1,
-#             "UI": 2,
-#             "ML": 3
-#         }
-
-#         # Get the course ID based on the course short name
-#         course_id = course_mapping.get(course.upper(), None)
-#         if not course_id:
-#             raise HTTPException(status_code=400, detail="Invalid course specified")
-
-#         # Now query the database to get sessions with their categories (session types)
-#         query = """
-#             SELECT ns.*, ns.type AS category
-#             FROM new_session ns
-#             JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-#             WHERE ncs.course_id = %s
-#             ORDER BY ns.sessiondate DESC;
-#         """
-
-#         await loop.run_in_executor(None, cursor.execute, query, (course_id,))
-#         sessions = cursor.fetchall()
-
-#         return sessions
-
-#     except mysql.connector.Error as err:
-#         raise HTTPException(status_code=500, detail=f"Database query failed: {err}")
-
-#     finally:
-#         conn.close()
-
-
-
-# Mapping of course codes to course_id
-COURSE_MAPPING = {
-    "ML": 3,  # Machine Learning
-    "UI": 2,  # UI Fullstack
-    "QA": 1,  # Quality Engineer
-}
-
-# Async function to fetch sessions by category and course_id
-async def fetch_sessions_by_type_and_course(course_id: int, category: str = None):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        
-        # Modified query to use both course_id and type
-        query = """
-            SELECT ns.*
-            FROM new_session ns
-            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-            WHERE ncs.course_id = %s
-            AND ns.type = %s
-            ORDER BY ns.sessiondate desc;
-        """
-        
-        # Execute the query, passing the course_id and category (type)
-        if category:
-            await loop.run_in_executor(None, cursor.execute, query, (course_id, category))
-        else:
-            await loop.run_in_executor(None, cursor.execute, query, (course_id, None))
-        
-        sessions = cursor.fetchall()
-        return sessions
-    finally:
-        conn.close()
-
-# async def fetch_sessions_by_type(course: str, category: str = None):
-#     # Define the mapping inside fetch_sessions_by_type
-#     course_id_mapping = {
-#         "ML": 3,
-#         "UI": 2,
-#         "QA": 1
-#     }
-    
-#     # Get the course_id from the mapping
-#     course_id = course_id_mapping.get(course)
-#     if course_id is None:
-#         raise ValueError("Invalid course")
-
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-        
-#         # SQL query to fetch sessions based on course_id and type
-#         if category:
-#             query = """
-#                 SELECT ns.*
-#                 FROM new_session ns
-#                 JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-#                 WHERE ncs.course_id = %s AND ns.type = %s
-#                 ORDER BY ns.sessiondate DESC;
-#             """
-#             await loop.run_in_executor(None, cursor.execute, query, (course_id, category))
-#         else:
-#             query = """
-                
-#             """
-#             await loop.run_in_executor(None, cursor.execute, query, (course_id,))
-
-#         sessions = cursor.fetchall()
-#         return sessions
-#     finally:
-#         conn.close()
-
-# async def fetch_sessions_by_type(course: str, category: str):
-#     # Define the mapping inside fetch_sessions_by_type
-#     course_id_mapping = {
-#         "ML": 3,
-#         "UI": 2,
-#         "QA": 1
-#     }
-    
-#     # Get the course_id from the mapping
-#     course_id = course_id_mapping.get(course)
-#     if course_id is None:
-#         raise ValueError("Invalid course")
-
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-        
-#         # SQL query to fetch sessions based on course_id and type
-#         query = """
-#             SELECT ns.*
-#             FROM new_session ns
-#             JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-#             WHERE ncs.course_id = %s AND ns.type = %s
-#             ORDER BY ns.sessiondate DESC;
-#         """
-        
-#         # Execute the query with both course_id and category
-#         params = (course_id, category)
-#         await loop.run_in_executor(None, cursor.execute, query, params)
-
-#         sessions = cursor.fetchall()
-#         return sessions
-#     finally:
-#         conn.close()
 
 
 async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):

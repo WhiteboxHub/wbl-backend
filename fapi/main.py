@@ -1,8 +1,8 @@
 from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate
 from db import (
-    COURSE_MAPPING, fetch_sessions_by_type_and_course, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+      fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
-    fetch_sessions_by_type, fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
+ fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
 )
 from utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -300,7 +300,8 @@ async def get_materials(course: str = Query(...), search: str = Query(...)):
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-#sessions endpoint
+
+# # Sessions endpoint#######################old code
 # @app.get("/api/sessions")
 # async def get_sessions(category: str = None):
 #     try:
@@ -310,17 +311,33 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 #         return {"sessions": sessions}
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
-
-# Updated API endpoint to fetch sessions based on category and course
-@app.get("/api/sessions")
-async def get_sessions(category: str = None, course: str = None):
+################################################newly added ######################################
+# Fetch types from the new_session table
+@app.get("/api/types")
+async def get_types():
     try:
-        sessions = await fetch_sessions_by_type(category, course)
+        types = await fetch_types()
+        if not types:
+            raise HTTPException(status_code=404, detail="Types not found")
+        return {"types": types}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Fetch sessions by course and type
+@app.get("/api/sessions")
+async def get_sessions(course_id: str = None, session_type: str = None):
+    try:
+        # Call the function to fetch sessions by the provided course and session type
+        sessions = await fetch_sessions_by_type(course_id, session_type)
         if not sessions:
             raise HTTPException(status_code=404, detail="Sessions not found")
         return {"sessions": sessions}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+###########################################################################
 
 # End Point to get batches info based on the course input
 @app.get("/api/batches")
