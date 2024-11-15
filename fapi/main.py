@@ -313,7 +313,21 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 #         raise HTTPException(status_code=500, detail=str(e))
 ################################################newly added ######################################
 # Fetch types from the new_session table
-@app.get("/api/types")
+
+
+# Fetch sessions by course and type
+# @app.get("/api/sessions")
+# async def get_sessions(course_id: str = None, session_type: str = None):
+#     try:
+#         # Call the function to fetch sessions by the provided course and session type
+#         sessions = await fetch_sessions_by_type(course_id, session_type)
+#         if not sessions:
+#             raise HTTPException(status_code=404, detail="Sessions not found")
+#         return {"sessions": sessions}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/session-types")
 async def get_types():
     try:
         types = await fetch_types()
@@ -322,19 +336,36 @@ async def get_types():
         return {"types": types}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# Fetch sessions by course and type
+ 
 @app.get("/api/sessions")
-async def get_sessions(course_id: str = None, session_type: str = None):
+async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
     try:
-        # Call the function to fetch sessions by the provided course and session type
+        # Local mapping of course names to course IDs for this endpoint only
+        course_name_to_id = {
+            "QA": 1,
+            "UI": 2,
+            "ML": 3,
+            
+        }
+
+        # Validate and map course_name to course_id
+        if course_name:
+            course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
+            if not course_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
+                )
+        else:
+            course_id = None  # If course_name is not provided, no filtering on course_id
+
+        # Call the function to fetch sessions by the provided course_id and session_type
         sessions = await fetch_sessions_by_type(course_id, session_type)
         if not sessions:
-            raise HTTPException(status_code=404, detail="Sessions not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
         return {"sessions": sessions}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
 ###########################################################################
