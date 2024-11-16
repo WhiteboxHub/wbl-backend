@@ -809,8 +809,9 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
                 SELECT id
                 FROM new_course
                 WHERE alias = '{subject}'
+                )               
                 )
-                );
+                ORDER BY nr.classdate ASC;
                 """
         await loop.run_in_executor(None, cursor.execute, query)
         recordings = cursor.fetchall()
