@@ -811,7 +811,7 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
                 WHERE alias = '{subject}'
                 )               
                 )
-                ORDER BY nr.classdate ASC;
+                ORDER BY nr.classdate Desc;
                 """
         await loop.run_in_executor(None, cursor.execute, query)
         recordings = cursor.fetchall()
