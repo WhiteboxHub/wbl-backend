@@ -523,7 +523,7 @@
 
 
 
-from fapi.utils import md5_hash,verify_md5_hash,hash_password
+from utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -950,12 +950,18 @@ async def fetch_sessions_by_type(course_id: int, session_type: str):
         cursor = conn.cursor(dictionary=True)
         
         query = """
-            SELECT ns.*
-            FROM new_session ns
-            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
-            WHERE ncs.course_id = %s
-              AND ns.type = %s
-            ORDER BY ns.sessiondate desc;
+              SELECT ns.*
+    FROM new_session ns
+    JOIN new_course_subject ncs 
+      ON ns.subject_id = ncs.subject_id
+    WHERE ns.subject_id != 0
+      AND ncs.course_id IN (%s) 
+      AND ns.type = %s 
+      AND (ncs.course_id !=3 OR ns.sessiondate >= '2024-01-01')
+    ORDER BY ns.sessiondate DESC;
+            
+             
+           
         """
         
         # Log the query and parameters
