@@ -1,14 +1,14 @@
-from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
-from db import (
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
+from fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
 )
-from utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
-from contactMailTemplet import ContactMail_HTML_templete
-from mail_service import send_reset_password_email
+from fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
+from fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
+from fapi.contactMailTemplet import ContactMail_HTML_templete
+from fapi.mail_service import send_reset_password_email
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
