@@ -523,7 +523,7 @@
 
 
 
-from utils import md5_hash,verify_md5_hash,hash_password
+from fapi.utils import md5_hash,verify_md5_hash,hash_password
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -832,7 +832,6 @@ async def fetch_keyword_recordings(subject: str, keyword: str):
                 JOIN new_course_subject ncs ON ns.id = ncs.subject_id
                 JOIN new_course nc ON ncs.course_id = nc.id               
                 WHERE nc.alias =%s
-               	    
                 AND nr.description LIKE %s
                 ORDER BY nr.classdate DESC;               
                 """
