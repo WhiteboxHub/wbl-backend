@@ -1,4 +1,4 @@
-from fapi.db import get_user_by_username
+from db import get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
@@ -21,7 +21,7 @@ if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
-# ACCESS_TOKEN_EXPIRE_MINUTES = 1
+# ACCESS_TOKEN_EXPIRE_MINUTES =1
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 15  # Token expiry time for password reset
 
 # Simple in-memory cache dictionary

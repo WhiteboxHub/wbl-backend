@@ -523,7 +523,7 @@
 
 
 
-from fapi.utils import md5_hash,verify_md5_hash,hash_password
+from utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -820,26 +820,53 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
         conn.close()
 
 
-async def fetch_keyword_recordings(subject: str, keyword: str):
+# import asyncio
+# import mysql.connector
+
+async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = """                
-                SELECT DISTINCT nr.id,nr.batchname, nr.description, nr.type,nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
-                FROM new_recording nr
-                JOIN new_subject ns ON nr.new_subject_id = ns.id
-                JOIN new_course_subject ncs ON ns.id = ncs.subject_id
-                JOIN new_course nc ON ncs.course_id = nc.id               
-                WHERE nc.alias =%s
-                AND nr.description LIKE %s
-                ORDER BY nr.classdate DESC;               
-                """
-        await loop.run_in_executor(None, cursor.execute, query, (subject, '%' + keyword + '%'))
+
+        # Base query with placeholders
+        query = """
+            SELECT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject,
+                   nr.filename, nr.lastmoddatetime, nr.new_subject_id,
+                   'recording' AS source
+            FROM new_recording nr
+            JOIN new_subject ns ON nr.new_subject_id = ns.id
+            JOIN new_course_subject ncs ON ns.id = ncs.subject_id
+            JOIN new_course nc ON ncs.course_id = nc.id
+            WHERE (%s = '' OR nc.alias = %s)
+              AND (%s = '' OR nr.description LIKE %s)
+
+            UNION
+
+            SELECT ns.sessionid AS id, ns.title AS batchname, ns.title AS description, ns.type, ns.sessiondate AS classdate, ns.link, ns.videoid, ns.subject,
+                   NULL AS filename, ns.lastmoddatetime, ns.subject_id AS new_subject_id,
+                   'session' AS source
+            FROM new_session ns
+            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+            JOIN new_course nc ON ncs.course_id = nc.id
+            WHERE (%s = '' OR nc.alias = %s)
+              AND (%s = '' OR ns.title LIKE %s)
+            ORDER BY classdate DESC;
+        """
+
+        # Dynamically adjust parameters for query
+        keyword_search = f"%{keyword}%" if keyword else ""
+        params = (subject, subject, keyword, keyword_search, subject, subject, keyword, keyword_search)
+
+        # Execute query
+        await loop.run_in_executor(None, cursor.execute, query, params)
+
+        # Fetch results
         recordings = cursor.fetchall()
         return recordings
     finally:
         conn.close()
+
 
             
 async def fetch_keyword_presentation(search, course):
@@ -922,56 +949,145 @@ async def fetch_keyword_presentation(search, course):
 
 
 # newly added functions ###################################################
-async def fetch_types():
+
+
+async def get_user_from_token(token: str):
+    # Verify the JWT token and extract the email
+    payload = verify_token(token)
+    if isinstance(payload, JSONResponse):  # Check if an error response was returned
+        raise ValueError("Invalid or expired token")
+    
+    email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
+
+    # Query the database to find the user by email
+    team = await fetch_user_team(email)
+    return team
+
+
+
+async def fetch_user_team(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT DISTINCT type FROM new_session ORDER BY type ASC;"
-        await loop.run_in_executor(None, cursor.execute, query)
+        
+        # Query to check the team column for the user
+        query = "SELECT team FROM authuser WHERE email = %s;"
+        await loop.run_in_executor(None, cursor.execute, query, (email,))
+        
+        result = cursor.fetchone()
+        if result:
+            return result['team']  # Returns 'admin', 'instructor', or None
+        return None  # User not found
+    finally:
+        conn.close()
+
+
+
+# async def fetch_types():
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = "SELECT DISTINCT type FROM new_session ORDER BY type ASC;"
+#         await loop.run_in_executor(None, cursor.execute, query)
+#         types = cursor.fetchall()
+#         return types
+#     finally:
+#         conn.close()
+
+
+async def fetch_types(team: str):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        if team in ["admin", "instructor"]:
+            query = "SELECT DISTINCT type FROM new_session ORDER BY type ASC;"
+        else:
+            allowed_types = ("Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc")
+            query = "SELECT DISTINCT type FROM new_session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
+
+        await loop.run_in_executor(None, cursor.execute, query, allowed_types if team not in ["admin", "instructor"] else ())
         types = cursor.fetchall()
         return types
     finally:
         conn.close()
 
 
-async def fetch_sessions_by_type(course_id: int, session_type: str):
-    # Validate course_id
+# async def fetch_sessions_by_type(course_id: int, session_type: str):
+#     # Validate course_id
+#     if not course_id or not session_type:
+#         raise HTTPException(status_code=400, detail="Invalid course_id or session_type")
+#     print(course_id)
+#     print(session_type)
+
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+        
+#         query = """
+#               SELECT ns.*
+#     FROM new_session ns
+#     JOIN new_course_subject ncs 
+#       ON ns.subject_id = ncs.subject_id
+#     WHERE ns.subject_id != 0
+#       AND ncs.course_id IN (%s) 
+#       AND ns.type = %s 
+#       AND (ncs.course_id !=3 OR ns.sessiondate >= '2024-01-01')
+#     ORDER BY ns.sessiondate DESC;
+            
+             
+           
+#         """
+        
+#         # Log the query and parameters
+#         print("Executing query:", query)
+#         print("With parameters:", (course_id, session_type))
+        
+#         await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
+#         sessions = cursor.fetchall()
+#         return sessions
+#     finally:
+#         conn.close()
+
+
+async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
     if not course_id or not session_type:
-        raise HTTPException(status_code=400, detail="Invalid course_id or session_type")
-    print(course_id)
-    print(session_type)
+        raise ValueError("Invalid course_id or session_type")
 
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    
+
     try:
         cursor = conn.cursor(dictionary=True)
         
         query = """
-              SELECT ns.*
-    FROM new_session ns
-    JOIN new_course_subject ncs 
-      ON ns.subject_id = ncs.subject_id
-    WHERE ns.subject_id != 0
-      AND ncs.course_id IN (%s) 
-      AND ns.type = %s 
-      AND (ncs.course_id !=3 OR ns.sessiondate >= '2024-01-01')
-    ORDER BY ns.sessiondate DESC;
-            
-             
-           
+            SELECT ns.*
+            FROM new_session ns
+            JOIN new_course_subject ncs 
+            ON ns.subject_id = ncs.subject_id
+            WHERE ns.subject_id != 0
+            AND ncs.course_id IN (%s) 
+            AND ns.type = %s 
+            AND (ncs.course_id != 3 OR ns.sessiondate >= '2024-01-01')
+            ORDER BY ns.sessiondate DESC;
         """
-        
-        # Log the query and parameters
-        print("Executing query:", query)
-        print("With parameters:", (course_id, session_type))
-        
+
+        if team not in ["admin", "instructor"]:
+            allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
+            if session_type not in allowed_types:
+                return []  # Return empty list if type not allowed for normal users
+
         await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
         sessions = cursor.fetchall()
         return sessions
     finally:
         conn.close()
+
 ##########################################
 
 # async def get_user_by_username(uname: str):

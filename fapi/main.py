@@ -1,14 +1,14 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
-from  fapi.db import (
+from models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
+from  db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
 )
-from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
-from  fapi.contactMailTemplet import ContactMail_HTML_templete
-from  fapi.mail_service import send_reset_password_email
+from  utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
+from  auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
+from  contactMailTemplet import ContactMail_HTML_templete
+from  mail_service import send_reset_password_email
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -327,25 +327,65 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
     
+# @app.get("/api/session-types")
+# async def get_types():
+#     try:
+#         types = await fetch_types()
+#         if not types:
+#             raise HTTPException(status_code=404, detail="Types not found")
+#         return {"types": types}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+ 
+# @app.get("/api/sessions")
+# async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
+#     try:
+#         # Local mapping of course names to course IDs for this endpoint only
+#         course_name_to_id = {
+#             "QA": 1,
+#             "UI": 2,
+#             "ML": 3,
+            
+#         }
+
+#         # Validate and map course_name to course_id
+#         if course_name:
+#             course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
+#             if not course_id:
+#                 raise HTTPException(
+#                     status_code=status.HTTP_400_BAD_REQUEST,
+#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
+#                 )
+#         else:
+#             course_id = None  # If course_name is not provided, no filtering on course_id
+
+#         # Call the function to fetch sessions by the provided course_id and session_type
+#         sessions = await fetch_sessions_by_type(course_id, session_type)
+#         if not sessions:
+#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
+#         return {"sessions": sessions}
+#     except Exception as e:
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 @app.get("/api/session-types")
-async def get_types():
+async def get_types(current_user: dict = Depends(get_current_user)):
     try:
-        types = await fetch_types()
+        team = current_user.get("team", "null")  # Extract the team from the user data
+        types = await fetch_types(team)  # Pass the team to fetch_types
         if not types:
             raise HTTPException(status_code=404, detail="Types not found")
         return {"types": types}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
- 
+
 @app.get("/api/sessions")
-async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
+async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     try:
         # Local mapping of course names to course IDs for this endpoint only
         course_name_to_id = {
             "QA": 1,
             "UI": 2,
             "ML": 3,
-            
         }
 
         # Validate and map course_name to course_id
@@ -359,14 +399,16 @@ async def get_sessions(course_name: Optional[str] = None, session_type: Optional
         else:
             course_id = None  # If course_name is not provided, no filtering on course_id
 
+        # Fetch the current user's team
+        team = current_user.get("team", "null")
+
         # Call the function to fetch sessions by the provided course_id and session_type
-        sessions = await fetch_sessions_by_type(course_id, session_type)
+        sessions = await fetch_sessions_by_type(course_id, session_type, team)  # Pass the team to fetch_sessions_by_type
         if not sessions:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
         return {"sessions": sessions}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
 
 ###########################################################################
 
