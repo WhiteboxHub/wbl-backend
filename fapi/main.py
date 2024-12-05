@@ -1,3 +1,7 @@
+import asyncio
+from logging import config
+
+import mysql
 from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
@@ -204,6 +208,48 @@ async def register_user(user: UserRegistration):
     )
     return {"message": "User registered successfully"}
 
+# @app.post("/api/login", response_model=Token)
+# async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+#     user = await authenticate_user(form_data.username, form_data.password)
+#     if user == "inactive":
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+#     elif not user:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Not a Valid User / Incorrect username or password",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+
+#     # Ensure user is a dictionary
+#     if not isinstance(user, dict):
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Invalid user object returned from authentication",
+#         )
+#     useragent = request.headers.get('User-Agent', '')
+
+#     # Update login count and last login timestamp
+#     # print(user)
+#     await update_login_info(user["id"])
+
+#     # Insert login history
+#     await insert_login_history(user["id"], request.client.host, useragent)
+
+#     # Create token payload with candidateid
+#     # access_token = create_access_token(data={"sub": user["uname"]})
+
+#  # Create token payload with candidateid
+#     access_token = create_access_token(data={"sub": user["uname"], "candidateid": user["candidateid"]})
+
+#     return {
+#         "access_token": access_token,
+#         "token_type": "bearer"
+#     }
+
 @app.post("/api/login", response_model=Token)
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
@@ -220,31 +266,21 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Ensure user is a dictionary
-    if not isinstance(user, dict):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid user object returned from authentication",
-        )
-    useragent = request.headers.get('User-Agent', '')
-
-    # Update login count and last login timestamp
-    # print(user)
     await update_login_info(user["id"])
+    await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
 
-    # Insert login history
-    await insert_login_history(user["id"], request.client.host, useragent)
-
-    # Create token payload with candidateid
-    # access_token = create_access_token(data={"sub": user["uname"]})
-
- # Create token payload with candidateid
-    access_token = create_access_token(data={"sub": user["uname"], "candidateid": user["candidateid"]})
+    access_token = create_access_token(
+        data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
+    )
 
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "team": user["team"],  # Explicitly include team info in response
     }
+
+
+
 
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -327,15 +363,44 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
     
+# @app.get("/api/session-types")
+# async def get_types():
+#     try:
+#         types = await fetch_types()
+#         if not types:
+#             raise HTTPException(status_code=404, detail="Types not found")
+#         return {"types": types}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/session-types")
-async def get_types():
+async def fetch_session_types(user: dict = Depends(get_current_user)):
+    user_team = user.get("team")  # Extract team from token
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**config))
+
     try:
-        types = await fetch_types()
-        if not types:
-            raise HTTPException(status_code=404, detail="Types not found")
+        cursor = conn.cursor(dictionary=True)
+
+        if user_team in ["admin", "instructor"]:  # Full access for admin or instructor
+            query = "SELECT DISTINCT type FROM new_session ORDER BY type ASC;"
+        else:  # Limited access for normal users
+            query = """
+                SELECT DISTINCT type
+                FROM new_session
+                WHERE type IN ('Group Mock', 'Individual Mock', 'Resume Session', 'Interview Prep', 'Job Help', 'Misc')
+                ORDER BY type ASC;
+            """
+
+        await loop.run_in_executor(None, cursor.execute, query)
+        types = cursor.fetchall()
         return {"types": types}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+
+
  
 @app.get("/api/sessions")
 async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
