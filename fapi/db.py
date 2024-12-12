@@ -523,7 +523,7 @@
 
 
 
-from utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
+from fapi.utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
