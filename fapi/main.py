@@ -202,7 +202,7 @@ async def register_user(user: UserRegistration):
             'status': user.status
         }
     )
-    return {"message": "User registered successfully"}
+    return {"message": "User registered successfully "}
 
 # @app.post("/api/login", response_model=Token)
 # async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
@@ -518,7 +518,7 @@ async def contact(user: ContactForm):
         except Exception as e:
             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
     sendEmail()
-    return {"detail": "Message Sent Successfully Our Team will Reachout to you"}
+    return {"detail": "Message Sent Successfully"}
 
 
 @app.get("/api/coursecontent")
