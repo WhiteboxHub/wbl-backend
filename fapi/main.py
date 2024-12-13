@@ -25,7 +25,9 @@ import jwt
 
 
 # Load environment variables from .env file
+# Load .env variables
 load_dotenv()
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -163,12 +165,98 @@ async def authenticate_user(uname: str, passwd: str):
     return {**user, "candidateid": candidateid}
     # return user
 
+
+
+
+
+
+# @app.post("/api/signup")
+# async def register_user(user: UserRegistration):
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+
+#     hashed_password = md5_hash(user.passwd)
+#     await insert_user(
+#         uname=user.uname,
+#         passwd=hashed_password,
+#         dailypwd=user.dailypwd,
+#         team=user.team,
+#         level=user.level,
+#         instructor=user.instructor,
+#         override=user.override,
+#         status=user.status,
+#         lastlogin=user.lastlogin,
+#         logincount=user.logincount,
+#         fullname=user.fullname,
+#         phone=user.phone,
+#         address=user.address,
+#         city=user.city,
+#         Zip=user.Zip,
+#         country=user.country,
+#         message=user.message,
+#         registereddate=user.registereddate,
+#         level3date=user.level3date,
+#         candidate_info={
+#             'name': user.fullname,
+#             'enrolleddate': user.registereddate,
+#             'email': user.uname,
+#             'phone': user.phone,
+#             'address': user.address,
+#             'city': user.city,
+#             'country': user.country,
+#             'zip': user.Zip,
+#             'status': user.status
+#         }
+#     )
+#     return {"message": "User registered successfully "}
+
+
+# Send email function
+def send_email_to_user(user_email: str, user_name: str):
+    from_email = os.getenv('EMAIL_USER')
+    password = os.getenv('EMAIL_PASS')
+    smtp_server = os.getenv('SMTP_SERVER')
+    smtp_port = os.getenv('SMTP_PORT')
+
+    # Create the email content
+    html_content = f"""
+    <html>
+        <body>
+            <p>Dear {user_name},</p>
+            <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
+            <p>Best regards,<br>Recruitment Team</p>
+        </body>
+    </html>
+    """
+
+    # Create the MIME message
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = user_email
+    msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
+
+    msg.attach(MIMEText(html_content, 'html'))
+
+    try:
+        # Establish the connection with the email server
+        server = smtplib.SMTP(smtp_server, int(smtp_port))
+        server.starttls()
+        server.login(from_email, password)
+        text = msg.as_string()
+        server.sendmail(from_email, user_email, text)
+        server.quit()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail='Error while sending the confirmation email.')
+
 @app.post("/api/signup")
 async def register_user(user: UserRegistration):
+    # Check if the user already exists
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
+    # Hash the password and insert the new user
     hashed_password = md5_hash(user.passwd)
     await insert_user(
         uname=user.uname,
@@ -202,7 +290,19 @@ async def register_user(user: UserRegistration):
             'status': user.status
         }
     )
-    return {"message": "User registered successfully "}
+
+    # Send confirmation email to the user
+    send_email_to_user(user.uname, user.fullname)
+
+    return {"message": "User registered successfully and a confirmation email has been sent to the user."}
+
+
+
+
+
+
+
+
 
 # @app.post("/api/login", response_model=Token)
 # async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
