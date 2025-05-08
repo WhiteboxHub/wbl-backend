@@ -91,50 +91,147 @@ ALGORITHM = "HS256"
 #         "token_type": "bearer"
 #     }
 
+# --------------------------social login working ----------------------------
+
+# @app.post("/api/check_user/")
+# async def check_user_exists(user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+#     if existing_user:
+#         return {"exists": True, "status": existing_user['status']}
+#     return {"exists": False}
+
+
+# @app.post("/api/google_users/")
+# async def register_google_user(user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+    
+#     if existing_user:
+#         if existing_user['status'] == 'active':
+#             return {"message": "User already registered and active, please log in."}
+#         else:
+#             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
+#     return {"message": "Google user registered successfully!"}
+
+# @app.post("/api/google_login/")
+# async def login_google_user(user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+#     if existing_user is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+#     if existing_user['status'] == 'inactive':
+#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     # Generate token upon successful login
+#     token_data = {
+#         "sub": existing_user['uname'],
+#         "name": existing_user['fullname'],
+#         "google_id": existing_user['googleId'],
+#     }   
+    
+#     access_token = create_google_access_token(data=token_data)
+    
+#     return {
+#         "access_token": access_token,
+#         "token_type": "bearer"
+#     }
+# ------------------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
-    existing_user = await get_google_user_by_email(user.email)
-    if existing_user:
-        return {"exists": True, "status": existing_user['status']}
-    return {"exists": False}
-
+    try:
+        existing_user = await get_google_user_by_email(user.email)
+        if existing_user:
+            return {
+                "exists": True,
+                "status": existing_user['status'],
+                "message": "User found"
+            }
+        return {
+            "exists": False,
+            "message": "User not found"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @app.post("/api/google_users/")
 async def register_google_user(user: GoogleUserCreate):
-    existing_user = await get_google_user_by_email(user.email)
-    
-    if existing_user:
-        if existing_user['status'] == 'active':
-            return {"message": "User already registered and active, please log in."}
-        else:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+    try:
+        existing_user = await get_google_user_by_email(user.email)
+        
+        if existing_user:
+            if existing_user['status'] == 'active':
+                # Instead of returning message, generate token for automatic login
+                token_data = {
+                    "sub": existing_user['uname'],
+                    "name": existing_user['fullname'],
+                    "google_id": existing_user['googleId'],
+                }
+                access_token = create_google_access_token(data=token_data)
+                return {
+                    "message": "User already registered and active",
+                    "access_token": access_token,
+                    "token_type": "bearer",
+                    "status": "active"
+                }
+            else:
+                return {
+                    "message": "Inactive account. Please contact admin.",
+                    "status": "inactive"
+                }
 
-    await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
-    return {"message": "Google user registered successfully!"}
+        # Register new user
+        await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
+        return {
+            "message": "Registration successful. Waiting for admin approval.",
+            "status": "pending"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @app.post("/api/google_login/")
 async def login_google_user(user: GoogleUserCreate):
-    existing_user = await get_google_user_by_email(user.email)
-    if existing_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if existing_user['status'] == 'inactive':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+    try:
+        existing_user = await get_google_user_by_email(user.email)
+        if existing_user is None:
+            return {
+                "message": "User not registered",
+                "status": "unregistered"
+            }
+        
+        if existing_user['status'] == 'inactive':
+            return {
+                "message": "Inactive account. Please contact admin.",
+                "status": "inactive"
+            }
 
-    # Generate token upon successful login
-    token_data = {
-        "sub": existing_user['uname'],
-        "name": existing_user['fullname'],
-        "google_id": existing_user['googleId'],
-    }   
-    
-    access_token = create_google_access_token(data=token_data)
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+        token_data = {
+            "sub": existing_user['uname'],
+            "name": existing_user['fullname'],
+            "google_id": existing_user['googleId'],
+        }   
+        
+        access_token = create_google_access_token(data=token_data)
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "status": "active"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
+        
 @app.post("/api/verify_google_token/")
 async def verify_google_token(token: str):
     try:
