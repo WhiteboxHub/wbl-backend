@@ -17,7 +17,8 @@ RUN pip install python-dotenv
 EXPOSE 8000
 
 # # Copy the .env file to the working directory
-# COPY .env .env
+COPY .env .env
 
 # Run the FastAPI server with reload option
 CMD ["uvicorn", "fapi.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
