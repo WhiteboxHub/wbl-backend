@@ -631,6 +631,67 @@ async def get_google_user_by_email(email: str):
             
 
 # Async function to insert a user into the database
+# async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
+#                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
+#                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
+#                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
+#                       registereddate: str = None, level3date: str = None, candidate_info: Dict[str, Optional[str]] = None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+        
+#         # Insert into authuser table
+#         query1 = """
+#             INSERT INTO whiteboxqa.authuser (
+#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
+#                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
+#                 message, registereddate, level3date
+#             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'inactive', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+#         """
+#         values1 = (
+#             uname, passwd, dailypwd, team, level, instructor, override, 
+#             lastlogin, logincount, fullname, phone, address, city, Zip, country, 
+#             message, registereddate, level3date
+#         )
+#         await loop.run_in_executor(None, cursor.execute, query1, values1)
+        
+#         # Insert into candidate table
+#         # query2 = """
+#         #     INSERT INTO whiteboxqa.candidate (
+#         #         name, enrolleddate, email, course, phone, status, address, city, country, zip
+#         #     ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
+#         # """
+#         # values2 = (
+#         #     candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
+#         #     candidate_info['phone'], candidate_info['address'], 
+#         #     candidate_info['city'], candidate_info['country'], candidate_info['zip']
+#         # )
+#         # await loop.run_in_executor(None, cursor.execute, query2, values2)
+
+#         #get the last inserted ID to for candidate_ID
+#         # candidate_id = cursor.lastrowid
+
+#          ## Insert the candidate_id into the candidate_resume table
+#         # query3 = """
+#         #     INSERT INTO whiteboxqa.candidate_resume (
+#         #         candidate_id
+#         #     ) VALUES (%s);
+#         # """
+#         # values3 = (candidate_id,)
+#         # await loop.run_in_executor(None, cursor.execute, query3, values3)
+
+#         conn.commit()
+#     except Error as e:
+#         # print(f"Error inserting user: {e}")
+#         conn.rollback()
+#         raise HTTPException(status_code=500, detail="Error inserting user")
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+# add data also to leads when registered
+
 async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
@@ -656,41 +717,46 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         )
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         
-        # Insert into candidate table
-        # query2 = """
-        #     INSERT INTO whiteboxqa.candidate (
-        #         name, enrolleddate, email, course, phone, status, address, city, country, zip
-        #     ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
-        # """
-        # values2 = (
-        #     candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
-        #     candidate_info['phone'], candidate_info['address'], 
-        #     candidate_info['city'], candidate_info['country'], candidate_info['zip']
-        # )
-        # await loop.run_in_executor(None, cursor.execute, query2, values2)
-
-        #get the last inserted ID to for candidate_ID
-        # candidate_id = cursor.lastrowid
-
-         ## Insert the candidate_id into the candidate_resume table
-        # query3 = """
-        #     INSERT INTO whiteboxqa.candidate_resume (
-        #         candidate_id
-        #     ) VALUES (%s);
-        # """
-        # values3 = (candidate_id,)
-        # await loop.run_in_executor(None, cursor.execute, query3, values3)
+        # Insert into leads table with only available data
+        query2 = """
+            INSERT INTO whiteboxqa.leads (
+                name, startdate, phone, email, address, city, country, zip, notes, 
+                status, course, source
+            ) VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, 'Open', 'QA', 'Website');
+        """
+        
+        values2 = (
+            fullname or "",      # name (optional)
+            phone or "",         # phone (optional)
+            uname,               # email (required)
+            address or "",       # address (optional)
+            city or "",          # city (optional)
+            country or "",       # country (optional)
+            Zip or "",           # zip (optional)
+            "Registered through website"  # notes (optional)
+        )
+        
+        try:
+            # Print debugging information
+            print(f"Attempting to insert into leads table...")
+            print(f"Query: {query2}")
+            print(f"Values: {values2}")
+            
+            await loop.run_in_executor(None, cursor.execute, query2, values2)
+            print("Insert into leads successful!")
+        except Error as lead_error:
+            print(f"Error inserting into leads table: {lead_error}")
+            raise
 
         conn.commit()
     except Error as e:
-        # print(f"Error inserting user: {e}")
         conn.rollback()
-        raise HTTPException(status_code=500, detail="Error inserting user")
+        print(f"Error in database operation: {e}")
+        # Include more specific error details in the HTTP exception
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         cursor.close()
         conn.close()
-
-
 
    
             
@@ -1103,12 +1169,25 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
 #         conn.close()
 
 
+# async def fetch_candidate_id_by_email(email: str):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = "SELECT candidateid FROM candidate WHERE email = %s;"
+#         await loop.run_in_executor(None, cursor.execute, query, (email,))
+#         result = cursor.fetchone()
+#         return result
+#     finally:
+#         conn.close()
+
+# validating candidate status too 
 async def fetch_candidate_id_by_email(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT candidateid FROM candidate WHERE email = %s;"
+        query = "SELECT candidateid, status FROM candidate WHERE email = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (email,))
         result = cursor.fetchone()
         return result

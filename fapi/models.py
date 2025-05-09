@@ -33,10 +33,14 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
+# class Token(BaseModel):
+#     access_token: str
+#     token_type: str
 class Token(BaseModel):
     access_token: str
     token_type: str
-
+    team: Optional[str] = None
+    candidate_status: Optional[str] = None
 class EmailRequest(BaseModel):
     email: EmailStr
 

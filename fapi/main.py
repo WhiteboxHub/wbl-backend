@@ -248,19 +248,53 @@ async def verify_google_token(token: str):
 
 # ------------------------------------------------------------------------------------
 
+# async def authenticate_user(uname: str, passwd: str):
+#     user = await get_user_by_username(uname)
+#     if not user or not verify_md5_hash(passwd, user["passwd"]):
+#         return None
+
+#     if user["status"] != 'active':
+#         return "inactive"  # User status is not active
+
+#     # Fetch candidateid from the candidate table
+#     candidate_info = await fetch_candidate_id_by_email(uname)
+#     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
+#     return {**user, "candidateid": candidateid}
+#     # return user
+
 async def authenticate_user(uname: str, passwd: str):
+    # Check if user exists in authuser table and verify password
     user = await get_user_by_username(uname)
     if not user or not verify_md5_hash(passwd, user["passwd"]):
         return None
 
+    # Check if authuser status is active
     if user["status"] != 'active':
-        return "inactive"  # User status is not active
+        return {"status": "inactive_auth", "message": "Inactive account. Please contact admin."}
 
-    # Fetch candidateid from the candidate table
+    # Fetch candidate info including status
     candidate_info = await fetch_candidate_id_by_email(uname)
-    candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
-    return {**user, "candidateid": candidateid}
-    # return user
+    
+    # If candidate record doesn't exist, handle accordingly
+    if not candidate_info:
+        return {"status": "no_candidate", "message": "User profile not found. Please contact admin."}
+    
+    # Define valid statuses for login
+    valid_candidate_statuses = ['Active', 'Marketing', 'Placed', 'OnProject-Mkt']
+    
+    # Check candidate status
+    if candidate_info['status'] not in valid_candidate_statuses:
+        return {
+            "status": "inactive_candidate", 
+            "message": f"Your account status '{candidate_info['status']}' does not allow login. Please contact admin."
+        }
+    
+    # If everything is valid, return the complete user info
+    return {
+        **user, 
+        "candidateid": candidate_info["candidateid"],
+        "candidate_status": candidate_info["status"]
+    }
 
 
 
@@ -309,100 +343,15 @@ async def authenticate_user(uname: str, passwd: str):
 #     return {"message": "User registered successfully "}
 
 
-# # Send email function
-# def send_email_to_user(user_email: str, user_name: str,admin_email:str):
-#     from_email = os.getenv('EMAIL_USER')
-#     password = os.getenv('EMAIL_PASS')
-#     smtp_server = os.getenv('SMTP_SERVER')
-#     smtp_port = os.getenv('SMTP_PORT')
-
-#     # Create the email content
-#     html_content = f"""
-#     <html>
-#         <body>
-#             <p>Dear {user_name},</p>
-#             <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
-#             <p>Best regards,<br>Recruitment Team</p>
-#         </body>
-#     </html>
-#     """
-
-#     # Create the MIME message
-#     msg = MIMEMultipart()
-#     msg['From'] = from_email
-#     msg['To'] = user_email
-#     msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
-
-#     msg.attach(MIMEText(html_content, 'html'))
-
-#     try:
-#         # Establish the connection with the email server
-#         server = smtplib.SMTP(smtp_server, int(smtp_port))
-#         server.starttls()
-#         server.login(from_email, password)
-#         text = msg.as_string()
-#         server.sendmail(from_email, user_email, text)
-#         server.quit()
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail='Error while sending the confirmation email.')
-
-# @app.post("/api/signup")
-# async def register_user(user: UserRegistration):
-#     # Check if the user already exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
-
-#     # Hash the password and insert the new user
-#     hashed_password = md5_hash(user.passwd)
-#     await insert_user(
-#         uname=user.uname,
-#         passwd=hashed_password,
-#         dailypwd=user.dailypwd,
-#         team=user.team,
-#         level=user.level,
-#         instructor=user.instructor,
-#         override=user.override,
-#         status=user.status,
-#         lastlogin=user.lastlogin,
-#         logincount=user.logincount,
-#         fullname=user.fullname,
-#         phone=user.phone,
-#         address=user.address,
-#         city=user.city,
-#         Zip=user.Zip,
-#         country=user.country,
-#         message=user.message,
-#         registereddate=user.registereddate,
-#         level3date=user.level3date,
-#         candidate_info={
-#             'name': user.fullname,
-#             'enrolleddate': user.registereddate,
-#             'email': user.uname,
-#             'phone': user.phone,
-#             'address': user.address,
-#             'city': user.city,
-#             'country': user.country,
-#             'zip': user.Zip,
-#             'status': user.status
-#         }
-#     )
-
-#     # Send confirmation email to the user
-#     send_email_to_user(user.uname, user.fullname)
-
-#     return {"message": "User registered successfully and a confirmation email has been sent to the user."}
-
 # Send email function
 def send_email_to_user(user_email: str, user_name: str):
-    from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
-    to_admin_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
+    from_email = os.getenv('EMAIL_USER')
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
 
-    # Email content for the user
-    user_html_content = f"""
+    # Create the email content
+    html_content = f"""
     <html>
         <body>
             <p>Dear {user_name},</p>
@@ -412,51 +361,25 @@ def send_email_to_user(user_email: str, user_name: str):
     </html>
     """
 
-    # Email content for the admin
-    admin_html_content = f"""
-    <html>
-        <body>
-            <p>Hello Admin,</p>
-            <p>A new user has registered on the website. Please review their details and provide access.</p>
-            <p><strong>User Details:</strong></p>
-            <ul>
-                <li>Name: {user_name}</li>
-                <li>Email: {user_email}</li>
-            </ul>
-            <p>Best regards,<br>System Notification</p>
-        </body>
-    </html>
-    """
+    # Create the MIME message
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = user_email
+    msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
+
+    msg.attach(MIMEText(html_content, 'html'))
 
     try:
         # Establish the connection with the email server
         server = smtplib.SMTP(smtp_server, int(smtp_port))
         server.starttls()
         server.login(from_email, password)
-
-        # Send email to the user
-        user_msg = MIMEMultipart()
-        user_msg['From'] = from_email
-        user_msg['To'] = user_email
-        user_msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
-        user_msg.attach(MIMEText(user_html_content, 'html'))
-        server.sendmail(from_email, user_email, user_msg.as_string())
-
-        # Send email to the admin
-        admin_msg = MIMEMultipart()
-        admin_msg['From'] = from_email
-        admin_msg['To'] = to_admin_email
-        admin_msg['Subject'] = 'New User Registration Notification'
-        admin_msg.attach(MIMEText(admin_html_content, 'html'))
-        server.sendmail(from_email, to_admin_email, admin_msg.as_string())
-
-        # Close the server
+        text = msg.as_string()
+        server.sendmail(from_email, user_email, text)
         server.quit()
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
+        raise HTTPException(status_code=500, detail='Error while sending the confirmation email.')
 
-# API Endpoint for registering users
 @app.post("/api/signup")
 async def register_user(user: UserRegistration):
     # Check if the user already exists
@@ -499,10 +422,11 @@ async def register_user(user: UserRegistration):
         }
     )
 
-    # Send confirmation email to the user and notify the admin
-    send_email_to_user(user_email=user.uname, user_name=user.fullname)
+    # Send confirmation email to the user
+    send_email_to_user(user.uname, user.fullname)
 
-    return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
+    return {"message": "User registered successfully and a confirmation email has been sent to the user."}
+
 
 
 
@@ -553,36 +477,75 @@ async def register_user(user: UserRegistration):
 #         "token_type": "bearer"
 #     }
 
+# @app.post("/api/login", response_model=Token)
+# async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+#     user = await authenticate_user(form_data.username, form_data.password)
+#     if user == "inactive":
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+#     elif not user:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Not a Valid User / Incorrect username or password",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+
+#     await update_login_info(user["id"])
+#     await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
+
+#     access_token = create_access_token(
+#         data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
+#     )
+
+#     return {
+#         "access_token": access_token,
+#         "token_type": "bearer",
+#         "team": user["team"],  # Explicitly include team info in response
+#     }
+
 @app.post("/api/login", response_model=Token)
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)
-    if user == "inactive":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    elif not user:
+    user_result = await authenticate_user(form_data.username, form_data.password)
+    
+    # If None, authentication failed
+    if user_result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Not a Valid User / Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Check for error status responses
+    if isinstance(user_result, dict) and 'status' in user_result:
+        if user_result['status'] in ['inactive_auth', 'inactive_candidate', 'no_candidate']:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=user_result['message'],
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    
+    # Authentication successful, update login info
+    await update_login_info(user_result["id"])
+    await insert_login_history(user_result["id"], request.client.host, request.headers.get('User-Agent', ''))
 
-    await update_login_info(user["id"])
-    await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
-
+    # Create token with necessary data
     access_token = create_access_token(
-        data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
+        data={
+            "sub": user_result["uname"], 
+            "team": user_result["team"],
+            "candidate_status": user_result["candidate_status"]
+        }
     )
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "team": user["team"],  # Explicitly include team info in response
+        "team": user_result["team"],
+        "candidate_status": user_result["candidate_status"]
     }
-
-
 
 
 # Function to get the current user based on the token
