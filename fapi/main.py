@@ -279,8 +279,9 @@ async def authenticate_user(uname: str, passwd: str):
     if not candidate_info:
         return {"status": "no_candidate", "message": "User profile not found. Please contact admin."}
     
-    # Define valid statuses for login
-    valid_candidate_statuses = ['Active', 'Marketing', 'Placed', 'OnProject-Mkt']
+    # Define valid statuses for login - accept both small and capital cases
+    valid_candidate_statuses = ['Active', 'active', 'Marketing', 'marketing', 
+                               'Placed', 'placed', 'OnProject-Mkt', 'onproject-mkt']
     
     # Check candidate status
     if candidate_info['status'] not in valid_candidate_statuses:
@@ -295,7 +296,6 @@ async def authenticate_user(uname: str, passwd: str):
         "candidateid": candidate_info["candidateid"],
         "candidate_status": candidate_info["status"]
     }
-
 
 
 
