@@ -643,7 +643,7 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         
         # Insert into authuser table
         query1 = """
-            INSERT INTO `whitebox-learning`.authuser (
+            INSERT INTO whiteboxqa.authuser (
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
                 message, registereddate, level3date
@@ -683,12 +683,9 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
 
         conn.commit()
     except Error as e:
-        print(f"Database error: {e}")  # Log the actual error
+        # print(f"Error inserting user: {e}")
         conn.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Database error: {str(e)}"  # Return actual error to client
-    )
+        raise HTTPException(status_code=500, detail="Error inserting user")
     finally:
         cursor.close()
         conn.close()
@@ -702,7 +699,7 @@ async def get_user_by_username(uname: str):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM `whitebox-learning`.authuser WHERE uname = %s;"
+        query = "SELECT * FROM whiteboxqa.authuser WHERE uname = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (uname,))
         result = cursor.fetchone()
         return result
@@ -717,7 +714,7 @@ async def update_login_info(user_id: int):
     try:
         cursor = conn.cursor()
         query = """
-            UPDATE `whitebox-learning`.authuser 
+            UPDATE whiteboxqa.authuser 
             SET lastlogin = NOW(), logincount = logincount + 1 
             WHERE id = %s;
         """
@@ -737,7 +734,7 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO `whitebox-learning`.loginhistory (loginid, logindatetime, ipaddress, useragent) 
+            INSERT INTO whiteboxqa.loginhistory (loginid, logindatetime, ipaddress, useragent) 
             VALUES (%s, NOW(), %s, %s);
         """
         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
@@ -776,9 +773,9 @@ async def fetch_course_batches(subject:str=None):
         cursor = conn.cursor(dictionary=True)
         batchquery = f"""
                 SELECT batchname,batchid 
-                FROM `whitebox-learning`.batch
+                FROM whiteboxqa.new_batch
                 WHERE subject = '{subject}'
-                GROUP BY batchname,batchid
+                GROUP BY batchname
                 ORDER BY batchname DESC;
                 """
         await loop.run_in_executor(None, cursor.execute, batchquery)
@@ -798,19 +795,19 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
         cursor = conn.cursor(dictionary=True)
         query = f"""
                 SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
-                FROM recording nr
-                JOIN recording_batch rb ON nr.id = rb.recording_id
-                JOIN batch b ON rb.batch_id = b.batchid
-                JOIN course_subject ncs ON b.courseid = ncs.course_id
-                JOIN course nc ON ncs.course_id = nc.id
+                FROM new_recording nr
+                JOIN new_recording_batch rb ON nr.id = rb.recording_id
+                JOIN new_batch b ON rb.batch_id = b.batchid
+                JOIN new_course_subject ncs ON b.courseid = ncs.course_id
+                JOIN new_course nc ON ncs.course_id = nc.id
                 WHERE nc.alias = '{subject}'
                 AND b.batchid = {batchid}
                 AND nr.new_subject_id IN (
                 SELECT subject_id
-                FROM course_subject
+                FROM new_course_subject
                 WHERE course_id = (
                 SELECT id
-                FROM course
+                FROM new_course
                 WHERE alias = '{subject}'
                 )               
                 )
@@ -837,10 +834,10 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
             SELECT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject,
                    nr.filename, nr.lastmoddatetime, nr.new_subject_id,
                    'recording' AS source
-            FROM recording nr
+            FROM new_recording nr
             JOIN new_subject ns ON nr.new_subject_id = ns.id
-            JOIN course_subject ncs ON ns.id = ncs.subject_id
-            JOIN course nc ON ncs.course_id = nc.id
+            JOIN new_course_subject ncs ON ns.id = ncs.subject_id
+            JOIN new_course nc ON ncs.course_id = nc.id
             WHERE (%s = '' OR nc.alias = %s)
               AND (%s = '' OR nr.description LIKE %s)
 
@@ -849,9 +846,9 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
             SELECT ns.sessionid AS id, ns.title AS batchname, ns.title AS description, ns.type, ns.sessiondate AS classdate, ns.link, ns.videoid, ns.subject,
                    NULL AS filename, ns.lastmoddatetime, ns.subject_id AS new_subject_id,
                    'session' AS source
-            FROM session ns
-            JOIN course_subject ncs ON ns.subject_id = ncs.subject_id
-            JOIN course nc ON ncs.course_id = nc.id
+            FROM new_session ns
+            JOIN new_course_subject ncs ON ns.subject_id = ncs.subject_id
+            JOIN new_course nc ON ncs.course_id = nc.id
             WHERE (%s = '' OR nc.alias = %s)
               AND (%s = '' OR ns.title LIKE %s)
             ORDER BY classdate DESC;
@@ -890,7 +887,7 @@ async def fetch_keyword_presentation(search, course):
         type_code = type_mapping.get(search)
         if type_code:
             query = """
-            SELECT * FROM `whitebox-learning`.course_material 
+            SELECT * FROM whiteboxqa.new_course_material 
             WHERE type = %s 
             AND (courseid = 0 OR courseid = %s)
             ORDER BY CASE
@@ -1007,10 +1004,10 @@ async def fetch_types(team: str):
         cursor = conn.cursor(dictionary=True)
 
         if team in ["admin", "instructor"]:
-            query = "SELECT DISTINCT type FROM session ORDER BY type ASC;"
+            query = "SELECT DISTINCT type FROM new_session ORDER BY type ASC;"
         else:
             allowed_types = ("Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc")
-            query = "SELECT DISTINCT type FROM session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
+            query = "SELECT DISTINCT type FROM new_session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
 
         await loop.run_in_executor(None, cursor.execute, query, allowed_types if team not in ["admin", "instructor"] else ())
         types = cursor.fetchall()
@@ -1070,8 +1067,8 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
         
         query = """
             SELECT ns.*
-            FROM session ns
-            JOIN course_subject ncs 
+            FROM new_session ns
+            JOIN new_course_subject ncs 
             ON ns.subject_id = ncs.subject_id
             WHERE ns.subject_id != 0
             AND ncs.course_id IN (%s) 
@@ -1128,7 +1125,7 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO `whitebox-learning`.leads (
+            INSERT INTO whiteboxqa.leads (
                 name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
@@ -1146,7 +1143,7 @@ def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        cursor.execute("SELECT * FROM `whitebox-learning`.course_content")
+        cursor.execute("SELECT * FROM whiteboxqa.new_course_content")
         data = cursor.fetchall()
         return data 
     finally:
@@ -1189,7 +1186,7 @@ async def update_user_password(uname: str, new_password: str):
         hashed_password = md5_hash(new_password)
         
         # Update the user's password
-        query = "UPDATE `whitebox-learning`.authuser SET passwd = %s WHERE uname = %s;"
+        query = "UPDATE whiteboxqa.authuser SET passwd = %s WHERE uname = %s;"
         values = (hashed_password, uname)
         
         await loop.run_in_executor(None, cursor.execute, query, values)
