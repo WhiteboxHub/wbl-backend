@@ -1143,7 +1143,8 @@ def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        cursor.execute("SELECT * FROM whiteboxqa.new_course_content")
+        # cursor.execute("SELECT * FROM whiteboxqa.new_course_content")
+        cursor.execute("SELECT Fundamentals, AIML FROM whiteboxqa.new_course_content")
         data = cursor.fetchall()
         return data 
     finally:
