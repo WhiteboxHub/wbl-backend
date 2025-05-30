@@ -359,15 +359,32 @@ def send_email_to_user(user_email: str, user_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
 
-# API Endpoint for registering users
+def clean_input_fields(user_data: UserRegistration):
+    """Convert empty strings and format datetimes for MySQL"""
+    # Convert empty strings to None for all fields
+    for field in ['lastlogin', 'registereddate', 'level3date']:
+        value = getattr(user_data, field)
+        if value == '':
+            setattr(user_data, field, None)
+        elif value and 'T' in value:  # Format ISO datetime strings
+            setattr(user_data, field, value.replace('T', ' ').split('.')[0])
+    
+    # Handle integer field
+    user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
+    
+    return user_data
+
 @app.post("/api/signup")
 async def register_user(user: UserRegistration):
-    # Check if the user already exists
+    # Check if user exists
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+        raise HTTPException(status_code=400, detail="Username already registered")
 
-    # Hash the password and insert the new user
+    # Clean inputs (only change needed)
+    user = clean_input_fields(user)
+
+    # Rest of your existing code remains exactly the same...
     hashed_password = md5_hash(user.passwd)
     await insert_user(
         uname=user.uname,
