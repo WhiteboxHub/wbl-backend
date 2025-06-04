@@ -406,6 +406,11 @@ async def register_user(user: UserRegistration):
         message=user.message,
         registereddate=user.registereddate,
         level3date=user.level3date,
+        visastatus=user.visastatus,
+        experience=user.experience,              
+        education=user.education,             
+        specialization=user.specialization,
+        referred_by=user.referred_by, 
         candidate_info={
             'name': user.fullname,
             'enrolleddate': user.registereddate,
@@ -413,9 +418,15 @@ async def register_user(user: UserRegistration):
             'phone': user.phone,
             'address': user.address,
             'city': user.city,
+            'experience': user.experience,             
+            'education': user.education,
+            'specialization': user.specialization,
+            'visastatus': user.visastatus,
+            'referred_by': user.referred_by,
             'country': user.country,
             'zip': user.Zip,
             'status': user.status
+            
         }
     )
 

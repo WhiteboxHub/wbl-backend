@@ -26,6 +26,11 @@ class UserRegistration(BaseModel):
     registereddate: Optional[str] = None
     level3date: Optional[str] = None
     last: Optional[str] = None
+    visastatus: Optional[str] = None              # already in use; keep as is
+    experience: Optional[str] = None              # new field
+    education: Optional[str] = None               # new field
+    specialization: Optional[str] = None
+    referred_by: Optional[str] = None
 
 class ContactForm(BaseModel):
     name: str

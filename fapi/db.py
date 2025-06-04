@@ -185,7 +185,7 @@
 
 # async def update_login_info(user_id: int):
 #     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     conn = loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 #     try:
 #         cursor = conn.cursor()
 #         query = """
@@ -243,7 +243,7 @@
 # #function to fetch batch names based on courses
 # async def fetch_course_batches(subject:str=None):
 #     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     conn = loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 #     try:
 #         cursor = conn.cursor(dictionary=True)
 #         batchquery = f"""
@@ -630,12 +630,23 @@ async def get_google_user_by_email(email: str):
 # ------------------------------------------------------------------------------------
             
 
-# Async function to insert a user into the database
+# # Async function to insert a user into the database
+# async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
+#                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
+#                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
+#                       city: str = None, Zip: str = None, country: str = None, message: str = None,  
+#                       experience: Optional[str] = None, education: Optional[str] = None, 
+#                       specialization: Optional[str] = None, candidate_info: Dict[str, Optional[str]] = None):
+#
+                    #  registereddate: str = None, level3date: str = None, candidate_info: Dict[str, Optional[str]] = None):
 async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
-                      registereddate: str = None, level3date: str = None, candidate_info: Dict[str, Optional[str]] = None):
+                      visastatus: Optional[str] = None, registereddate: str = None, level3date: str = None, 
+                      experience: Optional[str] = None, education: Optional[str] = None, 
+                      specialization: Optional[str] = None, referred_by: Optional[str] = None,
+                      candidate_info: Dict[str, Optional[str]] = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
@@ -645,13 +656,15 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         query1 = """
             INSERT INTO whitebox_learning.authuser (
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
-                lastlogin, logincount, fullname, phone, address, city, Zip, country, 
+                lastlogin, logincount, fullname, phone, address, city, Zip, country,
+                visastatus,experience, education, specialization, referred_by 
                 message, registereddate, level3date
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'inactive', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'inactive', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """
         values1 = (
             uname, passwd, dailypwd, team, level, instructor, override, 
-            lastlogin, logincount, fullname, phone, address, city, Zip, country, 
+            lastlogin, logincount, fullname, phone, address, city, Zip, country,
+            visastatus,experience, education, specialization, referred_by, 
             message, registereddate, level3date
         )
         await loop.run_in_executor(None, cursor.execute, query1, values1)
@@ -669,10 +682,10 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         # )
         # await loop.run_in_executor(None, cursor.execute, query2, values2)
 
-        #get the last inserted ID to for candidate_ID
+        # get the last inserted ID to for candidate_ID
         # candidate_id = cursor.lastrowid
 
-         ## Insert the candidate_id into the candidate_resume table
+        #  # Insert the candidate_id into the candidate_resume table
         # query3 = """
         #     INSERT INTO whitebox_learning.candidate_resume (
         #         candidate_id
@@ -680,6 +693,8 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
         # """
         # values3 = (candidate_id,)
         # await loop.run_in_executor(None, cursor.execute, query3, values3)
+
+
 
         conn.commit()
     except Error as e:
