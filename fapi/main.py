@@ -22,7 +22,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import jwt
-
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 # Load environment variables from .env file
 # Load .env variables
@@ -32,12 +33,15 @@ load_dotenv()
 # Initialize FastAPI app
 app = FastAPI()
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
 router = APIRouter()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -101,7 +105,8 @@ async def check_user_exists(user: GoogleUserCreate):
 
 
 @app.post("/api/google_users/")
-async def register_google_user(user: GoogleUserCreate):
+@limiter.limit("15/minute")
+async def register_google_user(request:Request,user: GoogleUserCreate):
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user:
@@ -114,7 +119,8 @@ async def register_google_user(user: GoogleUserCreate):
     return {"message": "Google user registered successfully!"}
 
 @app.post("/api/google_login/")
-async def login_google_user(user: GoogleUserCreate):
+@limiter.limit("15/minute")
+async def login_google_user(request:Request,user: GoogleUserCreate):
     existing_user = await get_google_user_by_email(user.email)
     if existing_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -136,6 +142,7 @@ async def login_google_user(user: GoogleUserCreate):
     }
 
 @app.post("/api/verify_google_token/")
+#@limiter.limit("5/minute")
 async def verify_google_token(token: str):
     try:
         # Remove extra quotes from token if present
@@ -163,13 +170,8 @@ async def authenticate_user(uname: str, passwd: str):
     candidate_info = await fetch_candidate_id_by_email(uname)
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
+
     # return user
-
-
-
-
-
-
 # @app.post("/api/signup")
 # async def register_user(user: UserRegistration):
 #     existing_user = await get_user_by_username(user.uname)
@@ -359,15 +361,33 @@ def send_email_to_user(user_email: str, user_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
 
-# API Endpoint for registering users
+def clean_input_fields(user_data: UserRegistration):
+    """Convert empty strings and format datetimes for MySQL"""
+    # Convert empty strings to None for all fields
+    for field in ['lastlogin', 'registereddate', 'level3date']:
+        value = getattr(user_data, field)
+        if value == '':
+            setattr(user_data, field, None)
+        elif value and 'T' in value:  # Format ISO datetime strings
+            setattr(user_data, field, value.replace('T', ' ').split('.')[0])
+    
+    # Handle integer field
+    user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
+    
+    return user_data
+
 @app.post("/api/signup")
-async def register_user(user: UserRegistration):
-    # Check if the user already exists
+@limiter.limit("15/minute")
+async def register_user(request:Request,user: UserRegistration):
+    # Check if user exists
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+        raise HTTPException(status_code=400, detail="Username already registered")
 
-    # Hash the password and insert the new user
+    # Clean inputs (only change needed)
+    user = clean_input_fields(user)
+
+    # Rest of your existing code remains exactly the same...
     hashed_password = md5_hash(user.passwd)
     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
@@ -500,6 +520,7 @@ async def register_user(user: UserRegistration):
 #     }
 
 @app.post("/api/login", response_model=Token)
+@limiter.limit("15/minute")
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
     if user == "inactive":
@@ -565,7 +586,8 @@ async def verify_token_endpoint(token: Token):
         )
 
 @app.get("/api/materials")
-async def get_materials(course: str = Query(...), search: str = Query(...)):
+@limiter.limit("15/minute")
+async def get_materials(request:Request,course: str = Query(...), search: str = Query(...)):
     valid_courses = ["QA", "UI", "ML"]
     if course.upper() not in valid_courses:
         raise HTTPException(
@@ -719,7 +741,8 @@ async def get_batches(course: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/recording")
-async def get_recordings(course: str = None, batchid: int = None, search: str = None):
+@limiter.limit("15/minute")
+async def get_recordings(request:Request,course: str = None, batchid: int = None, search: str = None):
     try:
         if not course:
             return {"details": "Course expected"}
@@ -740,9 +763,12 @@ async def get_recordings(course: str = None, batchid: int = None, search: str = 
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/contact")
+
 async def contact(user: ContactForm):
     
     
+
+
     await user_contact(
         # name=f"{user.firstName} {user.lastName}",
         name=f"{user.firstName} {user.lastName}",
@@ -774,7 +800,6 @@ async def contact(user: ContactForm):
             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
     sendEmail()
     return {"detail": "Message Sent Successfully"}
-
 
 @app.get("/api/coursecontent")
 def get_course_content():
