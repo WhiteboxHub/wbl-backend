@@ -389,49 +389,81 @@ async def register_user(request:Request,user: UserRegistration):
 
     # Rest of your existing code remains exactly the same...
     hashed_password = md5_hash(user.passwd)
+    # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+    fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+    # print(" Full name constructed:", fullname)  # <---- Add this line
+
+  
+    
+
+    # await insert_user(
+    #     uname=user.uname,
+    #     passwd=hashed_password,
+    #     dailypwd=user.dailypwd,
+    #     team=user.team,
+    #     level=user.level,
+    #     instructor=user.instructor,
+    #     override=user.override,
+    #     # status=user.status,
+    #     lastlogin=user.lastlogin,
+    #     logincount=user.logincount,
+    #     fullname=user.fullname,
+    #     phone=user.phone,
+    #     address=user.address,
+    #     city=user.city,
+    #     Zip=user.Zip,
+    #     country=user.country,
+    #     message=user.message,
+    #     registereddate=user.registereddate,
+    #     level3date=user.level3date,
+    #     candidate_info={
+    #         'name': user.fullname,
+    #         'enrolleddate': user.registereddate,
+    #         'email': user.uname,
+    #         'phone': user.phone,
+    #         'address': user.address,
+    #         'city': user.city,
+    #         'country': user.country,
+    #         'zip': user.Zip,
+    #         # 'status': user.status
+    #     }
+    # )
     await insert_user(
-        uname=user.uname,
-        passwd=hashed_password,
-        dailypwd=user.dailypwd,
-        team=user.team,
-        level=user.level,
-        instructor=user.instructor,
-        override=user.override,
-        status=user.status,
-        lastlogin=user.lastlogin,
-        logincount=user.logincount,
-        fullname=user.fullname,
-        phone=user.phone,
-        address=user.address,
-        city=user.city,
-        Zip=user.Zip,
-        country=user.country,
-        message=user.message,
-        registereddate=user.registereddate,
-        level3date=user.level3date,
-        visastatus=user.visastatus,
-        experience=user.experience,              
-        education=user.education,             
-        specialization=user.specialization,
-        referred_by=user.referred_by, 
-        candidate_info={
-            'name': user.fullname,
-            'enrolleddate': user.registereddate,
-            'email': user.uname,
-            'phone': user.phone,
-            'address': user.address,
-            'city': user.city,
-            'experience': user.experience,             
-            'education': user.education,
-            'specialization': user.specialization,
-            'visastatus': user.visastatus,
-            'referred_by': user.referred_by,
-            'country': user.country,
-            'zip': user.Zip,
-            'status': user.status
-            
+    uname=user.uname,
+    passwd=hashed_password,
+    dailypwd=user.dailypwd,
+    team=user.team,
+    level=user.level,
+    instructor=user.instructor,
+    override=user.override,
+    lastlogin=user.lastlogin,
+    logincount=user.logincount,
+    # fullname=user.fullname,
+    fullname=fullname,
+    phone=user.phone,
+    address=user.address,
+    city=user.city,
+    Zip=user.Zip,
+    country=user.country,
+    message=user.message,
+    registereddate=user.registereddate,
+    level3date=user.level3date,
+    visastatus=user.visastatus,
+    experience=user.experience,
+    education=user.education,
+    referred_by=user.referred_by,
+    candidate_info={  # optional dict
+        'name': user.fullname,
+        'enrolleddate': user.registereddate,
+        'email': user.uname,
+        'phone': user.phone,
+        'address': user.address,
+        'city': user.city,
+        'country': user.country,
+        'zip': user.Zip,
         }
     )
+
 
     # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname)
@@ -731,11 +763,15 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/contact")
-@limiter.limit("15/minute")
-async def contact(request:Request,user: ContactForm):
-        
+
+async def contact(user: ContactForm):
+    
+    
+
+
     await user_contact(
-        name=user.name,
+        # name=f"{user.firstName} {user.lastName}",
+        name=f"{user.firstName} {user.lastName}",
         email=user.email,
         phone=user.phone,
         message=user.message        
@@ -746,7 +782,7 @@ async def contact(request:Request,user: ContactForm):
         to_email = os.getenv('TO_RECRUITING_EMAIL')
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = os.getenv('SMTP_PORT')
-        html_content = ContactMail_HTML_templete(user.name,user.email,user.phone,user.message)
+        html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
         msg = MIMEMultipart()
         msg['From'] = from_Email
         msg['To'] = to_email
@@ -794,3 +830,4 @@ async def reset_password(data: ResetPassword):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await update_user_password(email, data.new_password)
     return {"message": "Password updated successfully"}
+ 
