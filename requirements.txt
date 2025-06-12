@@ -10,3 +10,4 @@ fastapi_mail
 fastapi-mail
 PyJWT
 pydantic[email]
+slowapi
