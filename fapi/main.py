@@ -1,9 +1,9 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
@@ -23,6 +23,8 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import jwt
 
+# from fapi.models import VendorCreate
+# from fapi.db import insert_vendor
 
 # Load environment variables from .env file
 # Load .env variables
@@ -91,6 +93,34 @@ ALGORITHM = "HS256"
 #         "token_type": "bearer"
 #     }
 
+
+# ---------------------------------------- Request Demo ------------------
+# @app.post("/vendor")
+# def create_vendor(vendor: VendorCreate):
+#     try:
+#         insert_vendor(vendor.dict())
+#         return {"message": "Vendor added successfully"}
+#     except HTTPException as e:
+#         raise e
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+@app.post("/vendor/request-demo")
+async def create_vendor_request_demo(vendor: VendorCreate):
+    try:
+        vendor_data = vendor.dict()
+        vendor_data["type"] = "IP_REQUEST_DEMO"  # force the type value
+        await insert_vendor(vendor_data)
+        return {"message": "Vendor added successfully from request demo"}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    # except Exception as e:
+    #     # Add debug print for the error
+    #     print("Internal error:", str(e))
+    #     raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# --------------------------------------------------------------------------------------
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
@@ -788,3 +818,4 @@ async def reset_password(data: ResetPassword):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await update_user_password(email, data.new_password)
     return {"message": "Password updated successfully"}
+

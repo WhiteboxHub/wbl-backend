@@ -64,3 +64,26 @@ class GoogleUserCreate(BaseModel):
     name: str
     email: str
     google_id: str
+
+# ---------------------------- Request demo --------------------
+
+# class VendorCreate(BaseModel):
+#     full_name: str
+#     phone_number: str
+#     email: Optional[EmailStr] = None
+#     city: Optional[str] = None
+#     postal_code: Optional[str] = None
+#     address: Optional[str] = None
+#     country: Optional[str] = None
+#     type: str
+#     note: Optional[str] = None
+
+class VendorCreate(BaseModel):
+    full_name: str
+    phone_number: str
+    email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+    note: Optional[str] = None
