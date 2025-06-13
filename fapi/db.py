@@ -639,34 +639,103 @@ async def get_google_user_by_email(email: str):
 #                       specialization: Optional[str] = None, candidate_info: Dict[str, Optional[str]] = None):
 #
                     #  registereddate: str = None, level3date: str = None, candidate_info: Dict[str, Optional[str]] = None):
-async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
-                      instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
-                      logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
-                      city: str = None, Zip: str = None, country: str = None, message: str = None, 
-                      visastatus: Optional[str] = None, registereddate: str = None, level3date: str = None, 
-                      experience: Optional[str] = None, education: Optional[str] = None, 
-                      specialization: Optional[str] = None, referred_by: Optional[str] = None,
-                      candidate_info: Dict[str, Optional[str]] = None):
+# async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, team: str = None, level: str = None, 
+#                       instructor: str = None, override: str = None, status: str = None, lastlogin: str = None, 
+#                       logincount: str = None, fullname: str = None, phone: str = None, address: str = None, 
+#                       city: str = None, Zip: str = None, country: str = None, message: str = None, 
+#                       visastatus: Optional[str] = None, registereddate: str = None, level3date: str = None, 
+#                       experience: Optional[str] = None, education: Optional[str] = None, 
+#                       specialization: Optional[str] = None, referred_by: Optional[str] = None,
+#                       candidate_info: Dict[str, Optional[str]] = None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+        
+#         # Insert into authuser table
+#         query1 = """
+#             INSERT INTO wbl_newDB.authuser (
+#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
+#                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
+#                 visastatus,experience, education, specialization, referred_by,
+#                 message, registereddate, level3date
+#             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'inactive', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+#         """
+#         values1 = (
+#             uname, passwd, dailypwd, team, level, instructor, override, 
+#             lastlogin, logincount, fullname, phone, address, city, Zip, country,
+#             visastatus,experience, education, specialization, referred_by, 
+#             message, registereddate, level3date
+#         )
+#         await loop.run_in_executor(None, cursor.execute, query1, values1)
+         
+#         conn.commit()
+#     except Error as e:
+#         # print(f"Error inserting user: {e}")
+#         conn.rollback()
+#         raise HTTPException(status_code=500, detail="Error inserting user")
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+
+
+async def insert_user(
+    uname: str,
+    passwd: str,
+    dailypwd: Optional[str] = None,
+    team: str = None,
+    level: str = None,
+    instructor: str = None,
+    override: str = None,
+    lastlogin: str = None,
+    logincount: str = None,
+    fullname: str = None,
+    phone: str = None,
+    address: str = None,
+    city: str = None,
+    Zip: str = None,
+    country: str = None,
+    message: str = None,
+    visastatus: Optional[str] = None,
+    registereddate: str = None,
+    level3date: str = None,
+    experience: Optional[str] = None,
+    education: Optional[str] = None,
+    specialization: Optional[str] = None,
+    referred_by: Optional[str] = None,
+    candidate_info: Dict[str, Optional[str]] = None
+):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor()
-        
-        # Insert into authuser table
+
+
+
         query1 = """
             INSERT INTO wbl_newDB.authuser (
+
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
                 visastatus,experience, education, specialization, referred_by 
+
                 message, registereddate, level3date
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'inactive', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, 'inactive',
+                %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s
+            );
         """
+
         values1 = (
             uname, passwd, dailypwd, team, level, instructor, override, 
-            lastlogin, logincount, fullname, phone, address, city, Zip, country,
-            visastatus,experience, education, specialization, referred_by, 
+            lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
+            visastatus, experience, education, referred_by,
             message, registereddate, level3date
         )
+
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         
         # Insert into candidate table
@@ -696,19 +765,21 @@ async def insert_user(uname: str, passwd: str, dailypwd: Optional[str] = None, t
 
 
 
+        # print(" Values being inserted into DB:", values1)
+
+
+        await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
+
     except Error as e:
-        # print(f"Error inserting user: {e}")
         conn.rollback()
+        print("Database Error:", e) 
         raise HTTPException(status_code=500, detail="Error inserting user")
+
     finally:
         cursor.close()
         conn.close()
-
-
-
-   
-            
+       
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))

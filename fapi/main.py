@@ -23,18 +23,32 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import jwt
 
+
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+# Load environment variables from .env file
+# Load .env variables
+
 load_dotenv()
 
 
 # Initialize FastAPI app
 app = FastAPI()
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
 router = APIRouter()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*","http://localhost:3000", "https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+
+
+    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -107,7 +121,8 @@ async def check_user_exists(user: GoogleUserCreate):
 
 
 @app.post("/api/google_users/")
-async def register_google_user(user: GoogleUserCreate):
+@limiter.limit("15/minute")
+async def register_google_user(request:Request,user: GoogleUserCreate):
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user:
@@ -120,7 +135,8 @@ async def register_google_user(user: GoogleUserCreate):
     return {"message": "Google user registered successfully!"}
 
 @app.post("/api/google_login/")
-async def login_google_user(user: GoogleUserCreate):
+@limiter.limit("15/minute")
+async def login_google_user(request:Request,user: GoogleUserCreate):
     existing_user = await get_google_user_by_email(user.email)
     if existing_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -142,6 +158,7 @@ async def login_google_user(user: GoogleUserCreate):
     }
 
 @app.post("/api/verify_google_token/")
+#@limiter.limit("5/minute")
 async def verify_google_token(token: str):
     try:
         # Remove extra quotes from token if present
@@ -169,13 +186,8 @@ async def authenticate_user(uname: str, passwd: str):
     candidate_info = await fetch_candidate_id_by_email(uname)
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
+
     # return user
-
-
-
-
-
-
 # @app.post("/api/signup")
 # async def register_user(user: UserRegistration):
 #     existing_user = await get_user_by_username(user.uname)
@@ -381,7 +393,8 @@ def clean_input_fields(user_data: UserRegistration):
     return user_data
 
 @app.post("/api/signup")
-async def register_user(user: UserRegistration):
+@limiter.limit("15/minute")
+async def register_user(request:Request,user: UserRegistration):
     # Check if user exists
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
@@ -392,49 +405,81 @@ async def register_user(user: UserRegistration):
 
     # Rest of your existing code remains exactly the same...
     hashed_password = md5_hash(user.passwd)
+    # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+    fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+    # print(" Full name constructed:", fullname)  # <---- Add this line
+
+  
+    
+
+    # await insert_user(
+    #     uname=user.uname,
+    #     passwd=hashed_password,
+    #     dailypwd=user.dailypwd,
+    #     team=user.team,
+    #     level=user.level,
+    #     instructor=user.instructor,
+    #     override=user.override,
+    #     # status=user.status,
+    #     lastlogin=user.lastlogin,
+    #     logincount=user.logincount,
+    #     fullname=user.fullname,
+    #     phone=user.phone,
+    #     address=user.address,
+    #     city=user.city,
+    #     Zip=user.Zip,
+    #     country=user.country,
+    #     message=user.message,
+    #     registereddate=user.registereddate,
+    #     level3date=user.level3date,
+    #     candidate_info={
+    #         'name': user.fullname,
+    #         'enrolleddate': user.registereddate,
+    #         'email': user.uname,
+    #         'phone': user.phone,
+    #         'address': user.address,
+    #         'city': user.city,
+    #         'country': user.country,
+    #         'zip': user.Zip,
+    #         # 'status': user.status
+    #     }
+    # )
     await insert_user(
-        uname=user.uname,
-        passwd=hashed_password,
-        dailypwd=user.dailypwd,
-        team=user.team,
-        level=user.level,
-        instructor=user.instructor,
-        override=user.override,
-        status=user.status,
-        lastlogin=user.lastlogin,
-        logincount=user.logincount,
-        fullname=user.fullname,
-        phone=user.phone,
-        address=user.address,
-        city=user.city,
-        Zip=user.Zip,
-        country=user.country,
-        message=user.message,
-        registereddate=user.registereddate,
-        level3date=user.level3date,
-        visastatus=user.visastatus,
-        experience=user.experience,              
-        education=user.education,             
-        specialization=user.specialization,
-        referred_by=user.referred_by, 
-        candidate_info={
-            'name': user.fullname,
-            'enrolleddate': user.registereddate,
-            'email': user.uname,
-            'phone': user.phone,
-            'address': user.address,
-            'city': user.city,
-            'experience': user.experience,             
-            'education': user.education,
-            'specialization': user.specialization,
-            'visastatus': user.visastatus,
-            'referred_by': user.referred_by,
-            'country': user.country,
-            'zip': user.Zip,
-            'status': user.status
-            
+    uname=user.uname,
+    passwd=hashed_password,
+    dailypwd=user.dailypwd,
+    team=user.team,
+    level=user.level,
+    instructor=user.instructor,
+    override=user.override,
+    lastlogin=user.lastlogin,
+    logincount=user.logincount,
+    # fullname=user.fullname,
+    fullname=fullname,
+    phone=user.phone,
+    address=user.address,
+    city=user.city,
+    Zip=user.Zip,
+    country=user.country,
+    message=user.message,
+    registereddate=user.registereddate,
+    level3date=user.level3date,
+    visastatus=user.visastatus,
+    experience=user.experience,
+    education=user.education,
+    referred_by=user.referred_by,
+    candidate_info={  # optional dict
+        'name': user.fullname,
+        'enrolleddate': user.registereddate,
+        'email': user.uname,
+        'phone': user.phone,
+        'address': user.address,
+        'city': user.city,
+        'country': user.country,
+        'zip': user.Zip,
         }
     )
+
 
     # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname)
@@ -491,6 +536,7 @@ async def register_user(user: UserRegistration):
 #     }
 
 @app.post("/api/login", response_model=Token)
+@limiter.limit("15/minute")
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
     if user == "inactive":
@@ -556,7 +602,8 @@ async def verify_token_endpoint(token: Token):
         )
 
 @app.get("/api/materials")
-async def get_materials(course: str = Query(...), search: str = Query(...)):
+@limiter.limit("15/minute")
+async def get_materials(request:Request,course: str = Query(...), search: str = Query(...)):
     valid_courses = ["QA", "UI", "ML"]
     if course.upper() not in valid_courses:
         raise HTTPException(
@@ -710,7 +757,8 @@ async def get_batches(course: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/recording")
-async def get_recordings(course: str = None, batchid: int = None, search: str = None):
+@limiter.limit("15/minute")
+async def get_recordings(request:Request,course: str = None, batchid: int = None, search: str = None):
     try:
         if not course:
             return {"details": "Course expected"}
@@ -731,10 +779,15 @@ async def get_recordings(course: str = None, batchid: int = None, search: str = 
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/contact")
+
 async def contact(user: ContactForm):
-        
+    
+    
+
+
     await user_contact(
-        name=user.name,
+        # name=f"{user.firstName} {user.lastName}",
+        name=f"{user.firstName} {user.lastName}",
         email=user.email,
         phone=user.phone,
         message=user.message        
@@ -745,7 +798,7 @@ async def contact(user: ContactForm):
         to_email = os.getenv('TO_RECRUITING_EMAIL')
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = os.getenv('SMTP_PORT')
-        html_content = ContactMail_HTML_templete(user.name,user.email,user.phone,user.message)
+        html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
         msg = MIMEMultipart()
         msg['From'] = from_Email
         msg['To'] = to_email
@@ -763,7 +816,6 @@ async def contact(user: ContactForm):
             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
     sendEmail()
     return {"detail": "Message Sent Successfully"}
-
 
 @app.get("/api/coursecontent")
 def get_course_content():
