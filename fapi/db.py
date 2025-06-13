@@ -715,9 +715,11 @@ async def insert_user(
 
         query1 = """
             INSERT INTO wbl_newDB.authuser (
-                uname, passwd, dailypwd, team, level, instructor, override, status,
-                lastlogin, logincount, fullname, phone, address, city, zip, country,
-                visa_status, experience, education, referby,
+
+                uname, passwd, dailypwd, team, level, instructor, override, status, 
+                lastlogin, logincount, fullname, phone, address, city, Zip, country,
+                visastatus,experience, education, specialization, referred_by 
+
                 message, registereddate, level3date
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
@@ -733,7 +735,38 @@ async def insert_user(
             visastatus, experience, education, referred_by,
             message, registereddate, level3date
         )
+
+        await loop.run_in_executor(None, cursor.execute, query1, values1)
+        
+        # Insert into candidate table
+        # query2 = """
+        #     INSERT INTO wbl_newDB.candidate (
+        #         name, enrolleddate, email, course, phone, status, address, city, country, zip
+        #     ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
+        # """
+        # values2 = (
+        #     candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
+        #     candidate_info['phone'], candidate_info['address'], 
+        #     candidate_info['city'], candidate_info['country'], candidate_info['zip']
+        # )
+        # await loop.run_in_executor(None, cursor.execute, query2, values2)
+
+        # get the last inserted ID to for candidate_ID
+        # candidate_id = cursor.lastrowid
+
+        #  # Insert the candidate_id into the candidate_resume table
+        # query3 = """
+        #     INSERT INTO wbl_newDB.candidate_resume (
+        #         candidate_id
+        #     ) VALUES (%s);
+        # """
+        # values3 = (candidate_id,)
+        # await loop.run_in_executor(None, cursor.execute, query3, values3)
+
+
+
         # print(" Values being inserted into DB:", values1)
+
 
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
@@ -920,6 +953,71 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
     finally:
         conn.close()
 
+# ----------------------------------------- Request Demo ------------------
+# def insert_vendor(data: dict):
+#     try:
+#         conn = mysql.connector.connect(**db_config)
+#         cursor = conn.cursor()
+#         sql = """
+#             INSERT INTO vendor (
+#                 full_name, phone_number, email, city, postal_code, address, country, type, note
+#             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+#         """
+#         cursor.execute(sql, (
+#             data["full_name"],
+#             data["phone_number"],
+#             data.get("email"),
+#             data.get("city"),
+#             data.get("postal_code"),
+#             data.get("address"),
+#             data.get("country"),
+#             data["type"],
+#             data.get("note")
+#         ))
+#         conn.commit()
+#     except Error as e:
+#         if conn:
+#             conn.rollback()
+#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+#     finally:
+#         if cursor:
+#             cursor.close()
+#         if conn:
+#             conn.close()
+
+
+async def insert_vendor(data: Dict):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        sql = """
+            INSERT INTO vendor (
+                full_name, phone_number, email, city, postal_code, address, country, type, note
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(sql, (
+            data["full_name"],
+            data["phone_number"],
+            data.get("email"),
+            data.get("city"),
+            data.get("postal_code"),
+            data.get("address"),
+            data.get("country"),
+            data["type"],
+            data.get("note")
+        ))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Internal error:", e)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# -----------------------------------------------------------------
 
             
 async def fetch_keyword_presentation(search, course):

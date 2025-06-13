@@ -1,14 +1,14 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
-from  fapi.mail_service import send_reset_password_email
+from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,11 +22,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 import jwt
+
+
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 # Load environment variables from .env file
 # Load .env variables
+
 load_dotenv()
 
 
@@ -41,7 +45,10 @@ router = APIRouter()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
+
+
     allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,42 +66,51 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
-# ACCESS_TOKEN_EXPIRE_MINUTES = 720
-
-# app.add_middleware(JWTAuthorizationMiddleware)
-
-# ------------------------------------------------------------------------------------
-# @app.post("/api/google_users/")
-# async def register_google_user(user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user:
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-
-#     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
-#     return {"message": "Google user registered successfully!"}
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 
-# @app.post("/api/google_login/")
-# async def login_google_user(user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user is None:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#     if existing_user['status'] == 'inactive':
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+# ---------------------------------------- Request Demo ------------------
 
-#     # Generate token upon successful login
-#     token_data = {
-#         "sub": existing_user['uname'],
-#         "name": existing_user['fullname'],
-#         "google_id": existing_user['googleId'],
-#     }
-#     access_token = create_google_access_token(data=token_data)
+# @app.post("/vendor/request-demo")
+# async def create_vendor_request_demo(vendor: VendorCreate):
+#     try:
+#         vendor_data = vendor.dict()
+#         vendor_data["type"] = "IP_REQUEST_DEMO"  # force the type value
+#         await insert_vendor(vendor_data)
+#         return {"message": "Vendor added successfully from request demo"}
+#     except HTTPException as e:
+#         raise e
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+    
 
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
 
+@app.post("/vendor/request-demo")
+async def create_vendor_request_demo(vendor: VendorCreate):
+    try:
+        vendor_data = vendor.dict()
+        vendor_data["type"] = "IP_REQUEST_DEMO"  # force the type value
+
+        await insert_vendor(vendor_data)
+
+        # Trigger emails after saving the vendor info
+        await send_request_demo_emails(
+            name=vendor_data.get("full_name", "User"),
+            email=vendor_data.get("email"),
+            phone=vendor_data.get("phone_number", "N/A"),
+            address=vendor_data.get("address", "")
+        )
+
+        return {"message": "Vendor added successfully from request demo"}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# --------------------------------------------------------------------------------------
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
@@ -830,4 +846,4 @@ async def reset_password(data: ResetPassword):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await update_user_password(email, data.new_password)
     return {"message": "Password updated successfully"}
- 
+
