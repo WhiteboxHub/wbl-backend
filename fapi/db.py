@@ -543,23 +543,7 @@ db_config = {
     'port': os.getenv('DB_PORT')
 }
 
-# ------------------------------------------------------------------------------------
-# async def insert_user_db(email: str, name: str, google_id: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = "INSERT INTO authuser (uname, fullname, googleId, status) VALUES (%s, %s, %s, 'inactive');"
-#         await loop.run_in_executor(None, cursor.execute, query, (email, name, google_id))
-#         conn.commit()
-#     except Error as e:
-#         conn.rollback()
-#         print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=500, detail="Error inserting user")
-#     finally:
-#         cursor.close()
-#         conn.close() 
-        
+
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -573,14 +557,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
             registereddate, level3date) 
             VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))
-
-        # Insert into the candidate table (you can modify this based on your needs)
-        # query2 = """
-        #     INSERT INTO candidate (name, email, status, course) 
-        #     VALUES (%s, %s, 'active', 'ML');
-        # """
-        # await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))      
 
         conn.commit()
     except Error as e:
@@ -591,26 +568,6 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         cursor.close()
         conn.close()
 
-# async def get_user_by_email(email: str):
-#     try:
-#         # Establish connection
-#         conn = mysql.connector.connect(**db_config)
-#         if conn.is_connected():
-#             cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get results as dictionaries
-#             query = "SELECT * FROM authuser WHERE uname = %s"
-#             cursor.execute(query, (email,))
-#             result = cursor.fetchone()
-#             return result
-#     except Error as e:
-#         # print(f"Error: {e}")
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-#     finally:
-#         if conn.is_connected():
-#             cursor.close()
-#             conn.close() 
-            
-# Function to fetch user by email
 async def get_google_user_by_email(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -737,37 +694,6 @@ async def insert_user(
         )
 
         await loop.run_in_executor(None, cursor.execute, query1, values1)
-        
-        # Insert into candidate table
-        # query2 = """
-        #     INSERT INTO wbl_newDB.candidate (
-        #         name, enrolleddate, email, course, phone, status, address, city, country, zip
-        #     ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
-        # """
-        # values2 = (
-        #     candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
-        #     candidate_info['phone'], candidate_info['address'], 
-        #     candidate_info['city'], candidate_info['country'], candidate_info['zip']
-        # )
-        # await loop.run_in_executor(None, cursor.execute, query2, values2)
-
-        # get the last inserted ID to for candidate_ID
-        # candidate_id = cursor.lastrowid
-
-        #  # Insert the candidate_id into the candidate_resume table
-        # query3 = """
-        #     INSERT INTO wbl_newDB.candidate_resume (
-        #         candidate_id
-        #     ) VALUES (%s);
-        # """
-        # values3 = (candidate_id,)
-        # await loop.run_in_executor(None, cursor.execute, query3, values3)
-
-
-
-        # print(" Values being inserted into DB:", values1)
-
-
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
 
@@ -1383,3 +1309,24 @@ async def update_user_password(email: str, new_password: str):
     finally:
         cursor.close()
         conn.close()
+
+
+async def fetch_recent_placements():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT id, candidate_name, company, position, placement_date FROM recent_placements;"
+        await loop.run_in_executor(None, cursor.execute, query)
+        result = cursor.fetchall()
+
+        # Convert placement_date to string
+        for placement in result:
+            if placement['placement_date']:
+                placement['placement_date'] = placement['placement_date'].isoformat()
+
+        return result
+    finally:
+        cursor.close()
+        conn.close()
+

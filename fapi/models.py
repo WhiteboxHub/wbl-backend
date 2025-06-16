@@ -190,3 +190,10 @@ class VendorCreate(BaseModel):
     country: Optional[str] = None
     note: Optional[str] = None
 
+
+class RecentPlacement(BaseModel):
+    id: int
+    candidate_name: str
+    company: str
+    position: str
+    placement_date: str
