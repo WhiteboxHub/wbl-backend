@@ -102,8 +102,9 @@
 #     google_id: str
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-
+# from typing import Optional
+from typing import Optional, List
+from datetime import time, date, datetime
 
 class UserCreate(BaseModel):
     uname: str
@@ -197,3 +198,15 @@ class RecentPlacement(BaseModel):
     company: str
     position: str
     placement_date: str
+
+
+class RecentInterview(BaseModel):
+    id: int
+    candidate_name: str
+    candidate_role: Optional[str]
+    interview_time: time
+    interview_date: date
+    interview_mode: Optional[str]
+    client_name: Optional[str]
+    interview_location: Optional[str]
+    created_at: datetime

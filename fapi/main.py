@@ -1,9 +1,9 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
@@ -74,6 +74,10 @@ async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
+@app.get("/api/interviews", response_model=List[RecentInterview])
+async def get_recent_interviews():
+    interviews = await fetch_recent_interviews()
+    return interviews
 
 @app.post("/vendor/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):

@@ -531,6 +531,7 @@ import os
 from typing import Optional,Dict
 import asyncio
 from dotenv import load_dotenv
+from datetime import datetime, time, timedelta  
 
 
 load_dotenv()
@@ -1330,3 +1331,110 @@ async def fetch_recent_placements():
         cursor.close()
         conn.close()
 
+
+# async def fetch_recent_interviews():
+
+    # loop = asyncio.get_event_loop()
+    # conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    # try:
+    #     cursor = conn.cursor(dictionary=True)
+    #     query = """
+    #     SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+    #            interview_mode, client_name, interview_location, created_at
+    #     FROM recent_interviews;
+    #     """
+    #     await loop.run_in_executor(None, cursor.execute, query)
+    #     result = cursor.fetchall()
+
+    #     # Convert date, time, and datetime to string
+    #     for interview in result:
+    #         if interview['interview_date']:
+    #             interview['interview_date'] = interview['interview_date'].isoformat()
+    #         if interview['interview_time']:
+    #             # Ensure interview_time is treated as a time object
+    #             if isinstance(interview['interview_time'], timedelta):
+    #                 # Convert timedelta to time if necessary
+    #                 total_seconds = int(interview['interview_time'].total_seconds())
+    #                 hours, remainder = divmod(total_seconds, 3600)
+    #                 minutes, seconds = divmod(remainder, 60)
+    #                 interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+    #             interview['interview_time'] = interview['interview_time'].isoformat()
+    #         if interview['created_at']:
+    #             interview['created_at'] = interview['created_at'].isoformat()
+
+    #     return result
+    # finally:
+    #     cursor.close()
+    #     conn.close()
+
+
+
+# async def fetch_recent_interviews():
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = """
+#         SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+#                interview_mode, client_name, interview_location, created_at
+#         FROM recent_interviews
+#         ORDER BY created_at DESC
+#         LIMIT 3;
+#         """
+#         await loop.run_in_executor(None, cursor.execute, query)
+#         result = cursor.fetchall()
+
+#         # Convert date, time, and datetime to string
+#         for interview in result:
+#             if interview['interview_date']:
+#                 interview['interview_date'] = interview['interview_date'].isoformat()
+#             if interview['interview_time']:
+#                 if isinstance(interview['interview_time'], timedelta):
+#                     total_seconds = int(interview['interview_time'].total_seconds())
+#                     hours, remainder = divmod(total_seconds, 3600)
+#                     minutes, seconds = divmod(remainder, 60)
+#                     interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+#                 interview['interview_time'] = interview['interview_time'].isoformat()
+#             if interview['created_at']:
+#                 interview['created_at'] = interview['created_at'].isoformat()
+
+#         return result
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+    
+
+async def fetch_recent_interviews():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+        SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+               interview_mode, client_name, interview_location, created_at
+        FROM recent_interviews
+        ORDER BY id DESC
+        LIMIT 3;
+        """
+        await loop.run_in_executor(None, cursor.execute, query)
+        result = cursor.fetchall()
+
+        # Convert date, time, and datetime to string
+        for interview in result:
+            if interview['interview_date']:
+                interview['interview_date'] = interview['interview_date'].isoformat()
+            if interview['interview_time']:
+                if isinstance(interview['interview_time'], timedelta):
+                    total_seconds = int(interview['interview_time'].total_seconds())
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+                interview['interview_time'] = interview['interview_time'].isoformat()
+            if interview['created_at']:
+                interview['created_at'] = interview['created_at'].isoformat()
+
+        return result
+    finally:
+        cursor.close()
+        conn.close()
