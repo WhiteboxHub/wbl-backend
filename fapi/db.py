@@ -531,6 +531,7 @@ import os
 from typing import Optional,Dict
 import asyncio
 from dotenv import load_dotenv
+from datetime import datetime, time, timedelta  
 
 
 load_dotenv()
@@ -543,23 +544,7 @@ db_config = {
     'port': os.getenv('DB_PORT')
 }
 
-# ------------------------------------------------------------------------------------
-# async def insert_user_db(email: str, name: str, google_id: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = "INSERT INTO authuser (uname, fullname, googleId, status) VALUES (%s, %s, %s, 'inactive');"
-#         await loop.run_in_executor(None, cursor.execute, query, (email, name, google_id))
-#         conn.commit()
-#     except Error as e:
-#         conn.rollback()
-#         print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=500, detail="Error inserting user")
-#     finally:
-#         cursor.close()
-#         conn.close() 
-        
+
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -573,14 +558,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
             registereddate, level3date) 
             VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))
-
-        # Insert into the candidate table (you can modify this based on your needs)
-        # query2 = """
-        #     INSERT INTO candidate (name, email, status, course) 
-        #     VALUES (%s, %s, 'active', 'ML');
-        # """
-        # await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))      
 
         conn.commit()
     except Error as e:
@@ -591,26 +569,6 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         cursor.close()
         conn.close()
 
-# async def get_user_by_email(email: str):
-#     try:
-#         # Establish connection
-#         conn = mysql.connector.connect(**db_config)
-#         if conn.is_connected():
-#             cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get results as dictionaries
-#             query = "SELECT * FROM authuser WHERE uname = %s"
-#             cursor.execute(query, (email,))
-#             result = cursor.fetchone()
-#             return result
-#     except Error as e:
-#         # print(f"Error: {e}")
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-#     finally:
-#         if conn.is_connected():
-#             cursor.close()
-#             conn.close() 
-            
-# Function to fetch user by email
 async def get_google_user_by_email(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -715,9 +673,11 @@ async def insert_user(
 
         query1 = """
             INSERT INTO wbl_newDB.authuser (
-                uname, passwd, dailypwd, team, level, instructor, override, status,
-                lastlogin, logincount, fullname, phone, address, city, zip, country,
-                visa_status, experience, education, referby,
+
+                uname, passwd, dailypwd, team, level, instructor, override, status, 
+                lastlogin, logincount, fullname, phone, address, city, Zip, country,
+                visastatus,experience, education, specialization, referred_by 
+
                 message, registereddate, level3date
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
@@ -733,8 +693,8 @@ async def insert_user(
             visastatus, experience, education, referred_by,
             message, registereddate, level3date
         )
-        # print(" Values being inserted into DB:", values1)
 
+        await loop.run_in_executor(None, cursor.execute, query1, values1)
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
 
@@ -920,6 +880,71 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
     finally:
         conn.close()
 
+# ----------------------------------------- Request Demo ------------------
+# def insert_vendor(data: dict):
+#     try:
+#         conn = mysql.connector.connect(**db_config)
+#         cursor = conn.cursor()
+#         sql = """
+#             INSERT INTO vendor (
+#                 full_name, phone_number, email, city, postal_code, address, country, type, note
+#             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+#         """
+#         cursor.execute(sql, (
+#             data["full_name"],
+#             data["phone_number"],
+#             data.get("email"),
+#             data.get("city"),
+#             data.get("postal_code"),
+#             data.get("address"),
+#             data.get("country"),
+#             data["type"],
+#             data.get("note")
+#         ))
+#         conn.commit()
+#     except Error as e:
+#         if conn:
+#             conn.rollback()
+#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+#     finally:
+#         if cursor:
+#             cursor.close()
+#         if conn:
+#             conn.close()
+
+
+async def insert_vendor(data: Dict):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        sql = """
+            INSERT INTO vendor (
+                full_name, phone_number, email, city, postal_code, address, country, type, note
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(sql, (
+            data["full_name"],
+            data["phone_number"],
+            data.get("email"),
+            data.get("city"),
+            data.get("postal_code"),
+            data.get("address"),
+            data.get("country"),
+            data["type"],
+            data.get("note")
+        ))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Internal error:", e)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# -----------------------------------------------------------------
 
             
 async def fetch_keyword_presentation(search, course):
@@ -1282,6 +1307,134 @@ async def update_user_password(email: str, new_password: str):
         hashed_password = hash_password(new_password)
         cursor.execute("UPDATE authuser SET passwd = %s WHERE uname = %s", (hashed_password, email))
         conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+async def fetch_recent_placements():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT id, candidate_name, company, position, placement_date FROM recent_placements;"
+        await loop.run_in_executor(None, cursor.execute, query)
+        result = cursor.fetchall()
+
+        # Convert placement_date to string
+        for placement in result:
+            if placement['placement_date']:
+                placement['placement_date'] = placement['placement_date'].isoformat()
+
+        return result
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# async def fetch_recent_interviews():
+
+    # loop = asyncio.get_event_loop()
+    # conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    # try:
+    #     cursor = conn.cursor(dictionary=True)
+    #     query = """
+    #     SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+    #            interview_mode, client_name, interview_location, created_at
+    #     FROM recent_interviews;
+    #     """
+    #     await loop.run_in_executor(None, cursor.execute, query)
+    #     result = cursor.fetchall()
+
+    #     # Convert date, time, and datetime to string
+    #     for interview in result:
+    #         if interview['interview_date']:
+    #             interview['interview_date'] = interview['interview_date'].isoformat()
+    #         if interview['interview_time']:
+    #             # Ensure interview_time is treated as a time object
+    #             if isinstance(interview['interview_time'], timedelta):
+    #                 # Convert timedelta to time if necessary
+    #                 total_seconds = int(interview['interview_time'].total_seconds())
+    #                 hours, remainder = divmod(total_seconds, 3600)
+    #                 minutes, seconds = divmod(remainder, 60)
+    #                 interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+    #             interview['interview_time'] = interview['interview_time'].isoformat()
+    #         if interview['created_at']:
+    #             interview['created_at'] = interview['created_at'].isoformat()
+
+    #     return result
+    # finally:
+    #     cursor.close()
+    #     conn.close()
+
+
+
+# async def fetch_recent_interviews():
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         query = """
+#         SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+#                interview_mode, client_name, interview_location, created_at
+#         FROM recent_interviews
+#         ORDER BY created_at DESC
+#         LIMIT 3;
+#         """
+#         await loop.run_in_executor(None, cursor.execute, query)
+#         result = cursor.fetchall()
+
+#         # Convert date, time, and datetime to string
+#         for interview in result:
+#             if interview['interview_date']:
+#                 interview['interview_date'] = interview['interview_date'].isoformat()
+#             if interview['interview_time']:
+#                 if isinstance(interview['interview_time'], timedelta):
+#                     total_seconds = int(interview['interview_time'].total_seconds())
+#                     hours, remainder = divmod(total_seconds, 3600)
+#                     minutes, seconds = divmod(remainder, 60)
+#                     interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+#                 interview['interview_time'] = interview['interview_time'].isoformat()
+#             if interview['created_at']:
+#                 interview['created_at'] = interview['created_at'].isoformat()
+
+#         return result
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+    
+
+async def fetch_recent_interviews():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+        SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+               interview_mode, client_name, interview_location, created_at
+        FROM recent_interviews
+        ORDER BY id DESC
+        LIMIT 3;
+        """
+        await loop.run_in_executor(None, cursor.execute, query)
+        result = cursor.fetchall()
+
+        # Convert date, time, and datetime to string
+        for interview in result:
+            if interview['interview_date']:
+                interview['interview_date'] = interview['interview_date'].isoformat()
+            if interview['interview_time']:
+                if isinstance(interview['interview_time'], timedelta):
+                    total_seconds = int(interview['interview_time'].total_seconds())
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+                interview['interview_time'] = interview['interview_time'].isoformat()
+            if interview['created_at']:
+                interview['created_at'] = interview['created_at'].isoformat()
+
+        return result
     finally:
         cursor.close()
         conn.close()

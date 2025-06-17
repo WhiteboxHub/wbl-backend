@@ -102,8 +102,9 @@
 #     google_id: str
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-
+# from typing import Optional
+from typing import Optional, List
+from datetime import time, date, datetime
 
 class UserCreate(BaseModel):
     uname: str
@@ -176,3 +177,36 @@ class GoogleUserCreate(BaseModel):
     name: str
     email: str
     google_id: str
+
+
+# ---------------------------- Request demo --------------------
+
+class VendorCreate(BaseModel):
+    full_name: str
+    phone_number: str
+    email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+    note: Optional[str] = None
+
+
+class RecentPlacement(BaseModel):
+    id: int
+    candidate_name: str
+    company: str
+    position: str
+    placement_date: str
+
+
+class RecentInterview(BaseModel):
+    id: int
+    candidate_name: str
+    candidate_role: Optional[str]
+    interview_time: time
+    interview_date: date
+    interview_mode: Optional[str]
+    client_name: Optional[str]
+    interview_location: Optional[str]
+    created_at: datetime
