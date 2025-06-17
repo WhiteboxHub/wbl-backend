@@ -259,6 +259,69 @@ def clean_input_fields(user_data: UserRegistration):
     
     return user_data
 
+# @app.post("/api/signup")
+# @limiter.limit("15/minute")
+# async def register_user(request:Request,user: UserRegistration):
+#     # Check if user exists
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=400, detail="Username already registered")
+
+#     # Clean inputs (only change needed)
+#     user = clean_input_fields(user)
+
+#     # Rest of your existing code remains exactly the same...
+#     hashed_password = md5_hash(user.passwd)
+#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+#     # print(" Full name constructed:", fullname)  # <---- Add this line
+
+#     await insert_user(
+#     uname=user.uname,
+#     passwd=hashed_password,
+#     dailypwd=user.dailypwd,
+#     team=user.team,
+#     level=user.level,
+#     instructor=user.instructor,
+#     override=user.override,
+#     lastlogin=user.lastlogin,
+#     logincount=user.logincount,
+#     # fullname=user.fullname,
+#     fullname=fullname,
+#     phone=user.phone,
+#     address=user.address,
+#     city=user.city,
+#     Zip=user.Zip,
+#     country=user.country,
+#     message=user.message,
+#     registereddate=user.registereddate,
+#     level3date=user.level3date,
+#     visastatus=user.visastatus,
+#     experience=user.experience,
+#     education=user.education,
+#     referred_by=user.referred_by,
+#     candidate_info={  # optional dict
+#         'name': user.fullname,
+#         'enrolleddate': user.registereddate,
+#         'email': user.uname,
+#         'phone': user.phone,
+#         'address': user.address,
+#         'city': user.city,
+#         'country': user.country,
+#         'zip': user.Zip,
+#         }
+#     )
+
+
+#     # Send confirmation email to the user and notify the admin
+#     send_email_to_user(user_email=user.uname, user_name=user.fullname)
+
+#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
+
+
+# data to deploy
+
+
 @app.post("/api/signup")
 @limiter.limit("15/minute")
 async def register_user(request:Request,user: UserRegistration):
@@ -276,6 +339,41 @@ async def register_user(request:Request,user: UserRegistration):
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     # print(" Full name constructed:", fullname)  # <---- Add this line
 
+  
+    
+
+    # await insert_user(
+    #     uname=user.uname,
+    #     passwd=hashed_password,
+    #     dailypwd=user.dailypwd,
+    #     team=user.team,
+    #     level=user.level,
+    #     instructor=user.instructor,
+    #     override=user.override,
+    #     # status=user.status,
+    #     lastlogin=user.lastlogin,
+    #     logincount=user.logincount,
+    #     fullname=user.fullname,
+    #     phone=user.phone,
+    #     address=user.address,
+    #     city=user.city,
+    #     Zip=user.Zip,
+    #     country=user.country,
+    #     message=user.message,
+    #     registereddate=user.registereddate,
+    #     level3date=user.level3date,
+    #     candidate_info={
+    #         'name': user.fullname,
+    #         'enrolleddate': user.registereddate,
+    #         'email': user.uname,
+    #         'phone': user.phone,
+    #         'address': user.address,
+    #         'city': user.city,
+    #         'country': user.country,
+    #         'zip': user.Zip,
+    #         # 'status': user.status
+    #     }
+    # )
     await insert_user(
     uname=user.uname,
     passwd=hashed_password,
@@ -317,6 +415,8 @@ async def register_user(request:Request,user: UserRegistration):
     send_email_to_user(user_email=user.uname, user_name=user.fullname)
 
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
+
+
 
 
 @app.post("/api/login", response_model=Token)

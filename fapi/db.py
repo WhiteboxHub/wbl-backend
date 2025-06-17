@@ -118,7 +118,7 @@
         
 #         # Insert into authuser table
 #         query1 = """
-#             INSERT INTO wbl_newDB.authuser (
+#             INSERT INTO whitebox_learning.authuser (
 #                 uname, passwd, dailypwd, team, level, instructor, override, status, 
 #                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
 #                 message, registereddate, level3date
@@ -133,7 +133,7 @@
         
 #         # Insert into candidate table
 #         query2 = """
-#             INSERT INTO wbl_newDB.candidate (
+#             INSERT INTO whitebox_learning.candidate (
 #                 name, enrolleddate, email, course, phone, status, address, city, country, zip
 #             ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
 #         """
@@ -149,7 +149,7 @@
 
 #          ## Insert the candidate_id into the candidate_resume table
 #         query3 = """
-#             INSERT INTO wbl_newDB.candidate_resume (
+#             INSERT INTO whitebox_learning.candidate_resume (
 #                 candidate_id
 #             ) VALUES (%s);
 #         """
@@ -174,7 +174,7 @@
 #     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 #     try:
 #         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT * FROM wbl_newDB.authuser WHERE uname = %s;"
+#         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
 #         await loop.run_in_executor(None, cursor.execute, query, (uname,))
 #         result = cursor.fetchone()
 #         return result
@@ -189,7 +189,7 @@
 #     try:
 #         cursor = conn.cursor()
 #         query = """
-#             UPDATE wbl_newDB.authuser 
+#             UPDATE whitebox_learning.authuser 
 #             SET lastlogin = NOW(), logincount = logincount + 1 
 #             WHERE id = %s;
 #         """
@@ -209,7 +209,7 @@
 #     try:
 #         cursor = conn.cursor()
 #         query = """
-#             INSERT INTO wbl_newDB.loginhistory (loginid, logindatetime, ipaddress, useragent) 
+#             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
 #             VALUES (%s, NOW(), %s, %s);
 #         """
 #         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
@@ -335,7 +335,7 @@
 #         type_code = type_mapping.get(search)
 #         if type_code:
 #             query = """
-#             SELECT * FROM wbl_newDB.course_material 
+#             SELECT * FROM whitebox_learning.course_material 
 #             WHERE type = %s AND (courseid = 0 OR courseid = %s) ORDER BY name ASC;
 #             """
 #             courseid_mapping = {
@@ -369,7 +369,7 @@
 # #     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 # #     try:
 # #         cursor = conn.cursor(dictionary=True)
-# #         query = "SELECT * FROM wbl_newDB.authuser WHERE uname = %s;"
+# #         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
 # #         await loop.run_in_executor(None, cursor.execute, query, (uname,))
 # #         result = cursor.fetchone()
 # #         return result
@@ -397,10 +397,10 @@
 #     try:
 #         cursor = conn.cursor(dictionary=True)
 #         if category:
-#             query = "SELECT  * FROM wbl_newDB.session WHERE type = %s ORDER BY sessiondate DESC;"
+#             query = "SELECT  * FROM whitebox_learning.session WHERE type = %s ORDER BY sessiondate DESC;"
 #             await loop.run_in_executor(None, cursor.execute, query, (category,))
 #         else:
-#             query = "SELECT *  FROM wbl_newDB.session ORDER BY type ASC;"
+#             query = "SELECT *  FROM whitebox_learning.session ORDER BY type ASC;"
 #             await loop.run_in_executor(None, cursor.execute, query)
 #         sessions = cursor.fetchall()
 #         return sessions
@@ -414,7 +414,7 @@
 #     try:
 #         cursor = conn.cursor()
 #         query = """
-#             INSERT INTO wbl_newDB.leads (
+#             INSERT INTO whitebox_learning.leads (
 #                 name,email, phone,notes) VALUES (%s, %s, %s, %s);
 #         """
 #         values = (
@@ -432,7 +432,7 @@
 #     conn = mysql.connector.connect(**db_config)
 #     try:
 #         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-#         cursor.execute("SELECT * FROM wbl_newDB.course_content")
+#         cursor.execute("SELECT * FROM whitebox_learning.course_content")
 #         data = cursor.fetchall()
 #         return data 
 #     finally:
@@ -475,7 +475,7 @@
 #         hashed_password = md5_hash(new_password)
         
 #         # Update the user's password
-#         query = "UPDATE wbl_newDB.authuser SET passwd = %s WHERE uname = %s;"
+#         query = "UPDATE whitebox_learning.authuser SET passwd = %s WHERE uname = %s;"
 #         values = (hashed_password, uname)
         
 #         await loop.run_in_executor(None, cursor.execute, query, values)
@@ -612,7 +612,7 @@ async def get_google_user_by_email(email: str):
         
 #         # Insert into authuser table
 #         query1 = """
-#             INSERT INTO wbl_newDB.authuser (
+#             INSERT INTO whitebox_learning.authuser (
 #                 uname, passwd, dailypwd, team, level, instructor, override, status, 
 #                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
 #                 visastatus,experience, education, specialization, referred_by,
@@ -635,6 +635,82 @@ async def get_google_user_by_email(email: str):
 #     finally:
 #         cursor.close()
 #         conn.close()
+# -------------*******************-----------------------------
+# modifying for deployment
+
+
+
+# ----------------*************************************************
+# async def insert_user(
+#     uname: str,
+#     passwd: str,
+#     dailypwd: Optional[str] = None,
+#     team: str = None,
+#     level: str = None,
+#     instructor: str = None,
+#     override: str = None,
+#     lastlogin: str = None,
+#     logincount: str = None,
+#     fullname: str = None,
+#     phone: str = None,
+#     address: str = None,
+#     city: str = None,
+#     Zip: str = None,
+#     country: str = None,
+#     message: str = None,
+#     visastatus: Optional[str] = None,
+#     registereddate: str = None,
+#     level3date: str = None,
+#     experience: Optional[str] = None,
+#     education: Optional[str] = None,
+#     specialization: Optional[str] = None,
+#     referred_by: Optional[str] = None,
+#     candidate_info: Dict[str, Optional[str]] = None
+# ):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+
+
+
+#         query1 = """
+#             INSERT INTO whitebox_learning.authuser (
+
+#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
+#                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
+#                 visa_status,experience, education, specialization, referby,
+
+#                 message, registereddate, level3date
+#             ) VALUES (
+#                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
+#                 %s, %s, %s, %s, %s, %s, %s, %s,
+#                 %s, %s, %s, %s,
+#                 %s, %s, %s
+#             );
+#         """
+
+#         values1 = (
+#             uname, passwd, dailypwd, team, level, instructor, override, 
+#             lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
+#             visastatus, experience, education, referred_by,
+#             message, registereddate, level3date
+#         )
+
+#         await loop.run_in_executor(None, cursor.execute, query1, values1)
+#         await loop.run_in_executor(None, cursor.execute, query1, values1)
+#         conn.commit()
+
+#     except Error as e:
+#         conn.rollback()
+#         print("Database Error:", e) 
+#         raise HTTPException(status_code=500, detail="Error inserting user")
+
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+# ----------------------*****************************--------------
 
 
 
@@ -672,12 +748,10 @@ async def insert_user(
 
 
         query1 = """
-            INSERT INTO wbl_newDB.authuser (
-
-                uname, passwd, dailypwd, team, level, instructor, override, status, 
-                lastlogin, logincount, fullname, phone, address, city, Zip, country,
-                visastatus,experience, education, specialization, referred_by 
-
+            INSERT INTO whitebox_learning.authuser (
+                uname, passwd, dailypwd, team, level, instructor, override, status,
+                lastlogin, logincount, fullname, phone, address, city, zip, country,
+                visa_status, experience, education, referby,
                 message, registereddate, level3date
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
@@ -693,8 +767,8 @@ async def insert_user(
             visastatus, experience, education, referred_by,
             message, registereddate, level3date
         )
+        # print(" Values being inserted into DB:", values1)
 
-        await loop.run_in_executor(None, cursor.execute, query1, values1)
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
 
@@ -707,12 +781,13 @@ async def insert_user(
         cursor.close()
         conn.close()
        
+
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM wbl_newDB.authuser WHERE uname = %s;"
+        query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (uname,))
         result = cursor.fetchone()
         return result
@@ -727,7 +802,7 @@ async def update_login_info(user_id: int):
     try:
         cursor = conn.cursor()
         query = """
-            UPDATE wbl_newDB.authuser 
+            UPDATE whitebox_learning.authuser 
             SET lastlogin = NOW(), logincount = logincount + 1 
             WHERE id = %s;
         """
@@ -747,7 +822,7 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO wbl_newDB.loginhistory (loginid, logindatetime, ipaddress, useragent) 
+            INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
             VALUES (%s, NOW(), %s, %s);
         """
         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
@@ -786,7 +861,7 @@ async def fetch_course_batches(subject:str=None):
         cursor = conn.cursor(dictionary=True)
         batchquery = f"""
                 SELECT batchname,batchid 
-                FROM wbl_newDB.batch
+                FROM whitebox_learning.batch
                 WHERE subject = '{subject}'
                 GROUP BY batchname,batchid
                 ORDER BY batchname DESC;
@@ -965,7 +1040,7 @@ async def fetch_keyword_presentation(search, course):
         type_code = type_mapping.get(search)
         if type_code:
             query = """
-            SELECT * FROM wbl_newDB.course_material 
+            SELECT * FROM whitebox_learning.course_material 
             WHERE type = %s 
             AND (courseid = 0 OR courseid = %s)
             ORDER BY CASE
@@ -1015,10 +1090,10 @@ async def fetch_keyword_presentation(search, course):
 #     try:
 #         cursor = conn.cursor(dictionary=True)
 #         if category:
-#             query = "SELECT  * FROM wbl_newDB.session WHERE type = %s ORDER BY sessiondate DESC;"
+#             query = "SELECT  * FROM whitebox_learning.session WHERE type = %s ORDER BY sessiondate DESC;"
 #             await loop.run_in_executor(None, cursor.execute, query, (category,))
 #         else:
-#             query = "SELECT *  FROM wbl_newDB.session ORDER BY type ASC;"
+#             query = "SELECT *  FROM whitebox_learning.session ORDER BY type ASC;"
 #             await loop.run_in_executor(None, cursor.execute, query)
 #         sessions = cursor.fetchall()
 #         return sessions
@@ -1173,7 +1248,7 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
 #     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 #     try:
 #         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT * FROM wbl_newDB.authuser WHERE uname = %s;"
+#         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
 #         await loop.run_in_executor(None, cursor.execute, query, (uname,))
 #         result = cursor.fetchone()
 #         return result
@@ -1203,7 +1278,7 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO wbl_newDB.leads (
+            INSERT INTO whitebox_learning.leads (
                 name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
@@ -1221,8 +1296,8 @@ def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        # cursor.execute("SELECT * FROM wbl_newDB.course_content")
-        cursor.execute("SELECT Fundamentals, AIML FROM wbl_newDB.course_content")
+        # cursor.execute("SELECT * FROM whitebox_learning.course_content")
+        cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
         data = cursor.fetchall()
         return data 
     finally:
@@ -1265,7 +1340,7 @@ async def update_user_password(uname: str, new_password: str):
         hashed_password = md5_hash(new_password)
         
         # Update the user's password
-        query = "UPDATE wbl_newDB.authuser SET passwd = %s WHERE uname = %s;"
+        query = "UPDATE whitebox_learning.authuser SET passwd = %s WHERE uname = %s;"
         values = (hashed_password, uname)
         
         await loop.run_in_executor(None, cursor.execute, query, values)
