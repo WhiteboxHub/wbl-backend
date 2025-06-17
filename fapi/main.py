@@ -46,7 +46,7 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
 
     allow_credentials=True,
     allow_methods=["*"],
@@ -69,12 +69,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 
 
-@app.get("/api/placements", response_model=List[RecentPlacement])
+@app.get("/api/recent-placements", response_model=List[RecentPlacement])
 async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
-@app.get("/api/interviews", response_model=List[RecentInterview])
+@app.get("/api/recent-interviews", response_model=List[RecentInterview])
 async def get_recent_interviews():
     interviews = await fetch_recent_interviews()
     return interviews
