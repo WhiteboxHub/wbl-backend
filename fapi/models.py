@@ -111,6 +111,41 @@ class UserCreate(BaseModel):
     passwd: str
 
 
+# class UserRegistration(BaseModel):
+#     uname: str
+#     passwd: str
+#     dailypwd: Optional[str] = None
+#     team: Optional[str] = None
+#     level: Optional[str] = None
+#     instructor: Optional[str] = None
+#     override: Optional[str] = None
+#     status: Optional[str] = None
+#     lastlogin: Optional[str] = None
+#     logincount: Optional[str] = None
+#     # firstname: Optional[str] = None
+#     # lastname: Optional[str] = None
+#     firstname: Optional[str] = Field(None, alias="firstName")
+#     lastname: Optional[str] = Field(None, alias="lastName")
+#     fullname: Optional[str] = None
+#     phone: Optional[str] = None
+#     address: Optional[str] = None
+#     city: Optional[str] = None
+#     Zip: Optional[str] = None
+#     country: Optional[str] = None
+#     message: Optional[str] = None
+#     registereddate: Optional[str] = None
+#     level3date: Optional[str] = None
+#     last: Optional[str] = None
+#     visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
+#     experience: Optional[str] = None
+#     education: Optional[str] = None
+#     specialization: Optional[str] = None
+#     referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
+
+#     class Config:
+#         allow_population_by_field_name = True
+#         allow_population_by_alias = True
+
 class UserRegistration(BaseModel):
     uname: str
     passwd: str
