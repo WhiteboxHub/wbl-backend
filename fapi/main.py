@@ -46,7 +46,7 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+    allow_origins=["*","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
 
     allow_credentials=True,
     allow_methods=["*"],
