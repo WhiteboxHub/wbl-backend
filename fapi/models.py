@@ -214,7 +214,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
 
-# ---------------------------- Request demo --------------------
+# ---------------------------- Innovapath - Request demo --------------------
 
 class VendorCreate(BaseModel):
     full_name: str
@@ -225,6 +225,152 @@ class VendorCreate(BaseModel):
     address: Optional[str] = None
     country: Optional[str] = None
     note: Optional[str] = None
+# --------------------------------------------------------------------------
+
+class RecentPlacement(BaseModel):
+    id: int
+    candidate_name: str
+    company: str
+    position: str
+    placement_date: str
+
+
+class RecentInterview(BaseModel):
+    id: int
+    candidate_name: str
+    candidate_role: Optional[str]
+    interview_time: time
+    interview_date: date
+    interview_mode: Optional[str]
+    client_name: Optional[str]
+    interview_location: Optional[str]
+    created_at: datetime
+    
+# ------------------------------------------- Avatar ----------------------------------------
+class LeadBase(BaseModel):
+    name: Optional[str] = None
+    startdate: Optional[datetime] = None
+    phone: Optional[str] = None
+    email: str
+    priority: Optional[str] = None
+    workstatus: Optional[str] = None
+    source: Optional[str] = None
+    workexperience: Optional[str] = None
+    sourcename: Optional[str] = None
+    course: Optional[str] = 'QA'
+    intent: Optional[str] = None
+    attendedclass: Optional[str] = None
+    siteaccess: Optional[str] = None
+    assignedto: Optional[str] = None
+    status: Optional[str] = 'Open'
+    secondaryemail: Optional[str] = None
+    secondaryphone: Optional[str] = None
+    address: Optional[str] = None
+    spousename: Optional[str] = None
+    spouseemail: Optional[str] = None
+    spousephone: Optional[str] = None
+    spouseoccupationinfo: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    zip: Optional[str] = None
+    faq: Optional[str] = None
+    callsmade: Optional[int] = 0
+    # closedate: Optional[str] = None
+    closedate: Optional[date]
+    notes: Optional[str] = None
+
+
+
+class LeadCreate(LeadBase):
+    pass
+
+
+class Lead(LeadBase):
+    leadid: int
+
+    class Config:
+        orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
+
+
+
+class CandidateBase(BaseModel):
+    name: Optional[str]
+    enrolleddate: Optional[date]
+    email: Optional[str]
+    course: Optional[str]
+    phone: Optional[str]
+    status: Optional[str]
+    workstatus: Optional[str]
+    education: Optional[str]
+    workexperience: Optional[str]
+    ssn: Optional[str]
+    agreement: Optional[str]
+    promissory: Optional[str]
+    driverslicense: Optional[str]
+    workpermit: Optional[str]
+    wpexpirationdate: Optional[date]
+    offerletter: Optional[str]
+    secondaryemail: Optional[str]
+    secondaryphone: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
+    state: Optional[str]
+    country: Optional[str]
+    zip: Optional[str]
+    linkedin: Optional[str]
+    dob: Optional[date]
+    emergcontactname: Optional[str]
+    emergcontactemail: Optional[str]
+    emergcontactphone: Optional[str]
+    emergcontactaddrs: Optional[str]
+    guidelines: Optional[str]
+    ssnvalidated: Optional[str]
+    bgv: Optional[str]
+    term: Optional[str]
+    feepaid: Optional[float]
+    feedue: Optional[float]
+    salary0: Optional[str]
+    salary6: Optional[str]
+    salary12: Optional[str]
+    guarantorname: Optional[str]
+    guarantordesignation: Optional[str]
+    guarantorcompany: Optional[str]
+    contracturl: Optional[str]
+    empagreementurl: Optional[str]
+    offerletterurl: Optional[str]
+    dlurl: Optional[str]
+    workpermiturl: Optional[str]
+    ssnurl: Optional[str]
+    referralid: Optional[int]
+    portalid: Optional[int]
+    avatarid: Optional[int]
+    notes: Optional[str]
+    batchname: str
+    background: Optional[str]
+    recruiterassesment: Optional[str]
+    processflag: Optional[str] = "N"
+    defaultprocessflag: Optional[str] = "N"
+    originalresume: Optional[str]
+    statuschangedate: Optional[date]
+    diceflag: Optional[str]
+    batchid: int
+    emaillist: Optional[str] = "Y"
+    marketing_startdate: Optional[date]
+    instructor: Optional[str]
+    second_instructor: Optional[str]
+
+class CandidateCreate(CandidateBase):
+    pass
+
+class CandidateUpdate(CandidateBase):
+    pass
+
+class Candidate(CandidateBase):
+    candidateid: int
+
+    class Config:
+        orm_mode = True
 
 
 class RecentPlacement(BaseModel):
@@ -245,3 +391,4 @@ class RecentInterview(BaseModel):
     client_name: Optional[str]
     interview_location: Optional[str]
     created_at: datetime
+

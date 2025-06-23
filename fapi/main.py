@@ -1,16 +1,19 @@
+# wbl-backend/fapi/main.py
 from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
+
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate
+
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
+from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
-from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from jose import JWTError
@@ -20,10 +23,23 @@ from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import date,datetime, timedelta
 import jwt
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate
+from fapi.models import LeadBase, LeadCreate, Lead
+
+from fapi.db import get_connection
+import fapi.db as leads_db
 
 
+from fapi.db import (
+    # get_all_candidates,
+    get_candidate_by_id,
+    create_candidate,
+    update_candidate,
+    delete_candidate,
+    get_all_candidates_paginated
+)
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -48,6 +64,7 @@ app.add_middleware(
 
     allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
 
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,15 +86,192 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 
 
+# ----------------------------------- Avatar --------------------------------------
+security = HTTPBearer()
+
+@app.get("/api/user_role")
+async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except (ExpiredSignatureError, JWTError):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    userinfo = await get_user_by_username(username)
+    if not userinfo:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    role = determine_user_role(userinfo)
+
+    return {"role": role}
+
+def determine_user_role(userinfo):
+    username = userinfo.get("username") or userinfo.get("email") or ""
+    team = userinfo.get("team") or ""
+
+    if (
+        team == "admin"
+        or username.endswith("@whitebox-learning")
+        or username.endswith("@innova-path")
+        or username == "admin"
+    ):
+        return "admin"
+
+    return "candidate"
+
+
+# ------------------------------------------------- Candidate ------------------------------------------
+
+#GET all candidates
+@app.get("/api/candidates", response_model=List[Candidate])
+async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
+    try:
+        rows = get_all_candidates_paginated(page, limit)
+        return [Candidate(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+#GET candidate by Name
+@app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
+async def get_candidates_by_name_endpoint(name: str):
+    candidates = get_candidate_by_name(name)
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return candidates
+
+# GET candidate by ID
+@app.get("/api/candidates/{candidateid}", response_model=Candidate)
+async def get_candidate(candidateid: int):
+    candidate = get_candidate_by_id(candidateid)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return Candidate(**candidate)
+
+
+
+# POST - Create candidate
+@app.post("/api/candidates", response_model=Candidate)
+async def create_candidate_endpoint(candidate: CandidateCreate):
+    try:
+        fields = candidate.dict(exclude_unset=True)
+        new_id = create_candidate(fields)
+        return Candidate(**fields, candidateid=new_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
+    
+
+# PUT - Update candidate
+@app.put("/api/candidates/{candidateid}", response_model=Candidate)
+async def update_candidate(candidateid: int, update_data: CandidateUpdate):
+    fields = update_data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+    try:
+        db_update_candidate(candidateid, fields)
+        return Candidate(**fields, candidateid=candidateid)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+
+# DELETE candidate
+@app.delete("/api/candidates/{candidateid}")
+async def delete_candidate(candidateid: int):
+    try:
+        # You can enhance db.py to return rowcount if needed
+        db_delete_candidate(candidateid)
+        return {"detail": f"Candidate {candidateid} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
+# ------------------------------------------------------- Leads -------------------------------------------------
+
+
+# GET all leads
+@app.get("/api/leads", response_model=List[Lead])
+async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
+    try:
+        rows = leads_db.fetch_all_leads_paginated(page, limit)
+        return [Lead(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/leads/search", response_model=List[Lead])
+def search_leads(name: Optional[str] = Query(None), email: Optional[str] = Query(None)):
+    try:
+        results = leads_db.search_leads(name, email)
+        if not results:
+            raise HTTPException(status_code=404, detail="No leads found")
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/leads/{leadid}", response_model=Lead)
+def get_lead(leadid: int):
+    try:
+        lead = leads_db.fetch_lead_by_id(leadid)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return lead
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/leads", response_model=Lead, status_code=http_status.HTTP_201_CREATED)
+def create_lead(lead: LeadCreate):
+    try:
+        lead_data = lead.dict(exclude_unset=True)
+        lead_id = leads_db.create_new_lead(lead_data)
+        return {**lead_data, "leadid": lead_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/leads/{leadid}", response_model=Lead)
+def update_lead(leadid: int, lead: LeadCreate):
+    try:
+        update_data = lead.dict(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        leads_db.update_existing_lead(leadid, update_data)
+        return {**update_data, "leadid": leadid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
+def delete_lead(leadid: int):
+    try:
+        leads_db.delete_lead_by_id(leadid)
+        return
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# # ----------------------------------------------------------------------------------------------
+
 @app.get("/api/placements", response_model=List[RecentPlacement])
 async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
+
 @app.get("/api/interviews", response_model=List[RecentInterview])
 async def get_recent_interviews():
     interviews = await fetch_recent_interviews()
     return interviews
+
+
+
+# -------------------------------------------------------- IP -----------------------------------------
+
 
 @app.post("/vendor/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
