@@ -103,8 +103,8 @@
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
-
-
+from datetime import time, date, datetime
+from decimal import Decimal 
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -199,16 +199,24 @@ class RecentPlacement(BaseModel):
     placement_date: str
 
 
+# class RecentInterview(BaseModel):
+#     id: int
+#     candidate_name: str
+#     candidate_role: Optional[str]
+#     interview_time: time
+#     interview_date: date
+#     interview_mode: Optional[str]
+#     client_name: Optional[str]
+#     interview_location: Optional[str]
+#     created_at: datetime
 class RecentInterview(BaseModel):
-    id: int
     candidate_name: str
-    candidate_role: Optional[str]
-    interview_time: time
-    interview_date: date
-    interview_mode: Optional[str]
-    client_name: Optional[str]
-    interview_location: Optional[str]
-    created_at: datetime
+    candidate_role: Optional[str] = None
+    interview_time: str
+    interview_date: str
+    interview_mode: Optional[str] = None
+    client_name: Optional[str] = None
+    interview_location: Optional[str] = None
     
 # ------------------------------------------- Avatar ----------------------------------------
 class LeadBase(BaseModel):

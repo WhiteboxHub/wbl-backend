@@ -2,8 +2,8 @@
 from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
-    fetch_keyword_recordings, fetch_keyword_presentation,
- fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
+    fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
+ fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -105,21 +105,33 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
 
     return {"role": role}
 
+# def determine_user_role(userinfo):
+#     username = userinfo.get("username") or userinfo.get("email") or ""
+#     team = userinfo.get("team") or ""
+
+#     if (
+#         team == "admin"
+#         or username.endswith("@whitebox-learning.com")
+#         or username.endswith("@innova-path")
+#         or username == "admin"
+#     ):
+#         return "admin"
+
+#     return "candidate"
+
 def determine_user_role(userinfo):
-    username = userinfo.get("username") or userinfo.get("email") or ""
-    team = userinfo.get("team") or ""
+    email = userinfo.get("uname") or userinfo.get("email") or ""
+    team = (userinfo.get("team") or "").lower()
 
     if (
         team == "admin"
-        or username.endswith("@whitebox-learning")
-        or username.endswith("@innova-path")
-        or username == "admin"
+        or "whitebox-learning" in email
+        or "innova-path" in email
+        or email == "admin"
     ):
         return "admin"
 
     return "candidate"
-
-
 # ------------------------------------------------- Candidate ------------------------------------------
 
 #GET all candidates
@@ -139,6 +151,28 @@ async def get_candidates_by_name_endpoint(name: str):
     if not candidates:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidates
+
+
+# GET Candidate status
+@app.get("/api/candidates/{status}", response_model=List[Candidate])
+async def get_candidates_by_dynamic_status(
+    status: str,
+    page: int = 1,
+    limit: int = 100
+):
+    # Define valid statuses (you can expand this set as needed)
+    valid_statuses = {"active", "marketing"}  
+
+    if status.lower() not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    try:
+        rows = get_candidates_by_status(status, page, limit)
+        return [Candidate(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 # GET candidate by ID
 @app.get("/api/candidates/{candidateid}", response_model=Candidate)
@@ -259,10 +293,47 @@ async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
-@app.get("/api/interviews", response_model=List[RecentInterview])
-async def get_recent_interviews():
-    interviews = await fetch_recent_interviews()
-    return interviews
+# @app.get("/api/interviews", response_model=List[RecentInterview])
+# async def get_recent_interviews():
+#     interviews = await fetch_recent_interviews()
+#     return interviews
+
+
+@app.get("/api/interviews", response_model=List[dict])
+async def get_interviews(limit: int = 10, offset: int = 0):
+    return await fetch_recent_interviews(limit, offset)
+
+@app.get("/api/interviews/{interview_id}", response_model=dict)
+async def get_interview_by_id(interview_id: int):
+    interview = await fetch_interview_by_id(interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return interview
+
+@app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
+async def get_interview_by_name(candidate_name: str):
+    return await fetch_interviews_by_name(candidate_name)
+
+@app.post("/api/interviews")
+async def create_interview(data: RecentInterview):
+    await insert_interview(data)
+    return {"message": "Interview created successfully"}
+@app.put("/api/interviews/{interview_id}")
+async def update_interview_api(interview_id: int, data: RecentInterview):
+    existing = await fetch_interview_by_id(interview_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    await update_interview(interview_id, data)
+    return {"message": "Interview updated successfully"}
+
+@app.delete("/api/interviews/{interview_id}")
+async def remove_interview(interview_id: int):
+    await delete_interview(interview_id)
+    return {"message": "Interview deleted successfully"}
+
+
+
+
 
 
 # -------------------------------------------------------- IP -----------------------------------------
