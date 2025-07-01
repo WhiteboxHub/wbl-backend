@@ -1,8 +1,8 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview , CandidateMarketing
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
- fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
+ fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,fetch_candidates,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -554,4 +554,36 @@ async def reset_password(data: ResetPassword):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await update_user_password(email, data.new_password)
     return {"message": "Password updated successfully"}
+
+
+
+# ...................................NEW INNOVAPATH......................................
+
+@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+async def get_candidate_marketing(
+    role: Optional[str] = None,
+    experience: Optional[int] = None,
+    location: Optional[str] = None,
+    availability: Optional[str] = None,
+    skills: Optional[str] = None
+):
+    """
+    Search candidates with filters
+    """
+    filters = {
+        "role": role,
+        "experience": experience,
+        "location": location,
+        "availability": availability,
+        "skills": skills
+    }
+    try:
+        candidates = await fetch_candidates(filters)
+        return candidates
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+  
 

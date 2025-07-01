@@ -532,6 +532,13 @@ from typing import Optional,Dict
 import asyncio
 from dotenv import load_dotenv
 from datetime import datetime, time, timedelta  
+# **********************************************NEW INNOVAPATH**********************************
+
+# import mysql.connector
+# from mysql.connector import Error
+# from fastapi import HTTPException
+from typing import Dict, List
+
 
 
 load_dotenv()
@@ -1438,3 +1445,52 @@ async def fetch_recent_interviews():
     finally:
         cursor.close()
         conn.close()
+
+
+# .................................NEW INNOVAPTH......................................................
+ 
+def get_db():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        return conn
+    except Error as e:
+        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+
+async def fetch_candidates(filters: dict) -> List[Dict]:
+    conn = None
+    cursor = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM candidate_marketing WHERE 1=1"
+        params = []
+
+        if filters.get("role"):
+            query += " AND role = %s"
+            params.append(filters["role"])
+        if filters.get("experience"):
+            query += " AND experience >= %s"
+            params.append(int(filters["experience"]))
+        if filters.get("location"):
+            query += " AND location = %s"
+            params.append(filters["location"])
+        if filters.get("availability"):
+            query += " AND availability = %s"
+            params.append(filters["availability"])
+        if filters.get("skills"):
+            query += " AND skills LIKE %s"
+            params.append(f"%{filters['skills']}%")
+
+        cursor.execute(query, params)
+        result = cursor.fetchall()
+        return result
+    except Error as e:
+        if conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
