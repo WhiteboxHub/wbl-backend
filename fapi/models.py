@@ -280,8 +280,6 @@ class LeadBase(BaseModel):
     closedate: Optional[date]
     notes: Optional[str] = None
 
-
-
 class LeadCreate(LeadBase):
     pass
 

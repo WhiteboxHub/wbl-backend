@@ -1312,7 +1312,7 @@ def fetch_all_leads_paginated(page: int, limit: int):
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM leads LIMIT %s OFFSET %s", (limit, offset))
+    cursor.execute("SELECT * FROM leads ORDER BY leadid DESC LIMIT %s OFFSET %s", (limit, offset))
     leads = cursor.fetchall()
 
     for lead in leads:

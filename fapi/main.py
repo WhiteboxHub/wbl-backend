@@ -31,6 +31,7 @@ from fapi.models import LeadBase, LeadCreate, Lead
 from fapi.db import get_connection
 import fapi.db as leads_db
 
+#from models import LeadModel, LeadUpdate
 
 from fapi.db import (
     # get_all_candidates,
@@ -232,9 +233,20 @@ def create_lead(lead: LeadCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# @router.put("/leads/{leadid}")
+# def update_lead(leadid: int, updated_data: LeadUpdate, db: Session = Depends(get_db)):
+#     lead = db.query(LeadModel).filter(LeadModel.leadid == leadid).first()
+#     if not lead:
+#         raise HTTPException(status_code=404, detail="Lead not found")
+    
+#     for key, value in updated_data.dict(exclude_unset=True).items():
+#         setattr(lead, key, value)
 
+#     db.commit()
+#     db.refresh(lead)
+#     return lead
 @app.put("/api/leads/{leadid}", response_model=Lead)
-def update_lead(leadid: int, lead: LeadCreate):
+def update_lead(leadid: int, lead: LeadCreate):  # use LeadCreate here instead of LeadUpdate
     try:
         update_data = lead.dict(exclude_unset=True)
         if not update_data:
