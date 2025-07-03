@@ -1,16 +1,19 @@
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate 
+
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview , CandidateMarketing
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
- fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email
+ fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,fetch_candidates,
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
+
+
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token
+from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
-from  fapi.mail_service import send_reset_password_email,lead_generation_mail
-from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from jose import JWTError
@@ -20,8 +23,24 @@ from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta
+from datetime import date,datetime, timedelta
 import jwt
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate
+from fapi.models import LeadBase, LeadCreate, Lead
+
+from fapi.db import get_connection
+import fapi.db as leads_db
+
+
+from fapi.db import (
+    # get_all_candidates,
+    get_candidate_by_id,
+    create_candidate,
+    update_candidate,
+    delete_candidate,
+    get_all_candidates_paginated
+)
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -31,8 +50,13 @@ from pydantic import EmailStr
 # Load environment variables
 load_dotenv()
 
-# Load environment variables from .env file
-# Load .env variables
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from pydantic import EmailStr
+
+
+
+
+
 load_dotenv()
 
 
@@ -47,7 +71,11 @@ router = APIRouter()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+
+
+    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+
+
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,42 +93,223 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
-# ACCESS_TOKEN_EXPIRE_MINUTES = 720
-
-# app.add_middleware(JWTAuthorizationMiddleware)
-
-# ------------------------------------------------------------------------------------
-# @app.post("/api/google_users/")
-# async def register_google_user(user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user:
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-
-#     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
-#     return {"message": "Google user registered successfully!"}
+ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 
-# @app.post("/api/google_login/")
-# async def login_google_user(user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user is None:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#     if existing_user['status'] == 'inactive':
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
 
-#     # Generate token upon successful login
-#     token_data = {
-#         "sub": existing_user['uname'],
-#         "name": existing_user['fullname'],
-#         "google_id": existing_user['googleId'],
-#     }
-#     access_token = create_google_access_token(data=token_data)
+# ----------------------------------- Avatar --------------------------------------
+security = HTTPBearer()
 
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
+@app.get("/api/user_role")
+async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except (ExpiredSignatureError, JWTError):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    userinfo = await get_user_by_username(username)
+    if not userinfo:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    role = determine_user_role(userinfo)
+
+    return {"role": role}
+
+def determine_user_role(userinfo):
+    username = userinfo.get("username") or userinfo.get("email") or ""
+    team = userinfo.get("team") or ""
+
+    if (
+        team == "admin"
+        or username.endswith("@whitebox-learning")
+        or username.endswith("@innova-path")
+        or username == "admin"
+    ):
+        return "admin"
+
+    return "candidate"
+
+
+# ------------------------------------------------- Candidate ------------------------------------------
+
+#GET all candidates
+@app.get("/api/candidates", response_model=List[Candidate])
+async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
+    try:
+        rows = get_all_candidates_paginated(page, limit)
+        return [Candidate(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+#GET candidate by Name
+@app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
+async def get_candidates_by_name_endpoint(name: str):
+    candidates = get_candidate_by_name(name)
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return candidates
+
+# GET candidate by ID
+@app.get("/api/candidates/{candidateid}", response_model=Candidate)
+async def get_candidate(candidateid: int):
+    candidate = get_candidate_by_id(candidateid)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return Candidate(**candidate)
+
+
+
+# POST - Create candidate
+@app.post("/api/candidates", response_model=Candidate)
+async def create_candidate_endpoint(candidate: CandidateCreate):
+    try:
+        fields = candidate.dict(exclude_unset=True)
+        new_id = create_candidate(fields)
+        return Candidate(**fields, candidateid=new_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
+    
+
+# PUT - Update candidate
+@app.put("/api/candidates/{candidateid}", response_model=Candidate)
+async def update_candidate(candidateid: int, update_data: CandidateUpdate):
+    fields = update_data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+    try:
+        db_update_candidate(candidateid, fields)
+        return Candidate(**fields, candidateid=candidateid)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+
+# DELETE candidate
+@app.delete("/api/candidates/{candidateid}")
+async def delete_candidate(candidateid: int):
+    try:
+        # You can enhance db.py to return rowcount if needed
+        db_delete_candidate(candidateid)
+        return {"detail": f"Candidate {candidateid} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
+# ------------------------------------------------------- Leads -------------------------------------------------
+
+
+# GET all leads
+@app.get("/api/leads", response_model=List[Lead])
+async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
+    try:
+        rows = leads_db.fetch_all_leads_paginated(page, limit)
+        return [Lead(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/leads/search", response_model=List[Lead])
+def search_leads(name: Optional[str] = Query(None), email: Optional[str] = Query(None)):
+    try:
+        results = leads_db.search_leads(name, email)
+        if not results:
+            raise HTTPException(status_code=404, detail="No leads found")
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/leads/{leadid}", response_model=Lead)
+def get_lead(leadid: int):
+    try:
+        lead = leads_db.fetch_lead_by_id(leadid)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        return lead
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/leads", response_model=Lead, status_code=http_status.HTTP_201_CREATED)
+def create_lead(lead: LeadCreate):
+    try:
+        lead_data = lead.dict(exclude_unset=True)
+        lead_id = leads_db.create_new_lead(lead_data)
+        return {**lead_data, "leadid": lead_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/leads/{leadid}", response_model=Lead)
+def update_lead(leadid: int, lead: LeadCreate):
+    try:
+        update_data = lead.dict(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        leads_db.update_existing_lead(leadid, update_data)
+        return {**update_data, "leadid": leadid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
+def delete_lead(leadid: int):
+    try:
+        leads_db.delete_lead_by_id(leadid)
+        return
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# # ----------------------------------------------------------------------------------------------
+
+@app.get("/api/placements", response_model=List[RecentPlacement])
+async def get_recent_placements():
+    placements = await fetch_recent_placements()
+    return placements
+
+
+@app.get("/api/interviews", response_model=List[RecentInterview])
+async def get_recent_interviews():
+    interviews = await fetch_recent_interviews()
+    return interviews
+
+
+
+# -------------------------------------------------------- IP -----------------------------------------
+
+
+@app.post("/vendor/request-demo")
+async def create_vendor_request_demo(vendor: VendorCreate):
+    try:
+        vendor_data = vendor.dict()
+        vendor_data["type"] = "IP_REQUEST_DEMO"  # force the type value
+
+        await insert_vendor(vendor_data)
+
+        # Trigger emails after saving the vendor info
+        await send_request_demo_emails(
+            name=vendor_data.get("full_name", "User"),
+            email=vendor_data.get("email"),
+            phone=vendor_data.get("phone_number", "N/A"),
+            address=vendor_data.get("address", "")
+        )
+
+        return {"message": "Vendor added successfully from request demo"}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# --------------------------------------------------------------------------------------
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
@@ -491,6 +700,69 @@ def clean_input_fields(user_data: UserRegistration):
     
     return user_data
 
+# @app.post("/api/signup")
+# @limiter.limit("15/minute")
+# async def register_user(request:Request,user: UserRegistration):
+#     # Check if user exists
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=400, detail="Username already registered")
+
+#     # Clean inputs (only change needed)
+#     user = clean_input_fields(user)
+
+#     # Rest of your existing code remains exactly the same...
+#     hashed_password = md5_hash(user.passwd)
+#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+#     # print(" Full name constructed:", fullname)  # <---- Add this line
+
+#     await insert_user(
+#     uname=user.uname,
+#     passwd=hashed_password,
+#     dailypwd=user.dailypwd,
+#     team=user.team,
+#     level=user.level,
+#     instructor=user.instructor,
+#     override=user.override,
+#     lastlogin=user.lastlogin,
+#     logincount=user.logincount,
+#     # fullname=user.fullname,
+#     fullname=fullname,
+#     phone=user.phone,
+#     address=user.address,
+#     city=user.city,
+#     Zip=user.Zip,
+#     country=user.country,
+#     message=user.message,
+#     registereddate=user.registereddate,
+#     level3date=user.level3date,
+#     visastatus=user.visastatus,
+#     experience=user.experience,
+#     education=user.education,
+#     referred_by=user.referred_by,
+#     candidate_info={  # optional dict
+#         'name': user.fullname,
+#         'enrolleddate': user.registereddate,
+#         'email': user.uname,
+#         'phone': user.phone,
+#         'address': user.address,
+#         'city': user.city,
+#         'country': user.country,
+#         'zip': user.Zip,
+#         }
+#     )
+
+
+#     # Send confirmation email to the user and notify the admin
+#     send_email_to_user(user_email=user.uname, user_name=user.fullname)
+
+#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
+
+
+# data to deploy
+
+
 @app.post("/api/signup")
 @limiter.limit("15/minute")
 async def register_user(request:Request,user: UserRegistration):
@@ -588,52 +860,6 @@ async def register_user(request:Request,user: UserRegistration):
 
 
 
-
-
-
-
-# @app.post("/api/login", response_model=Token)
-# async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
-#     user = await authenticate_user(form_data.username, form_data.password)
-#     if user == "inactive":
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-#     elif not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Not a Valid User / Incorrect username or password",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-
-#     # Ensure user is a dictionary
-#     if not isinstance(user, dict):
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail="Invalid user object returned from authentication",
-#         )
-#     useragent = request.headers.get('User-Agent', '')
-
-#     # Update login count and last login timestamp
-#     # print(user)
-#     await update_login_info(user["id"])
-
-#     # Insert login history
-#     await insert_login_history(user["id"], request.client.host, useragent)
-
-#     # Create token payload with candidateid
-#     # access_token = create_access_token(data={"sub": user["uname"]})
-
-#  # Create token payload with candidateid
-#     access_token = create_access_token(data={"sub": user["uname"], "candidateid": user["candidateid"]})
-
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
-
 @app.post("/api/login", response_model=Token)
 @limiter.limit("15/minute")
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
@@ -722,82 +948,6 @@ async def get_materials(request:Request,course: str = Query(...), search: str = 
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-
-# # Sessions endpoint#######################old code
-# @app.get("/api/sessions")
-# async def get_sessions(category: str = None):
-#     try:
-#         sessions = await fetch_sessions_by_type(category)
-#         if not sessions:
-#             raise HTTPException(status_code=404, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-################################################newly added ######################################
-# Fetch types from the new_session table
-
-
-# Fetch sessions by course and type
-# @app.get("/api/sessions")
-# async def get_sessions(course_id: str = None, session_type: str = None):
-#     try:
-#         # Call the function to fetch sessions by the provided course and session type
-#         sessions = await fetch_sessions_by_type(course_id, session_type)
-#         if not sessions:
-#             raise HTTPException(status_code=404, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-    
-# @app.get("/api/session-types")
-# async def get_types():
-#     try:
-#         types = await fetch_types()
-#         if not types:
-#             raise HTTPException(status_code=404, detail="Types not found")
-#         return {"types": types}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-    
-# @app.get("/api/session-types")
-# async def get_types():
-#     try:
-#         types = await fetch_types()
-#         if not types:
-#             raise HTTPException(status_code=404, detail="Types not found")
-#         return {"types": types}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
- 
-# @app.get("/api/sessions")
-# async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
-#     try:
-#         # Local mapping of course names to course IDs for this endpoint only
-#         course_name_to_id = {
-#             "QA": 1,
-#             "UI": 2,
-#             "ML": 3,
-            
-#         }
-
-#         # Validate and map course_name to course_id
-#         if course_name:
-#             course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
-#             if not course_id:
-#                 raise HTTPException(
-#                     status_code=status.HTTP_400_BAD_REQUEST,
-#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
-#                 )
-#         else:
-#             course_id = None  # If course_name is not provided, no filtering on course_id
-
-#         # Call the function to fetch sessions by the provided course_id and session_type
-#         sessions = await fetch_sessions_by_type(course_id, session_type)
-#         if not sessions:
-#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @app.get("/api/session-types")
 async def get_types(current_user: dict = Depends(get_current_user)):
@@ -980,3 +1130,36 @@ async def reset_password(data: ResetPassword):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await update_user_password(email, data.new_password)
     return {"message": "Password updated successfully"}
+
+
+
+# ...................................NEW INNOVAPATH......................................
+
+@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+async def get_candidate_marketing(
+    role: Optional[str] = None,
+    experience: Optional[int] = None,
+    location: Optional[str] = None,
+    availability: Optional[str] = None,
+    skills: Optional[str] = None
+):
+    """
+    Search candidates with filters
+    """
+    filters = {
+        "role": role,
+        "experience": experience,
+        "location": location,
+        "availability": availability,
+        "skills": skills
+    }
+    try:
+        candidates = await fetch_candidates(filters)
+        return candidates
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+  
+

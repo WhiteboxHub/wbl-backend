@@ -119,6 +119,7 @@
 #         # Insert into authuser table
 #         query1 = """
 #             INSERT INTO whitebox_learning.authuser (
+#             INSERT INTO whitebox_learning.authuser (
 #                 uname, passwd, dailypwd, team, level, instructor, override, status, 
 #                 lastlogin, logincount, fullname, phone, address, city, Zip, country, 
 #                 message, registereddate, level3date
@@ -133,6 +134,7 @@
         
 #         # Insert into candidate table
 #         query2 = """
+#             INSERT INTO whitebox_learning.candidate (
 #             INSERT INTO whitebox_learning.candidate (
 #                 name, enrolleddate, email, course, phone, status, address, city, country, zip
 #             ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
@@ -149,6 +151,7 @@
 
 #          ## Insert the candidate_id into the candidate_resume table
 #         query3 = """
+#             INSERT INTO whitebox_learning.candidate_resume (
 #             INSERT INTO whitebox_learning.candidate_resume (
 #                 candidate_id
 #             ) VALUES (%s);
@@ -175,6 +178,7 @@
 #     try:
 #         cursor = conn.cursor(dictionary=True)
 #         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
+#         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
 #         await loop.run_in_executor(None, cursor.execute, query, (uname,))
 #         result = cursor.fetchone()
 #         return result
@@ -189,6 +193,7 @@
 #     try:
 #         cursor = conn.cursor()
 #         query = """
+#             UPDATE whitebox_learning.authuser 
 #             UPDATE whitebox_learning.authuser 
 #             SET lastlogin = NOW(), logincount = logincount + 1 
 #             WHERE id = %s;
@@ -209,6 +214,7 @@
 #     try:
 #         cursor = conn.cursor()
 #         query = """
+#             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
 #             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
 #             VALUES (%s, NOW(), %s, %s);
 #         """
@@ -336,6 +342,7 @@
 #         if type_code:
 #             query = """
 #             SELECT * FROM whitebox_learning.course_material 
+#             SELECT * FROM whitebox_learning.course_material 
 #             WHERE type = %s AND (courseid = 0 OR courseid = %s) ORDER BY name ASC;
 #             """
 #             courseid_mapping = {
@@ -370,6 +377,7 @@
 # #     try:
 # #         cursor = conn.cursor(dictionary=True)
 # #         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
+# #         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
 # #         await loop.run_in_executor(None, cursor.execute, query, (uname,))
 # #         result = cursor.fetchone()
 # #         return result
@@ -398,8 +406,10 @@
 #         cursor = conn.cursor(dictionary=True)
 #         if category:
 #             query = "SELECT  * FROM whitebox_learning.session WHERE type = %s ORDER BY sessiondate DESC;"
+#             query = "SELECT  * FROM whitebox_learning.session WHERE type = %s ORDER BY sessiondate DESC;"
 #             await loop.run_in_executor(None, cursor.execute, query, (category,))
 #         else:
+#             query = "SELECT *  FROM whitebox_learning.session ORDER BY type ASC;"
 #             query = "SELECT *  FROM whitebox_learning.session ORDER BY type ASC;"
 #             await loop.run_in_executor(None, cursor.execute, query)
 #         sessions = cursor.fetchall()
@@ -414,6 +424,7 @@
 #     try:
 #         cursor = conn.cursor()
 #         query = """
+#             INSERT INTO whitebox_learning.leads (
 #             INSERT INTO whitebox_learning.leads (
 #                 name,email, phone,notes) VALUES (%s, %s, %s, %s);
 #         """
@@ -432,6 +443,7 @@
 #     conn = mysql.connector.connect(**db_config)
 #     try:
 #         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
+#         cursor.execute("SELECT * FROM whitebox_learning.course_content")
 #         cursor.execute("SELECT * FROM whitebox_learning.course_content")
 #         data = cursor.fetchall()
 #         return data 
@@ -475,6 +487,7 @@
 #         hashed_password = md5_hash(new_password)
         
 #         # Update the user's password
+#         query = "UPDATE whitebox_learning.authuser SET passwd = %s WHERE uname = %s;"
 #         query = "UPDATE whitebox_learning.authuser SET passwd = %s WHERE uname = %s;"
 #         values = (hashed_password, uname)
         
@@ -522,7 +535,7 @@
 #         conn.close()
 
 
-
+# wbl-backend/fapi/db.py
 from fapi.utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
 import mysql.connector
 from fastapi import HTTPException, status
@@ -531,6 +544,15 @@ import os
 from typing import Optional,Dict
 import asyncio
 from dotenv import load_dotenv
+from datetime import datetime, time, timedelta  
+# **********************************************NEW INNOVAPATH**********************************
+
+# import mysql.connector
+# from mysql.connector import Error
+# from fastapi import HTTPException
+from typing import Dict, List
+
+
 
 
 load_dotenv()
@@ -543,23 +565,7 @@ db_config = {
     'port': os.getenv('DB_PORT')
 }
 
-# ------------------------------------------------------------------------------------
-# async def insert_user_db(email: str, name: str, google_id: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = "INSERT INTO authuser (uname, fullname, googleId, status) VALUES (%s, %s, %s, 'inactive');"
-#         await loop.run_in_executor(None, cursor.execute, query, (email, name, google_id))
-#         conn.commit()
-#     except Error as e:
-#         conn.rollback()
-#         print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=500, detail="Error inserting user")
-#     finally:
-#         cursor.close()
-#         conn.close() 
-        
+
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -573,14 +579,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
             registereddate, level3date) 
             VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))
-
-        # Insert into the candidate table (you can modify this based on your needs)
-        # query2 = """
-        #     INSERT INTO candidate (name, email, status, course) 
-        #     VALUES (%s, %s, 'active', 'ML');
-        # """
-        # await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))      
 
         conn.commit()
     except Error as e:
@@ -591,26 +590,6 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         cursor.close()
         conn.close()
 
-# async def get_user_by_email(email: str):
-#     try:
-#         # Establish connection
-#         conn = mysql.connector.connect(**db_config)
-#         if conn.is_connected():
-#             cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get results as dictionaries
-#             query = "SELECT * FROM authuser WHERE uname = %s"
-#             cursor.execute(query, (email,))
-#             result = cursor.fetchone()
-#             return result
-#     except Error as e:
-#         # print(f"Error: {e}")
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-#     finally:
-#         if conn.is_connected():
-#             cursor.close()
-#             conn.close() 
-            
-# Function to fetch user by email
 async def get_google_user_by_email(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -747,11 +726,13 @@ async def insert_user(
         cursor.close()
         conn.close()
        
+
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (uname,))
         result = cursor.fetchone()
@@ -767,6 +748,7 @@ async def update_login_info(user_id: int):
     try:
         cursor = conn.cursor()
         query = """
+            UPDATE whitebox_learning.authuser 
             UPDATE whitebox_learning.authuser 
             SET lastlogin = NOW(), logincount = logincount + 1 
             WHERE id = %s;
@@ -787,6 +769,7 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
     try:
         cursor = conn.cursor()
         query = """
+            INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
             VALUES (%s, NOW(), %s, %s);
         """
@@ -826,6 +809,7 @@ async def fetch_course_batches(subject:str=None):
         cursor = conn.cursor(dictionary=True)
         batchquery = f"""
                 SELECT batchname,batchid 
+                FROM whitebox_learning.batch
                 FROM whitebox_learning.batch
                 WHERE subject = '{subject}'
                 GROUP BY batchname,batchid
@@ -921,6 +905,39 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
         conn.close()
 
 
+async def insert_vendor(data: Dict):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        sql = """
+            INSERT INTO vendor (
+                full_name, phone_number, email, city, postal_code, address, country, type, note
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(sql, (
+            data["full_name"],
+            data["phone_number"],
+            data.get("email"),
+            data.get("city"),
+            data.get("postal_code"),
+            data.get("address"),
+            data.get("country"),
+            data["type"],
+            data.get("note")
+        ))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print("Internal error:", e)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# -----------------------------------------------------------------
+
             
 async def fetch_keyword_presentation(search, course):
     loop = asyncio.get_event_loop()
@@ -940,6 +957,7 @@ async def fetch_keyword_presentation(search, course):
         type_code = type_mapping.get(search)
         if type_code:
             query = """
+            SELECT * FROM whitebox_learning.course_material 
             SELECT * FROM whitebox_learning.course_material 
             WHERE type = %s 
             AND (courseid = 0 OR courseid = %s)
@@ -1037,17 +1055,6 @@ async def fetch_user_team(email: str):
 
 
 
-# async def fetch_types():
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT DISTINCT type FROM session ORDER BY type ASC;"
-#         await loop.run_in_executor(None, cursor.execute, query)
-#         types = cursor.fetchall()
-#         return types
-#     finally:
-#         conn.close()
 
 
 async def fetch_types(team: str):
@@ -1067,45 +1074,6 @@ async def fetch_types(team: str):
         return types
     finally:
         conn.close()
-
-
-# async def fetch_sessions_by_type(course_id: int, session_type: str):
-#     # Validate course_id
-#     if not course_id or not session_type:
-#         raise HTTPException(status_code=400, detail="Invalid course_id or session_type")
-#     print(course_id)
-#     print(session_type)
-
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-        
-#         query = """
-#               SELECT ns.*
-#     FROM session ns
-#     JOIN course_subject ncs 
-#       ON ns.subject_id = ncs.subject_id
-#     WHERE ns.subject_id != 0
-#       AND ncs.course_id IN (%s) 
-#       AND ns.type = %s 
-#       AND (ncs.course_id !=3 OR ns.sessiondate >= '2024-01-01')
-#     ORDER BY ns.sessiondate DESC;
-            
-             
-           
-#         """
-        
-#         # Log the query and parameters
-#         print("Executing query:", query)
-#         print("With parameters:", (course_id, session_type))
-        
-#         await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
-#         sessions = cursor.fetchall()
-#         return sessions
-#     finally:
-#         conn.close()
 
 
 async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
@@ -1179,6 +1147,7 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
         cursor = conn.cursor()
         query = """
             INSERT INTO whitebox_learning.leads (
+            INSERT INTO whitebox_learning.leads (
                 name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
@@ -1196,6 +1165,8 @@ def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
+        # cursor.execute("SELECT * FROM whitebox_learning.course_content")
+        cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
         # cursor.execute("SELECT * FROM whitebox_learning.course_content")
         cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
         data = cursor.fetchall()
@@ -1241,6 +1212,7 @@ async def update_user_password(uname: str, new_password: str):
         
         # Update the user's password
         query = "UPDATE whitebox_learning.authuser SET passwd = %s WHERE uname = %s;"
+        query = "UPDATE whitebox_learning.authuser SET passwd = %s WHERE uname = %s;"
         values = (hashed_password, uname)
         
         await loop.run_in_executor(None, cursor.execute, query, values)
@@ -1256,24 +1228,7 @@ async def update_user_password(uname: str, new_password: str):
         cursor.close()
         conn.close()      
         
-# async def get_user_by_email(email: str):
-#     try:
-#         # Establish connection
-#         conn = mysql.connector.connect(**db_config)
-#         if conn.is_connected():
-#             cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get results as dictionaries
-#             query = "SELECT * FROM authuser WHERE uname = %s"
-#             cursor.execute(query, (email,))
-#             result = cursor.fetchone()
-#             return result
-#     except Error as e:
-#         # print(f"Error: {e}")
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-#     finally:
-#         if conn.is_connected():
-#             cursor.close()
-#             conn.close()        
+  
 
 async def update_user_password(email: str, new_password: str):
     conn = mysql.connector.connect(**db_config)
@@ -1285,3 +1240,310 @@ async def update_user_password(email: str, new_password: str):
     finally:
         cursor.close()
         conn.close()
+
+
+async def fetch_recent_placements():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT id, candidate_name, company, position, placement_date FROM recent_placements;"
+        await loop.run_in_executor(None, cursor.execute, query)
+        result = cursor.fetchall()
+
+        # Convert placement_date to string
+        for placement in result:
+            if placement['placement_date']:
+                placement['placement_date'] = placement['placement_date'].isoformat()
+
+        return result
+    finally:
+        cursor.close()
+        conn.close()
+
+
+async def fetch_recent_interviews():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+        SELECT id, candidate_name, candidate_role, interview_time, interview_date,
+               interview_mode, client_name, interview_location, created_at
+        FROM recent_interviews
+        ORDER BY id DESC
+        LIMIT 3;
+        """
+        await loop.run_in_executor(None, cursor.execute, query)
+        result = cursor.fetchall()
+
+        # Convert date, time, and datetime to string
+        for interview in result:
+            if interview['interview_date']:
+                interview['interview_date'] = interview['interview_date'].isoformat()
+            if interview['interview_time']:
+                if isinstance(interview['interview_time'], timedelta):
+                    total_seconds = int(interview['interview_time'].total_seconds())
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
+                interview['interview_time'] = interview['interview_time'].isoformat()
+            if interview['created_at']:
+                interview['created_at'] = interview['created_at'].isoformat()
+
+        return result
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+# .................................NEW INNOVAPTH......................................................
+ 
+def get_db():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        return conn
+    except Error as e:
+        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+
+async def fetch_candidates(filters: dict) -> List[Dict]:
+    conn = None
+    cursor = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM candidate_marketing WHERE 1=1"
+        params = []
+
+        if filters.get("role"):
+            query += " AND role = %s"
+            params.append(filters["role"])
+        if filters.get("experience"):
+            query += " AND experience >= %s"
+            params.append(int(filters["experience"]))
+        if filters.get("location"):
+            query += " AND location = %s"
+            params.append(filters["location"])
+        if filters.get("availability"):
+            query += " AND availability = %s"
+            params.append(filters["availability"])
+        if filters.get("skills"):
+            query += " AND skills LIKE %s"
+            params.append(f"%{filters['skills']}%")
+
+        cursor.execute(query, params)
+        result = cursor.fetchall()
+        return result
+    except Error as e:
+        if conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+=======
+# ------------------------------------------ Avtar -------------------------
+def get_user_by_username_sync(username: str):
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM authuser WHERE uname = %s", (username,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return user
+
+
+def get_connection():
+    try:
+        conn = mysql.connector.connect(
+            host=db_config['host'],
+            user=db_config['user'],
+            password=db_config['password'],
+            database=db_config['database'],
+            port=int(db_config['port']),
+        )
+        return conn
+    except Error as e:
+        print("Database connection error:", e)
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    
+
+
+
+def get_all_candidates_paginated(page: int = 1, limit: int = 100):
+    from datetime import date, datetime
+    offset = (page - 1) * limit
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    query = "SELECT * FROM candidate LIMIT %s OFFSET %s"
+    cursor.execute(query, (limit, offset))
+    rows = cursor.fetchall()
+
+    for row in rows:
+        for key in row:
+            if isinstance(row[key], (date, datetime)):
+                row[key] = row[key].isoformat()
+
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def get_candidate_by_name(name: str):
+    name = name.strip().lower()
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        query = "SELECT * FROM candidate WHERE LOWER(name) LIKE %s"
+        # cursor.execute(query, (name,))
+        cursor.execute(query, (f"%{name}%",))
+        rows = cursor.fetchall()
+
+        for row in rows:
+            for key in row:
+                if isinstance(row[key], (date, datetime)):
+                    row[key] = row[key].isoformat()
+
+        return rows 
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_candidate_by_id(candidateid: int):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM candidate WHERE candidateid = %s", (candidateid,))
+    row = cursor.fetchone()
+    if row:
+        for key in row:
+            if isinstance(row[key], (date, datetime)):
+                row[key] = row[key].isoformat()
+    cursor.close()
+    conn.close()
+    return row
+
+def create_candidate(candidate_data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+    placeholders = ", ".join(["%s"] * len(candidate_data))
+    columns = ", ".join(candidate_data.keys())
+    sql = f"INSERT INTO candidate ({columns}) VALUES ({placeholders})"
+    cursor.execute(sql, list(candidate_data.values()))
+    conn.commit()
+    new_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return new_id
+
+def update_candidate(candidateid: int, candidate_data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+    set_clause = ", ".join([f"{key}=%s" for key in candidate_data.keys()])
+    sql = f"UPDATE candidate SET {set_clause} WHERE candidateid=%s"
+    values = list(candidate_data.values()) + [candidateid]
+    cursor.execute(sql, values)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def delete_candidate(candidateid: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM candidate WHERE candidateid = %s", (candidateid,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+
+
+
+def fetch_all_leads_paginated(page: int, limit: int):
+    offset = (page - 1) * limit
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM leads LIMIT %s OFFSET %s", (limit, offset))
+    leads = cursor.fetchall()
+
+    for lead in leads:
+        closedate = lead.get("closedate")
+        if isinstance(closedate, (date, datetime)):
+            lead["closedate"] = closedate.isoformat()
+
+    cursor.close()
+    conn.close()
+    return leads
+
+
+def search_leads(name: Optional[str], email: Optional[str]):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    query = "SELECT * FROM leads WHERE 1=1"
+    params = []
+
+    if name:
+        query += " AND name LIKE %s"
+        params.append(f"%{name}%")
+    if email:
+        query += " AND email LIKE %s"
+        params.append(f"%{email}%")
+
+    cursor.execute(query, params)
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return results
+
+def fetch_lead_by_id(leadid: int):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM leads WHERE leadid = %s", (leadid,))
+    lead = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return lead
+
+
+def create_new_lead(data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+    keys = ", ".join(data.keys())
+    values = tuple(data.values())
+    placeholders = ", ".join(["%s"] * len(values))
+    sql = f"INSERT INTO leads ({keys}) VALUES ({placeholders})"
+    cursor.execute(sql, values)
+    conn.commit()
+    lead_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return lead_id
+
+def update_existing_lead(leadid: int, data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+    set_clause = ", ".join(f"{key} = %s" for key in data.keys())
+    values = list(data.values()) + [leadid]
+    sql = f"UPDATE leads SET {set_clause} WHERE leadid = %s"
+    cursor.execute(sql, tuple(values))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def delete_lead_by_id(leadid: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM leads WHERE leadid = %s", (leadid,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+

@@ -1,7 +1,11 @@
+# wbl-backend/fapi/mail_service.py
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
 from dotenv import load_dotenv
 import os
+from fapi.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template
+
+from fapi.contactMailTemplet import ContactMail_HTML_templete
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,6 +31,26 @@ async def send_reset_password_email(email: EmailStr, token: str):
     )
     fm = FastMail(mail_conf)
     await fm.send_message(message)
+
+
+async def send_request_demo_emails(name: str, email: str, phone: str, address: str = ""):
+    user_message = MessageSchema(
+        subject="Your Innovapath Demo Request is Confirmed",
+        recipients=[email],
+        body=RequestDemo_User_HTML_template(name),
+        subtype="html"
+    )
+
+    admin_message = MessageSchema(
+        subject=f"New Demo Request from {name}",
+        recipients=["hemanthdobriyal@gmail.com", "abhirohith516@gmail.com"],
+        body=RequestDemo_Admin_HTML_template(name, email, phone, address),
+        subtype="html"
+    )
+
+    fm = FastMail(mail_conf)
+    await fm.send_message(user_message)
+    await fm.send_message(admin_message)
 
 
 
