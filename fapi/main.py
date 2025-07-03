@@ -1,11 +1,10 @@
 
 from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview , CandidateMarketing
-from  fapi.db import (
+from fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,fetch_candidates,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
-
 
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -73,7 +72,7 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+    allow_origins=["*","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
 
 
     allow_credentials=True,
@@ -108,7 +107,7 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
         username = payload.get("sub")
         if not username:
             raise HTTPException(status_code=401, detail="Invalid token")
-    except (ExpiredSignatureError, JWTError):
+    except (jwt.ExpiredSignatureError, JWTError):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     userinfo = await get_user_by_username(username)
@@ -1033,7 +1032,6 @@ async def contact(user: ContactForm):
     
     
 
-
     await user_contact(
         # name=f"{user.firstName} {user.lastName}",
         name=f"{user.firstName} {user.lastName}",
@@ -1041,6 +1039,7 @@ async def contact(user: ContactForm):
         phone=user.phone,
         message=user.message        
         )
+
     # def sendEmail():
     #     from_Email = os.getenv('EMAIL_USER')
     #     password = os.getenv('EMAIL_PASS')
@@ -1072,9 +1071,7 @@ async def contact(user: ContactForm):
 
     def sendEmail(email):
         from_Email = os.getenv('EMAIL_USER')
-        # from_Email ="ajukhaja786@gmail.com"
         password = os.getenv('EMAIL_PASS')
-        # password ="khenmdosprdmztuu"
         to_email = email
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = os.getenv('SMTP_PORT')

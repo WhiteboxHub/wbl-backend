@@ -1140,13 +1140,13 @@ async def fetch_candidate_id_by_email(email: str):
 
 
 
+
 async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO whitebox_learning.leads (
             INSERT INTO whitebox_learning.leads (
                 name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
@@ -1160,6 +1160,7 @@ async def user_contact(name: str, email: str = None, phone: str = None,  message
     finally:
         cursor.close()
         conn.close()
+
 
 def course_content():
     conn = mysql.connector.connect(**db_config)
@@ -1345,7 +1346,7 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
             cursor.close()
         if conn:
             conn.close()
-=======
+# =======
 # ------------------------------------------ Avtar -------------------------
 def get_user_by_username_sync(username: str):
     conn = mysql.connector.connect(**db_config)
