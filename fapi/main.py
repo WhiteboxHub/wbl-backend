@@ -1,10 +1,11 @@
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
@@ -218,6 +219,69 @@ async def delete_candidate(candidateid: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
+
+# ------------------------------------------------------Placements--------------------------------------
+
+# GET all placements
+@app.get("/api/placements", response_model=List[Placement])
+async def get_placements(page: int = 1, limit: int = 100):
+    try:
+        rows = get_all_placements(page, limit)
+        return [Placement(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# GET placement by ID
+@app.get("/api/placements/{placement_id}", response_model=Placement)
+async def get_placement(placement_id: int):
+    row = get_placement_by_id(placement_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    return Placement(**row)
+
+
+# GET placements by candidate name
+@app.get("/api/placements/by-name/{candidate_name}", response_model=List[Placement])
+async def get_placements_by_name(candidate_name: str):
+    rows = search_placements_by_candidate_name(candidate_name)
+    if not rows:
+        raise HTTPException(status_code=404, detail="No placements found")
+    return [Placement(**row) for row in rows]
+
+
+# POST - Create placement
+@app.post("/api/placements", response_model=Placement)
+async def create_placement_endpoint(data: PlacementCreate):
+    try:
+        fields = data.dict(exclude_unset=True)
+        new_id = create_placement(fields)
+        return Placement(**fields, id=new_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
+
+
+# PUT - Update placement
+@app.put("/api/placements/{placement_id}", response_model=Placement)
+async def update_placement_endpoint(placement_id: int, update_data: PlacementUpdate):
+    fields = update_data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+    try:
+        update_placement(placement_id, fields)
+        return Placement(**fields, id=placement_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+
+# DELETE placement
+@app.delete("/api/placements/{placement_id}")
+async def delete_placement_endpoint(placement_id: int):
+    try:
+        delete_placement(placement_id)
+        return {"detail": f"Placement {placement_id} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 # ------------------------------------------------------- Leads -------------------------------------------------
 

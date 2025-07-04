@@ -342,3 +342,46 @@ class Candidate(CandidateBase):
 
     class Config:
         orm_mode = True
+
+
+
+
+
+class PlacementBase(BaseModel):
+    candidate_id: Optional[int]
+    candidate_name: Optional[str]
+    candidate_email: Optional[str]
+    client_id: Optional[int]
+    batch: Optional[str]
+    placed_date: Optional[date]
+    status: Optional[str]
+    marketing_email_address: Optional[str]
+    vendor_or_client_name: Optional[str]
+    vendor_or_client_contact: Optional[str]
+    start_date: Optional[date]
+    position: Optional[str]
+    amount_paid: Optional[float]
+    work_authorization: Optional[str]
+    experience_in_resume: Optional[str]
+    role: Optional[str]
+    job_location: Optional[str]
+    terms_and_conditions: Optional[str]
+    notes: Optional[str]
+    candidate_profile_folder: Optional[str]
+    placement_verified: Optional[bool] = False
+    joining_letter_url: Optional[str]
+
+
+class PlacementCreate(PlacementBase):
+    pass
+
+
+class PlacementUpdate(PlacementBase):
+    pass
+
+
+class Placement(PlacementBase):
+    id: int
+
+    class Config:
+        orm_mode = True

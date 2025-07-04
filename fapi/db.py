@@ -1464,6 +1464,84 @@ def delete_candidate(candidateid: int):
 
 
 
+def serialize_rows(rows):
+    for row in rows:
+        for key in row:
+            if isinstance(row[key], (date, datetime)):
+                row[key] = row[key].isoformat()
+    return rows
+
+
+def get_all_placements(page: int = 1, limit: int = 100) -> List[dict]:
+    offset = (page - 1) * limit
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM placement LIMIT %s OFFSET %s", (limit, offset))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return serialize_rows(rows)
+
+
+def get_placement_by_id(placement_id: int) -> dict:
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM placement WHERE id = %s", (placement_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return serialize_rows([row])[0] if row else None
+
+
+def search_placements_by_candidate_name(name: str) -> List[dict]:
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    query = "SELECT * FROM placement WHERE LOWER(candidate_name) LIKE %s"
+    cursor.execute(query, (f"%{name.strip().lower()}%",))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return serialize_rows(rows)
+
+
+def create_placement(data: dict) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    columns = ", ".join(data.keys())
+    placeholders = ", ".join(["%s"] * len(data))
+    query = f"INSERT INTO placement ({columns}) VALUES ({placeholders})"
+    cursor.execute(query, list(data.values()))
+    conn.commit()
+    new_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return new_id
+
+
+def update_placement(placement_id: int, data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+    set_clause = ", ".join([f"{key} = %s" for key in data.keys()])
+    query = f"UPDATE placement SET {set_clause} WHERE id = %s"
+    values = list(data.values()) + [placement_id]
+    cursor.execute(query, values)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def delete_placement(placement_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM placement WHERE id = %s", (placement_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+
+
+
 
 def fetch_all_leads_paginated(page: int, limit: int):
     offset = (page - 1) * limit
