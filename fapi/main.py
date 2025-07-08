@@ -144,17 +144,8 @@ async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
-#GET candidate by Name
-@app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
-async def get_candidates_by_name_endpoint(name: str):
-    candidates = get_candidate_by_name(name)
-    if not candidates:
-        raise HTTPException(status_code=404, detail="Candidate not found")
-    return candidates
-
-
-# GET Candidate status
+    
+    # GET Candidate status
 @app.get("/api/candidates/{status}", response_model=List[Candidate])
 async def get_candidates_by_dynamic_status(
     status: str,
@@ -173,6 +164,16 @@ async def get_candidates_by_dynamic_status(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+    
+
+
+#GET candidate by Name
+@app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
+async def get_candidates_by_name_endpoint(name: str):
+    candidates = get_candidate_by_name(name)
+    if not candidates:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return candidates
 
 
 # GET candidate by ID
@@ -182,6 +183,10 @@ async def get_candidate(candidateid: int):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return Candidate(**candidate)
+
+
+    
+
 
 
 

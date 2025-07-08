@@ -1351,7 +1351,8 @@ def get_all_candidates_paginated(page: int = 1, limit: int = 100):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    query = "SELECT * FROM candidate LIMIT %s OFFSET %s"
+    # query = "SELECT * FROM candidate LIMIT %s OFFSET %s"
+    query = "SELECT * FROM candidate ORDER BY candidateid DESC LIMIT %s OFFSET %s"
     cursor.execute(query, (limit, offset))
     rows = cursor.fetchall()
 
@@ -1398,7 +1399,7 @@ def get_candidates_by_status(status: str, page: int = 1, limit: int = 100) -> Li
     query = """
         SELECT * FROM candidate
         WHERE LOWER(status) = %s
-        ORDER BY candidateid
+        ORDER BY candidateid DESC
         LIMIT %s OFFSET %s
     """
     cursor.execute(query, (status.lower(), limit, offset))
@@ -1547,7 +1548,7 @@ def fetch_all_leads_paginated(page: int, limit: int):
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM leads LIMIT %s OFFSET %s", (limit, offset))
+    cursor.execute("SELECT * FROM leads ORDER BY leadid DESC LIMIT %s OFFSET %s", (limit, offset))
     leads = cursor.fetchall()
 
     for lead in leads:
