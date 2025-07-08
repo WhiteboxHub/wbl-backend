@@ -1,3 +1,4 @@
+
 # wbl-backend/fapi/main.py
 from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
@@ -6,6 +7,7 @@ from  fapi.db import (
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
     get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
+
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
@@ -43,8 +45,7 @@ from fapi.db import (
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# Load environment variables from .env file
-# Load .env variables
+
 
 load_dotenv()
 
@@ -62,7 +63,8 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["http://localhost:3000","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
+    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+
 
     allow_credentials=True,
     allow_methods=["*"],
@@ -82,6 +84,7 @@ if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 720
+
 
 
 # ----------------------------------- Avatar --------------------------------------
@@ -362,6 +365,7 @@ async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
+
 # @app.get("/api/interviews", response_model=List[RecentInterview])
 # async def get_recent_interviews():
 #     interviews = await fetch_recent_interviews()
@@ -405,7 +409,10 @@ async def remove_interview(interview_id: int):
 
 
 
+
+
 # -------------------------------------------------------- IP -----------------------------------------
+
 
 @app.post("/vendor/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
@@ -509,133 +516,6 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
-    # return user
-# @app.post("/api/signup")
-# async def register_user(user: UserRegistration):
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
-
-#     hashed_password = md5_hash(user.passwd)
-#     await insert_user(
-#         uname=user.uname,
-#         passwd=hashed_password,
-#         dailypwd=user.dailypwd,
-#         team=user.team,
-#         level=user.level,
-#         instructor=user.instructor,
-#         override=user.override,
-#         status=user.status,
-#         lastlogin=user.lastlogin,
-#         logincount=user.logincount,
-#         fullname=user.fullname,
-#         phone=user.phone,
-#         address=user.address,
-#         city=user.city,
-#         Zip=user.Zip,
-#         country=user.country,
-#         message=user.message,
-#         registereddate=user.registereddate,
-#         level3date=user.level3date,
-#         candidate_info={
-#             'name': user.fullname,
-#             'enrolleddate': user.registereddate,
-#             'email': user.uname,
-#             'phone': user.phone,
-#             'address': user.address,
-#             'city': user.city,
-#             'country': user.country,
-#             'zip': user.Zip,
-#             'status': user.status
-#         }
-#     )
-#     return {"message": "User registered successfully "}
-
-
-# # Send email function
-# def send_email_to_user(user_email: str, user_name: str,admin_email:str):
-#     from_email = os.getenv('EMAIL_USER')
-#     password = os.getenv('EMAIL_PASS')
-#     smtp_server = os.getenv('SMTP_SERVER')
-#     smtp_port = os.getenv('SMTP_PORT')
-
-#     # Create the email content
-#     html_content = f"""
-#     <html>
-#         <body>
-#             <p>Dear {user_name},</p>
-#             <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
-#             <p>Best regards,<br>Recruitment Team</p>
-#         </body>
-#     </html>
-#     """
-
-#     # Create the MIME message
-#     msg = MIMEMultipart()
-#     msg['From'] = from_email
-#     msg['To'] = user_email
-#     msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
-
-#     msg.attach(MIMEText(html_content, 'html'))
-
-#     try:
-#         # Establish the connection with the email server
-#         server = smtplib.SMTP(smtp_server, int(smtp_port))
-#         server.starttls()
-#         server.login(from_email, password)
-#         text = msg.as_string()
-#         server.sendmail(from_email, user_email, text)
-#         server.quit()
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail='Error while sending the confirmation email.')
-
-# @app.post("/api/signup")
-# async def register_user(user: UserRegistration):
-#     # Check if the user already exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
-
-#     # Hash the password and insert the new user
-#     hashed_password = md5_hash(user.passwd)
-#     await insert_user(
-#         uname=user.uname,
-#         passwd=hashed_password,
-#         dailypwd=user.dailypwd,
-#         team=user.team,
-#         level=user.level,
-#         instructor=user.instructor,
-#         override=user.override,
-#         status=user.status,
-#         lastlogin=user.lastlogin,
-#         logincount=user.logincount,
-#         fullname=user.fullname,
-#         phone=user.phone,
-#         address=user.address,
-#         city=user.city,
-#         Zip=user.Zip,
-#         country=user.country,
-#         message=user.message,
-#         registereddate=user.registereddate,
-#         level3date=user.level3date,
-#         candidate_info={
-#             'name': user.fullname,
-#             'enrolleddate': user.registereddate,
-#             'email': user.uname,
-#             'phone': user.phone,
-#             'address': user.address,
-#             'city': user.city,
-#             'country': user.country,
-#             'zip': user.Zip,
-#             'status': user.status
-#         }
-#     )
-
-#     # Send confirmation email to the user
-#     send_email_to_user(user.uname, user.fullname)
-
-#     return {"message": "User registered successfully and a confirmation email has been sent to the user."}
-
 # Send email function
 def send_email_to_user(user_email: str, user_name: str):
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
@@ -713,6 +593,69 @@ def clean_input_fields(user_data: UserRegistration):
     user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
     
     return user_data
+
+# @app.post("/api/signup")
+# @limiter.limit("15/minute")
+# async def register_user(request:Request,user: UserRegistration):
+#     # Check if user exists
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=400, detail="Username already registered")
+
+#     # Clean inputs (only change needed)
+#     user = clean_input_fields(user)
+
+#     # Rest of your existing code remains exactly the same...
+#     hashed_password = md5_hash(user.passwd)
+#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+#     # print(" Full name constructed:", fullname)  # <---- Add this line
+
+#     await insert_user(
+#     uname=user.uname,
+#     passwd=hashed_password,
+#     dailypwd=user.dailypwd,
+#     team=user.team,
+#     level=user.level,
+#     instructor=user.instructor,
+#     override=user.override,
+#     lastlogin=user.lastlogin,
+#     logincount=user.logincount,
+#     # fullname=user.fullname,
+#     fullname=fullname,
+#     phone=user.phone,
+#     address=user.address,
+#     city=user.city,
+#     Zip=user.Zip,
+#     country=user.country,
+#     message=user.message,
+#     registereddate=user.registereddate,
+#     level3date=user.level3date,
+#     visastatus=user.visastatus,
+#     experience=user.experience,
+#     education=user.education,
+#     referred_by=user.referred_by,
+#     candidate_info={  # optional dict
+#         'name': user.fullname,
+#         'enrolleddate': user.registereddate,
+#         'email': user.uname,
+#         'phone': user.phone,
+#         'address': user.address,
+#         'city': user.city,
+#         'country': user.country,
+#         'zip': user.Zip,
+#         }
+#     )
+
+
+#     # Send confirmation email to the user and notify the admin
+#     send_email_to_user(user_email=user.uname, user_name=user.fullname)
+
+#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
+
+
+# data to deploy
+
 
 @app.post("/api/signup")
 @limiter.limit("15/minute")
@@ -811,52 +754,6 @@ async def register_user(request:Request,user: UserRegistration):
 
 
 
-
-
-
-
-# @app.post("/api/login", response_model=Token)
-# async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
-#     user = await authenticate_user(form_data.username, form_data.password)
-#     if user == "inactive":
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-#     elif not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Not a Valid User / Incorrect username or password",
-#             headers={"WWW-Authenticate": "Bearer"},
-#         )
-
-#     # Ensure user is a dictionary
-#     if not isinstance(user, dict):
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail="Invalid user object returned from authentication",
-#         )
-#     useragent = request.headers.get('User-Agent', '')
-
-#     # Update login count and last login timestamp
-#     # print(user)
-#     await update_login_info(user["id"])
-
-#     # Insert login history
-#     await insert_login_history(user["id"], request.client.host, useragent)
-
-#     # Create token payload with candidateid
-#     # access_token = create_access_token(data={"sub": user["uname"]})
-
-#  # Create token payload with candidateid
-#     access_token = create_access_token(data={"sub": user["uname"], "candidateid": user["candidateid"]})
-
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
-
 @app.post("/api/login", response_model=Token)
 @limiter.limit("15/minute")
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
@@ -945,82 +842,6 @@ async def get_materials(request:Request,course: str = Query(...), search: str = 
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-
-# # Sessions endpoint#######################old code
-# @app.get("/api/sessions")
-# async def get_sessions(category: str = None):
-#     try:
-#         sessions = await fetch_sessions_by_type(category)
-#         if not sessions:
-#             raise HTTPException(status_code=404, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-################################################newly added ######################################
-# Fetch types from the new_session table
-
-
-# Fetch sessions by course and type
-# @app.get("/api/sessions")
-# async def get_sessions(course_id: str = None, session_type: str = None):
-#     try:
-#         # Call the function to fetch sessions by the provided course and session type
-#         sessions = await fetch_sessions_by_type(course_id, session_type)
-#         if not sessions:
-#             raise HTTPException(status_code=404, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-    
-# @app.get("/api/session-types")
-# async def get_types():
-#     try:
-#         types = await fetch_types()
-#         if not types:
-#             raise HTTPException(status_code=404, detail="Types not found")
-#         return {"types": types}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-    
-# @app.get("/api/session-types")
-# async def get_types():
-#     try:
-#         types = await fetch_types()
-#         if not types:
-#             raise HTTPException(status_code=404, detail="Types not found")
-#         return {"types": types}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
- 
-# @app.get("/api/sessions")
-# async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
-#     try:
-#         # Local mapping of course names to course IDs for this endpoint only
-#         course_name_to_id = {
-#             "QA": 1,
-#             "UI": 2,
-#             "ML": 3,
-            
-#         }
-
-#         # Validate and map course_name to course_id
-#         if course_name:
-#             course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
-#             if not course_id:
-#                 raise HTTPException(
-#                     status_code=status.HTTP_400_BAD_REQUEST,
-#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
-#                 )
-#         else:
-#             course_id = None  # If course_name is not provided, no filtering on course_id
-
-#         # Call the function to fetch sessions by the provided course_id and session_type
-#         sessions = await fetch_sessions_by_type(course_id, session_type)
-#         if not sessions:
-#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @app.get("/api/session-types")
 async def get_types(current_user: dict = Depends(get_current_user)):
@@ -1168,4 +989,36 @@ async def reset_password(data: ResetPassword):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
     await update_user_password(email, data.new_password)
     return {"message": "Password updated successfully"}
+
+
+
+# ...................................NEW INNOVAPATH......................................
+
+@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+async def get_candidate_marketing(
+    role: Optional[str] = None,
+    experience: Optional[int] = None,
+    location: Optional[str] = None,
+    availability: Optional[str] = None,
+    skills: Optional[str] = None
+):
+    """
+    Search candidates with filters
+    """
+    filters = {
+        "role": role,
+        "experience": experience,
+        "location": location,
+        "availability": availability,
+        "skills": skills
+    }
+    try:
+        candidates = await fetch_candidates(filters)
+        return candidates
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+  
 

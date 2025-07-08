@@ -1,12 +1,12 @@
-# # from pydantic import BaseModel, Field
-# from pydantic import BaseModel, EmailStr
-# from typing import Optional
-#  # Combine first and last names to form fullname
-# fullname = f"{user.firstname.strip()} {user.lastname.strip()}"
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List
+from datetime import time, date, datetime
+# from .db import Base, engine, get_db
 
-# class UserCreate(BaseModel):
-#     uname: str
-#     passwd: str
+class UserCreate(BaseModel):
+    uname: str
+    passwd: str
+
 
 # class UserRegistration(BaseModel):
 #     uname: str
@@ -19,9 +19,11 @@
 #     status: Optional[str] = None
 #     lastlogin: Optional[str] = None
 #     logincount: Optional[str] = None
-#     fullname: Optional[str] = None
 #     # firstname: Optional[str] = None
 #     # lastname: Optional[str] = None
+#     firstname: Optional[str] = Field(None, alias="firstName")
+#     lastname: Optional[str] = Field(None, alias="lastName")
+#     fullname: Optional[str] = None
 #     phone: Optional[str] = None
 #     address: Optional[str] = None
 #     city: Optional[str] = None
@@ -31,41 +33,15 @@
 #     registereddate: Optional[str] = None
 #     level3date: Optional[str] = None
 #     last: Optional[str] = None
-#     visastatus: Optional[str] = None              # already in use; keep as is
-#     experience: Optional[str] = None              # new field
-#     education: Optional[str] = None               # new field
+#     visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
+#     experience: Optional[str] = None
+#     education: Optional[str] = None
 #     specialization: Optional[str] = None
-#     referred_by: Optional[str] = None
-
-# # class UserRegistration(BaseModel):
-# #     uname: str
-# #     passwd: str
-# #     dailypwd: Optional[str] = None
-# #     team: Optional[str] = None
-# #     level: Optional[str] = None
-# #     instructor: Optional[str] = None
-# #     override: Optional[str] = None
-# #     status: Optional[str] = None
-# #     lastlogin: Optional[str] = None
-# #     logincount: Optional[str] = None
-# #     fullname: Optional[str] = None
-# #     phone: Optional[str] = None
-# #     address: Optional[str] = None
-# #     city: Optional[str] = None
-# #     Zip: Optional[str] = None
-# #     country: Optional[str] = None
-# #     message: Optional[str] = None
-# #     registereddate: Optional[str] = None
-# #     level3date: Optional[str] = None
-# #     last: Optional[str] = None
-# #     visastatus: Optional[str] = Field(None, alias="visaStatus")   # fix alias
-# #     experience: Optional[str] = None
-# #     education: Optional[str] = None
-# #     specialization: Optional[str] = None
-# #     referred_by: Optional[str] = Field(None, alias="referredBy")  # fix alias
+#     referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
 
 #     class Config:
 #         allow_population_by_field_name = True
+
 
 # class ContactForm(BaseModel):
 #     firstName: str
@@ -108,6 +84,7 @@ from decimal import Decimal
 class UserCreate(BaseModel):
     uname: str
     passwd: str
+
 
 
 class UserRegistration(BaseModel):
@@ -253,6 +230,7 @@ class LeadBase(BaseModel):
     notes: Optional[str] = None
 
 
+
 class LeadCreate(LeadBase):
     pass
 
@@ -342,6 +320,7 @@ class Candidate(CandidateBase):
 
     class Config:
         orm_mode = True
+
         
 
 
@@ -388,3 +367,50 @@ class Placement(PlacementBase):
 
     class Config:
         orm_mode = True
+=======
+
+
+class RecentPlacement(BaseModel):
+    id: int
+    candidate_name: str
+    company: str
+    position: str
+    placement_date: str
+
+
+class RecentInterview(BaseModel):
+    id: int
+    candidate_name: str
+    candidate_role: Optional[str]
+    interview_time: time
+    interview_date: date
+    interview_mode: Optional[str]
+    client_name: Optional[str]
+    interview_location: Optional[str]
+    created_at: datetime
+
+
+# .......................................NEW INNOVAPATH..............................
+
+
+class CandidateMarketingBaseModel(BaseModel):
+    candidate_id: int
+    full_name: str
+    email: str
+    phone: str
+    role: str
+    experience: int
+    location: str
+    availability: str
+    skills: str
+
+# class CandidateMarketingCreate(CandidateMarketingBase):
+    # pass
+
+class CandidateMarketing(CandidateMarketingBaseModel):
+    id: int
+    
+    class Config:
+        orm_mode = True
+
+
