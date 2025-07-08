@@ -520,6 +520,10 @@ mail_conf = ConnectionConfig(
     MAIL_FROM=os.getenv('EMAIL_USER'),
     MAIL_PORT=int(os.getenv('SMTP_PORT')),
     MAIL_SERVER=os.getenv('SMTP_SERVER'),
+    # MAIL_STARTTLS=str_to_bool(os.getenv('MAIL_STARTTLS')),
+    # MAIL_SSL_TLS=str_to_bool(os.getenv('MAIL_SSL_TLS')),
+    # MAIL_STARTTLS=os.getenv('SMTP_STARTTLS'),
+    # MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS'),   
     MAIL_STARTTLS=True,
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True
@@ -584,11 +588,9 @@ mail_conf = ConnectionConfig(
 # Send email function
 def send_email_to_user(user_email: str, user_name: str):
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
-    # from_email = "ajukhaja786@gmail.com"  # The "from" email (distributor)
     to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL') # Admin email from environment variable
     to_admin_email = os.getenv('ADMIN_MAIL') # Admin email from environment variable
     password = os.getenv('EMAIL_PASS')
-    # password ="khenmdosprdmztuu"
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
     print(f"user name is {user_name}")
@@ -641,23 +643,15 @@ def send_email_to_user(user_email: str, user_name: str):
         server.sendmail(from_email, user_email, user_msg.as_string())
 
         # List of admin emails to notify
-        admin_emails = [to_recruiting_email, to_admin_email]
+        for admin_emails in [to_recruiting_email, to_admin_email]:
 
-        # Send email to each admin
-        # for admin_email in admin_emails:
-        #     admin_msg = MIMEMultipart()
-        #     admin_msg['From'] = from_email  
-        #     admin_msg['To'] = admin_email
-        #     admin_msg['Subject'] = 'New User Registration Notification'
-        #     admin_msg.attach(MIMEText(admin_html_content, 'html'))
-        #     server.sendmail(from_email, admin_email, admin_msg.as_string())
-        # Send email to the admin
-        admin_msg = MIMEMultipart()
-        admin_msg['From'] = from_email  
-        admin_msg['To'] = to_recruiting_email
-        admin_msg['Subject'] = 'New User Registration Notification'
-        admin_msg.attach(MIMEText(admin_html_content, 'html'))
-        server.sendmail(from_email, to_recruiting_email, admin_msg.as_string())
+            # Send email to the admin
+            admin_msg = MIMEMultipart()
+            admin_msg['From'] = from_email  
+            admin_msg['To'] = admin_emails
+            admin_msg['Subject'] = 'New User Registration Notification'
+            admin_msg.attach(MIMEText(admin_html_content, 'html'))
+            server.sendmail(from_email, admin_emails, admin_msg.as_string())
 
 
         # # Send email to the admin
