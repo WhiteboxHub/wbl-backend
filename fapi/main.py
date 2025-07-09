@@ -519,13 +519,10 @@ mail_conf = ConnectionConfig(
     MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
     MAIL_FROM=os.getenv('EMAIL_USER'),
     MAIL_PORT=int(os.getenv('SMTP_PORT')),
-    MAIL_SERVER=os.getenv('SMTP_SERVER'),
-    # MAIL_STARTTLS=str_to_bool(os.getenv('MAIL_STARTTLS')),
-    # MAIL_SSL_TLS=str_to_bool(os.getenv('MAIL_SSL_TLS')),
-    # MAIL_STARTTLS=os.getenv('SMTP_STARTTLS'),
-    # MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS'),   
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
+    MAIL_SERVER=os.getenv('SMTP_SERVER'),  
+    MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
+    MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
+   
     USE_CREDENTIALS=True
 )
 
@@ -586,7 +583,7 @@ mail_conf = ConnectionConfig(
 #         from fastapi import HTTPException
 #         raise HTTPException(status_code=500, detail=f"Error while sending emails: {e}")
 # Send email function
-def send_email_to_user(user_email: str, user_name: str):
+def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
     to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL') # Admin email from environment variable
     to_admin_email = os.getenv('ADMIN_MAIL') # Admin email from environment variable
@@ -615,6 +612,7 @@ def send_email_to_user(user_email: str, user_name: str):
             <ul>
                 <li>Name: {user_name}</li>
                 <li>Email: {user_email}</li>
+                <li>Phone: {user_phone}</li>
             </ul>
             <p>Best regards,<br>System Notification</p>
         </body>
@@ -846,7 +844,7 @@ async def register_user(request:Request,user: UserRegistration):
 
 
     # Send confirmation email to the user and notify the admin
-    send_email_to_user(user_email=user.uname, user_name=fullname)
+    send_email_to_user(user_email=user.uname, user_name=fullname, user_phone=user.phone)
 
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
 
