@@ -1,11 +1,12 @@
 
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview , CandidateMarketing
+# wbl-backend/fapi/main.py
+from fapi.models import EmailRequest,CandidateMarketing, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
-      fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
-    fetch_keyword_recordings, fetch_keyword_presentation,
- fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,fetch_candidates,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
-
+      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+    fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
+ fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
 
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -62,7 +63,7 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+    allow_origins=["http://localhost:3000","https://innova-path.com","https://www.innova-path.com","http://innova-path.com","http://www.innova-path.com","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
 
 
     allow_credentials=True,
@@ -108,21 +109,33 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
 
     return {"role": role}
 
+# def determine_user_role(userinfo):
+#     username = userinfo.get("username") or userinfo.get("email") or ""
+#     team = userinfo.get("team") or ""
+
+#     if (
+#         team == "admin"
+#         or username.endswith("@whitebox-learning.com")
+#         or username.endswith("@innova-path")
+#         or username == "admin"
+#     ):
+#         return "admin"
+
+#     return "candidate"
+
 def determine_user_role(userinfo):
-    username = userinfo.get("username") or userinfo.get("email") or ""
-    team = userinfo.get("team") or ""
+    email = userinfo.get("uname") or userinfo.get("email") or ""
+    team = (userinfo.get("team") or "").lower()
 
     if (
         team == "admin"
-        or username.endswith("@whitebox-learning")
-        or username.endswith("@innova-path")
-        or username == "admin"
+        or "whitebox-learning" in email
+        or "innova-path" in email
+        or email == "admin"
     ):
         return "admin"
 
     return "candidate"
-
-
 # ------------------------------------------------- Candidate ------------------------------------------
 
 #GET all candidates
@@ -134,6 +147,28 @@ async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+    
+    # GET Candidate status
+@app.get("/api/candidates/{status}", response_model=List[Candidate])
+async def get_candidates_by_dynamic_status(
+    status: str,
+    page: int = 1,
+    limit: int = 100
+):
+    # Define valid statuses (you can expand this set as needed)
+    valid_statuses = {"active", "marketing"}  
+
+    if status.lower() not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    try:
+        rows = get_candidates_by_status(status, page, limit)
+        return [Candidate(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+
 
 #GET candidate by Name
 @app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
@@ -143,6 +178,7 @@ async def get_candidates_by_name_endpoint(name: str):
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidates
 
+
 # GET candidate by ID
 @app.get("/api/candidates/{candidateid}", response_model=Candidate)
 async def get_candidate(candidateid: int):
@@ -150,6 +186,10 @@ async def get_candidate(candidateid: int):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return Candidate(**candidate)
+
+
+    
+
 
 
 
@@ -187,6 +227,69 @@ async def delete_candidate(candidateid: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
+
+# ------------------------------------------------------Placements--------------------------------------
+
+# GET all placements
+@app.get("/api/placements", response_model=List[Placement])
+async def get_placements(page: int = 1, limit: int = 100):
+    try:
+        rows = get_all_placements(page, limit)
+        return [Placement(**row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# GET placement by ID
+@app.get("/api/placements/{placement_id}", response_model=Placement)
+async def get_placement(placement_id: int):
+    row = get_placement_by_id(placement_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    return Placement(**row)
+
+
+# GET placements by candidate name
+@app.get("/api/placements/by-name/{candidate_name}", response_model=List[Placement])
+async def get_placements_by_name(candidate_name: str):
+    rows = search_placements_by_candidate_name(candidate_name)
+    if not rows:
+        raise HTTPException(status_code=404, detail="No placements found")
+    return [Placement(**row) for row in rows]
+
+
+# POST - Create placement
+@app.post("/api/placements", response_model=Placement)
+async def create_placement_endpoint(data: PlacementCreate):
+    try:
+        fields = data.dict(exclude_unset=True)
+        new_id = create_placement(fields)
+        return Placement(**fields, id=new_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
+
+
+# PUT - Update placement
+@app.put("/api/placements/{placement_id}", response_model=Placement)
+async def update_placement_endpoint(placement_id: int, update_data: PlacementUpdate):
+    fields = update_data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+    try:
+        update_placement(placement_id, fields)
+        return Placement(**fields, id=placement_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+
+# DELETE placement
+@app.delete("/api/placements/{placement_id}")
+async def delete_placement_endpoint(placement_id: int):
+    try:
+        delete_placement(placement_id)
+        return {"detail": f"Placement {placement_id} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 # ------------------------------------------------------- Leads -------------------------------------------------
 
@@ -263,17 +366,55 @@ async def get_recent_placements():
     return placements
 
 
-@app.get("/api/interviews", response_model=List[RecentInterview])
-async def get_recent_interviews():
-    interviews = await fetch_recent_interviews()
-    return interviews
+# @app.get("/api/interviews", response_model=List[RecentInterview])
+# async def get_recent_interviews():
+#     interviews = await fetch_recent_interviews()
+#     return interviews
+
+
+@app.get("/api/interviews", response_model=List[dict])
+async def get_interviews(limit: int = 10, offset: int = 0):
+    return await fetch_recent_interviews(limit, offset)
+
+@app.get("/api/interviews/{interview_id}", response_model=dict)
+async def get_interview_by_id(interview_id: int):
+    interview = await fetch_interview_by_id(interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return interview
+
+@app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
+async def get_interview_by_name(candidate_name: str):
+    return await fetch_interviews_by_name(candidate_name)
+
+@app.post("/api/interviews")
+async def create_interview(data: RecentInterview):
+    await insert_interview(data)
+    return {"message": "Interview created successfully"}
+@app.put("/api/interviews/{interview_id}")
+async def update_interview_api(interview_id: int, data: RecentInterview):
+    existing = await fetch_interview_by_id(interview_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    await update_interview(interview_id, data)
+    return {"message": "Interview updated successfully"}
+
+@app.delete("/api/interviews/{interview_id}")
+async def remove_interview(interview_id: int):
+    await delete_interview(interview_id)
+    return {"message": "Interview deleted successfully"}
+
+
+
+
+
 
 
 
 # -------------------------------------------------------- IP -----------------------------------------
 
 
-@app.post("/vendor/request-demo")
+@app.post("/api/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
     try:
         vendor_data = vendor.dict()
@@ -423,6 +564,17 @@ def send_email_to_user(user_email: str, user_name: str):
         user_msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
         user_msg.attach(MIMEText(user_html_content, 'html'))
         server.sendmail(from_email, user_email, user_msg.as_string())
+        
+        # List of admin emails to notify
+        for admin_emails in [to_recruiting_email, to_admin_email]:
+
+            # Send email to the admin
+            admin_msg = MIMEMultipart()
+            admin_msg['From'] = from_email  
+            admin_msg['To'] = admin_emails
+            admin_msg['Subject'] = 'New User Registration Notification'
+            admin_msg.attach(MIMEText(admin_html_content, 'html'))
+            server.sendmail(from_email, admin_emails, admin_msg.as_string())
 
         # Send email to the admin
         admin_msg = MIMEMultipart()
@@ -588,7 +740,7 @@ async def register_user(request:Request,user: UserRegistration):
     message=user.message,
     registereddate=user.registereddate,
     level3date=user.level3date,
-    visastatus=user.visastatus,
+    visa_status=user.visa_status,
     experience=user.experience,
     education=user.education,
     referred_by=user.referred_by,
@@ -794,10 +946,33 @@ async def contact(user: ContactForm):
         phone=user.phone,
         message=user.message        
         )
-    def sendEmail():
+    # def sendEmail():
+    #     from_Email = os.getenv('EMAIL_USER')
+    #     password = os.getenv('EMAIL_PASS')
+    #     to_email = os.getenv('TO_RECRUITING_EMAIL')
+    #     smtp_server = os.getenv('SMTP_SERVER')
+    #     smtp_port = os.getenv('SMTP_PORT')
+    #     html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
+    #     msg = MIMEMultipart()
+    #     msg['From'] = from_Email
+    #     msg['To'] = to_email
+    #     msg['Subject'] = 'WBL Contact lead generated'
+    #     msg.attach(MIMEText(html_content, 'html'))
+    #     try:
+    #         # server = smtplib.SMTP('smtp.gmail.com',587)
+    #         server = smtplib.SMTP(smtp_server, int(smtp_port))
+    #         server.starttls()
+    #         server.login(from_Email,password)
+    #         text = msg.as_string()
+    #         server.sendmail(from_Email,to_email,text)
+    #         server.quit()
+    #     except Exception as e:
+    #         raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
+    # sendEmail()
+    def sendEmail(email):
         from_Email = os.getenv('EMAIL_USER')
         password = os.getenv('EMAIL_PASS')
-        to_email = os.getenv('TO_RECRUITING_EMAIL')
+        to_email = email
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = os.getenv('SMTP_PORT')
         html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
@@ -815,8 +990,12 @@ async def contact(user: ContactForm):
             server.sendmail(from_Email,to_email,text)
             server.quit()
         except Exception as e:
+            print(e)
             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
-    sendEmail()
+    
+        # to_email = os.getenv('TO_RECRUITING_EMAIL')
+    sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
+    sendEmail(os.getenv('ADMIN_MAIL'))
     return {"detail": "Message Sent Successfully"}
 
 @app.get("/api/coursecontent")
@@ -853,7 +1032,7 @@ async def reset_password(data: ResetPassword):
 
 # ...................................NEW INNOVAPATH......................................
 
-@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+@app.get("/api/candidate_marketing", response_model=List[CandidateMarketing])
 async def get_candidate_marketing(
     role: Optional[str] = None,
     experience: Optional[int] = None,
@@ -880,4 +1059,3 @@ async def get_candidate_marketing(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
   
-

@@ -41,7 +41,51 @@ class UserCreate(BaseModel):
 
 #     class Config:
 #         allow_population_by_field_name = True
-#         allow_population_by_alias = True
+
+
+# class ContactForm(BaseModel):
+#     firstName: str
+#     lastName: str
+#     email: str
+#     phone: str
+#     message: str
+
+# class Token(BaseModel):
+#     access_token: str
+#     token_type: str
+
+# class EmailRequest(BaseModel):
+#     email: EmailStr
+
+# class ResetPasswordRequest(BaseModel):
+#     email: EmailStr
+
+# class ResetPassword(BaseModel):
+#     token: str
+#     new_password: str
+
+
+# # class UserCreate(BaseModel):
+# #     email: str
+# #     name: str   
+# #     google_id: str
+
+
+# # Model for Google user creation
+# class GoogleUserCreate(BaseModel):
+#     name: str
+#     email: str
+#     google_id: str
+
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from datetime import time, date, datetime
+from decimal import Decimal 
+class UserCreate(BaseModel):
+    uname: str
+    passwd: str
+
+
 
 class UserRegistration(BaseModel):
     uname: str
@@ -68,7 +112,7 @@ class UserRegistration(BaseModel):
     registereddate: Optional[str] = None
     level3date: Optional[str] = None
     last: Optional[str] = None
-    visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
+    visa_status: Optional[str] = Field(None, alias="visaStatus")  # with alias
     experience: Optional[str] = None
     education: Optional[str] = None
     specialization: Optional[str] = None
@@ -132,16 +176,24 @@ class RecentPlacement(BaseModel):
     placement_date: str
 
 
+# class RecentInterview(BaseModel):
+#     id: int
+#     candidate_name: str
+#     candidate_role: Optional[str]
+#     interview_time: time
+#     interview_date: date
+#     interview_mode: Optional[str]
+#     client_name: Optional[str]
+#     interview_location: Optional[str]
+#     created_at: datetime
 class RecentInterview(BaseModel):
-    id: int
     candidate_name: str
-    candidate_role: Optional[str]
-    interview_time: time
-    interview_date: date
-    interview_mode: Optional[str]
-    client_name: Optional[str]
-    interview_location: Optional[str]
-    created_at: datetime
+    candidate_role: Optional[str] = None
+    interview_time: str
+    interview_date: str
+    interview_mode: Optional[str] = None
+    client_name: Optional[str] = None
+    interview_location: Optional[str] = None
     
 # ------------------------------------------- Avatar ----------------------------------------
 class LeadBase(BaseModel):
@@ -268,6 +320,54 @@ class Candidate(CandidateBase):
 
     class Config:
         orm_mode = True
+
+        
+
+
+
+
+
+class PlacementBase(BaseModel):
+    candidate_id: Optional[int]
+    candidate_name: Optional[str]
+    candidate_email: Optional[str]
+    company: Optional[str]
+    client_id: Optional[int]
+    batch: Optional[str]
+    # placed_date: Optional[date]
+    placement_date: Optional[date]
+    status: Optional[str]
+    marketing_email_address: Optional[str]
+    vendor_or_client_name: Optional[str]
+    vendor_or_client_contact: Optional[str]
+    start_date: Optional[date]
+    position: Optional[str]
+    amount_paid: Optional[float]
+    work_authorization: Optional[str]
+    experience_in_resume: Optional[str]
+    role: Optional[str]
+    job_location: Optional[str]
+    terms_and_conditions: Optional[str]
+    notes: Optional[str]
+    candidate_profile_folder: Optional[str]
+    placement_verified: Optional[bool] = False
+    joining_letter_url: Optional[str]
+
+
+class PlacementCreate(PlacementBase):
+    pass
+
+
+class PlacementUpdate(PlacementBase):
+    pass
+
+
+class Placement(PlacementBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
 
 
 class RecentPlacement(BaseModel):
