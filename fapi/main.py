@@ -8,6 +8,7 @@ from  fapi.db import (
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
     get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
 
+
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
@@ -45,6 +46,17 @@ from fapi.db import (
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from pydantic import EmailStr
+
+# Load environment variables
+load_dotenv()
+
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from pydantic import EmailStr
+
+
+
 
 
 load_dotenv()
@@ -63,7 +75,7 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+    allow_origins=["*","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
 
 
     allow_credentials=True,
@@ -98,7 +110,7 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
         username = payload.get("sub")
         if not username:
             raise HTTPException(status_code=401, detail="Invalid token")
-    except (ExpiredSignatureError, JWTError):
+    except (jwt.ExpiredSignatureError, JWTError):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     userinfo = await get_user_by_username(username)
@@ -516,14 +528,212 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
+    # return user
+# @app.post("/api/signup")
+# async def register_user(user: UserRegistration):
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+
+#     hashed_password = md5_hash(user.passwd)
+#     await insert_user(
+#         uname=user.uname,
+#         passwd=hashed_password,
+#         dailypwd=user.dailypwd,
+#         team=user.team,
+#         level=user.level,
+#         instructor=user.instructor,
+#         override=user.override,
+#         status=user.status,
+#         lastlogin=user.lastlogin,
+#         logincount=user.logincount,
+#         fullname=user.fullname,
+#         phone=user.phone,
+#         address=user.address,
+#         city=user.city,
+#         Zip=user.Zip,
+#         country=user.country,
+#         message=user.message,
+#         registereddate=user.registereddate,
+#         level3date=user.level3date,
+#         candidate_info={
+#             'name': user.fullname,
+#             'enrolleddate': user.registereddate,
+#             'email': user.uname,
+#             'phone': user.phone,
+#             'address': user.address,
+#             'city': user.city,
+#             'country': user.country,
+#             'zip': user.Zip,
+#             'status': user.status
+#         }
+#     )
+#     return {"message": "User registered successfully "}
+
+
+# # Send email function
+# def send_email_to_user(user_email: str, user_name: str,admin_email:str):
+#     from_email = os.getenv('EMAIL_USER')
+#     password = os.getenv('EMAIL_PASS')
+#     smtp_server = os.getenv('SMTP_SERVER')
+#     smtp_port = os.getenv('SMTP_PORT')
+
+#     # Create the email content
+#     html_content = f"""
+#     <html>
+#         <body>
+#             <p>Dear {user_name},</p>
+#             <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
+#             <p>Best regards,<br>Recruitment Team</p>
+#         </body>
+#     </html>
+#     """
+
+#     # Create the MIME message
+#     msg = MIMEMultipart()
+#     msg['From'] = from_email
+#     msg['To'] = user_email
+#     msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
+
+#     msg.attach(MIMEText(html_content, 'html'))
+
+#     try:
+#         # Establish the connection with the email server
+#         server = smtplib.SMTP(smtp_server, int(smtp_port))
+#         server.starttls()
+#         server.login(from_email, password)
+#         text = msg.as_string()
+#         server.sendmail(from_email, user_email, text)
+#         server.quit()
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail='Error while sending the confirmation email.')
+
+# @app.post("/api/signup")
+# async def register_user(user: UserRegistration):
+#     # Check if the user already exists
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+
+#     # Hash the password and insert the new user
+#     hashed_password = md5_hash(user.passwd)
+#     await insert_user(
+#         uname=user.uname,
+#         passwd=hashed_password,
+#         dailypwd=user.dailypwd,
+#         team=user.team,
+#         level=user.level,
+#         instructor=user.instructor,
+#         override=user.override,
+#         status=user.status,
+#         lastlogin=user.lastlogin,
+#         logincount=user.logincount,
+#         fullname=user.fullname,
+#         phone=user.phone,
+#         address=user.address,
+#         city=user.city,
+#         Zip=user.Zip,
+#         country=user.country,
+#         message=user.message,
+#         registereddate=user.registereddate,
+#         level3date=user.level3date,
+#         candidate_info={
+#             'name': user.fullname,
+#             'enrolleddate': user.registereddate,
+#             'email': user.uname,
+#             'phone': user.phone,
+#             'address': user.address,
+#             'city': user.city,
+#             'country': user.country,
+#             'zip': user.Zip,
+#             'status': user.status
+#         }
+#     )
+
+#     # Send confirmation email to the user
+#     send_email_to_user(user.uname, user.fullname)
+
+#     return {"message": "User registered successfully and a confirmation email has been sent to the user."}
+
+
+# Email server configuration
+mail_conf = ConnectionConfig(
+    MAIL_USERNAME=os.getenv('EMAIL_USER'),
+    MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
+    MAIL_FROM=os.getenv('EMAIL_USER'),
+    MAIL_PORT=int(os.getenv('SMTP_PORT')),
+    MAIL_SERVER=os.getenv('SMTP_SERVER'),  
+    MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
+    MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
+   
+    USE_CREDENTIALS=True
+)
+
+# async def send_email_to_user(user_email: str, user_name: str):
+#     from_email = os.getenv('EMAIL_USER')
+#     to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')
+#     to_admin_email = os.getenv('ADMIN_MAIL')
+#     print(to_recruiting_email,to_admin_email,"-"*100)
+
+#     # Email content for the user
+#     user_html_content = f"""
+#     <html>
+#         <body>
+#             <p>Dear {user_name},</p>
+#             <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
+#             <p>Best regards,<br>Recruitment Team</p>
+#         </body>
+#     </html>
+#     """
+
+#     # Email content for the admin
+#     admin_html_content = f"""
+#     <html>
+#         <body>
+#             <p>Hello Admin,</p>
+#             <p>A new user has registered on the website. Please review their details and provide access.</p>
+#             <p><strong>User Details:</strong></p>
+#             <ul>
+#                 <li>Name: {user_name}</li>
+#                 <li>Email: {user_email}</li>
+#             </ul>
+#             <p>Best regards,<br>System Notification</p>
+#         </body>
+#     </html>
+#     """
+
+#     # Prepare message schemas
+#     user_message = MessageSchema(
+#         subject="Registration Successful - Recruiting Team will Reach Out",
+#         recipients=[user_email],
+#         body=user_html_content,
+#         subtype="html"
+#     )
+
+#     admin_message = MessageSchema(
+#         subject="New User Registration Notification",
+#         recipients=[to_recruiting_email, to_admin_email],
+#         body=admin_html_content,
+#         subtype="html"
+#     )
+
+#     # Send the emails
+#     fm = FastMail(mail_conf)
+#     try:
+#         await fm.send_message(user_message)
+#         await fm.send_message(admin_message)
+#     except Exception as e:
+#         from fastapi import HTTPException
+#         raise HTTPException(status_code=500, detail=f"Error while sending emails: {e}")
 # Send email function
-def send_email_to_user(user_email: str, user_name: str):
+def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
-    to_admin_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL') # Admin email from environment variable
+    to_admin_email = os.getenv('ADMIN_MAIL') # Admin email from environment variable
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
-
+    print(f"user name is {user_name}")
     # Email content for the user
     user_html_content = f"""
     <html>
@@ -545,6 +755,7 @@ def send_email_to_user(user_email: str, user_name: str):
             <ul>
                 <li>Name: {user_name}</li>
                 <li>Email: {user_email}</li>
+                <li>Phone: {user_phone}</li>
             </ul>
             <p>Best regards,<br>System Notification</p>
         </body>
@@ -557,7 +768,14 @@ def send_email_to_user(user_email: str, user_name: str):
         server.starttls()
         server.login(from_email, password)
 
-        # Send email to the user
+        # send_html_email(server, from_email, user_email, 'Registration Successful - Recruiting Team will Reach Out', user_html_content)
+
+        # admin_emails = [to_recruiting_email, to_admin_email]
+        # for admin_email in admin_emails:
+        #     send_html_email(server, from_email, admin_email, 'New User Registration Notification', admin_html_content)
+
+
+        # # Send email to the user
         user_msg = MIMEMultipart()
         user_msg['From'] = from_email
         user_msg['To'] = user_email
@@ -565,9 +783,21 @@ def send_email_to_user(user_email: str, user_name: str):
         user_msg.attach(MIMEText(user_html_content, 'html'))
         server.sendmail(from_email, user_email, user_msg.as_string())
 
-        # Send email to the admin
+        # List of admin emails to notify
+        for admin_emails in [to_recruiting_email, to_admin_email]:
+
+            # Send email to the admin
+            admin_msg = MIMEMultipart()
+            admin_msg['From'] = from_email  
+            admin_msg['To'] = admin_emails
+            admin_msg['Subject'] = 'New User Registration Notification'
+            admin_msg.attach(MIMEText(admin_html_content, 'html'))
+            server.sendmail(from_email, admin_emails, admin_msg.as_string())
+
+
+        # # Send email to the admin
         admin_msg = MIMEMultipart()
-        admin_msg['From'] = from_email
+        admin_msg['From'] = from_email  
         admin_msg['To'] = to_admin_email
         admin_msg['Subject'] = 'New User Registration Notification'
         admin_msg.attach(MIMEText(admin_html_content, 'html'))
@@ -578,6 +808,16 @@ def send_email_to_user(user_email: str, user_name: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
+
+
+def send_html_email(server, from_email, to_email, subject, html_content):
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(html_content, 'html'))
+    server.sendmail(from_email, to_email, msg.as_string())
+
 
 def clean_input_fields(user_data: UserRegistration):
     """Convert empty strings and format datetimes for MySQL"""
@@ -747,7 +987,7 @@ async def register_user(request:Request,user: UserRegistration):
 
 
     # Send confirmation email to the user and notify the admin
-    send_email_to_user(user_email=user.uname, user_name=user.fullname)
+    send_email_to_user(user_email=user.uname, user_name=fullname, user_phone=user.phone)
 
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
 
@@ -927,7 +1167,6 @@ async def contact(user: ContactForm):
     
     
 
-
     await user_contact(
         # name=f"{user.firstName} {user.lastName}",
         name=f"{user.firstName} {user.lastName}",
@@ -935,10 +1174,40 @@ async def contact(user: ContactForm):
         phone=user.phone,
         message=user.message        
         )
-    def sendEmail():
+
+    # def sendEmail():
+    #     from_Email = os.getenv('EMAIL_USER')
+    #     password = os.getenv('EMAIL_PASS')
+    #     to_email = os.getenv('TO_RECRUITING_EMAIL')
+    #     admin_to_email = os.getenv('ADMIN_MAIL')
+    #     smtp_server = os.getenv('SMTP_SERVER')
+    #     smtp_port = os.getenv('SMTP_PORT')
+    # html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
+    # await lead_generation_mail(f"{user.firstName} {user.lastName}",user.email,html_content)
+        # for email in [to_email,admin_to_email]:
+            
+        #     msg = MIMEMultipart()
+        #     msg['From'] = from_Email
+        #     msg['To'] = email
+        #     msg['Subject'] = 'WBL Contact lead generated'
+        #     msg.attach(MIMEText(html_content, 'html'))
+        #     try:
+        #         # server = smtplib.SMTP('smtp.gmail.com',587)
+        #         server = smtplib.SMTP(smtp_server, int(smtp_port))
+        #         server.starttls()
+        #         server.login(from_Email,password)
+        #         text = msg.as_string()
+        #         server.sendmail(from_Email,email,text)
+        #     except Exception as e:
+        #         raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
+        # server.quit()
+        
+    # sendEmail()
+
+    def sendEmail(email):
         from_Email = os.getenv('EMAIL_USER')
         password = os.getenv('EMAIL_PASS')
-        to_email = os.getenv('TO_RECRUITING_EMAIL')
+        to_email = email
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = os.getenv('SMTP_PORT')
         html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
@@ -956,8 +1225,12 @@ async def contact(user: ContactForm):
             server.sendmail(from_Email,to_email,text)
             server.quit()
         except Exception as e:
+            print(e)
             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
-    sendEmail()
+    
+        # to_email = os.getenv('TO_RECRUITING_EMAIL')
+    sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
+    sendEmail(os.getenv('ADMIN_MAIL'))
     return {"detail": "Message Sent Successfully"}
 
 @app.get("/api/coursecontent")
