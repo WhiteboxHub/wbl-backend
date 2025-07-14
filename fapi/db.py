@@ -1466,7 +1466,7 @@ def get_all_placements(page: int = 1, limit: int = 100) -> List[dict]:
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM placement LIMIT %s OFFSET %s", (limit, offset))
+    cursor.execute("SELECT * FROM placement ORDER BY id DESC LIMIT %s OFFSET %s", (limit, offset))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()

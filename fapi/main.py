@@ -1,4 +1,3 @@
-
 # wbl-backend/fapi/main.py
 from fapi.models import EmailRequest,CandidateMarketing, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
@@ -45,10 +44,7 @@ from fapi.db import (
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-
-
 load_dotenv()
-
 
 # Initialize FastAPI app
 app = FastAPI()
