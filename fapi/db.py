@@ -534,9 +534,6 @@ from dotenv import load_dotenv
 from datetime import date,datetime, time, timedelta  
 
 
-
-
-
 load_dotenv()
 
 db_config = {
