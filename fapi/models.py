@@ -81,6 +81,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import time, date, datetime
 from decimal import Decimal 
+
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -242,7 +243,6 @@ class Lead(LeadBase):
         orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
 
 
-
 class CandidateBase(BaseModel):
     name: Optional[str]
     enrolleddate: Optional[date]
@@ -320,10 +320,6 @@ class Candidate(CandidateBase):
 
     class Config:
         orm_mode = True
-
-        
-
-
 
 
 

@@ -528,7 +528,7 @@ import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
-from typing import Optional,Dict
+from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
 
@@ -565,12 +565,21 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
 
         # Insert user into authuser table
         query1 = """
-            INSERT INTO authuser (uname, fullname, googleId, status, dailypwd, team, level, 
+            INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
             instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
             registereddate, level3date) 
-            VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+            VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))      
+
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
+
+        # Insert into the candidate table (you can modify this based on your needs)
+        # query2 = """
+        #     INSERT INTO candidate (name, email, status, course) 
+        #     VALUES (%s, %s, 'active', 'ML');
+        # """
+        # await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+
 
         conn.commit()
     except Error as e:
@@ -1257,6 +1266,7 @@ async def update_interview(interview_id: int, data):
 
 
 
+
 # .................................NEW INNOVAPTH......................................................
  
 def get_db():
@@ -1304,6 +1314,7 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
             cursor.close()
         if conn:
             conn.close()
+
 
 # ------------------------------------------ Avtar -------------------------
 def get_user_by_username_sync(username: str):
