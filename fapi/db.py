@@ -528,11 +528,13 @@ import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
-from typing import Optional,Dict
+from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
 from datetime import date,datetime, time, timedelta  
-from typing import List
+
+
+
 
 
 load_dotenv()
@@ -570,12 +572,12 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
 
         # Insert user into authuser table
         query1 = """
-            INSERT INTO authuser (uname, fullname, googleId, status, dailypwd, team, level, 
+            INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
             instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
             registereddate, level3date) 
-            VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+            VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
 
         # Insert into the candidate table (you can modify this based on your needs)
         # query2 = """
@@ -730,6 +732,7 @@ async def insert_user(
         cursor.close()
         conn.close()
        
+
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -1477,7 +1480,7 @@ def get_all_placements(page: int = 1, limit: int = 100) -> List[dict]:
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM placement LIMIT %s OFFSET %s", (limit, offset))
+    cursor.execute("SELECT * FROM placement ORDER BY id DESC LIMIT %s OFFSET %s", (limit, offset))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1538,6 +1541,8 @@ def delete_placement(placement_id: int):
     conn.commit()
     cursor.close()
     conn.close()
+
+
 
 
 

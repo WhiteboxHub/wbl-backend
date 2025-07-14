@@ -15,6 +15,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Bod
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
 from jose import JWTError
 from typing import List, Optional
 import os
@@ -24,12 +25,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-from fapi.models import Candidate, CandidateCreate, CandidateUpdate
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead
 from fapi.models import LeadBase, LeadCreate, Lead
 
 from fapi.db import get_connection
 import fapi.db as leads_db
-
 
 from fapi.db import (
     # get_all_candidates,
@@ -407,7 +407,7 @@ async def remove_interview(interview_id: int):
 
 # -------------------------------------------------------- IP -----------------------------------------
 
-@app.post("/vendor/request-demo")
+@app.post("/api/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
     try:
         vendor_data = vendor.dict()
@@ -445,6 +445,7 @@ async def check_user_exists(user: GoogleUserCreate):
 @app.post("/api/google_users/")
 @limiter.limit("15/minute")
 async def register_google_user(request:Request,user: GoogleUserCreate):
+    print("Incoming user payload:", user)
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user:
@@ -456,12 +457,38 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
     return {"message": "Google user registered successfully!"}
 
+# @app.post("/api/google_login/")
+# @limiter.limit("15/minute")
+# async def login_google_user(request:Request,user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+#     if existing_user is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+#     if existing_user['status'] == 'inactive':
+#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     # Generate token upon successful login
+#     token_data = {
+#         "sub": existing_user['uname'],
+#         "name": existing_user['fullname'],
+#         "google_id": existing_user['googleId'],
+#     }   
+    
+#     access_token = create_google_access_token(data=token_data)
+    
+#     return {
+#         "access_token": access_token,
+#         "token_type": "bearer"
+#     }
+
+
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
-async def login_google_user(request:Request,user: GoogleUserCreate):
+async def login_google_user(request: Request, user: GoogleUserCreate):
     existing_user = await get_google_user_by_email(user.email)
+    
     if existing_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
     if existing_user['status'] == 'inactive':
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
 
@@ -472,12 +499,15 @@ async def login_google_user(request:Request,user: GoogleUserCreate):
         "google_id": existing_user['googleId'],
     }   
     
-    access_token = create_google_access_token(data=token_data)
+    
+    access_token = await create_google_access_token(data=token_data)
     
     return {
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
 
 @app.post("/api/verify_google_token/")
 #@limiter.limit("5/minute")
@@ -493,6 +523,7 @@ async def verify_google_token(token: str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    
 
 # ------------------------------------------------------------------------------------
 
