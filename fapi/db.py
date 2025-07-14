@@ -531,7 +531,19 @@ import os
 from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
+
 from datetime import date,datetime, time, timedelta  
+from typing import List
+ 
+# **********************************************NEW INNOVAPATH**********************************
+
+# import mysql.connector
+# from mysql.connector import Error
+# from fastapi import HTTPException
+from typing import Dict, List
+
+
+
 
 
 load_dotenv()
@@ -544,23 +556,7 @@ db_config = {
     'port': os.getenv('DB_PORT')
 }
 
-# ------------------------------------------------------------------------------------
-# async def insert_user_db(email: str, name: str, google_id: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = "INSERT INTO authuser (uname, fullname, googleId, status) VALUES (%s, %s, %s, 'inactive');"
-#         await loop.run_in_executor(None, cursor.execute, query, (email, name, google_id))
-#         conn.commit()
-#     except Error as e:
-#         conn.rollback()
-#         print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=500, detail="Error inserting user")
-#     finally:
-#         cursor.close()
-#         conn.close() 
-        
+
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -574,6 +570,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
             registereddate, level3date) 
             VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
+
         await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
 
         # Insert into the candidate table (you can modify this based on your needs)
@@ -582,6 +579,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         #     VALUES (%s, %s, 'active', 'ML');
         # """
         # await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+
 
         conn.commit()
     except Error as e:
@@ -592,26 +590,6 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         cursor.close()
         conn.close()
 
-# async def get_user_by_email(email: str):
-#     try:
-#         # Establish connection
-#         conn = mysql.connector.connect(**db_config)
-#         if conn.is_connected():
-#             cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get results as dictionaries
-#             query = "SELECT * FROM authuser WHERE uname = %s"
-#             cursor.execute(query, (email,))
-#             result = cursor.fetchone()
-#             return result
-#     except Error as e:
-#         # print(f"Error: {e}")
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-#     finally:
-#         if conn.is_connected():
-#             cursor.close()
-#             conn.close() 
-            
-# Function to fetch user by email
 async def get_google_user_by_email(email: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -627,7 +605,7 @@ async def get_google_user_by_email(email: str):
     finally:
         cursor.close()
         conn.close()
-        
+
 
 async def insert_user(
     uname: str,
@@ -646,7 +624,7 @@ async def insert_user(
     Zip: str = None,
     country: str = None,
     message: str = None,
-    visastatus: Optional[str] = None,
+    visa_status: Optional[str] = None,
     registereddate: str = None,
     level3date: str = None,
     experience: Optional[str] = None,
@@ -665,11 +643,13 @@ async def insert_user(
         query1 = """
             INSERT INTO whitebox_learning.authuser (
 
+
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
-                visastatus,experience, education, specialization, referred_by 
+                visa_status,experience, education, specialization, referred_by,
 
-                message, registereddate, level3date
+
+                `message`, registereddate, level3date
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
                 %s, %s, %s, %s, %s, %s, %s, %s,
@@ -681,41 +661,10 @@ async def insert_user(
         values1 = (
             uname, passwd, dailypwd, team, level, instructor, override, 
             lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
-            visastatus, experience, education, referred_by,
+            visa_status, experience, education, referred_by,
             message, registereddate, level3date
         )
-
-        await loop.run_in_executor(None, cursor.execute, query1, values1)
-        
-        # Insert into candidate table
-        # query2 = """
-        #     INSERT INTO wbl_newDB.candidate (
-        #         name, enrolleddate, email, course, phone, status, address, city, country, zip
-        #     ) VALUES (%s, %s, %s, 'ML', %s,'active', %s, %s, %s, %s);
-        # """
-        # values2 = (
-        #     candidate_info['name'], candidate_info['enrolleddate'], candidate_info['email'],
-        #     candidate_info['phone'], candidate_info['address'], 
-        #     candidate_info['city'], candidate_info['country'], candidate_info['zip']
-        # )
-        # await loop.run_in_executor(None, cursor.execute, query2, values2)
-
-        # get the last inserted ID to for candidate_ID
-        # candidate_id = cursor.lastrowid
-
-        #  # Insert the candidate_id into the candidate_resume table
-        # query3 = """
-        #     INSERT INTO wbl_newDB.candidate_resume (
-        #         candidate_id
-        #     ) VALUES (%s);
-        # """
-        # values3 = (candidate_id,)
-        # await loop.run_in_executor(None, cursor.execute, query3, values3)
-
-
-
         # print(" Values being inserted into DB:", values1)
-
 
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
@@ -998,6 +947,7 @@ async def fetch_keyword_presentation(search, course):
         conn.close()
 
 
+
 async def get_user_from_token(token: str):
     # Verify the JWT token and extract the email
     payload = verify_token(token)
@@ -1084,7 +1034,6 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
         return sessions
     finally:
         conn.close()
-
 
 
 
@@ -1316,6 +1265,57 @@ async def update_interview(interview_id: int, data):
     return await run_query(query, params=params)
 
 
+
+
+# .................................NEW INNOVAPTH......................................................
+ 
+def get_db():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        return conn
+    except Error as e:
+        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
+
+async def fetch_candidates(filters: dict) -> List[Dict]:
+    conn = None
+    cursor = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM candidate_marketing WHERE 1=1"
+        params = []
+
+        if filters.get("role"):
+            query += " AND role = %s"
+            params.append(filters["role"])
+        if filters.get("experience"):
+            query += " AND experience >= %s"
+            params.append(int(filters["experience"]))
+        if filters.get("location"):
+            query += " AND location = %s"
+            params.append(filters["location"])
+        if filters.get("availability"):
+            query += " AND availability = %s"
+            params.append(filters["availability"])
+        if filters.get("skills"):
+            query += " AND skills LIKE %s"
+            params.append(f"%{filters['skills']}%")
+
+        cursor.execute(query, params)
+        result = cursor.fetchall()
+        return result
+    except Error as e:
+        if conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 # ------------------------------------------ Avtar -------------------------
 def get_user_by_username_sync(username: str):
     conn = mysql.connector.connect(**db_config)
@@ -1544,8 +1544,6 @@ def delete_placement(placement_id: int):
 
 
 
-
-
 def fetch_all_leads_paginated(page: int, limit: int):
     offset = (page - 1) * limit
     conn = get_connection()
@@ -1624,3 +1622,4 @@ def delete_lead_by_id(leadid: int):
     conn.commit()
     cursor.close()
     conn.close()
+
