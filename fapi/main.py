@@ -823,6 +823,14 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
 
 async def contact(user: ContactForm):
 
+    await user_contact(
+        # name=f"{user.firstName} {user.lastName}",
+        name=f"{user.firstName} {user.lastName}",
+        email=user.email,
+        phone=user.phone,
+        message=user.message        
+        )
+
 
     def sendEmail(email):
         from_Email = os.getenv('EMAIL_USER')
@@ -853,44 +861,6 @@ async def contact(user: ContactForm):
     sendEmail(os.getenv('TO_ADMIN_EMAIL'))
     return {"detail": "Message Sent Successfully"}
             
-    
-
-
-    # await user_contact(
-    #     # name=f"{user.firstName} {user.lastName}",
-    #     name=f"{user.firstName} {user.lastName}",
-    #     email=user.email,
-    #     phone=user.phone,
-    #     message=user.message        
-    #     )
-    # def sendEmail():
-    #     from_Email = os.getenv('EMAIL_USER')
-    #     password = os.getenv('EMAIL_PASS')
-    #     to_email = os.getenv('TO_RECRUITING_EMAIL')
-    #     smtp_server = os.getenv('SMTP_SERVER')
-    #     smtp_port = os.getenv('SMTP_PORT')
-    #     html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
-    #     msg = MIMEMultipart()
-    #     msg['From'] = from_Email
-    #     msg['To'] = to_email
-    #     msg['Subject'] = 'WBL Contact lead generated'
-    #     msg.attach(MIMEText(html_content, 'html'))
-    #     try:
-    #         # server = smtplib.SMTP('smtp.gmail.com',587)
-    #         server = smtplib.SMTP(smtp_server, int(smtp_port))
-    #         server.starttls()
-    #         server.login(from_Email,password)
-    #         text = msg.as_string()
-    #         server.sendmail(from_Email,to_email,text)
-    #         server.quit()
-    #     except Exception as e:
-    #         print(e)
-    #         raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
-    # sendEmail()
-    sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
-    sendEmail(os.getenv('TO_ADMIN_EMAIL'))
-    return {"detail": "Message Sent Successfully"}
-
 @app.get("/api/coursecontent")
 def get_course_content():
     content = course_content()
