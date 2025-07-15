@@ -562,7 +562,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         # Insert user into authuser table
         query1 = """
             INSERT INTO authuser (uname, fullname, googleId, status, dailypwd, team, level, 
-            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
+            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, `message`, 
             registereddate, level3date) 
             VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
@@ -611,13 +611,13 @@ async def insert_user(
     Zip: str = None,
     country: str = None,
     message: str = None,
-    visastatus: Optional[str] = None,
+    visa_status: Optional[str] = None,
     registereddate: str = None,
     level3date: str = None,
     experience: Optional[str] = None,
     education: Optional[str] = None,
     specialization: Optional[str] = None,
-    referred_by: Optional[str] = None,
+    referby: Optional[str] = None,
     candidate_info: Dict[str, Optional[str]] = None
 ):
     loop = asyncio.get_event_loop()
@@ -633,22 +633,20 @@ async def insert_user(
 
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
-                visastatus,experience, education, specialization, referred_by 
-
-
-                message, registereddate, level3date
+                visa_status,experience, education, specialization, referby,
+                `message`, registereddate, level3date
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
                 %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s
+                %s, %s, %s, %s
             );
         """
 
         values1 = (
             uname, passwd, dailypwd, team, level, instructor, override, 
             lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
-            visastatus, experience, education, referred_by,
+            visa_status, experience, education, specialization, referby,
             message, registereddate, level3date
         )
         # print(" Values being inserted into DB:", values1)
@@ -1241,7 +1239,7 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
             cursor.close()
         if conn:
             conn.close()
-=======
+
 # ------------------------------------------ Avtar -------------------------
 def get_user_by_username_sync(username: str):
     conn = mysql.connector.connect(**db_config)
