@@ -117,7 +117,7 @@ class UserRegistration(BaseModel):
     experience: Optional[str] = None
     education: Optional[str] = None
     specialization: Optional[str] = None
-    referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
+    referby: Optional[str] = Field(None, alias="referredBy")  # with alias
 
     class Config:
         allow_population_by_field_name = True
