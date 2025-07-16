@@ -563,8 +563,8 @@ mail_conf = ConnectionConfig(
 
 # Send email function
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
-    from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
-    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
+    from_email = os.getenv('EMAIL_USER') 
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  
     to_admin_email = os.getenv('TO_Admin_EMAIL') 
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
@@ -627,13 +627,13 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
             admin_msg.attach(MIMEText(admin_html_content, 'html'))
             server.sendmail(from_email, admin_emails, admin_msg.as_string())
 
-        # Send email to the admin
-        admin_msg = MIMEMultipart()
-        admin_msg['From'] = from_email
-        admin_msg['To'] = to_admin_email
-        admin_msg['Subject'] = 'New User Registration Notification'
-        admin_msg.attach(MIMEText(admin_html_content, 'html'))
-        server.sendmail(from_email, to_admin_email, admin_msg.as_string())
+            # Send email to the admin
+            admin_msg = MIMEMultipart()
+            admin_msg['From'] = from_email
+            admin_msg['To'] = to_admin_email
+            admin_msg['Subject'] = 'New User Registration Notification'
+            admin_msg.attach(MIMEText(admin_html_content, 'html'))
+            server.sendmail(from_email, to_admin_email, admin_msg.as_string())
 
         # Close the server
         server.quit()
@@ -802,7 +802,7 @@ async def register_user(request:Request,user: UserRegistration):
     message=user.message,
     registereddate=user.registereddate,
     level3date=user.level3date,
-    visa_status=user.visastatus,
+    visa_status=user.visa_status,
 
     experience=user.experience,
     education=user.education,
