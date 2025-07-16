@@ -6,7 +6,7 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_status,update_status,unsubscribe_lead_user
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -17,7 +17,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Bod
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import Session
 from jose import JWTError
 from typing import List, Optional
 import os
@@ -28,7 +28,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead,UnsubscribeRequest
 from fapi.models import LeadBase, LeadCreate, Lead
 
 from fapi.db import get_connection
@@ -296,6 +296,24 @@ async def delete_placement_endpoint(placement_id: int):
 # ------------------------------------------------------- Leads -------------------------------------------------
 
 
+
+#________________________leadsunsubscribe_________________________
+
+@app.put("/api/leads/unsubscribe")
+def unsubscribe(request: UnsubscribeRequest):
+    status, message = unsubscribe_lead_user(request.email)
+    if status:
+        return {"message": message}
+    else:
+        raise HTTPException(status_code=404, detail=message)
+
+#______________________________________________________
+    
+
+
+
+
+
 # GET all leads
 @app.get("/api/leads", response_model=List[Lead])
 async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
@@ -349,6 +367,18 @@ def update_lead(leadid: int, lead: LeadCreate):
         return {**update_data, "leadid": leadid}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
 
 
 @app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
@@ -1099,3 +1129,15 @@ async def get_candidate_marketing(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
   
+
+
+
+
+
+
+
+
+
+
+
+

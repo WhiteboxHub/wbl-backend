@@ -1627,3 +1627,33 @@ def delete_lead_by_id(leadid: int):
     cursor.close()
     conn.close()
 
+
+
+
+# .................................Unsubscribe Leads......................................................
+
+
+
+
+def unsubscribe_lead_user(email: str) -> (bool, str):
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT massemail_unsubscribe FROM leads WHERE email = %s", (email,))
+        result = cursor.fetchone()
+
+        if result is None:
+            return False, "User not found"
+
+        if result[0] == 'Yes':
+            return True, "Already unsubscribed"
+
+        cursor.execute("UPDATE leads SET massemail_unsubscribe = %s WHERE email = %s", ('Yes', email))
+        conn.commit()
+
+        return True, "Successfully unsubscribed"
+    except Error as e:
+        return False, "An error occurred"
+    finally:
+        cursor.close()
+        conn.close()
