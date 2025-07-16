@@ -1,13 +1,14 @@
 
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
+from fapi.models import EmailRequest,CandidateMarketing,VendorContactExtractCreate,VendorContactExtractUpdate, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
-      fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
-
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_vendor_contact,update_vendor_contact,delete_vendor_contact
+  
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
@@ -17,6 +18,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Bod
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from sqlalchemy.orm import Session
 from jose import JWTError
 from typing import List, Optional
 import os
@@ -26,11 +28,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-from fapi.models import Candidate, CandidateCreate, CandidateUpdate
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead
 from fapi.models import LeadBase, LeadCreate, Lead
 
 from fapi.db import get_connection
 import fapi.db as leads_db
+from .models import VendorContactExtract
+from .db import get_all_vendor_contacts
+
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 
 
 from fapi.db import (
@@ -45,10 +51,7 @@ from fapi.db import (
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-
-
 load_dotenv()
-
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -63,7 +66,7 @@ app.add_middleware(
     CORSMiddleware,
 
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+    allow_origins=["http://localhost:3000","https://innova-path.com","https://www.innova-path.com","http://innova-path.com","http://www.innova-path.com","https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com"],  # Adjust this list to include your frontend URL
 
 
     allow_credentials=True,
@@ -365,7 +368,6 @@ async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
-
 # @app.get("/api/interviews", response_model=List[RecentInterview])
 # async def get_recent_interviews():
 #     interviews = await fetch_recent_interviews()
@@ -410,11 +412,10 @@ async def remove_interview(interview_id: int):
 
 
 
-
 # -------------------------------------------------------- IP -----------------------------------------
 
 
-@app.post("/vendor/request-demo")
+@app.post("/api/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
     try:
         vendor_data = vendor.dict()
@@ -452,6 +453,7 @@ async def check_user_exists(user: GoogleUserCreate):
 @app.post("/api/google_users/")
 @limiter.limit("15/minute")
 async def register_google_user(request:Request,user: GoogleUserCreate):
+    print("Incoming user payload:", user)
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user:
@@ -463,12 +465,38 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
     return {"message": "Google user registered successfully!"}
 
+# @app.post("/api/google_login/")
+# @limiter.limit("15/minute")
+# async def login_google_user(request:Request,user: GoogleUserCreate):
+#     existing_user = await get_google_user_by_email(user.email)
+#     if existing_user is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+#     if existing_user['status'] == 'inactive':
+#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     # Generate token upon successful login
+#     token_data = {
+#         "sub": existing_user['uname'],
+#         "name": existing_user['fullname'],
+#         "google_id": existing_user['googleId'],
+#     }   
+    
+#     access_token = create_google_access_token(data=token_data)
+    
+#     return {
+#         "access_token": access_token,
+#         "token_type": "bearer"
+#     }
+
+
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
-async def login_google_user(request:Request,user: GoogleUserCreate):
+async def login_google_user(request: Request, user: GoogleUserCreate):
     existing_user = await get_google_user_by_email(user.email)
+    
     if existing_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
     if existing_user['status'] == 'inactive':
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
 
@@ -479,12 +507,15 @@ async def login_google_user(request:Request,user: GoogleUserCreate):
         "google_id": existing_user['googleId'],
     }   
     
-    access_token = create_google_access_token(data=token_data)
+    
+    access_token = await create_google_access_token(data=token_data)
     
     return {
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
 
 @app.post("/api/verify_google_token/")
 #@limiter.limit("5/minute")
@@ -500,6 +531,7 @@ async def verify_google_token(token: str):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    
 
 # ------------------------------------------------------------------------------------
 
@@ -516,13 +548,27 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
+mail_conf = ConnectionConfig(
+    MAIL_USERNAME=os.getenv('EMAIL_USER'),
+    MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
+    MAIL_FROM=os.getenv('EMAIL_USER'),
+    MAIL_PORT=int(os.getenv('SMTP_PORT')),
+    MAIL_SERVER=os.getenv('SMTP_SERVER'),  
+    MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
+    MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
+   
+    USE_CREDENTIALS=True
+)
+
 # Send email function
-def send_email_to_user(user_email: str, user_name: str):
+def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
-    to_admin_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
+    to_admin_email = os.getenv('TO_Admin_EMAIL') 
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
+    # print(f"user name is {user_name}")
 
     # Email content for the user
     user_html_content = f"""
@@ -545,12 +591,12 @@ def send_email_to_user(user_email: str, user_name: str):
             <ul>
                 <li>Name: {user_name}</li>
                 <li>Email: {user_email}</li>
+                <li>Email: {user_phone}</li>
             </ul>
             <p>Best regards,<br>System Notification</p>
         </body>
     </html>
     """
-
     try:
         # Establish the connection with the email server
         server = smtplib.SMTP(smtp_server, int(smtp_port))
@@ -564,6 +610,21 @@ def send_email_to_user(user_email: str, user_name: str):
         user_msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
         user_msg.attach(MIMEText(user_html_content, 'html'))
         server.sendmail(from_email, user_email, user_msg.as_string())
+        
+        # List of admin emails to notify
+
+        # for admin_emails in [to_recruiting_email, to_admin_email]:
+        for admin_emails in filter(None, [to_recruiting_email, to_admin_email]):
+
+
+
+            # Send email to the admin
+            admin_msg = MIMEMultipart()
+            admin_msg['From'] = from_email  
+            admin_msg['To'] = admin_emails
+            admin_msg['Subject'] = 'New User Registration Notification'
+            admin_msg.attach(MIMEText(admin_html_content, 'html'))
+            server.sendmail(from_email, admin_emails, admin_msg.as_string())
 
         # Send email to the admin
         admin_msg = MIMEMultipart()
@@ -578,6 +639,17 @@ def send_email_to_user(user_email: str, user_name: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
+
+
+def send_html_email(server, from_email, to_email, subject, html_content):
+    msg = MIMEMultipart()
+    msg['From'] = from_email
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(html_content, 'html'))
+    server.sendmail(from_email, to_email, msg.as_string())
+
+
 
 def clean_input_fields(user_data: UserRegistration):
     """Convert empty strings and format datetimes for MySQL"""
@@ -729,10 +801,11 @@ async def register_user(request:Request,user: UserRegistration):
     message=user.message,
     registereddate=user.registereddate,
     level3date=user.level3date,
-    visastatus=user.visastatus,
+    visa_status=user.visastatus,
+
     experience=user.experience,
     education=user.education,
-    referred_by=user.referred_by,
+    referby=user.referby,
     candidate_info={  # optional dict
         'name': user.fullname,
         'enrolleddate': user.registereddate,
@@ -747,7 +820,7 @@ async def register_user(request:Request,user: UserRegistration):
 
 
     # Send confirmation email to the user and notify the admin
-    send_email_to_user(user_email=user.uname, user_name=user.fullname)
+    send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
 
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
 
@@ -924,9 +997,6 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
 @app.post("/api/contact")
 
 async def contact(user: ContactForm):
-    
-    
-
 
     await user_contact(
         # name=f"{user.firstName} {user.lastName}",
@@ -935,10 +1005,11 @@ async def contact(user: ContactForm):
         phone=user.phone,
         message=user.message        
         )
-    def sendEmail():
+
+    def sendEmail(email):
         from_Email = os.getenv('EMAIL_USER')
         password = os.getenv('EMAIL_PASS')
-        to_email = os.getenv('TO_RECRUITING_EMAIL')
+        to_email = email
         smtp_server = os.getenv('SMTP_SERVER')
         smtp_port = os.getenv('SMTP_PORT')
         html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
@@ -956,10 +1027,16 @@ async def contact(user: ContactForm):
             server.sendmail(from_Email,to_email,text)
             server.quit()
         except Exception as e:
+            print(e)
             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
-    sendEmail()
-    return {"detail": "Message Sent Successfully"}
+    
 
+   
+    sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
+    sendEmail(os.getenv('TO_ADMIN_EMAIL'))
+
+    return {"detail": "Message Sent Successfully"}
+            
 @app.get("/api/coursecontent")
 def get_course_content():
     content = course_content()
@@ -994,7 +1071,7 @@ async def reset_password(data: ResetPassword):
 
 # ...................................NEW INNOVAPATH......................................
 
-@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+@app.get("/api/candidate_marketing", response_model=List[CandidateMarketing])
 async def get_candidate_marketing(
     role: Optional[str] = None,
     experience: Optional[int] = None,
@@ -1022,3 +1099,34 @@ async def get_candidate_marketing(
     
   
 
+
+
+
+#-------------------------------------vendor_avatar------------------------------
+
+@app.get("/vendor-contact-extracts", response_model=List[VendorContactExtract])
+async def read_vendor_contact_extracts():
+    return await get_all_vendor_contacts()
+
+
+
+@app.post("/api/vendor-contact")
+async def create_vendor_contact(contact: VendorContactExtractCreate):
+    await insert_vendor_contact(contact)
+    return JSONResponse(content={"message": "Vendor contact inserted successfully"})
+
+
+@app.put("/api/vendor-contact/{contact_id}")
+async def update_vendor_contact_handler(contact_id: int, update_data: VendorContactExtractUpdate):
+    fields = update_data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+
+    await update_vendor_contact(contact_id, fields)
+    return {"message": f"Vendor contact with ID {contact_id} updated successfully"}
+
+
+@app.delete("/api/vendor-contact/{contact_id}")
+async def remove_vendor_contact(contact_id: int):
+    await delete_vendor_contact(contact_id)
+    return {"message": f"Vendor contact {contact_id} deleted successfully"}

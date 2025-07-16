@@ -81,6 +81,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import time, date, datetime
 from decimal import Decimal 
+
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -112,11 +113,11 @@ class UserRegistration(BaseModel):
     registereddate: Optional[str] = None
     level3date: Optional[str] = None
     last: Optional[str] = None
-    visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
+    visa_status: Optional[str] = Field(None, alias="visaStatus")  # with alias
     experience: Optional[str] = None
     education: Optional[str] = None
     specialization: Optional[str] = None
-    referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
+    referby: Optional[str] = Field(None, alias="referredBy")  # with alias
 
     class Config:
         allow_population_by_field_name = True
@@ -242,7 +243,6 @@ class Lead(LeadBase):
         orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
 
 
-
 class CandidateBase(BaseModel):
     name: Optional[str]
     enrolleddate: Optional[date]
@@ -321,10 +321,6 @@ class Candidate(CandidateBase):
     class Config:
         orm_mode = True
 
-        
-
-
-
 
 
 class PlacementBase(BaseModel):
@@ -367,7 +363,7 @@ class Placement(PlacementBase):
 
     class Config:
         orm_mode = True
-# =======
+
 
 
 class RecentPlacement(BaseModel):
@@ -413,4 +409,48 @@ class CandidateMarketing(CandidateMarketingBaseModel):
     class Config:
         orm_mode = True
 
+
+# -------------------vendor _avatar------------------------
+
+
+class VendorContactExtract(BaseModel):
+    id: int
+    full_name: str
+    source_email: Optional[EmailStr]
+    email: Optional[EmailStr]
+    phone: Optional[str]
+    linkedin_id: Optional[str]
+    company_name: Optional[str]
+    location: Optional[str]
+    extraction_date: Optional[date]
+    moved_to_vendor: Optional[bool]
+    created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+
+
+class VendorContactExtractCreate(BaseModel):
+    full_name: str
+    source_email: Optional[EmailStr] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+
+
+
+
+class VendorContactExtractUpdate(BaseModel):
+    full_name: Optional[str] = None
+    source_email: Optional[EmailStr] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    extraction_date: Optional[date] = None
+    moved_to_vendor: Optional[bool] = None
 

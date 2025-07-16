@@ -1,3 +1,7 @@
+
+
+# C:\Users\mahen\Desktop\backend_avatar\wbl-backend\fapi\db.py 
+
 # from utils import md5_hash,verify_md5_hash,hash_password
 # import mysql.connector
 # from fastapi import HTTPException, status
@@ -528,13 +532,13 @@ import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
-from typing import Optional,Dict
+from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
-
 from datetime import date,datetime, time, timedelta  
-from typing import List
- 
+from typing import List 
+from fapi.models import VendorContactExtractCreate  # ✅ Make sure this is imported
+
 # **********************************************NEW INNOVAPATH**********************************
 
 # import mysql.connector
@@ -565,12 +569,23 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
 
         # Insert user into authuser table
         query1 = """
+
             INSERT INTO authuser (uname, fullname, googleId, status, dailypwd, team, level, 
-            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
+            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, `message`, 
+
             registereddate, level3date) 
-            VALUES (%s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+            VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id))      
+
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
+
+        # Insert into the candidate table (you can modify this based on your needs)
+        # query2 = """
+        #     INSERT INTO candidate (name, email, status, course) 
+        #     VALUES (%s, %s, 'active', 'ML');
+        # """
+        # await loop.run_in_executor(None, cursor.execute, query2, (name, email))
+
 
         conn.commit()
     except Error as e:
@@ -615,13 +630,13 @@ async def insert_user(
     Zip: str = None,
     country: str = None,
     message: str = None,
-    visastatus: Optional[str] = None,
+    visa_status: Optional[str] = None,
     registereddate: str = None,
     level3date: str = None,
     experience: Optional[str] = None,
     education: Optional[str] = None,
     specialization: Optional[str] = None,
-    referred_by: Optional[str] = None,
+    referby: Optional[str] = None,
     candidate_info: Dict[str, Optional[str]] = None
 ):
     loop = asyncio.get_event_loop()
@@ -637,22 +652,24 @@ async def insert_user(
 
                 uname, passwd, dailypwd, team, level, instructor, override, status, 
                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
-                visastatus,experience, education, specialization, referred_by 
 
+                visa_status,experience, education, specialization, referby,
 
-                message, registereddate, level3date
+                `message`, registereddate, level3date
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
                 %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s
+                %s, %s, %s, %s
             );
         """
 
         values1 = (
             uname, passwd, dailypwd, team, level, instructor, override, 
             lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
-            visastatus, experience, education, referred_by,
+
+            visa_status, experience, education, specialization, referby,
+
             message, registereddate, level3date
         )
         # print(" Values being inserted into DB:", values1)
@@ -1162,6 +1179,122 @@ async def fetch_recent_placements():
         conn.close()
 
 
+#getting avatar vendor 
+async def get_all_vendor_contacts():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM vendor_contact_extracts ORDER BY id DESC"
+        await loop.run_in_executor(None, cursor.execute, query)
+        rows = cursor.fetchall()
+        return rows
+    except Error as e:
+        print("Error fetching vendor contact extracts:", e)
+        raise HTTPException(status_code=500, detail="Error fetching vendor contact extracts")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+async def insert_vendor_contact(contact: VendorContactExtractCreate):
+    import mysql.connector
+    from mysql.connector import Error
+    from fastapi import HTTPException
+    import asyncio
+
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    
+    try:
+        cursor = conn.cursor()
+
+        query = """
+            INSERT INTO vendor_contact_extracts (
+                full_name, source_email, email, phone,
+                linkedin_id, company_name, location,
+                extraction_date, moved_to_vendor
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, CURDATE(), 0)
+        """
+
+        values = (
+            contact.full_name,
+            contact.source_email,
+            contact.email,
+            contact.phone,
+            contact.linkedin_id,
+            contact.company_name,
+            contact.location
+        )
+
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+    except Error as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database insert error: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+#update vendor-contact
+async def update_vendor_contact(contact_id: int, fields: dict):
+    import mysql.connector
+    from fastapi import HTTPException
+    import asyncio
+
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+
+        set_clause = ", ".join([f"{key} = %s" for key in fields])
+        values = list(fields.values())
+        values.append(contact_id)
+
+        query = f"""
+            UPDATE vendor_contact_extracts
+            SET {set_clause}
+            WHERE id = %s
+        """
+
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Vendor contact not found")
+
+    except mysql.connector.Error as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database update error: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
+#deleting  vendor-contract
+async def delete_vendor_contact(contact_id: int):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+
+    try:
+        cursor = conn.cursor()
+        query = "DELETE FROM vendor_contact_extracts WHERE id = %s"
+        await loop.run_in_executor(None, cursor.execute, query, (contact_id,))
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Vendor contact not found")
+
+    except mysql.connector.Error as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Database delete error: {str(e)}")
+    finally:
+        cursor.close()
+        conn.close()
+
 
 
 def normalize_interview(interview):
@@ -1257,6 +1390,7 @@ async def update_interview(interview_id: int, data):
 
 
 
+
 # .................................NEW INNOVAPTH......................................................
  
 def get_db():
@@ -1304,7 +1438,8 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
             cursor.close()
         if conn:
             conn.close()
-=======
+
+
 # ------------------------------------------ Avtar -------------------------
 def get_user_by_username_sync(username: str):
     conn = mysql.connector.connect(**db_config)
@@ -1466,7 +1601,7 @@ def get_all_placements(page: int = 1, limit: int = 100) -> List[dict]:
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM placement LIMIT %s OFFSET %s", (limit, offset))
+    cursor.execute("SELECT * FROM placement ORDER BY id DESC LIMIT %s OFFSET %s", (limit, offset))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -1611,5 +1746,3 @@ def delete_lead_by_id(leadid: int):
     conn.commit()
     cursor.close()
     conn.close()
-
-
