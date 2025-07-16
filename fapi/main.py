@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from jose import JWTError
 from typing import List, Optional
 import os
+import asyncio
 from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
@@ -442,6 +443,7 @@ async def create_vendor_request_demo(vendor: VendorCreate):
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
+    # await asyncio.sleep(1)
     existing_user = await get_google_user_by_email(user.email)
     if existing_user:
         return {"exists": True, "status": existing_user['status']}
@@ -451,7 +453,7 @@ async def check_user_exists(user: GoogleUserCreate):
 @app.post("/api/google_users/")
 @limiter.limit("15/minute")
 async def register_google_user(request:Request,user: GoogleUserCreate):
-    print("Incoming user payload:", user)
+    # print("Incoming user payload:", user)
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user:
@@ -490,6 +492,7 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
 async def login_google_user(request: Request, user: GoogleUserCreate):
+    await asyncio.sleep(2)
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user is None:
