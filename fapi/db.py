@@ -681,7 +681,68 @@ async def insert_user(
     finally:
         cursor.close()
         conn.close()
-       
+
+
+
+
+# ---------------hkd-----------------------------------
+
+async def insert_lead(
+    # name: str,
+    full_name: str,
+    phone: Optional[str],
+    email: str,
+    address: Optional[str],
+    city: Optional[str],
+    state: Optional[str],
+    country: Optional[str],
+    visa_status: Optional[str],
+    experience: Optional[str],
+    education: Optional[str],
+    referby: Optional[str],
+    specialization: Optional[str],
+    zip_code: Optional[str],
+):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+
+    try:
+        cursor = conn.cursor()
+
+        query = """
+            INSERT INTO leads (
+                full_name, phone, email, address, city, state, country,
+                visa_status, workexperience, education, referby,
+                specialization, zip
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s
+            );
+        """
+
+        values = (
+            full_name, phone, email, address, city, state, country,
+            visa_status, experience, education, referby,
+            specialization, zip_code.lower() if zip_code else None
+        )
+
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+
+    except Error as e:
+        conn.rollback()
+        print("Lead Insert Error:", e)
+        raise HTTPException(status_code=500, detail="Error inserting lead")
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+# ---------------hkd-----------------------------------
+
 
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()

@@ -6,7 +6,7 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_lead
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -17,7 +17,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Bod
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import Session
 from jose import JWTError
 from typing import List, Optional
 import os
@@ -560,6 +560,7 @@ mail_conf = ConnectionConfig(
 
 # Send email function
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
+    # print('-----------------------',user_name)
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
     to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
     to_admin_email = os.getenv('TO_Admin_EMAIL') 
@@ -743,42 +744,9 @@ async def register_user(request:Request,user: UserRegistration):
     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     # print(" Full name constructed:", fullname)  # <---- Add this line
+    leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
+    # leads_full_name = f"{signup_data.get('firstName', '')} {signup_data.get('lastName', '')}".strip()
 
-  
-    
-
-    # await insert_user(
-    #     uname=user.uname,
-    #     passwd=hashed_password,
-    #     dailypwd=user.dailypwd,
-    #     team=user.team,
-    #     level=user.level,
-    #     instructor=user.instructor,
-    #     override=user.override,
-    #     # status=user.status,
-    #     lastlogin=user.lastlogin,
-    #     logincount=user.logincount,
-    #     fullname=user.fullname,
-    #     phone=user.phone,
-    #     address=user.address,
-    #     city=user.city,
-    #     Zip=user.Zip,
-    #     country=user.country,
-    #     message=user.message,
-    #     registereddate=user.registereddate,
-    #     level3date=user.level3date,
-    #     candidate_info={
-    #         'name': user.fullname,
-    #         'enrolleddate': user.registereddate,
-    #         'email': user.uname,
-    #         'phone': user.phone,
-    #         'address': user.address,
-    #         'city': user.city,
-    #         'country': user.country,
-    #         'zip': user.Zip,
-    #         # 'status': user.status
-    #     }
-    # )
     await insert_user(
     uname=user.uname,
     passwd=hashed_password,
@@ -788,8 +756,7 @@ async def register_user(request:Request,user: UserRegistration):
     instructor=user.instructor,
     override=user.override,
     lastlogin=user.lastlogin,
-    logincount=user.logincount,
-    # fullname=user.fullname,
+    logincount=user.logincount,   
     fullname=fullname,
     phone=user.phone,
     address=user.address,
@@ -798,9 +765,8 @@ async def register_user(request:Request,user: UserRegistration):
     country=user.country,
     message=user.message,
     registereddate=user.registereddate,
-    level3date=user.level3date,
-    visa_status=user.visastatus,
-
+    level3date=user.level3date,    
+    visa_status=user.visa_status,
     experience=user.experience,
     education=user.education,
     referby=user.referby,
@@ -816,6 +782,24 @@ async def register_user(request:Request,user: UserRegistration):
         }
     )
 
+     # New lead insert
+    await insert_lead(
+        # name=fullname,
+        full_name =leads_full_name,
+        phone=user.phone,
+        email=user.uname,
+        address=user.address,
+        city=user.city,
+        state=None,
+        country=user.country,
+        visa_status=user.visa_status,
+        experience=user.experience,
+        education=user.education,
+        # referby=user.referred_by,
+        referby=user.referby,
+        specialization=user.specialization,
+        zip_code=user.Zip
+    )
 
     # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
