@@ -367,7 +367,7 @@ class Placement(PlacementBase):
 
     class Config:
         orm_mode = True
-=======
+# =======
 
 
 class RecentPlacement(BaseModel):
