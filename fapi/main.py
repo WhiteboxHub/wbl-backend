@@ -110,20 +110,6 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
 
     return {"role": role}
 
-# def determine_user_role(userinfo):
-#     username = userinfo.get("username") or userinfo.get("email") or ""
-#     team = userinfo.get("team") or ""
-
-#     if (
-#         team == "admin"
-#         or username.endswith("@whitebox-learning.com")
-#         or username.endswith("@innova-path")
-#         or username == "admin"
-#     ):
-#         return "admin"
-
-#     return "candidate"
-
 def determine_user_role(userinfo):
     email = userinfo.get("uname") or userinfo.get("email") or ""
     team = (userinfo.get("team") or "").lower()
@@ -463,29 +449,6 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
     return {"message": "Google user registered successfully!"}
 
-# @app.post("/api/google_login/")
-# @limiter.limit("15/minute")
-# async def login_google_user(request:Request,user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user is None:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#     if existing_user['status'] == 'inactive':
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
-
-#     # Generate token upon successful login
-#     token_data = {
-#         "sub": existing_user['uname'],
-#         "name": existing_user['fullname'],
-#         "google_id": existing_user['googleId'],
-#     }   
-    
-#     access_token = create_google_access_token(data=token_data)
-    
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
-
 
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
@@ -665,67 +628,6 @@ def clean_input_fields(user_data: UserRegistration):
     
     return user_data
 
-# @app.post("/api/signup")
-# @limiter.limit("15/minute")
-# async def register_user(request:Request,user: UserRegistration):
-#     # Check if user exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="Username already registered")
-
-#     # Clean inputs (only change needed)
-#     user = clean_input_fields(user)
-
-#     # Rest of your existing code remains exactly the same...
-#     hashed_password = md5_hash(user.passwd)
-#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     # print(" Full name constructed:", fullname)  # <---- Add this line
-
-#     await insert_user(
-#     uname=user.uname,
-#     passwd=hashed_password,
-#     dailypwd=user.dailypwd,
-#     team=user.team,
-#     level=user.level,
-#     instructor=user.instructor,
-#     override=user.override,
-#     lastlogin=user.lastlogin,
-#     logincount=user.logincount,
-#     # fullname=user.fullname,
-#     fullname=fullname,
-#     phone=user.phone,
-#     address=user.address,
-#     city=user.city,
-#     Zip=user.Zip,
-#     country=user.country,
-#     message=user.message,
-#     registereddate=user.registereddate,
-#     level3date=user.level3date,
-#     visastatus=user.visastatus,
-#     experience=user.experience,
-#     education=user.education,
-#     referred_by=user.referred_by,
-#     candidate_info={  # optional dict
-#         'name': user.fullname,
-#         'enrolleddate': user.registereddate,
-#         'email': user.uname,
-#         'phone': user.phone,
-#         'address': user.address,
-#         'city': user.city,
-#         'country': user.country,
-#         'zip': user.Zip,
-#         }
-#     )
-
-
-#     # Send confirmation email to the user and notify the admin
-#     send_email_to_user(user_email=user.uname, user_name=user.fullname)
-
-#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
-
-
-# data to deploy
 
 
 @app.post("/api/signup")
