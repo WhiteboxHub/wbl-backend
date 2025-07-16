@@ -196,11 +196,16 @@ class RecentInterview(BaseModel):
     interview_location: Optional[str] = None
     
 # ------------------------------------------- Avatar ----------------------------------------
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime, date
+
 class LeadBase(BaseModel):
-    name: Optional[str] = None
-    startdate: Optional[datetime] = None
+    id: int
+    full_name: Optional[str] = None
+    entry_date: Optional[datetime] = None
     phone: Optional[str] = None
-    email: str
+    email: str  # Required field
     priority: Optional[str] = None
     workstatus: Optional[str] = None
     source: Optional[str] = None
@@ -212,11 +217,12 @@ class LeadBase(BaseModel):
     siteaccess: Optional[str] = None
     assignedto: Optional[str] = None
     status: Optional[str] = 'Open'
-    secondaryemail: Optional[str] = None
-    secondaryphone: Optional[str] = None
+    secondary_email: Optional[str] = None
+    secondary_phone: Optional[str] = None
     address: Optional[str] = None
     spousename: Optional[str] = None
     spouseemail: Optional[str] = None
+    last_modified: Optional[datetime] = None  # Made optional with default None
     spousephone: Optional[str] = None
     spouseoccupationinfo: Optional[str] = None
     city: Optional[str] = None
@@ -225,21 +231,24 @@ class LeadBase(BaseModel):
     zip: Optional[str] = None
     faq: Optional[str] = None
     callsmade: Optional[int] = 0
-    # closedate: Optional[str] = None
-    closedate: Optional[date]
+    closed_date: Optional[date] = None
     notes: Optional[str] = None
 
-
-
 class LeadCreate(LeadBase):
-    pass
-
+    """Model for creating new leads (all fields optional except email)"""
+    email: str  # Still required for creation
+    id: Optional[int] = None  # Not required for creation
 
 class Lead(LeadBase):
-    leadid: int
-
+    """Complete lead model with all fields"""
+    leadid: int = Field(..., alias="id")  # Maps 'id' from DB to 'leadid' in model
+    
     class Config:
-        orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
+        from_attributes = True  # Updated to Pydantic v2 syntax
+        populate_by_name = True  # Allows using both field names and aliases
+
+
+
 
 
 
@@ -367,7 +376,7 @@ class Placement(PlacementBase):
 
     class Config:
         orm_mode = True
-=======
+# =======
 
 
 class RecentPlacement(BaseModel):
@@ -414,3 +423,34 @@ class CandidateMarketing(CandidateMarketingBaseModel):
         orm_mode = True
 
 
+
+
+
+
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date
+
+class VendorBase(BaseModel):
+    id: Optional[int]
+    full_name: Optional[str]
+    phone_number: Optional[str]
+    email: Optional[str]
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+    type: Optional[str] = None
+    note: Optional[str] = None
+    last_contacted: Optional[date] = None
+class VendorCreate(VendorBase):
+    pass
+
+class VendorUpdate(VendorBase):
+    pass
+
+class VendorResponse(VendorBase):
+    id: int  # ✅ correct usage in Pydantic
+
+    class Config:
+        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`

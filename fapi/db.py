@@ -1304,7 +1304,7 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
             cursor.close()
         if conn:
             conn.close()
-=======
+# =======
 # ------------------------------------------ Avtar -------------------------
 def get_user_by_username_sync(username: str):
     conn = mysql.connector.connect(**db_config)
@@ -1533,21 +1533,109 @@ def delete_placement(placement_id: int):
 
 
 
-def fetch_all_leads_paginated(page: int, limit: int):
+# def fetch_all_leads_paginated(page: int, limit: int):
+#     offset = (page) * limit
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     cursor.execute("SELECT * FROM leads ORDER BY id DESC LIMIT %s OFFSET %s", (limit, offset))
+#     leads = cursor.fetchall()
+
+#     for lead in leads:
+#         closedate = lead.get("closedate")
+#         if isinstance(closedate, (date, datetime)):
+#             lead["closedate"] = closedate.isoformat()
+
+#     cursor.close()
+#     conn.close()
+#     return leads
+
+
+# ======================
+
+from typing import Any
+
+def fetch_all_leads_paginated(page: int, limit: int) -> Dict[str, Any]:
+    offset = (page - 1) * limit  # Fixed offset calculation
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Get total number of records
+        cursor.execute("SELECT COUNT(*) as total FROM leads")
+        total = cursor.fetchone()["total"]
+
+        # Get paginated records
+        cursor.execute(
+            "SELECT * FROM leads ORDER BY id DESC LIMIT %s OFFSET %s",
+            (limit, offset)
+        )
+        leads = cursor.fetchall()
+
+        # Format dates
+        for lead in leads:
+            closedate = lead.get("closedate")
+            if isinstance(closedate, (date, datetime)):
+                lead["closedate"] = closedate.isoformat()
+            
+            # Format other dates similarly if needed
+            entry_date = lead.get("entry_date")
+            if isinstance(entry_date, (date, datetime)):
+                lead["entry_date"] = entry_date.isoformat()
+
+        return {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "data": leads
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
+
+
+
+def format_lead(lead: Dict[str, Any]) -> Dict[str, Any]:
+    date_fields = ['entry_date', 'closed_date', 'last_modified']
+    for field in date_fields:
+        if lead.get(field) and isinstance(lead[field], (datetime, date)):
+            lead[field] = lead[field].isoformat()
+    return lead
+
+def fetch_lead_by_id(lead_id: int) -> Optional[dict]:
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM leads WHERE id = %s", (lead_id,))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return result
+
+def fetch_paginated_leads(page: int, limit: int) -> List[dict]:
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM leads ORDER BY leadid DESC LIMIT %s OFFSET %s", (limit, offset))
-    leads = cursor.fetchall()
-
-    for lead in leads:
-        closedate = lead.get("closedate")
-        if isinstance(closedate, (date, datetime)):
-            lead["closedate"] = closedate.isoformat()
-
+    cursor.execute("SELECT * FROM leads ORDER BY id DESC LIMIT %s OFFSET %s", (limit, offset))
+    results = cursor.fetchall()
     cursor.close()
     conn.close()
-    return leads
+    return results
+
+def get_total_leads_count() -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM leads")
+    total = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return total
+# def fetch_all_newleads_paginated(page: int, limit: int):
+#     offset = (page - 1) * limit
+#     query = f"SELECT * FROM leads LIMIT {limit} OFFSET {offset}"
+#     return fetch_all(query)  # Assuming fetch_all returns list of dicts
+
 
 
 def search_leads(name: Optional[str], email: Optional[str]):
@@ -1572,7 +1660,7 @@ def search_leads(name: Optional[str], email: Optional[str]):
 def fetch_lead_by_id(leadid: int):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM leads WHERE leadid = %s", (leadid,))
+    cursor.execute("SELECT * FROM leads WHERE id = %s", (id,))
     lead = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -1593,21 +1681,21 @@ def create_new_lead(data: dict):
     conn.close()
     return lead_id
 
-def update_existing_lead(leadid: int, data: dict):
+def update_existing_lead(id: int, data: dict):
     conn = get_connection()
     cursor = conn.cursor()
     set_clause = ", ".join(f"{key} = %s" for key in data.keys())
-    values = list(data.values()) + [leadid]
-    sql = f"UPDATE leads SET {set_clause} WHERE leadid = %s"
+    values = list(data.values()) + [id]
+    sql = f"UPDATE leads SET {set_clause} WHERE id = %s"
     cursor.execute(sql, tuple(values))
     conn.commit()
     cursor.close()
     conn.close()
 
-def delete_lead_by_id(leadid: int):
+def delete_lead_by_id(id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM leads WHERE leadid = %s", (leadid,))
+    cursor.execute("DELETE FROM leads WHERE id = %s", (id,))
     conn.commit()
     cursor.close()
     conn.close()

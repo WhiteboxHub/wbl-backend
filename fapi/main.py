@@ -1,12 +1,12 @@
 
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,CandidateMarketing,Lead
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,fetch_all_leads_paginated,format_lead,
 
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -18,20 +18,22 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTT
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from jose import JWTError
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 from fastapi.responses import JSONResponse
 import smtplib
+from mysql.connector import Error
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-from fapi.models import Candidate, CandidateCreate, CandidateUpdate
-from fapi.models import LeadBase, LeadCreate, Lead
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate,BaseModel
+# from fapi.models import LeadCreate,Lead
+# from fapi.db import fetch_all_leads_paginated
 
 from fapi.db import get_connection
-import fapi.db as leads_db
-
+import logging
+# from fapi.models import Lead
 
 from fapi.db import (
     # get_all_candidates,
@@ -44,8 +46,10 @@ from fapi.db import (
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from fapi.models import VendorResponse
+from fapi.db import db_config
 
-
+# from fapi.db import fetch_all_
 
 load_dotenv()
 
@@ -295,67 +299,259 @@ async def delete_placement_endpoint(placement_id: int):
 
 
 # GET all leads
-@app.get("/api/leads", response_model=List[Lead])
-async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
+# @app.get("/api/leads", response_model=List[lead])
+# async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
+#     try:
+#         rows = leads_db.fetch_all_leads_paginated(page, limit)
+#         return [BaseModel(**row) for row in rows]
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @app.get("/api/leads", response_model=List[Lead])  # Note: Using Lead not BaseModel
+# async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
+#     try:
+#         rows = leads_db.fetch_all_leads_paginated(page, limit)
+#         # Return the rows directly - FastAPI will validate against the Lead model
+#         return rows
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# ============================
+# @app.get("/api/leads", response_model=List[Lead], summary="Get all leads (paginated)")
+# async def get_all_leads(page: int = 1, limit: int = 100):
+#     try:
+#         return leads_db.fetch_all_leads_paginated(page, limit)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
+
+
+@app.get("/api/leads", summary="Get all leads (paginated)")
+async def get_all_leads(
+    page: int = Query(1, ge=1, description="Page number (starting from 1)"),
+    limit: int = Query(100, ge=1, le=1000, description="Number of records per page")
+) -> Dict[str, Any]:
     try:
-        rows = leads_db.fetch_all_leads_paginated(page, limit)
-        return [Lead(**row) for row in rows]
+        return fetch_all_leads_paginated(page, limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/leads/search", response_model=List[Lead])
-def search_leads(name: Optional[str] = Query(None), email: Optional[str] = Query(None)):
+# POST - Create new lead
+@app.post("/api/leads", status_code=status.HTTP_201_CREATED)
+async def create_lead(lead_data: Dict[str, Any]):
+    conn = None
+    cursor = None
+    
     try:
-        results = leads_db.search_leads(name, email)
-        if not results:
-            raise HTTPException(status_code=404, detail="No leads found")
-        return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
 
+        # Set timestamps
+        lead_data['entry_date'] = datetime.utcnow()
+        lead_data['last_modified'] = datetime.utcnow()
 
-@app.get("/api/leads/{leadid}", response_model=Lead)
-def get_lead(leadid: int):
+        # Build and execute query
+        columns = ', '.join(lead_data.keys())
+        placeholders = ', '.join(['%s'] * len(lead_data))
+        query = f"INSERT INTO leads ({columns}) VALUES ({placeholders})"
+        
+        cursor.execute(query, tuple(lead_data.values()))
+        conn.commit()
+
+        # Get the newly created lead
+        lead_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM leads WHERE id = %s", (lead_id,))
+        new_lead = format_lead(cursor.fetchone())
+
+        return new_lead
+
+    except Error as e:
+        logger.error(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to create lead"
+        )
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+# PUT - Update lead
+@app.put("/api/leads/{lead_id}")
+async def update_lead(lead_id: int, lead_data: Dict[str, Any]):
+    conn = None
+    cursor = None
+    
     try:
-        lead = leads_db.fetch_lead_by_id(leadid)
-        if not lead:
-            raise HTTPException(status_code=404, detail="Lead not found")
-        return lead
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
 
+        # Update last_modified timestamp
+        lead_data['last_modified'] = datetime.utcnow()
 
-@app.post("/api/leads", response_model=Lead, status_code=http_status.HTTP_201_CREATED)
-def create_lead(lead: LeadCreate):
+        # Build and execute update query
+        set_clause = ', '.join([f"{key} = %s" for key in lead_data.keys()])
+        query = f"UPDATE leads SET {set_clause} WHERE id = %s"
+        
+        cursor.execute(query, (*lead_data.values(), lead_id))
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found"
+            )
+
+        # Return updated lead
+        cursor.execute("SELECT * FROM leads WHERE id = %s", (lead_id,))
+        updated_lead = format_lead(cursor.fetchone())
+
+        return updated_lead
+
+    except Error as e:
+        logger.error(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to update lead"
+        )
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+# DELETE - Remove lead
+@app.delete("/api/leads/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lead(lead_id: int):
+    conn = None
+    cursor = None
+    
     try:
-        lead_data = lead.dict(exclude_unset=True)
-        lead_id = leads_db.create_new_lead(lead_data)
-        return {**lead_data, "leadid": lead_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Check if lead exists
+        cursor.execute("SELECT id FROM leads WHERE id = %s", (lead_id,))
+        if not cursor.fetchone():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found"
+            )
+
+        # Delete lead
+        cursor.execute("DELETE FROM leads WHERE id = %s", (lead_id,))
+        conn.commit()
+
+    except Error as e:
+        logger.error(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to delete lead"
+        )
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 
-@app.put("/api/leads/{leadid}", response_model=Lead)
-def update_lead(leadid: int, lead: LeadCreate):
-    try:
-        update_data = lead.dict(exclude_unset=True)
-        if not update_data:
-            raise HTTPException(status_code=400, detail="No fields to update")
 
-        leads_db.update_existing_lead(leadid, update_data)
-        return {**update_data, "leadid": leadid}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.get("/api/leads/{lead_id}", response_model=Lead, summary="Get a single lead by ID")
+# async def get_lead_by_id(lead_id: int):
+#     try:
+#         lead = leads_db.fetch_lead_by_id(lead_id)
+#         if not lead:
+#             raise HTTPException(status_code=404, detail="Lead not found")
+#         return lead
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# Temporary route to insert test data
+@app.get("/debug/insert-test-data")
+async def insert_test_data():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO newleads 
+    (full_name, email, phone, status) 
+    VALUES 
+    ('Test User', 'test@example.com', '1234567890', 'active')
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return {"message": "Test data inserted"}
 
 
-@app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
-def delete_lead(leadid: int):
-    try:
-        leads_db.delete_lead_by_id(leadid)
-        return
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+
+from fastapi import HTTPException
+from typing import List
+
+# @app.get("/api/newleads", response_model=List[Lead])
+# async def get_all_newleads(page: int = 1, limit: int = 100):
+#     try:
+#         leads = fetch_all_leads_paginated(page, limit)
+#         if not leads:
+#             return []
+#         return leads
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+# @app.get("/api/newleads", response_model=List[Lead])
+# async def get_all_newleads():
+#     try:
+#         leads = fetch_all_leads()
+#         if not leads:
+#             return []
+#         return leads
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @app.post("/api/leads", response_model=Lead, status_code=http_status.HTTP_201_CREATED)
+# def create_lead(lead: LeadCreate):
+#     try:
+#         lead_data = lead.dict(exclude_unset=True)
+#         lead_id = leads_db.create_new_lead(lead_data)
+#         return {**lead_data, "leadid": lead_id}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @app.put("/api/leads/{leadid}", response_model=Lead)
+# def update_lead(leadid: int, lead: LeadCreate):
+#     try:
+#         update_data = lead.dict(exclude_unset=True)
+#         if not update_data:
+#             raise HTTPException(status_code=400, detail="No fields to update")
+
+#         leads_db.update_existing_lead(leadid, update_data)
+#         return {**update_data, "leadid": leadid}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+# @app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
+# def delete_lead(leadid: int):
+#     try:
+#         leads_db.delete_lead_by_id(leadid)
+#         return
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 
 # # ----------------------------------------------------------------------------------------------
@@ -1022,3 +1218,99 @@ async def get_candidate_marketing(
     
   
 
+
+
+# =================working code of vendor daily_contact =======================
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+@app.get("/api/vendors/daily-contact", response_model=List[VendorResponse])
+async def get_vendors_contacted_today():
+    conn = None
+    try:
+        logger.info("Connecting to DB...")
+        logger.info(f"DB Config: {db_config}")
+
+        conn = await aiomysql.connect(**db_config)
+        logger.info("Connected!")
+
+        async with conn.cursor(aiomysql.DictCursor) as cursor:
+            await cursor.execute("SELECT * FROM vendor LIMIT 100")
+            result = await cursor.fetchall()
+
+            logger.info(f"✅ Fetched {len(result)} rows")
+
+            cleaned = [
+                {key: str(value) if isinstance(value, date) else value for key, value in row.items()}
+                for row in result
+            ]
+
+            return cleaned
+
+    except Exception as e:
+        logger.error(f"❌ ERROR: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        if conn:
+            conn.close()
+            logger.info("Connection closed.")
+
+
+
+
+
+
+@app.get("/api/vendors/by-name/{search_term}", response_model=List[VendorResponse])
+def search_vendors(search_term: str):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        like_term = f"%{search_term}%"
+        query = """
+            SELECT * FROM vendor
+            WHERE full_name LIKE %s OR email LIKE %s OR phone_number LIKE %s
+            LIMIT 100
+        """
+        cursor.execute(query, (like_term, like_term, like_term))
+        rows = cursor.fetchall()
+
+        logger.info(f"✅ Found {len(rows)} vendors for search term: {search_term}")
+
+        return rows
+
+    except Exception as e:
+        logger.error(f"❌ Error during search: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to search vendors")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+
+
+@app.get("/api/vendors", response_model=List[VendorResponse])
+def get_all_vendors():
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM vendor LIMIT 100"
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        return rows
+
+    except Exception as e:
+        logging.error(f"❌ Error fetching vendor list: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not fetch vendor list")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
