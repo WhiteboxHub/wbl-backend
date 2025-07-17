@@ -34,8 +34,10 @@ from fapi.db import get_connection
 import fapi.db as leads_db
 
 
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
-
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+from mail_services import mail_conf
+from registerMailTemplet import get_user_email_content, get_admin_email_content
+from email_utils import send_html_email
 
 from fapi.db import (
     # get_all_candidates,
@@ -546,17 +548,17 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
-mail_conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv('EMAIL_USER'),
-    MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
-    MAIL_FROM=os.getenv('EMAIL_USER'),
-    MAIL_PORT=int(os.getenv('SMTP_PORT')),
-    MAIL_SERVER=os.getenv('SMTP_SERVER'),  
-    MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
-    MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
+# mail_conf = ConnectionConfig(
+#     MAIL_USERNAME=os.getenv('EMAIL_USER'),
+#     MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
+#     MAIL_FROM=os.getenv('EMAIL_USER'),
+#     MAIL_PORT=int(os.getenv('SMTP_PORT')),
+#     MAIL_SERVER=os.getenv('SMTP_SERVER'),  
+#     MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
+#     MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
    
-    USE_CREDENTIALS=True
-)
+#     USE_CREDENTIALS=True
+# )
 
 # Send email function
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
@@ -569,32 +571,36 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     # print(f"user name is {user_name}")
 
     # Email content for the user
-    user_html_content = f"""
-    <html>
-        <body>
-            <p>Dear {user_name},</p>
-            <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
-            <p>Best regards,<br>Recruitment Team</p>
-        </body>
-    </html>
-    """
+    # user_html_content = f"""
+    # <html>
+    #     <body>
+    #         <p>Dear {user_name},</p>
+    #         <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
+    #         <p>Best regards,<br>Recruitment Team</p>
+    #     </body>
+    # </html>
+    # """
 
-    # Email content for the admin
-    admin_html_content = f"""
-    <html>
-        <body>
-            <p>Hello Admin,</p>
-            <p>A new user has registered on the website. Please review their details and provide access.</p>
-            <p><strong>User Details:</strong></p>
-            <ul>
-                <li>Name: {user_name}</li>
-                <li>Email: {user_email}</li>
-                <li>Email: {user_phone}</li>
-            </ul>
-            <p>Best regards,<br>System Notification</p>
-        </body>
-    </html>
-    """
+    # # Email content for the admin
+    # admin_html_content = f"""
+    # <html>
+    #     <body>
+    #         <p>Hello Admin,</p>
+    #         <p>A new user has registered on the website. Please review their details and provide access.</p>
+    #         <p><strong>User Details:</strong></p>
+    #         <ul>
+    #             <li>Name: {user_name}</li>
+    #             <li>Email: {user_email}</li>
+    #             <li>Phone: {user_phone}</li>
+    #         </ul>
+    #         <p>Best regards,<br>System Notification</p>
+    #     </body>
+    # </html>
+    # """
+
+    user_html_content = get_user_email_content(user_name)
+    admin_html_content = get_admin_email_content(user_name, user_email, user_phone)
+
     try:
         # Establish the connection with the email server
         server = smtplib.SMTP(smtp_server, int(smtp_port))
