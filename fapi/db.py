@@ -1057,17 +1057,17 @@ async def fetch_candidate_id_by_email(email: str):
 
 
 
-async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
+async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor()
         query = """
             INSERT INTO whitebox_learning.leads (
-                name,email, phone,notes) VALUES (%s, %s, %s, %s);
+                full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
-            name, email, phone,message)
+            full_name, email, phone,message)
         await loop.run_in_executor(None, cursor.execute, query, values)
         conn.commit()
     except Error as e:
