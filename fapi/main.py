@@ -35,9 +35,7 @@ import fapi.db as leads_db
 
 
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from mail_services import mail_conf
-from registerMailTemplet import get_user_email_content, get_admin_email_content
-from email_utils import send_html_email
+
 
 from fapi.db import (
     # get_all_candidates,
@@ -561,48 +559,60 @@ async def authenticate_user(uname: str, passwd: str):
 # )
 
 # Send email function
+
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
-    from_email = os.getenv('EMAIL_USER') 
-    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  
-    to_admin_email = os.getenv('TO_Admin_EMAIL') 
+    from_email = os.getenv('EMAIL_USER')
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
-    # print(f"user name is {user_name}")
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')
+    to_admin_email = os.getenv('TO_ADMIN_EMAIL')
+
+    # Debug: print all values
+    # print("EMAIL_USER:", from_email)
+    # print("EMAIL_PASS:", "<hidden>" if password else None)
+    # print("SMTP_SERVER:", smtp_server)
+    # print("SMTP_PORT:", smtp_port)
+    # print("TO_RECRUITING_EMAIL:", to_recruiting_email)
+    # print("TO_ADMIN_EMAIL:", to_admin_email)
+
+    if not all([from_email, password, smtp_server, smtp_port]):
+        raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
+
+    # Filter out None values from admin email list
+    admin_emails = list( [to_recruiting_email, to_admin_email])
+
+    if not admin_emails:
+        raise HTTPException(status_code=500, detail="No admin email addresses configured.")
 
     # Email content for the user
-    # user_html_content = f"""
-    # <html>
-    #     <body>
-    #         <p>Dear {user_name},</p>
-    #         <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
-    #         <p>Best regards,<br>Recruitment Team</p>
-    #     </body>
-    # </html>
-    # """
+    user_html_content = f"""
+    <html>
+        <body>
+            <p>Dear {user_name},</p>
+            <p>Thank you for registering with us. Our team will contact you shortly.</p>
+            <p>Best regards,<br>Recruitment Team</p>
+        </body>
+    </html>
+    """
 
-    # # Email content for the admin
-    # admin_html_content = f"""
-    # <html>
-    #     <body>
-    #         <p>Hello Admin,</p>
-    #         <p>A new user has registered on the website. Please review their details and provide access.</p>
-    #         <p><strong>User Details:</strong></p>
-    #         <ul>
-    #             <li>Name: {user_name}</li>
-    #             <li>Email: {user_email}</li>
-    #             <li>Phone: {user_phone}</li>
-    #         </ul>
-    #         <p>Best regards,<br>System Notification</p>
-    #     </body>
-    # </html>
-    # """
-
-    user_html_content = get_user_email_content(user_name)
-    admin_html_content = get_admin_email_content(user_name, user_email, user_phone)
+    # Email content for the admin
+    admin_html_content = f"""
+    <html>
+        <body>
+            <p>Hello Admin,</p>
+            <p>A new user has registered. Please review their details:</p>
+            <ul>
+                <li><strong>Name:</strong> {user_name}</li>
+                <li><strong>Email:</strong> {user_email}</li>
+                <li><strong>Phone:</strong> {user_phone}</li>
+            </ul>
+            <p>Best regards,<br>System Notification</p>
+        </body>
+    </html>
+    """
 
     try:
-        # Establish the connection with the email server
         server = smtplib.SMTP(smtp_server, int(smtp_port))
         server.starttls()
         server.login(from_email, password)
@@ -611,49 +621,23 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
         user_msg = MIMEMultipart()
         user_msg['From'] = from_email
         user_msg['To'] = user_email
-        user_msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
+        user_msg['Subject'] = 'Registration Successful'
         user_msg.attach(MIMEText(user_html_content, 'html'))
         server.sendmail(from_email, user_email, user_msg.as_string())
-        
-        # List of admin emails to notify
 
-        # for admin_emails in [to_recruiting_email, to_admin_email]:
-        for admin_emails in filter(None, [to_recruiting_email, to_admin_email]):
-
-
-
-            # Send email to the admin
-            admin_msg = MIMEMultipart()
-            admin_msg['From'] = from_email  
-            admin_msg['To'] = admin_emails
-            admin_msg['Subject'] = 'New User Registration Notification'
-            admin_msg.attach(MIMEText(admin_html_content, 'html'))
-            server.sendmail(from_email, admin_emails, admin_msg.as_string())
-
-            # Send email to the admin
+        # Send email to admins
+        for admin_email in admin_emails:
             admin_msg = MIMEMultipart()
             admin_msg['From'] = from_email
-            admin_msg['To'] = to_admin_email
+            admin_msg['To'] = admin_email
             admin_msg['Subject'] = 'New User Registration Notification'
             admin_msg.attach(MIMEText(admin_html_content, 'html'))
-            server.sendmail(from_email, to_admin_email, admin_msg.as_string())
+            server.sendmail(from_email, admin_email, admin_msg.as_string())
 
-        # Close the server
         server.quit()
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
-
-
-def send_html_email(server, from_email, to_email, subject, html_content):
-    msg = MIMEMultipart()
-    msg['From'] = from_email
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(html_content, 'html'))
-    server.sendmail(from_email, to_email, msg.as_string())
-
-
+        raise HTTPException(status_code=500, detail=f"Error while sending emails: {e}")
 
 def clean_input_fields(user_data: UserRegistration):
     """Convert empty strings and format datetimes for MySQL"""
@@ -1004,7 +988,7 @@ async def contact(user: ContactForm):
 
     await user_contact(
         # name=f"{user.firstName} {user.lastName}",
-        name=f"{user.firstName} {user.lastName}",
+        full_name=f"{user.firstName} {user.lastName}",
         email=user.email,
         phone=user.phone,
         message=user.message        
