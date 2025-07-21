@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field,validator
+from typing import Optional, List,Literal
 from datetime import time, date, datetime
+from enum import Enum
 # from .db import Base, engine, get_db
 
 class UserCreate(BaseModel):
@@ -410,13 +411,14 @@ class CandidateMarketing(CandidateMarketingBaseModel):
         orm_mode = True
 
 
-# -------------------vendor _avatar------------------------
+# -------------------vendor_avatar------------------------
 
-
+#vendor_contact_extract---
 class VendorContactExtract(BaseModel):
     id: int
     full_name: str
-    source_email: Optional[EmailStr]
+    # source_email: Optional[EmailStr]
+    source_email: Optional[EmailStr] 
     email: Optional[EmailStr]
     phone: Optional[str]
     linkedin_id: Optional[str]
@@ -426,6 +428,13 @@ class VendorContactExtract(BaseModel):
     moved_to_vendor: Optional[bool]
     created_at: Optional[datetime]
 
+
+    @validator("source_email", "email", pre=True)
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
     class Config:
         orm_mode = True
 
@@ -433,7 +442,7 @@ class VendorContactExtract(BaseModel):
 
 class VendorContactExtractCreate(BaseModel):
     full_name: str
-    source_email: Optional[EmailStr] = None
+    source_email: Optional[EmailStr] 
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     linkedin_id: Optional[str] = None
@@ -445,7 +454,7 @@ class VendorContactExtractCreate(BaseModel):
 
 class VendorContactExtractUpdate(BaseModel):
     full_name: Optional[str] = None
-    source_email: Optional[EmailStr] = None
+    source_email: Optional[EmailStr] 
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     linkedin_id: Optional[str] = None
@@ -454,3 +463,93 @@ class VendorContactExtractUpdate(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
 
+
+# from pydantic import BaseModel, EmailStr, validator
+# from typing import Optional, Literal
+# from datetime import datetime
+# from enum import Enum
+
+
+# ✅ Lowercase Enum Values
+class VendorTypeEnum(str, Enum):
+    client = "client"
+    third_party_vendor = "third-party-vendor"
+    implementation_partner = "implementation-partner"
+    sourcer = "sourcer"
+    ip_request_demo = "ip_request_demo" 
+
+
+class VendorBase(BaseModel):
+    full_name: str
+    phone_number: Optional[str] = None
+    secondary_phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    type: VendorTypeEnum
+    note: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+    vendor_type: Optional[VendorTypeEnum] = None  
+    linkedin_connected: Optional[str] = "NO"
+    intro_email_sent: Optional[str] = "NO"
+    intro_call: Optional[str] = "NO"
+
+    @validator("email", pre=True)
+    def empty_string_to_none(cls, v):
+        return v or None
+
+    # ✅ Fix for case-insensitive enums
+    @validator("type", "vendor_type", pre=True)
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+
+class VendorCreate(VendorBase):
+    pass
+
+
+class Vendor(VendorBase):
+    id: int
+    status: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+
+class VendorUpdate(BaseModel):
+    full_name: Optional[str]
+    phone_number: Optional[str]
+    secondary_phone: Optional[str]
+    email: Optional[EmailStr]
+    type: Optional[VendorTypeEnum]
+    note: Optional[str]
+    linkedin_id: Optional[str]
+    company_name: Optional[str]
+    location: Optional[str]
+    city: Optional[str]
+    postal_code: Optional[str]
+    address: Optional[str]
+    country: Optional[str]
+    vendor_type: Optional[VendorTypeEnum]
+    status: Optional[Literal['active', 'working', 'not_useful', 'do_not_contact', 'inactive', 'prospect']]
+    linkedin_connected: Optional[Literal['YES', 'NO']]
+    intro_email_sent: Optional[Literal['YES', 'NO']]
+    intro_call: Optional[Literal['YES', 'NO']]
+
+    @validator("email", pre=True)
+    def empty_string_to_none(cls, v):
+        return v or None
+
+    # ✅ Fix for case-insensitive enums
+    @validator("type", "vendor_type", pre=True)
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v

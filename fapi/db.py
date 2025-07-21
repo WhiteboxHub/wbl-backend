@@ -1295,6 +1295,100 @@ async def delete_vendor_contact(contact_id: int):
         cursor.close()
         conn.close()
 
+async def get_all_vendors():
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM vendor ORDER BY id DESC"
+        await loop.run_in_executor(None, cursor.execute, query)
+        rows = cursor.fetchall()
+        return rows
+    except Error as e:
+        print("Error fetching vendors:", e)
+        raise HTTPException(status_code=500, detail="Error fetching vendor data")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+async def insert_vendor(vendor_data: dict):
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+
+    try:
+        cursor = conn.cursor()
+        placeholders = ", ".join(["%s"] * len(vendor_data))
+        columns = ", ".join(vendor_data.keys())
+        query = f"INSERT INTO vendor ({columns}) VALUES ({placeholders})"
+
+        values = list(vendor_data.values())
+        await loop.run_in_executor(None, cursor.execute, query, values)
+        conn.commit()
+
+        return cursor.lastrowid
+    except Error as e:
+        print("Error inserting vendor:", e)
+        raise HTTPException(status_code=500, detail="Error inserting vendor")
+    finally:
+        cursor.close()
+        conn.close()
+
+
+async def insert_vendor(data: dict) -> dict:
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    columns = ", ".join(data.keys())
+    placeholders = ", ".join(["%s"] * len(data))
+    values = list(data.values())
+
+    query = f"INSERT INTO vendor ({columns}) VALUES ({placeholders})"
+    cursor.execute(query, values)
+    conn.commit()
+
+    new_id = cursor.lastrowid
+
+    # ✅ Fetch full inserted row including created_at
+    cursor.execute("SELECT * FROM vendor WHERE id = %s", (new_id,))
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    return row
+
+
+async def update_vendor(vendor_id: int, fields: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    set_clause = ", ".join(f"{key} = %s" for key in fields.keys())
+    values = list(fields.values())
+    values.append(vendor_id)
+
+    query = f"UPDATE vendor SET {set_clause} WHERE id = %s"
+    cursor.execute(query, values)
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+
+async def delete_vendor_by_id(vendor_id: int) -> bool:
+    conn = None  
+    try:
+        conn = await get_connection()
+        async with conn.cursor() as cursor:
+            await cursor.execute("DELETE FROM vendor WHERE id = %s", (vendor_id,))
+            await conn.commit()
+            return cursor.rowcount > 0
+    except Exception as e:
+        print("Error in delete_vendor_by_id:", e)
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 
 def normalize_interview(interview):

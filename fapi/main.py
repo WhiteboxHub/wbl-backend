@@ -1,20 +1,20 @@
 
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest,CandidateMarketing,VendorContactExtractCreate,VendorContactExtractUpdate, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
+from fapi.models import EmailRequest,CandidateMarketing,VendorContactExtractCreate,VendorContactExtractUpdate, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,VendorUpdate,Vendor
 from  fapi.db import (
-      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,delete_vendor_by_id,
 
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_vendor_contact,update_vendor_contact,delete_vendor_contact
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_vendor_contact,update_vendor_contact,delete_vendor_contact,get_all_vendors,update_vendor,delete_vendor_by_id
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
-from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status
+from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status,Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -1104,6 +1104,8 @@ async def get_candidate_marketing(
 
 #-------------------------------------vendor_avatar------------------------------
 
+
+#vendor-contact-extract
 @app.get("/vendor-contact-extracts", response_model=List[VendorContactExtract])
 async def read_vendor_contact_extracts():
     return await get_all_vendor_contacts()
@@ -1130,3 +1132,48 @@ async def update_vendor_contact_handler(contact_id: int, update_data: VendorCont
 async def remove_vendor_contact(contact_id: int):
     await delete_vendor_contact(contact_id)
     return {"message": f"Vendor contact {contact_id} deleted successfully"}
+
+#vendor-----
+@app.get("/vendors", response_model=List[Vendor])
+async def read_vendors():
+    try:
+        rows = await get_all_vendors()
+        return [Vendor(**row) for row in rows]
+    except Exception as e:
+        print("Error in /vendors route:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/api/vendors", response_model=Vendor)
+async def create_vendor(vendor: VendorCreate):
+    try:
+        vendor_data = vendor.dict(exclude_unset=True)
+        # Insert into DB and return the full inserted row
+        inserted_row = await insert_vendor(vendor_data)
+        return Vendor(**inserted_row)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
+
+
+@app.put("/api/vendors/{vendor_id}")
+async def update_vendor_handler(vendor_id: int, update_data: VendorUpdate):
+    fields = update_data.dict(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No data to update")
+
+    try:
+        await update_vendor(vendor_id, fields)
+        return {"message": f"Vendor with ID {vendor_id} updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+@app.delete("/vendors/{vendor_id}", status_code=204)
+async def delete_vendor(vendor_id: int = Path(..., description="The ID of the vendor to delete")):
+    try:
+        deleted = await delete_vendor_by_id(vendor_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Vendor not found")
+    except Exception as e:
+        print("Error in DELETE /vendors/{vendor_id}:", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
