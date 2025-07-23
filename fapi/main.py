@@ -6,7 +6,7 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_lead
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_lead_new
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -434,12 +434,27 @@ async def check_user_exists(user: GoogleUserCreate):
     return {"exists": False}
 
 
+# @app.post("/api/google_users/")
+# @limiter.limit("15/minute")
+# async def register_google_user(request:Request,user: GoogleUserCreate):
+#     print("Incoming user payload:", user)
+#     existing_user = await get_google_user_by_email(user.email)
+    
+#     if existing_user:
+#         if existing_user['status'] == 'active':
+#             return {"message": "User already registered and active, please log in."}
+#         else:
+#             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
+#     return {"message": "Google user registered successfully!"}
+
 @app.post("/api/google_users/")
 @limiter.limit("15/minute")
-async def register_google_user(request:Request,user: GoogleUserCreate):
+async def register_google_user(request: Request, user: GoogleUserCreate):
     print("Incoming user payload:", user)
     existing_user = await get_google_user_by_email(user.email)
-    
+
     if existing_user:
         if existing_user['status'] == 'active':
             return {"message": "User already registered and active, please log in."}
@@ -685,24 +700,36 @@ async def register_user(request:Request,user: UserRegistration):
     )
 
      # New lead insert
-    await insert_lead(
-        # name=fullname,
-        full_name =leads_full_name,
-        phone=user.phone,
-        email=user.uname,
-        address=user.address,
-        city=user.city,
-        state=None,
-        country=user.country,
-        visa_status=user.visa_status,
-        experience=user.experience,
-        education=user.education,
-        # referby=user.referred_by,
-        referby=user.referby,
-        specialization=user.specialization,
-        zip_code=user.Zip
-    )
+    # await insert_lead(
+    #     # name=fullname,
+    #     full_name =leads_full_name,
+    #     phone=user.phone,
+    #     email=user.uname,
+    #     address=user.address,
+    #     city=user.city,
+    #     state=None,
+    #     country=user.country,
+    #     visa_status=user.visa_status,
+    #     experience=user.experience,
+    #     education=user.education,
+    #     # referby=user.referred_by,
+    #     referby=user.referby,
+    #     specialization=user.specialization,
+    #     zip_code=user.Zip
+    # )
 
+    await insert_lead_new(
+    full_name=leads_full_name,
+    phone=user.phone,
+    email=user.uname,
+    address=user.address,
+    workstatus=None,  # If available, pass user.workstatus
+    status="Open",
+    secondary_email=None,  # Or user.secondaryemail if you collect it
+    secondary_phone=None,  # Or user.secondaryphone
+    closed_date=None,
+    notes=None
+    )
     # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
 

@@ -31,37 +31,82 @@ db_config = {
 }
 
 
+# async def insert_google_user_db(email: str, name: str, google_id: str):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()    
+
+#         # Insert user into authuser table
+#         query1 = """
+#             INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
+#             instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
+#             registereddate, level3date) 
+#             VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+#         """
+
+#         await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
+
+#         query2 = """
+
+#             INSERT INTO leads (full_name, email) 
+#             VALUES (%s, %s);
+#         """
+#         await loop.run_in_executor(None, cursor.execute, query2, (name,email))
+
+#         conn.commit()
+#     except Error as e:
+#         conn.rollback()
+#         print(f"Error inserting user: {e}")
+#         raise HTTPException(status_code=500, detail="Error inserting user")
+#     finally:
+#         cursor.close()
+#         conn.close()
+
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
-        cursor = conn.cursor()    
+        cursor = conn.cursor()
 
-        # Insert user into authuser table
+        # Insert into authuser table
         query1 = """
-            INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
-            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
-            registereddate, level3date) 
-            VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+            INSERT INTO authuser (
+                uname, fullname, googleId, passwd, status, 
+                dailypwd, team, level, instructor, override, 
+                lastlogin, logincount, phone, address, city, 
+                Zip, country, message, registereddate, level3date
+            ) 
+            VALUES (
+                %s, %s, %s, %s, 'inactive', 
+                NULL, NULL, NULL, NULL, NULL, 
+                NULL, 0, NULL, NULL, NULL, 
+                NULL, NULL, NULL, NULL, NULL
+            );
         """
-
         await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
 
+        # Insert into leads_new instead of old leads table
         query2 = """
-
-            INSERT INTO leads (full_name, email) 
-            VALUES (%s, %s);
+            INSERT INTO leads_new (
+                full_name, email
+            ) VALUES (
+                %s, %s
+            );
         """
-        await loop.run_in_executor(None, cursor.execute, query2, (name,email))
+        await loop.run_in_executor(None, cursor.execute, query2, (name, email))
 
         conn.commit()
+
     except Error as e:
         conn.rollback()
-        print(f"Error inserting user: {e}")
-        raise HTTPException(status_code=500, detail="Error inserting user")
+        print(f"Error inserting Google user: {e}")
+        raise HTTPException(status_code=500, detail="Error inserting Google user")
+
     finally:
         cursor.close()
         conn.close()
+
 
 async def get_google_user_by_email(email: str):
     loop = asyncio.get_event_loop()
@@ -158,21 +203,69 @@ async def insert_user(
 
 # ---------------hkd-----------------------------------
 
-async def insert_lead(
-    # name: str,
+# async def insert_lead(
+#     # name: str,
+#     full_name: str,
+#     phone: Optional[str],
+#     email: str,
+#     address: Optional[str],
+#     city: Optional[str],
+#     state: Optional[str],
+#     country: Optional[str],
+#     visa_status: Optional[str],
+#     experience: Optional[str],
+#     education: Optional[str],
+#     referby: Optional[str],
+#     specialization: Optional[str],
+#     zip_code: Optional[str],
+# ):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+
+#     try:
+#         cursor = conn.cursor()
+
+#         query = """
+#             INSERT INTO leads (
+#                 full_name, phone, email, address, city, state, country,
+#                 visa_status, workexperience, education, referby,
+#                 specialization, zip
+#             ) VALUES (
+#                 %s, %s, %s, %s, %s, %s, %s,
+#                 %s, %s, %s, %s,
+#                 %s, %s
+#             );
+#         """
+
+#         values = (
+#             full_name, phone, email, address, city, state, country,
+#             visa_status, experience, education, referby,
+#             specialization, zip_code.lower() if zip_code else None
+#         )
+
+#         await loop.run_in_executor(None, cursor.execute, query, values)
+#         conn.commit()
+
+#     except Error as e:
+#         conn.rollback()
+#         print("Lead Insert Error:", e)
+#         raise HTTPException(status_code=500, detail="Error inserting lead")
+
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+async def insert_lead_new(
     full_name: str,
     phone: Optional[str],
     email: str,
     address: Optional[str],
-    city: Optional[str],
-    state: Optional[str],
-    country: Optional[str],
-    visa_status: Optional[str],
-    experience: Optional[str],
-    education: Optional[str],
-    referby: Optional[str],
-    specialization: Optional[str],
-    zip_code: Optional[str],
+    workstatus: Optional[str],
+    status: Optional[str] = "Open",
+    secondary_email: Optional[str] = None,
+    secondary_phone: Optional[str] = None,
+    closed_date: Optional[date] = None,
+    notes: Optional[str] = None
 ):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -181,21 +274,21 @@ async def insert_lead(
         cursor = conn.cursor()
 
         query = """
-            INSERT INTO leads (
-                full_name, phone, email, address, city, state, country,
-                visa_status, workexperience, education, referby,
-                specialization, zip
+            INSERT INTO leads_new (
+                full_name, phone, email, address, workstatus,
+                status, secondary_email, secondary_phone,
+                closed_date, notes
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s,
                 %s, %s
             );
         """
 
         values = (
-            full_name, phone, email, address, city, state, country,
-            visa_status, experience, education, referby,
-            specialization, zip_code.lower() if zip_code else None
+            full_name, phone, email, address, workstatus,
+            status, secondary_email, secondary_phone,
+            closed_date, notes
         )
 
         await loop.run_in_executor(None, cursor.execute, query, values)
@@ -203,13 +296,12 @@ async def insert_lead(
 
     except Error as e:
         conn.rollback()
-        print("Lead Insert Error:", e)
-        raise HTTPException(status_code=500, detail="Error inserting lead")
+        print("Lead Insert Error (leads_new):", e)
+        raise HTTPException(status_code=500, detail="Error inserting into new leads table")
 
     finally:
         cursor.close()
         conn.close()
-
 
 
 # ---------------hkd-----------------------------------
