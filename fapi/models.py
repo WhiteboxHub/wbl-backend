@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field,validator
+from pydantic import BaseModel, EmailStr, Field , validator
 from typing import Optional, List,Literal
 from datetime import time, date, datetime
 from enum import Enum
@@ -7,76 +7,6 @@ from enum import Enum
 class UserCreate(BaseModel):
     uname: str
     passwd: str
-
-
-# class UserRegistration(BaseModel):
-#     uname: str
-#     passwd: str
-#     dailypwd: Optional[str] = None
-#     team: Optional[str] = None
-#     level: Optional[str] = None
-#     instructor: Optional[str] = None
-#     override: Optional[str] = None
-#     status: Optional[str] = None
-#     lastlogin: Optional[str] = None
-#     logincount: Optional[str] = None
-#     # firstname: Optional[str] = None
-#     # lastname: Optional[str] = None
-#     firstname: Optional[str] = Field(None, alias="firstName")
-#     lastname: Optional[str] = Field(None, alias="lastName")
-#     fullname: Optional[str] = None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     city: Optional[str] = None
-#     Zip: Optional[str] = None
-#     country: Optional[str] = None
-#     message: Optional[str] = None
-#     registereddate: Optional[str] = None
-#     level3date: Optional[str] = None
-#     last: Optional[str] = None
-#     visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
-#     experience: Optional[str] = None
-#     education: Optional[str] = None
-#     specialization: Optional[str] = None
-#     referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
-
-#     class Config:
-#         allow_population_by_field_name = True
-
-
-# class ContactForm(BaseModel):
-#     firstName: str
-#     lastName: str
-#     email: str
-#     phone: str
-#     message: str
-
-# class Token(BaseModel):
-#     access_token: str
-#     token_type: str
-
-# class EmailRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPasswordRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPassword(BaseModel):
-#     token: str
-#     new_password: str
-
-
-# # class UserCreate(BaseModel):
-# #     email: str
-# #     name: str   
-# #     google_id: str
-
-
-# # Model for Google user creation
-# class GoogleUserCreate(BaseModel):
-#     name: str
-#     email: str
-#     google_id: str
 
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
@@ -178,16 +108,6 @@ class RecentPlacement(BaseModel):
     placement_date: str
 
 
-# class RecentInterview(BaseModel):
-#     id: int
-#     candidate_name: str
-#     candidate_role: Optional[str]
-#     interview_time: time
-#     interview_date: date
-#     interview_mode: Optional[str]
-#     client_name: Optional[str]
-#     interview_location: Optional[str]
-#     created_at: datetime
 class RecentInterview(BaseModel):
     candidate_name: str
     candidate_role: Optional[str] = None
@@ -241,7 +161,7 @@ class Lead(LeadBase):
     leadid: int
 
     class Config:
-        orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
+        orm_mode = True  
 
 
 class CandidateBase(BaseModel):
@@ -454,7 +374,7 @@ class VendorContactExtractCreate(BaseModel):
 
 class VendorContactExtractUpdate(BaseModel):
     full_name: Optional[str] = None
-    source_email: Optional[EmailStr] 
+    source_email: Optional[EmailStr] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     linkedin_id: Optional[str] = None
@@ -464,13 +384,6 @@ class VendorContactExtractUpdate(BaseModel):
     moved_to_vendor: Optional[bool] = None
 
 
-# from pydantic import BaseModel, EmailStr, validator
-# from typing import Optional, Literal
-# from datetime import datetime
-# from enum import Enum
-
-
-# ✅ Lowercase Enum Values
 class VendorTypeEnum(str, Enum):
     client = "client"
     third_party_vendor = "third-party-vendor"
@@ -493,7 +406,7 @@ class VendorBase(BaseModel):
     postal_code: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
-    vendor_type: Optional[VendorTypeEnum] = None  
+    vendor_type: Optional[VendorTypeEnum] = None
     linkedin_connected: Optional[str] = "NO"
     intro_email_sent: Optional[str] = "NO"
     intro_call: Optional[str] = "NO"
@@ -502,13 +415,11 @@ class VendorBase(BaseModel):
     def empty_string_to_none(cls, v):
         return v or None
 
-    # ✅ Fix for case-insensitive enums
     @validator("type", "vendor_type", pre=True)
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
             return v.lower()
         return v
-
 
 class VendorCreate(VendorBase):
     pass
@@ -547,9 +458,45 @@ class VendorUpdate(BaseModel):
     def empty_string_to_none(cls, v):
         return v or None
 
-    # ✅ Fix for case-insensitive enums
+    
     @validator("type", "vendor_type", pre=True)
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
             return v.lower()
         return v
+
+#daily_vendor_activity 
+class YesNoEnum(str, Enum):
+    YES = "YES"
+    NO = "NO"
+
+class DailyVendorActivity(BaseModel):
+    activity_id: int
+    vendor_id: int
+    application_date: Optional[date]
+    linkedin_connected: Optional[YesNoEnum]
+    contacted_on_linkedin: Optional[YesNoEnum]
+    notes: Optional[str]
+    employee_id: Optional[int]
+    created_at: Optional[datetime]
+
+
+class YesNoEnum(str, Enum):
+    YES = "YES"
+    NO = "NO"
+
+class DailyVendorActivityCreate(BaseModel):
+    vendor_id: int 
+    application_date: Optional[date]
+    linkedin_connected: Optional[YesNoEnum]
+    contacted_on_linkedin: Optional[YesNoEnum]
+    notes: Optional[str]
+    employee_id: Optional[int]
+
+class DailyVendorActivityUpdate(BaseModel):
+    vendor_id: Optional[int] = None
+    application_date: Optional[date] = None
+    linkedin_connected: Optional[YesNoEnum] = None
+    contacted_on_linkedin: Optional[YesNoEnum] = None
+    notes: Optional[str] = None
+    employee_id: Optional[int] = None

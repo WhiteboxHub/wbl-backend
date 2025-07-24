@@ -47,3 +47,5 @@ def hash_password(password: str):
 
 def verify_password(plain_password: str, hashed_password: str):
     return verify_md5_hash(plain_password, hashed_password)
+
+

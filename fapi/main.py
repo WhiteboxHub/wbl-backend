@@ -1,16 +1,32 @@
 
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest,CandidateMarketing,VendorContactExtractCreate,VendorContactExtractUpdate, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,VendorUpdate,Vendor
+#wbl-backend/fapi/utils
+from fapi.utils.vendor_contact_utils import (
+    get_vendor_contacts_handler,
+    insert_vendor_contact_handler,
+    update_vendor_contact_handler,
+    delete_vendor_contact_handler,
+    get_vendors_handler,
+    create_vendor_handler ,
+    update_vendor_handler ,
+    delete_vendor_handler ,
+    fetch_all_daily_vendor_activities ,
+    add_daily_vendor_activity ,
+    modify_daily_vendor_activity , 
+    remove_daily_vendor_activity
+)
+# from .utils.vendor_contact_utils import get_vendor_contacts_handler
+from fapi.models import EmailRequest,CandidateMarketing,VendorContactExtractCreate,VendorContactExtractUpdate, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,VendorUpdate,Vendor,DailyVendorActivity,DailyVendorActivityCreate,VendorContactExtractCreate, VendorContactExtractUpdate , DailyVendorActivity ,DailyVendorActivityCreate, DailyVendorActivityUpdate
 from  fapi.db import (
-      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,delete_vendor_by_id,
+      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
 
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_vendor_contact,update_vendor_contact,delete_vendor_contact,get_all_vendors,update_vendor,delete_vendor_by_id
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_vendor_contact,update_vendor_contact,delete_vendor_contact,get_all_vendors,update_vendor,delete_vendor_by_id_sync,get_all_daily_vendor_activities,update_daily_vendor_activity,insert_daily_vendor_activity,delete_daily_vendor_activity
   
 )
-from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
+from  fapi.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token 
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
@@ -368,11 +384,6 @@ async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
 
-# @app.get("/api/interviews", response_model=List[RecentInterview])
-# async def get_recent_interviews():
-#     interviews = await fetch_recent_interviews()
-#     return interviews
-
 
 @app.get("/api/interviews", response_model=List[dict])
 async def get_interviews(limit: int = 10, offset: int = 0):
@@ -405,11 +416,6 @@ async def update_interview_api(interview_id: int, data: RecentInterview):
 async def remove_interview(interview_id: int):
     await delete_interview(interview_id)
     return {"message": "Interview deleted successfully"}
-
-
-
-
-
 
 
 # -------------------------------------------------------- IP -----------------------------------------
@@ -464,29 +470,6 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
 
     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
     return {"message": "Google user registered successfully!"}
-
-# @app.post("/api/google_login/")
-# @limiter.limit("15/minute")
-# async def login_google_user(request:Request,user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user is None:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#     if existing_user['status'] == 'inactive':
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
-
-#     # Generate token upon successful login
-#     token_data = {
-#         "sub": existing_user['uname'],
-#         "name": existing_user['fullname'],
-#         "google_id": existing_user['googleId'],
-#     }   
-    
-#     access_token = create_google_access_token(data=token_data)
-    
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
 
 
 @app.post("/api/google_login/")
@@ -666,66 +649,6 @@ def clean_input_fields(user_data: UserRegistration):
     
     return user_data
 
-# @app.post("/api/signup")
-# @limiter.limit("15/minute")
-# async def register_user(request:Request,user: UserRegistration):
-#     # Check if user exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="Username already registered")
-
-#     # Clean inputs (only change needed)
-#     user = clean_input_fields(user)
-
-#     # Rest of your existing code remains exactly the same...
-#     hashed_password = md5_hash(user.passwd)
-#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     # print(" Full name constructed:", fullname)  # <---- Add this line
-
-#     await insert_user(
-#     uname=user.uname,
-#     passwd=hashed_password,
-#     dailypwd=user.dailypwd,
-#     team=user.team,
-#     level=user.level,
-#     instructor=user.instructor,
-#     override=user.override,
-#     lastlogin=user.lastlogin,
-#     logincount=user.logincount,
-#     # fullname=user.fullname,
-#     fullname=fullname,
-#     phone=user.phone,
-#     address=user.address,
-#     city=user.city,
-#     Zip=user.Zip,
-#     country=user.country,
-#     message=user.message,
-#     registereddate=user.registereddate,
-#     level3date=user.level3date,
-#     visastatus=user.visastatus,
-#     experience=user.experience,
-#     education=user.education,
-#     referred_by=user.referred_by,
-#     candidate_info={  # optional dict
-#         'name': user.fullname,
-#         'enrolleddate': user.registereddate,
-#         'email': user.uname,
-#         'phone': user.phone,
-#         'address': user.address,
-#         'city': user.city,
-#         'country': user.country,
-#         'zip': user.Zip,
-#         }
-#     )
-
-
-#     # Send confirmation email to the user and notify the admin
-#     send_email_to_user(user_email=user.uname, user_name=user.fullname)
-
-#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
-
-
 # data to deploy
 
 
@@ -747,40 +670,7 @@ async def register_user(request:Request,user: UserRegistration):
     # print(" Full name constructed:", fullname)  # <---- Add this line
 
   
-    
 
-    # await insert_user(
-    #     uname=user.uname,
-    #     passwd=hashed_password,
-    #     dailypwd=user.dailypwd,
-    #     team=user.team,
-    #     level=user.level,
-    #     instructor=user.instructor,
-    #     override=user.override,
-    #     # status=user.status,
-    #     lastlogin=user.lastlogin,
-    #     logincount=user.logincount,
-    #     fullname=user.fullname,
-    #     phone=user.phone,
-    #     address=user.address,
-    #     city=user.city,
-    #     Zip=user.Zip,
-    #     country=user.country,
-    #     message=user.message,
-    #     registereddate=user.registereddate,
-    #     level3date=user.level3date,
-    #     candidate_info={
-    #         'name': user.fullname,
-    #         'enrolleddate': user.registereddate,
-    #         'email': user.uname,
-    #         'phone': user.phone,
-    #         'address': user.address,
-    #         'city': user.city,
-    #         'country': user.country,
-    #         'zip': user.Zip,
-    #         # 'status': user.status
-    #     }
-    # )
     await insert_user(
     uname=user.uname,
     passwd=hashed_password,
@@ -1103,53 +993,45 @@ async def get_candidate_marketing(
 
 
 #-------------------------------------vendor_avatar------------------------------
-
-
-#vendor-contact-extract
-@app.get("/vendor-contact-extracts", response_model=List[VendorContactExtract])
+#getting vendor-contract
+@app.get("/api/vendor-contact-extracts", response_model=List[VendorContactExtract])
 async def read_vendor_contact_extracts():
-    return await get_all_vendor_contacts()
-
+    return await get_vendor_contacts_handler()
 
 
 @app.post("/api/vendor-contact")
 async def create_vendor_contact(contact: VendorContactExtractCreate):
-    await insert_vendor_contact(contact)
+    await insert_vendor_contact_handler(contact)
     return JSONResponse(content={"message": "Vendor contact inserted successfully"})
 
 
 @app.put("/api/vendor-contact/{contact_id}")
-async def update_vendor_contact_handler(contact_id: int, update_data: VendorContactExtractUpdate):
-    fields = update_data.dict(exclude_unset=True)
-    if not fields:
-        raise HTTPException(status_code=400, detail="No data to update")
-
-    await update_vendor_contact(contact_id, fields)
+async def update_vendor_contact_route(contact_id: int, update_data: VendorContactExtractUpdate):
+    await update_vendor_contact_handler(contact_id, update_data)
     return {"message": f"Vendor contact with ID {contact_id} updated successfully"}
 
 
 @app.delete("/api/vendor-contact/{contact_id}")
-async def remove_vendor_contact(contact_id: int):
-    await delete_vendor_contact(contact_id)
-    return {"message": f"Vendor contact {contact_id} deleted successfully"}
+async def delete_vendor_contact_route(contact_id: int):
+    await delete_vendor_contact_handler(contact_id)
+    return {"message": f"Vendor contact with ID {contact_id} deleted successfully"}
 
-#vendor-----
-@app.get("/vendors", response_model=List[Vendor])
+
+#vendor_table
+@app.get("/api/vendors", response_model=List[Vendor])
 async def read_vendors():
     try:
-        rows = await get_all_vendors()
+        rows = await get_vendors_handler()
         return [Vendor(**row) for row in rows]
     except Exception as e:
         print("Error in /vendors route:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
-    
+   
+
 @app.post("/api/vendors", response_model=Vendor)
 async def create_vendor(vendor: VendorCreate):
     try:
-        vendor_data = vendor.dict(exclude_unset=True)
-        # Insert into DB and return the full inserted row
-        inserted_row = await insert_vendor(vendor_data)
-        return Vendor(**inserted_row)
+        return await create_vendor_handler(vendor)
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -1157,23 +1039,32 @@ async def create_vendor(vendor: VendorCreate):
 
 
 @app.put("/api/vendors/{vendor_id}")
-async def update_vendor_handler(vendor_id: int, update_data: VendorUpdate):
-    fields = update_data.dict(exclude_unset=True)
-    if not fields:
-        raise HTTPException(status_code=400, detail="No data to update")
+async def update_vendor_route(vendor_id: int, update_data: VendorUpdate):
+    return await update_vendor_handler(vendor_id, update_data)
 
-    try:
-        await update_vendor(vendor_id, fields)
-        return {"message": f"Vendor with ID {vendor_id} updated successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
-@app.delete("/vendors/{vendor_id}", status_code=204)
+@app.delete("/api/vendors/{vendor_id}", status_code=200)
 async def delete_vendor(vendor_id: int = Path(..., description="The ID of the vendor to delete")):
-    try:
-        deleted = await delete_vendor_by_id(vendor_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Vendor not found")
-    except Exception as e:
-        print("Error in DELETE /vendors/{vendor_id}:", str(e))
-        raise HTTPException(status_code=500, detail="Internal server error")
+    return await delete_vendor_handler(vendor_id)
+    
+#vendor_daily_activity 
+
+@app.get("/api/daily-vendor-activities", response_model=List[DailyVendorActivity])
+async def read_daily_vendor_activities():
+    return await fetch_all_daily_vendor_activities()
+
+
+@app.post("/api/daily-vendor-activities")
+async def create_daily_vendor_activity(activity: DailyVendorActivityCreate):
+    await add_daily_vendor_activity(activity)
+    return JSONResponse(content={"message": "Daily vendor activity inserted successfully"})
+
+@app.put("/api/daily-vendor-activities/{activity_id}")
+async def update_activity(activity_id: int, data: DailyVendorActivityUpdate):
+    await modify_daily_vendor_activity(activity_id, data)
+    return JSONResponse(content={"message": "Daily vendor activity updated successfully"})
+
+@app.delete("/api/daily-vendor-activities/{activity_id}")
+async def delete_activity(activity_id: int):
+    await remove_daily_vendor_activity(activity_id)
+    return {"message": f"Daily vendor activity {activity_id} deleted successfully"}
