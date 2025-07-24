@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import time, date, datetime
+from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean
+from sqlalchemy.ext.declarative import declarative_base
 # from .db import Base, engine, get_db
 
 class UserCreate(BaseModel):
@@ -195,57 +197,40 @@ class RecentInterview(BaseModel):
     client_name: Optional[str] = None
     interview_location: Optional[str] = None
     
-# ------------------------------------------- Avatar ----------------------------------------
-from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime, date
+# ------------------------------------------- Leads----------------------------------------
 
+
+# Base class shared by all lead operations
 class LeadBase(BaseModel):
-    id: int
+    id: Optional[int] = None
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
     phone: Optional[str] = None
-    email: str  # Required field
-    priority: Optional[str] = None
+    email: EmailStr  # Required field
     workstatus: Optional[str] = None
-    source: Optional[str] = None
-    workexperience: Optional[str] = None
-    sourcename: Optional[str] = None
-    course: Optional[str] = 'QA'
-    intent: Optional[str] = None
-    attendedclass: Optional[str] = None
-    siteaccess: Optional[str] = None
-    assignedto: Optional[str] = None
-    status: Optional[str] = 'Open'
+    status: Optional[str] = None
     secondary_email: Optional[str] = None
     secondary_phone: Optional[str] = None
     address: Optional[str] = None
-    spousename: Optional[str] = None
-    spouseemail: Optional[str] = None
-    last_modified: Optional[datetime] = None  # Made optional with default None
-    spousephone: Optional[str] = None
-    spouseoccupationinfo: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    country: Optional[str] = None
-    zip: Optional[str] = None
-    faq: Optional[str] = None
-    callsmade: Optional[int] = 0
     closed_date: Optional[date] = None
     notes: Optional[str] = None
+    last_modified: Optional[datetime] = None
+    massemail_unsubscribe: Optional[str] = None
+    massemail_email_sent: Optional[str] = None
+    moved_to_candidate: Optional[bool] = None  # Assuming TINYINT(1) represents boolean
 
+# For creating new leads
 class LeadCreate(LeadBase):
-    """Model for creating new leads (all fields optional except email)"""
-    email: str  # Still required for creation
-    id: Optional[int] = None  # Not required for creation
+    email: EmailStr  # Ensure email is still required
+    id: Optional[int] = None  # Usually auto-incremented
 
+# For reading/fetching lead data (response model)
 class Lead(LeadBase):
-    """Complete lead model with all fields"""
-    leadid: int = Field(..., alias="id")  # Maps 'id' from DB to 'leadid' in model
-    
+    leadid: int = Field(..., alias="id")  # Maps DB 'id' to model field 'leadid'
+
     class Config:
-        from_attributes = True  # Updated to Pydantic v2 syntax
-        populate_by_name = True  # Allows using both field names and aliases
+        from_attributes = True
+        populate_by_name = True
 
 
 
