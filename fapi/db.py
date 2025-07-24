@@ -681,17 +681,17 @@ async def fetch_candidate_id_by_email(email: str):
 
 
 
-async def user_contact(name: str, email: str = None, phone: str = None,  message: str = None):
+async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor()
         query = """
             INSERT INTO whitebox_learning.leads (
-                name,email, phone,notes) VALUES (%s, %s, %s, %s);
+                full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
-            name, email, phone,message)
+            full_name, email, phone,message)
         await loop.run_in_executor(None, cursor.execute, query, values)
         conn.commit()
     except Error as e:
@@ -1251,3 +1251,33 @@ def delete_lead_by_id(leadid: int):
     cursor.close()
     conn.close()
 
+
+
+
+# .................................Unsubscribe Leads......................................................
+
+
+
+
+def unsubscribe_lead_user(email: str) -> (bool, str):
+    conn = mysql.connector.connect(**db_config)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT massemail_unsubscribe FROM leads WHERE email = %s", (email,))
+        result = cursor.fetchone()
+
+        if result is None:
+            return False, "User not found"
+
+        if result[0] == 'Yes':
+            return True, "Already unsubscribed"
+
+        cursor.execute("UPDATE leads SET massemail_unsubscribe = %s WHERE email = %s", ('Yes', email))
+        conn.commit()
+
+        return True, "Successfully unsubscribed"
+    except Error as e:
+        return False, "An error occurred"
+    finally:
+        cursor.close()
+        conn.close()

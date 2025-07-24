@@ -329,3 +329,9 @@ class CandidateMarketing(CandidateMarketingBaseModel):
     class Config:
         orm_mode = True
 
+
+
+
+
+class UnsubscribeRequest(BaseModel):
+    email: str

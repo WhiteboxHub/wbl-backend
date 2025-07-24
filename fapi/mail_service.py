@@ -6,6 +6,8 @@ import os
 from fapi.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template
 
 from fapi.contactMailTemplet import ContactMail_HTML_templete
+# from mail_services import mail_conf
+
 
 # Load environment variables from .env file
 load_dotenv()
