@@ -1,6 +1,5 @@
 
 # wbl-backend/fapi/main.py
-#wbl-backend/fapi/utils
 from fapi.utils.vendor_contact_utils import (
     get_vendor_contacts_handler,
     insert_vendor_contact_handler,
@@ -15,7 +14,6 @@ from fapi.utils.vendor_contact_utils import (
     modify_daily_vendor_activity , 
     remove_daily_vendor_activity
 )
-# from .utils.vendor_contact_utils import get_vendor_contacts_handler
 from fapi.models import EmailRequest,CandidateMarketing,VendorContactExtractCreate,VendorContactExtractUpdate, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,VendorUpdate,Vendor,DailyVendorActivity,DailyVendorActivityCreate,VendorContactExtractCreate, VendorContactExtractUpdate , DailyVendorActivity ,DailyVendorActivityCreate, DailyVendorActivityUpdate
 from  fapi.db import (
       fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
@@ -23,7 +21,7 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_vendor_contact,update_vendor_contact,delete_vendor_contact,get_all_vendors,update_vendor,delete_vendor_by_id_sync,get_all_daily_vendor_activities,update_daily_vendor_activity,insert_daily_vendor_activity,delete_daily_vendor_activity
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_all_vendor_contacts,insert_vendor_contact,update_vendor_contact,delete_vendor_contact,get_all_vendors,update_vendor,delete_vendor_by_id_sync,get_all_daily_vendor_activities,update_daily_vendor_activity,insert_daily_vendor_activity,delete_daily_vendor_activity
   
 )
 from  fapi.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token 
@@ -45,13 +43,9 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
 from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead
-from fapi.models import LeadBase, LeadCreate, Lead
-
 from fapi.db import get_connection
 import fapi.db as leads_db
 from .models import VendorContactExtract
-from .db import get_all_vendor_contacts
-
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 
 
@@ -90,14 +84,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-
-# Load environment variables from .env file
 load_dotenv()
 
-# Retrieve the secret key from environment variables
 SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
@@ -127,20 +117,6 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
     role = determine_user_role(userinfo)
 
     return {"role": role}
-
-# def determine_user_role(userinfo):
-#     username = userinfo.get("username") or userinfo.get("email") or ""
-#     team = userinfo.get("team") or ""
-
-#     if (
-#         team == "admin"
-#         or username.endswith("@whitebox-learning.com")
-#         or username.endswith("@innova-path")
-#         or username == "admin"
-#     ):
-#         return "admin"
-
-#     return "candidate"
 
 def determine_user_role(userinfo):
     email = userinfo.get("uname") or userinfo.get("email") or ""
@@ -187,8 +163,6 @@ async def get_candidates_by_dynamic_status(
         raise HTTPException(status_code=500, detail=str(e))
     
     
-
-
 #GET candidate by Name
 @app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
 async def get_candidates_by_name_endpoint(name: str):
@@ -205,10 +179,6 @@ async def get_candidate(candidateid: int):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return Candidate(**candidate)
-
-
-    
-
 
 
 
@@ -442,8 +412,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 
 # --------------------------------------------------------------------------------------
@@ -708,13 +676,9 @@ async def register_user(request:Request,user: UserRegistration):
         }
     )
 
-
-    # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
 
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
-
-
 
 
 @app.post("/api/login", response_model=Token)
@@ -738,19 +702,17 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
 
     access_token = create_access_token(
-        data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
+        data={"sub": user["uname"], "team": user["team"]}  
     )
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "team": user["team"],  # Explicitly include team info in response
+        "team": user["team"],  
     }
 
 
 
-
-# Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -770,7 +732,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-# Token verification endpoint
 @app.post("/api/verify_token")
 async def verify_token_endpoint(token: Token):
     try:
@@ -800,7 +761,6 @@ async def get_materials(request:Request,course: str = Query(...), search: str = 
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
 
 
-# Fetch user details endpoint
 @app.get("/api/user_dashboard")
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
@@ -809,8 +769,8 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 @app.get("/api/session-types")
 async def get_types(current_user: dict = Depends(get_current_user)):
     try:
-        team = current_user.get("team", "null")  # Extract the team from the user data
-        types = await fetch_types(team)  # Pass the team to fetch_types
+        team = current_user.get("team", "null")  
+        types = await fetch_types(team)  
         if not types:
             raise HTTPException(status_code=404, detail="Types not found")
         return {"types": types}
@@ -820,14 +780,11 @@ async def get_types(current_user: dict = Depends(get_current_user)):
 @app.get("/api/sessions")
 async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     try:
-        # Local mapping of course names to course IDs for this endpoint only
         course_name_to_id = {
             "QA": 1,
             "UI": 2,
             "ML": 3,
         }
-
-        # Validate and map course_name to course_id
         if course_name:
             course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
             if not course_id:
@@ -850,8 +807,6 @@ async def get_sessions(course_name: Optional[str] = None, session_type: Optional
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 ###########################################################################
-
-# End Point to get batches info based on the course input
 @app.get("/api/batches")
 async def get_batches(course: str = None):
     try:
@@ -988,29 +943,25 @@ async def get_candidate_marketing(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
   
-
-
-
-
 #-------------------------------------vendor_avatar------------------------------
-#getting vendor-contract
+#get method vendor-contact
 @app.get("/api/vendor-contact-extracts", response_model=List[VendorContactExtract])
 async def read_vendor_contact_extracts():
     return await get_vendor_contacts_handler()
 
-
+#post method vendor-contact
 @app.post("/api/vendor-contact")
 async def create_vendor_contact(contact: VendorContactExtractCreate):
     await insert_vendor_contact_handler(contact)
     return JSONResponse(content={"message": "Vendor contact inserted successfully"})
 
-
+#put method vendor-contact
 @app.put("/api/vendor-contact/{contact_id}")
 async def update_vendor_contact_route(contact_id: int, update_data: VendorContactExtractUpdate):
     await update_vendor_contact_handler(contact_id, update_data)
     return {"message": f"Vendor contact with ID {contact_id} updated successfully"}
 
-
+#delete method vendor-contact
 @app.delete("/api/vendor-contact/{contact_id}")
 async def delete_vendor_contact_route(contact_id: int):
     await delete_vendor_contact_handler(contact_id)
@@ -1018,6 +969,7 @@ async def delete_vendor_contact_route(contact_id: int):
 
 
 #vendor_table
+#get method for vendor table
 @app.get("/api/vendors", response_model=List[Vendor])
 async def read_vendors():
     try:
@@ -1027,7 +979,7 @@ async def read_vendors():
         print("Error in /vendors route:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
    
-
+#post method for vendor table 
 @app.post("/api/vendors", response_model=Vendor)
 async def create_vendor(vendor: VendorCreate):
     try:
@@ -1038,32 +990,39 @@ async def create_vendor(vendor: VendorCreate):
         raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
 
 
+#put method for vendor table
 @app.put("/api/vendors/{vendor_id}")
 async def update_vendor_route(vendor_id: int, update_data: VendorUpdate):
     return await update_vendor_handler(vendor_id, update_data)
 
 
+#delete method for vendor table 
 @app.delete("/api/vendors/{vendor_id}", status_code=200)
 async def delete_vendor(vendor_id: int = Path(..., description="The ID of the vendor to delete")):
     return await delete_vendor_handler(vendor_id)
-    
-#vendor_daily_activity 
 
+
+#get method for vendor_daily_activity
 @app.get("/api/daily-vendor-activities", response_model=List[DailyVendorActivity])
 async def read_daily_vendor_activities():
     return await fetch_all_daily_vendor_activities()
 
 
+#post method for vendor daily activity
 @app.post("/api/daily-vendor-activities")
 async def create_daily_vendor_activity(activity: DailyVendorActivityCreate):
     await add_daily_vendor_activity(activity)
     return JSONResponse(content={"message": "Daily vendor activity inserted successfully"})
 
+
+#put method for vendor_daily_activity
 @app.put("/api/daily-vendor-activities/{activity_id}")
 async def update_activity(activity_id: int, data: DailyVendorActivityUpdate):
     await modify_daily_vendor_activity(activity_id, data)
     return JSONResponse(content={"message": "Daily vendor activity updated successfully"})
 
+
+#delete method for vendor_daily_activity
 @app.delete("/api/daily-vendor-activities/{activity_id}")
 async def delete_activity(activity_id: int):
     await remove_daily_vendor_activity(activity_id)

@@ -1,35 +1,41 @@
-from fapi.db import get_all_vendor_contacts,insert_vendor_contact, update_vendor_contact,delete_vendor_contact , get_all_vendors ,insert_vendor , update_vendor , delete_vendor_by_id_sync , get_all_daily_vendor_activities, insert_daily_vendor_activity ,update_daily_vendor_activity, delete_daily_vendor_activity
+from fapi.db import get_all_vendor_contacts ,insert_vendor_contact, update_vendor_contact,delete_vendor_contact , get_all_vendors ,insert_vendor , update_vendor , delete_vendor_by_id_sync , get_all_daily_vendor_activities, insert_daily_vendor_activity ,update_daily_vendor_activity, delete_daily_vendor_activity
 from fapi.models import VendorContactExtractCreate,VendorContactExtractCreate,VendorContactExtractCreate,VendorContactExtractUpdate,VendorCreate , Vendor ,VendorUpdate,DailyVendorActivityCreate,DailyVendorActivityUpdate
 from fastapi import HTTPException
 import asyncio
 
-#vendor_contact_extract
+#---------------vendor_contact_extract---------------
+#get method
 async def get_vendor_contacts_handler():
     return await get_all_vendor_contacts()
 
-
+#post method
 async def insert_vendor_contact_handler(contact: VendorContactExtractCreate):
     await insert_vendor_contact(contact)
 
-
+#put method
 async def update_vendor_contact_handler(contact_id: int, update_data: VendorContactExtractUpdate):
     fields = update_data.dict(exclude_unset=True)
     await update_vendor_contact(contact_id, fields)
 
-
+#delete method
 async def delete_vendor_contact_handler(contact_id: int):
     await delete_vendor_contact(contact_id)
 
-#vendor-table
+
+#---------------vendor-table--------------
+#get method
 async def get_vendors_handler():
     return await get_all_vendors()
 
+
+#post method
 async def create_vendor_handler(vendor: VendorCreate) -> Vendor:
     vendor_data = vendor.dict(exclude_unset=True)
     inserted_row = await insert_vendor(vendor_data)
     return Vendor(**inserted_row) 
 
 
+#put method 
 async def update_vendor_handler(vendor_id: int, update_data: VendorUpdate):
     fields = update_data.dict(exclude_unset=True)
     if not fields:
@@ -42,6 +48,7 @@ async def update_vendor_handler(vendor_id: int, update_data: VendorUpdate):
         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
     
 
+#delete method
 async def delete_vendor_handler(vendor_id: int):
     print(f"Attempting to delete vendor with ID: {vendor_id}")
     try:
@@ -53,6 +60,9 @@ async def delete_vendor_handler(vendor_id: int):
         print("Internal Server Error in handler:", str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
 
+
+#-----------------vendor_daily_activity------------------
+#get method
 async def fetch_all_daily_vendor_activities():
     try:
         return await get_all_daily_vendor_activities()
@@ -61,13 +71,16 @@ async def fetch_all_daily_vendor_activities():
         raise HTTPException(status_code=500, detail="Failed to fetch daily vendor activities")
 
 
+#post method
 async def add_daily_vendor_activity(activity: DailyVendorActivityCreate):
     try:
         await insert_daily_vendor_activity(activity)
     except Exception as e:
         print("Insert Error:", e)
         raise HTTPException(status_code=500, detail="Failed to insert daily vendor activity")
-    
+
+
+#put method
 async def modify_daily_vendor_activity(activity_id: int, data: DailyVendorActivityUpdate):
     try:
         fields = {k: v for k, v in data.dict().items() if v is not None}
@@ -78,6 +91,7 @@ async def modify_daily_vendor_activity(activity_id: int, data: DailyVendorActivi
         print("Update error:", e)
         raise HTTPException(status_code=500, detail="Failed to update daily vendor activity")
 
+#delete method 
 async def remove_daily_vendor_activity(activity_id: int):
     try:
         await delete_daily_vendor_activity(activity_id)

@@ -13,7 +13,6 @@ from fapi.models import VendorContactExtractCreate,DailyVendorActivity,DailyVend
 
 # **********************************************NEW INNOVAPATH**********************************
 
-from typing import Dict, List
 load_dotenv()
 
 db_config = {
@@ -31,7 +30,6 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
     try:
         cursor = conn.cursor()
 
-        # Insert user into authuser table
         query1 = """
 
             INSERT INTO authuser (uname, fullname, googleId, status, dailypwd, team, level, 
@@ -128,7 +126,6 @@ async def insert_user(
 
             message, registereddate, level3date
         )
-        # print(" Values being inserted into DB:", values1)
 
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
@@ -156,7 +153,6 @@ async def get_user_by_username(uname: str):
         conn.close()   
 
 
-
 async def update_login_info(user_id: int):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -170,7 +166,6 @@ async def update_login_info(user_id: int):
         await loop.run_in_executor(None, cursor.execute, query, (user_id,))
         conn.commit()
     except Error as e:
-        # print(f"Error updating login info: {e}")
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error updating login info")
     finally:
@@ -189,32 +184,25 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
         conn.commit()
     except Error as e:
-        # print(f"Error inserting login history: {e}")
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error inserting login history")
     finally:
         cursor.close()
         conn.close()
     
-
-#fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
-    # Combine the two lists
     all_batches = q1_response + q2_response    
     seen_batches = set()
     unique_batches = []
 
 
     for batch in all_batches:
-        # print(batch['batchname'])
         if batch['batchname'] not in seen_batches:
             seen_batches.add(batch['batchname'])
             unique_batches.append(batch)
-    # Sort unique_batches by batchname in descending order (latest to oldest)
     unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
     return unique_batches
 
-#function to fetch batch names based on courses
 async def fetch_course_batches(subject:str=None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -268,9 +256,6 @@ async def fetch_subject_batch_recording(subject: str = None, batchid: int = None
     finally:
         conn.close()
 
-
-# import asyncio
-# import mysql.connector
 
 async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
     loop = asyncio.get_event_loop()
@@ -412,9 +397,6 @@ async def fetch_user_team(email: str):
         return None  # User not found
     finally:
         conn.close()
-
-
-
 
 
 async def fetch_types(team: str):
@@ -620,7 +602,6 @@ def normalize_interview(interview):
     return interview
 
 
-
 #getting avatar vendor contacts
 async def get_all_vendor_contacts():
     loop = asyncio.get_event_loop()
@@ -822,22 +803,6 @@ def delete_vendor_by_id_sync(vendor_id: int) -> bool:
             conn.close()
 
 
-#daily_activity 
-# async def get_all_daily_vendor_activities():
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT * FROM daily_vendor_activity ORDER BY activity_id DESC"
-#         await loop.run_in_executor(None, cursor.execute, query)
-#         rows = cursor.fetchall()
-#         return rows
-#     except Error as e:
-#         print("Error fetching daily vendor activities:", e)
-#         raise
-#     finally:
-#         cursor.close()
-#         conn.close()
 async def get_all_daily_vendor_activities():
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -855,85 +820,6 @@ async def get_all_daily_vendor_activities():
         conn.close()
 
 
-
-async def update_daily_vendor_activity(activity_id: int, data: DailyVendorActivity) -> int:
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query = """
-            UPDATE daily_vendor_activity
-            SET activity_type = %s,
-                activity_date = %s,
-                linkedin_connected = %s,
-                contacted_on_linkedin = %s,
-                notes = %s,
-                follow_up_date = %s
-            WHERE activity_id = %s
-        """
-        values = (
-            data.activity_type,
-            data.activity_date,
-            data.linkedin_connected,
-            data.contacted_on_linkedin,
-            data.notes,
-            data.follow_up_date,
-            activity_id,
-        )
-        await loop.run_in_executor(None, cursor.execute, query, values)
-        conn.commit()
-        return cursor.rowcount > 0
-    except Error as e:
-        print("Error updating daily vendor activity:", e)
-        raise HTTPException(status_code=500, detail="Error updating daily vendor activity")
-    finally:
-        cursor.close()
-        conn.close()
-
-
-# async def insert_daily_vendor_activity(activity: DailyVendorActivityCreate):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-
-#     try:
-#         cursor = conn.cursor()
-#         if activity.vendor_id is not None:
-#             check_query = "SELECT id FROM vendor WHERE id = %s"
-#             await loop.run_in_executor(None, cursor.execute, check_query, (activity.vendor_id,))
-#             result = cursor.fetchone()
-#             if result is None:
-#                 raise HTTPException(
-#                     status_code=400,
-#                     detail=f"Vendor ID {activity.vendor_id} does not exist"
-#                 )
-
-#         query = """
-#             INSERT INTO daily_vendor_activity (
-#                 vendor_id, activity_type, activity_date, 
-#                 linkedin_connected, contacted_on_linkedin, notes, follow_up_date
-#             )
-#             VALUES (%s, %s, %s, %s, %s, %s, %s)
-#         """
-
-#         values = (
-#             activity.vendor_id,
-#             activity.activity_type,
-#             activity.activity_date,
-#             activity.linkedin_connected,
-#             activity.contacted_on_linkedin,
-#             activity.notes,
-#             activity.follow_up_date
-#         )
-
-#         await loop.run_in_executor(None, cursor.execute, query, values)
-#         conn.commit()
-
-#     except Error as e:
-#         conn.rollback()
-#         raise HTTPException(status_code=500, detail=f"Database insert error: {str(e)}")
-#     finally:
-#         cursor.close()
-#         conn.close()
 async def insert_daily_vendor_activity(activity: DailyVendorActivityCreate):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -1000,7 +886,7 @@ async def update_daily_vendor_activity(activity_id: int, fields: dict):
         values.append(activity_id)
 
         query = f"""
-            UPDATE daily_vendor_activity
+            UPDATE vendor_daily_activity
             SET {set_clause}
             WHERE activity_id = %s
         """
@@ -1025,7 +911,7 @@ async def delete_daily_vendor_activity(activity_id: int):
 
     try:
         cursor = conn.cursor()
-        query = "DELETE FROM daily_vendor_activity WHERE activity_id = %s"
+        query = "DELETE FROM vendor_daily_activity WHERE activity_id = %s"
         await loop.run_in_executor(None, cursor.execute, query, (activity_id,))
         conn.commit()
 
@@ -1433,6 +1319,7 @@ def search_leads(name: Optional[str], email: Optional[str]):
     conn.close()
     return results
 
+
 def fetch_lead_by_id(leadid: int):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -1457,6 +1344,7 @@ def create_new_lead(data: dict):
     conn.close()
     return lead_id
 
+
 def update_existing_lead(leadid: int, data: dict):
     conn = get_connection()
     cursor = conn.cursor()
@@ -1467,6 +1355,7 @@ def update_existing_lead(leadid: int, data: dict):
     conn.commit()
     cursor.close()
     conn.close()
+
 
 def delete_lead_by_id(leadid: int):
     conn = get_connection()
