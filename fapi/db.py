@@ -31,37 +31,6 @@ db_config = {
 }
 
 
-# async def insert_google_user_db(email: str, name: str, google_id: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()    
-
-#         # Insert user into authuser table
-#         query1 = """
-#             INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
-#             instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
-#             registereddate, level3date) 
-#             VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-#         """
-
-#         await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
-
-#         query2 = """
-
-#             INSERT INTO leads (full_name, email) 
-#             VALUES (%s, %s);
-#         """
-#         await loop.run_in_executor(None, cursor.execute, query2, (name,email))
-
-#         conn.commit()
-#     except Error as e:
-#         conn.rollback()
-#         print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=500, detail="Error inserting user")
-#     finally:
-#         cursor.close()
-#         conn.close()
 
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
@@ -203,57 +172,6 @@ async def insert_user(
 
 # ---------------hkd-----------------------------------
 
-# async def insert_lead(
-#     # name: str,
-#     full_name: str,
-#     phone: Optional[str],
-#     email: str,
-#     address: Optional[str],
-#     city: Optional[str],
-#     state: Optional[str],
-#     country: Optional[str],
-#     visa_status: Optional[str],
-#     experience: Optional[str],
-#     education: Optional[str],
-#     referby: Optional[str],
-#     specialization: Optional[str],
-#     zip_code: Optional[str],
-# ):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-
-#     try:
-#         cursor = conn.cursor()
-
-#         query = """
-#             INSERT INTO leads (
-#                 full_name, phone, email, address, city, state, country,
-#                 visa_status, workexperience, education, referby,
-#                 specialization, zip
-#             ) VALUES (
-#                 %s, %s, %s, %s, %s, %s, %s,
-#                 %s, %s, %s, %s,
-#                 %s, %s
-#             );
-#         """
-
-#         values = (
-#             full_name, phone, email, address, city, state, country,
-#             visa_status, experience, education, referby,
-#             specialization, zip_code.lower() if zip_code else None
-#         )
-
-#         await loop.run_in_executor(None, cursor.execute, query, values)
-#         conn.commit()
-
-#     except Error as e:
-#         conn.rollback()
-#         print("Lead Insert Error:", e)
-#         raise HTTPException(status_code=500, detail="Error inserting lead")
-
-#     finally:
-#         cursor.close()
-#         conn.close()
 
 async def insert_lead_new(
     full_name: str,
@@ -955,6 +873,158 @@ def get_user_by_username_sync(username: str):
     return user
 
 
+# def get_connection():
+#     try:
+#         conn = mysql.connector.connect(
+#             host=db_config['host'],
+#             user=db_config['user'],
+#             password=db_config['password'],
+#             database=db_config['database'],
+#             port=int(db_config['port']),
+#         )
+#         return conn
+#     except Error as e:
+#         print("Database connection error:", e)
+#         raise HTTPException(status_code=500, detail="Database connection failed")
+    
+
+
+
+# def get_all_candidates_paginated(page: int = 1, limit: int = 100):
+#     from datetime import date, datetime
+#     offset = (page - 1) * limit
+
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+
+#     # query = "SELECT * FROM candidate LIMIT %s OFFSET %s"
+#     query = "SELECT * FROM candidate ORDER BY candidateid DESC LIMIT %s OFFSET %s"
+#     cursor.execute(query, (limit, offset))
+#     rows = cursor.fetchall()
+
+#     for row in rows:
+#         for key in row:
+#             if isinstance(row[key], (date, datetime)):
+#                 row[key] = row[key].isoformat()
+
+#     cursor.close()
+#     conn.close()
+#     return rows
+
+
+# def get_candidate_by_name(name: str):
+#     name = name.strip().lower()
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+
+#     try:
+#         query = "SELECT * FROM candidate WHERE LOWER(name) LIKE %s"
+#         # cursor.execute(query, (name,))
+#         cursor.execute(query, (f"%{name}%",))
+#         rows = cursor.fetchall()
+
+#         for row in rows:
+#             for key in row:
+#                 if isinstance(row[key], (date, datetime)):
+#                     row[key] = row[key].isoformat()
+
+#         return rows 
+
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+
+# #Get Candidates status
+# def get_candidates_by_status(status: str, page: int = 1, limit: int = 100) -> List[dict]:
+#     offset = (page - 1) * limit
+
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+
+#     query = """
+#         SELECT * FROM candidate
+#         WHERE LOWER(status) = %s
+#         ORDER BY candidateid DESC
+#         LIMIT %s OFFSET %s
+#     """
+#     cursor.execute(query, (status.lower(), limit, offset))
+#     rows = cursor.fetchall()
+
+#     # Convert date/datetime fields to ISO format
+#     for row in rows:
+#         for key, value in row.items():
+#             if isinstance(value, (date, datetime)):
+#                 row[key] = value.isoformat()
+
+#     cursor.close()
+#     conn.close()
+#     return rows
+
+
+# def get_candidate_by_id(candidateid: int):
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     cursor.execute("SELECT * FROM candidate WHERE candidateid = %s", (candidateid,))
+#     row = cursor.fetchone()
+#     if row:
+#         for key in row:
+#             if isinstance(row[key], (date, datetime)):
+#                 row[key] = row[key].isoformat()
+#     cursor.close()
+#     conn.close()
+#     return row
+
+
+# def create_candidate(candidate_data: dict):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     placeholders = ", ".join(["%s"] * len(candidate_data))
+#     columns = ", ".join(candidate_data.keys())
+#     sql = f"INSERT INTO candidate ({columns}) VALUES ({placeholders})"
+#     cursor.execute(sql, list(candidate_data.values()))
+#     conn.commit()
+#     new_id = cursor.lastrowid
+#     cursor.close()
+#     conn.close()
+#     return new_id
+
+# def update_candidate(candidateid: int, candidate_data: dict):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     set_clause = ", ".join([f"{key}=%s" for key in candidate_data.keys()])
+#     sql = f"UPDATE candidate SET {set_clause} WHERE candidateid=%s"
+#     values = list(candidate_data.values()) + [candidateid]
+#     cursor.execute(sql, values)
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+
+# def delete_candidate(candidateid: int):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     cursor.execute("DELETE FROM candidate WHERE candidateid = %s", (candidateid,))
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
+
+
+# def get_connection():
+#     try:
+#         conn = mysql.connector.connect(
+#             host='your_host',
+#             user='your_user',
+#             password='your_password',
+#             database='your_database',
+#             port=3306
+#         )
+#         return conn
+#     except Error as e:
+#         print("Database connection error:", e)
+#         raise
+
+
+
 def get_connection():
     try:
         conn = mysql.connector.connect(
@@ -970,100 +1040,61 @@ def get_connection():
         raise HTTPException(status_code=500, detail="Database connection failed")
     
 
-
-
 def get_all_candidates_paginated(page: int = 1, limit: int = 100):
-    from datetime import date, datetime
     offset = (page - 1) * limit
-
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-
-    # query = "SELECT * FROM candidate LIMIT %s OFFSET %s"
-    query = "SELECT * FROM candidate ORDER BY candidateid DESC LIMIT %s OFFSET %s"
+    query = "SELECT * FROM candidate_new ORDER BY id DESC LIMIT %s OFFSET %s"
     cursor.execute(query, (limit, offset))
     rows = cursor.fetchall()
-
-    for row in rows:
-        for key in row:
-            if isinstance(row[key], (date, datetime)):
-                row[key] = row[key].isoformat()
-
     cursor.close()
     conn.close()
     return rows
-
 
 def get_candidate_by_name(name: str):
     name = name.strip().lower()
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-
     try:
-        query = "SELECT * FROM candidate WHERE LOWER(name) LIKE %s"
-        # cursor.execute(query, (name,))
+        query = "SELECT * FROM candidate_new WHERE LOWER(full_name) LIKE %s"
         cursor.execute(query, (f"%{name}%",))
         rows = cursor.fetchall()
-
-        for row in rows:
-            for key in row:
-                if isinstance(row[key], (date, datetime)):
-                    row[key] = row[key].isoformat()
-
-        return rows 
-
+        return rows
     finally:
         cursor.close()
         conn.close()
 
-
-#Get Candidates status
 def get_candidates_by_status(status: str, page: int = 1, limit: int = 100) -> List[dict]:
     offset = (page - 1) * limit
-
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-
     query = """
-        SELECT * FROM candidate
+        SELECT * FROM candidate_new
         WHERE LOWER(status) = %s
-        ORDER BY candidateid DESC
+        ORDER BY id DESC
         LIMIT %s OFFSET %s
     """
     cursor.execute(query, (status.lower(), limit, offset))
     rows = cursor.fetchall()
-
-    # Convert date/datetime fields to ISO format
-    for row in rows:
-        for key, value in row.items():
-            if isinstance(value, (date, datetime)):
-                row[key] = value.isoformat()
-
     cursor.close()
     conn.close()
     return rows
 
-
-def get_candidate_by_id(candidateid: int):
+def get_candidate_by_id(candidate_id: int):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM candidate WHERE candidateid = %s", (candidateid,))
+    cursor.execute("SELECT * FROM candidate_new WHERE id = %s", (candidate_id,))
     row = cursor.fetchone()
-    if row:
-        for key in row:
-            if isinstance(row[key], (date, datetime)):
-                row[key] = row[key].isoformat()
     cursor.close()
     conn.close()
     return row
-
 
 def create_candidate(candidate_data: dict):
     conn = get_connection()
     cursor = conn.cursor()
     placeholders = ", ".join(["%s"] * len(candidate_data))
     columns = ", ".join(candidate_data.keys())
-    sql = f"INSERT INTO candidate ({columns}) VALUES ({placeholders})"
+    sql = f"INSERT INTO candidate_new ({columns}) VALUES ({placeholders})"
     cursor.execute(sql, list(candidate_data.values()))
     conn.commit()
     new_id = cursor.lastrowid
@@ -1071,21 +1102,21 @@ def create_candidate(candidate_data: dict):
     conn.close()
     return new_id
 
-def update_candidate(candidateid: int, candidate_data: dict):
+def update_candidate(candidate_id: int, candidate_data: dict):
     conn = get_connection()
     cursor = conn.cursor()
     set_clause = ", ".join([f"{key}=%s" for key in candidate_data.keys()])
-    sql = f"UPDATE candidate SET {set_clause} WHERE candidateid=%s"
-    values = list(candidate_data.values()) + [candidateid]
+    sql = f"UPDATE candidate_new SET {set_clause} WHERE id=%s"
+    values = list(candidate_data.values()) + [candidate_id]
     cursor.execute(sql, values)
     conn.commit()
     cursor.close()
     conn.close()
 
-def delete_candidate(candidateid: int):
+def delete_candidate(candidate_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM candidate WHERE candidateid = %s", (candidateid,))
+    cursor.execute("DELETE FROM candidate_new WHERE id = %s", (candidate_id,))
     conn.commit()
     cursor.close()
     conn.close()
