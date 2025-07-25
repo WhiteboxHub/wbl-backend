@@ -581,8 +581,7 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     if not all([from_email, password, smtp_server, smtp_port]):
         raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
 
-    
-    admin_emails = list( [to_recruiting_email, to_admin_email])
+    admin_emails = [email for email in [to_recruiting_email, to_admin_email]if email]
 
     if not admin_emails:
         raise HTTPException(status_code=500, detail="No admin email addresses configured.")
