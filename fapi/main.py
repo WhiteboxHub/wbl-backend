@@ -6,7 +6,10 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,
+ 
+
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_status,update_status,unsubscribe_lead_user,insert_lead_new
+ 
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -17,17 +20,18 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Bod
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import Session
 from jose import JWTError
 from typing import List, Optional
 import os
+import asyncio
 from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead,UnsubscribeRequest
 from fapi.models import LeadBase, LeadCreate, Lead
 
 from fapi.db import get_connection
@@ -109,20 +113,6 @@ async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(secu
     role = determine_user_role(userinfo)
 
     return {"role": role}
-
-# def determine_user_role(userinfo):
-#     username = userinfo.get("username") or userinfo.get("email") or ""
-#     team = userinfo.get("team") or ""
-
-#     if (
-#         team == "admin"
-#         or username.endswith("@whitebox-learning.com")
-#         or username.endswith("@innova-path")
-#         or username == "admin"
-#     ):
-#         return "admin"
-
-#     return "candidate"
 
 def determine_user_role(userinfo):
     email = userinfo.get("uname") or userinfo.get("email") or ""
@@ -295,6 +285,24 @@ async def delete_placement_endpoint(placement_id: int):
 # ------------------------------------------------------- Leads -------------------------------------------------
 
 
+
+#________________________leadsunsubscribe_________________________
+
+@app.put("/api/leads/unsubscribe")
+def unsubscribe(request: UnsubscribeRequest):
+    status, message = unsubscribe_lead_user(request.email)
+    if status:
+        return {"message": message}
+    else:
+        raise HTTPException(status_code=404, detail=message)
+
+#______________________________________________________
+    
+
+
+
+
+
 # GET all leads
 @app.get("/api/leads", response_model=List[Lead])
 async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
@@ -348,6 +356,18 @@ def update_lead(leadid: int, lead: LeadCreate):
         return {**update_data, "leadid": leadid}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
 
 
 @app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
@@ -442,18 +462,37 @@ async def create_vendor_request_demo(vendor: VendorCreate):
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
+    # await asyncio.sleep(1)
     existing_user = await get_google_user_by_email(user.email)
     if existing_user:
         return {"exists": True, "status": existing_user['status']}
     return {"exists": False}
 
 
+# @app.post("/api/google_users/")
+# @limiter.limit("15/minute")
+# async def register_google_user(request:Request,user: GoogleUserCreate):
+#     print("Incoming user payload:", user)
+#     existing_user = await get_google_user_by_email(user.email)
+    
+#     if existing_user:
+#         if existing_user['status'] == 'active':
+#             return {"message": "User already registered and active, please log in."}
+#         else:
+#             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
+
+#     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
+#     return {"message": "Google user registered successfully!"}
+
 @app.post("/api/google_users/")
 @limiter.limit("15/minute")
-async def register_google_user(request:Request,user: GoogleUserCreate):
+
+async def register_google_user(request: Request, user: GoogleUserCreate):
     print("Incoming user payload:", user)
+
+
     existing_user = await get_google_user_by_email(user.email)
-    
+
     if existing_user:
         if existing_user['status'] == 'active':
             return {"message": "User already registered and active, please log in."}
@@ -463,33 +502,11 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
     return {"message": "Google user registered successfully!"}
 
-# @app.post("/api/google_login/")
-# @limiter.limit("15/minute")
-# async def login_google_user(request:Request,user: GoogleUserCreate):
-#     existing_user = await get_google_user_by_email(user.email)
-#     if existing_user is None:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-#     if existing_user['status'] == 'inactive':
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
-
-#     # Generate token upon successful login
-#     token_data = {
-#         "sub": existing_user['uname'],
-#         "name": existing_user['fullname'],
-#         "google_id": existing_user['googleId'],
-#     }   
-    
-#     access_token = create_google_access_token(data=token_data)
-    
-#     return {
-#         "access_token": access_token,
-#         "token_type": "bearer"
-#     }
-
 
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
 async def login_google_user(request: Request, user: GoogleUserCreate):
+    await asyncio.sleep(2)
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user is None:
@@ -550,7 +567,11 @@ async def authenticate_user(uname: str, passwd: str):
 # Send email function
 
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
-    from_email = os.getenv('EMAIL_USER')
+
+    from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
+    to_admin_email = os.getenv('TO_Admin_EMAIL') 
+
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
@@ -635,67 +656,6 @@ def clean_input_fields(user_data: UserRegistration):
     
     return user_data
 
-# @app.post("/api/signup")
-# @limiter.limit("15/minute")
-# async def register_user(request:Request,user: UserRegistration):
-#     # Check if user exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="Username already registered")
-
-#     # Clean inputs (only change needed)
-#     user = clean_input_fields(user)
-
-#     # Rest of your existing code remains exactly the same...
-#     hashed_password = md5_hash(user.passwd)
-#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     # print(" Full name constructed:", fullname)  # <---- Add this line
-
-#     await insert_user(
-#     uname=user.uname,
-#     passwd=hashed_password,
-#     dailypwd=user.dailypwd,
-#     team=user.team,
-#     level=user.level,
-#     instructor=user.instructor,
-#     override=user.override,
-#     lastlogin=user.lastlogin,
-#     logincount=user.logincount,
-#     # fullname=user.fullname,
-#     fullname=fullname,
-#     phone=user.phone,
-#     address=user.address,
-#     city=user.city,
-#     Zip=user.Zip,
-#     country=user.country,
-#     message=user.message,
-#     registereddate=user.registereddate,
-#     level3date=user.level3date,
-#     visastatus=user.visastatus,
-#     experience=user.experience,
-#     education=user.education,
-#     referred_by=user.referred_by,
-#     candidate_info={  # optional dict
-#         'name': user.fullname,
-#         'enrolleddate': user.registereddate,
-#         'email': user.uname,
-#         'phone': user.phone,
-#         'address': user.address,
-#         'city': user.city,
-#         'country': user.country,
-#         'zip': user.Zip,
-#         }
-#     )
-
-
-#     # Send confirmation email to the user and notify the admin
-#     send_email_to_user(user_email=user.uname, user_name=user.fullname)
-
-#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
-
-
-# data to deploy
 
 
 @app.post("/api/signup")
@@ -717,44 +677,14 @@ async def register_user(request:Request,user: UserRegistration):
     user.fullname = fullname
 
     # print(" Full name constructed:", fullname)  # <---- Add this line
+
     # print("Final fullname:", user.fullname)
 
 
-  
-    
+    leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
+    # leads_full_name = f"{signup_data.get('firstName', '')} {signup_data.get('lastName', '')}".strip()
 
-    # await insert_user(
-    #     uname=user.uname,
-    #     passwd=hashed_password,
-    #     dailypwd=user.dailypwd,
-    #     team=user.team,
-    #     level=user.level,
-    #     instructor=user.instructor,
-    #     override=user.override,
-    #     # status=user.status,
-    #     lastlogin=user.lastlogin,
-    #     logincount=user.logincount,
-    #     fullname=user.fullname,
-    #     phone=user.phone,
-    #     address=user.address,
-    #     city=user.city,
-    #     Zip=user.Zip,
-    #     country=user.country,
-    #     message=user.message,
-    #     registereddate=user.registereddate,
-    #     level3date=user.level3date,
-    #     candidate_info={
-    #         'name': user.fullname,
-    #         'enrolleddate': user.registereddate,
-    #         'email': user.uname,
-    #         'phone': user.phone,
-    #         'address': user.address,
-    #         'city': user.city,
-    #         'country': user.country,
-    #         'zip': user.Zip,
-    #         # 'status': user.status
-    #     }
-    # )
+
     await insert_user(
     uname=user.uname,
     passwd=hashed_password,
@@ -764,9 +694,12 @@ async def register_user(request:Request,user: UserRegistration):
     instructor=user.instructor,
     override=user.override,
     lastlogin=user.lastlogin,
-    logincount=user.logincount,
-    fullname=user.fullname,
-    # fullname=fullname,
+
+    
+
+    logincount=user.logincount,   
+    fullname=fullname,
+
     phone=user.phone,
     address=user.address,
     city=user.city,
@@ -774,9 +707,11 @@ async def register_user(request:Request,user: UserRegistration):
     country=user.country,
     message=user.message,
     registereddate=user.registereddate,
-    level3date=user.level3date,
+
+    level3date=user.level3date,    
     visa_status=user.visa_status,
 
+  
     experience=user.experience,
     education=user.education,
     referby=user.referby,
@@ -792,7 +727,37 @@ async def register_user(request:Request,user: UserRegistration):
         }
     )
 
+     # New lead insert
+    # await insert_lead(
+    #     # name=fullname,
+    #     full_name =leads_full_name,
+    #     phone=user.phone,
+    #     email=user.uname,
+    #     address=user.address,
+    #     city=user.city,
+    #     state=None,
+    #     country=user.country,
+    #     visa_status=user.visa_status,
+    #     experience=user.experience,
+    #     education=user.education,
+    #     # referby=user.referred_by,
+    #     referby=user.referby,
+    #     specialization=user.specialization,
+    #     zip_code=user.Zip
+    # )
 
+    await insert_lead_new(
+    full_name=leads_full_name,
+    phone=user.phone,
+    email=user.uname,
+    address=user.address,
+    workstatus=None,  # If available, pass user.workstatus
+    status="Open",
+    secondary_email=None,  # Or user.secondaryemail if you collect it
+    secondary_phone=None,  # Or user.secondaryphone
+    closed_date=None,
+    notes=None
+    )
     # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
 
@@ -1072,3 +1037,15 @@ async def get_candidate_marketing(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
   
+
+
+
+
+
+
+
+
+
+
+
+
