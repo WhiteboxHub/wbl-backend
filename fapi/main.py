@@ -563,17 +563,6 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
-# mail_conf = ConnectionConfig(
-#     MAIL_USERNAME=os.getenv('EMAIL_USER'),
-#     MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
-#     MAIL_FROM=os.getenv('EMAIL_USER'),
-#     MAIL_PORT=int(os.getenv('SMTP_PORT')),
-#     MAIL_SERVER=os.getenv('SMTP_SERVER'),  
-#     MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
-#     MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
-   
-#     USE_CREDENTIALS=True
-# )
 
 # Send email function
 
@@ -589,18 +578,10 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')
     to_admin_email = os.getenv('TO_ADMIN_EMAIL')
 
-    # Debug: print all values
-    # print("EMAIL_USER:", from_email)
-    # print("EMAIL_PASS:", "<hidden>" if password else None)
-    # print("SMTP_SERVER:", smtp_server)
-    # print("SMTP_PORT:", smtp_port)
-    # print("TO_RECRUITING_EMAIL:", to_recruiting_email)
-    # print("TO_ADMIN_EMAIL:", to_admin_email)
-
     if not all([from_email, password, smtp_server, smtp_port]):
         raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
 
-    # Filter out None values from admin email list
+    
     admin_emails = list( [to_recruiting_email, to_admin_email])
 
     if not admin_emails:
@@ -611,7 +592,7 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     <html>
         <body>
             <p>Dear {user_name},</p>
-            <p>Thank you for registering with us. Our team will contact you shortly.</p>
+            <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
             <p>Best regards,<br>Recruitment Team</p>
         </body>
     </html>
@@ -691,10 +672,18 @@ async def register_user(request:Request,user: UserRegistration):
     # Rest of your existing code remains exactly the same...
     hashed_password = md5_hash(user.passwd)
     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+    # fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+    user.fullname = fullname
+
     # print(" Full name constructed:", fullname)  # <---- Add this line
+
+    # print("Final fullname:", user.fullname)
+
+
     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
     # leads_full_name = f"{signup_data.get('firstName', '')} {signup_data.get('lastName', '')}".strip()
+
 
     await insert_user(
     uname=user.uname,
@@ -705,8 +694,12 @@ async def register_user(request:Request,user: UserRegistration):
     instructor=user.instructor,
     override=user.override,
     lastlogin=user.lastlogin,
+
+    
+
     logincount=user.logincount,   
     fullname=fullname,
+
     phone=user.phone,
     address=user.address,
     city=user.city,
