@@ -32,19 +32,23 @@ from fapi.models import LeadBase, LeadCreate, Lead
 
 from fapi.db import get_connection
 import fapi.db as leads_db
+from .db import get_all_candidates_paginated
+
 
 
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 
 
-from fapi.db import (
-    # get_all_candidates,
-    get_candidate_by_id,
-    create_candidate,
-    update_candidate,
-    delete_candidate,
-    get_all_candidates_paginated
-)
+# from fapi.db import (
+#     # get_all_candidates,
+#     get_candidate_by_id,
+#     create_candidate,
+#     update_candidate,
+#     delete_candidate,
+#     get_all_candidates_paginated
+# )
+
+
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -125,7 +129,98 @@ def determine_user_role(userinfo):
     return "candidate"
 # ------------------------------------------------- Candidate ------------------------------------------
 
-#GET all candidates
+# #GET all candidates
+# @app.get("/api/candidates", response_model=List[Candidate])
+# async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
+#     try:
+#         rows = get_all_candidates_paginated(page, limit)
+#         return [Candidate(**row) for row in rows]
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+#     # GET Candidate status
+# @app.get("/api/candidates/{status}", response_model=List[Candidate])
+# async def get_candidates_by_dynamic_status(
+#     status: str,
+#     page: int = 1,
+#     limit: int = 100
+# ):
+#     # Define valid statuses (you can expand this set as needed)
+#     valid_statuses = {"active", "marketing"}  
+
+#     if status.lower() not in valid_statuses:
+#         raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+#     try:
+#         rows = get_candidates_by_status(status, page, limit)
+#         return [Candidate(**row) for row in rows]
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+
+
+# # GET candidate by Name
+# @app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
+# async def get_candidates_by_name_endpoint(name: str):
+#     candidates = get_candidate_by_name(name)
+#     if not candidates:
+#         raise HTTPException(status_code=404, detail="Candidate not found")
+#     return candidates
+
+
+
+
+# # GET candidate by ID
+# @app.get("/api/candidates/{candidateid}", response_model=Candidate)
+# async def get_candidate(candidateid: int):
+#     candidate = get_candidate_by_id(candidateid)
+#     if not candidate:
+#         raise HTTPException(status_code=404, detail="Candidate not found")
+#     return Candidate(**candidate)
+
+
+    
+
+
+
+
+# # POST - Create candidate
+# @app.post("/api/candidates", response_model=Candidate)
+# async def create_candidate_endpoint(candidate: CandidateCreate):
+#     try:
+#         fields = candidate.dict(exclude_unset=True)
+#         new_id = create_candidate(fields)
+#         return Candidate(**fields, candidateid=new_id)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
+    
+
+# # PUT - Update candidate
+# @app.put("/api/candidates/{candidateid}", response_model=Candidate)
+# async def update_candidate(candidateid: int, update_data: CandidateUpdate):
+#     fields = update_data.dict(exclude_unset=True)
+#     if not fields:
+#         raise HTTPException(status_code=400, detail="No data to update")
+#     try:
+#         db_update_candidate(candidateid, fields)
+#         return Candidate(**fields, candidateid=candidateid)
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+
+# # DELETE candidate
+# @app.delete("/api/candidates/{candidateid}")
+# async def delete_candidate(candidateid: int):
+#     try:
+#         # You can enhance db.py to return rowcount if needed
+#         db_delete_candidate(candidateid)
+#         return {"detail": f"Candidate {candidateid} deleted"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
 @app.get("/api/candidates", response_model=List[Candidate])
 async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
     try:
@@ -133,84 +228,39 @@ async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
         return [Candidate(**row) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-    
-    # GET Candidate status
-@app.get("/api/candidates/{status}", response_model=List[Candidate])
-async def get_candidates_by_dynamic_status(
-    status: str,
-    page: int = 1,
-    limit: int = 100
-):
-    # Define valid statuses (you can expand this set as needed)
-    valid_statuses = {"active", "marketing"}  
 
-    if status.lower() not in valid_statuses:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-
-    try:
-        rows = get_candidates_by_status(status, page, limit)
-        return [Candidate(**row) for row in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    
-
-
-#GET candidate by Name
-@app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
-async def get_candidates_by_name_endpoint(name: str):
-    candidates = get_candidate_by_name(name)
-    if not candidates:
-        raise HTTPException(status_code=404, detail="Candidate not found")
-    return candidates
-
-
-# GET candidate by ID
-@app.get("/api/candidates/{candidateid}", response_model=Candidate)
-async def get_candidate(candidateid: int):
-    candidate = get_candidate_by_id(candidateid)
+@app.get("/api/candidates/{candidate_id}", response_model=Candidate)
+async def get_candidate(candidate_id: int):
+    candidate = get_candidate_by_id(candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return Candidate(**candidate)
 
-
-    
-
-
-
-
-# POST - Create candidate
 @app.post("/api/candidates", response_model=Candidate)
 async def create_candidate_endpoint(candidate: CandidateCreate):
     try:
         fields = candidate.dict(exclude_unset=True)
         new_id = create_candidate(fields)
-        return Candidate(**fields, candidateid=new_id)
+        return Candidate(**fields, id=new_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
-    
 
-# PUT - Update candidate
-@app.put("/api/candidates/{candidateid}", response_model=Candidate)
-async def update_candidate(candidateid: int, update_data: CandidateUpdate):
+@app.put("/api/candidates/{candidate_id}", response_model=Candidate)
+async def update_candidate_endpoint(candidate_id: int, update_data: CandidateUpdate):
     fields = update_data.dict(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="No data to update")
     try:
-        db_update_candidate(candidateid, fields)
-        return Candidate(**fields, candidateid=candidateid)
+        update_candidate(candidate_id, fields)
+        return Candidate(**fields, id=candidate_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
-
-# DELETE candidate
-@app.delete("/api/candidates/{candidateid}")
-async def delete_candidate(candidateid: int):
+@app.delete("/api/candidates/{candidate_id}")
+async def delete_candidate_endpoint(candidate_id: int):
     try:
-        # You can enhance db.py to return rowcount if needed
-        db_delete_candidate(candidateid)
-        return {"detail": f"Candidate {candidateid} deleted"}
+        delete_candidate(candidate_id)
+        return {"detail": f"Candidate {candidate_id} deleted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
