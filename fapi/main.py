@@ -6,7 +6,10 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,insert_lead_new
+ 
+
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_status,update_status,unsubscribe_lead_user,insert_lead_new
+ 
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -21,13 +24,14 @@ from dotenv import load_dotenv
 from jose import JWTError
 from typing import List, Optional
 import os
+import asyncio
 from fastapi.responses import JSONResponse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead
+from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead,UnsubscribeRequest
 from fapi.models import LeadBase, LeadCreate, Lead
 
 from fapi.db import get_connection
@@ -36,7 +40,7 @@ from .db import get_all_candidates_paginated
 
 
 
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 
 
 # from fapi.db import (
@@ -331,6 +335,24 @@ async def delete_placement_endpoint(placement_id: int):
 # ------------------------------------------------------- Leads -------------------------------------------------
 
 
+
+#________________________leadsunsubscribe_________________________
+
+@app.put("/api/leads/unsubscribe")
+def unsubscribe(request: UnsubscribeRequest):
+    status, message = unsubscribe_lead_user(request.email)
+    if status:
+        return {"message": message}
+    else:
+        raise HTTPException(status_code=404, detail=message)
+
+#______________________________________________________
+    
+
+
+
+
+
 # GET all leads
 @app.get("/api/leads", response_model=List[Lead])
 async def get_all_leads_endpoint(page: int = 1, limit: int = 100):
@@ -384,6 +406,18 @@ def update_lead(leadid: int, lead: LeadCreate):
         return {**update_data, "leadid": leadid}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
 
 
 @app.delete("/api/leads/{leadid}", status_code=http_status.HTTP_204_NO_CONTENT)
@@ -478,6 +512,7 @@ async def create_vendor_request_demo(vendor: VendorCreate):
 
 @app.post("/api/check_user/")
 async def check_user_exists(user: GoogleUserCreate):
+    # await asyncio.sleep(1)
     existing_user = await get_google_user_by_email(user.email)
     if existing_user:
         return {"exists": True, "status": existing_user['status']}
@@ -501,8 +536,11 @@ async def check_user_exists(user: GoogleUserCreate):
 
 @app.post("/api/google_users/")
 @limiter.limit("15/minute")
+
 async def register_google_user(request: Request, user: GoogleUserCreate):
     print("Incoming user payload:", user)
+
+
     existing_user = await get_google_user_by_email(user.email)
 
     if existing_user:
@@ -518,6 +556,7 @@ async def register_google_user(request: Request, user: GoogleUserCreate):
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
 async def login_google_user(request: Request, user: GoogleUserCreate):
+    await asyncio.sleep(2)
     existing_user = await get_google_user_by_email(user.email)
     
     if existing_user is None:
@@ -574,35 +613,55 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
-mail_conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv('EMAIL_USER'),
-    MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
-    MAIL_FROM=os.getenv('EMAIL_USER'),
-    MAIL_PORT=int(os.getenv('SMTP_PORT')),
-    MAIL_SERVER=os.getenv('SMTP_SERVER'),  
-    MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
-    MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
+# mail_conf = ConnectionConfig(
+#     MAIL_USERNAME=os.getenv('EMAIL_USER'),
+#     MAIL_PASSWORD=os.getenv('EMAIL_PASS'),
+#     MAIL_FROM=os.getenv('EMAIL_USER'),
+#     MAIL_PORT=int(os.getenv('SMTP_PORT')),
+#     MAIL_SERVER=os.getenv('SMTP_SERVER'),  
+#     MAIL_STARTTLS=os.getenv('SMTP_STARTTLS', 'True').lower() == 'true',
+#     MAIL_SSL_TLS=os.getenv('SMTP_SSL_TLS', 'False').lower() == 'true', 
    
-    USE_CREDENTIALS=True
-)
+#     USE_CREDENTIALS=True
+# )
 
 # Send email function
+
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
-    # print('-----------------------',user_name)
+
     from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
     to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
     to_admin_email = os.getenv('TO_Admin_EMAIL') 
+
     password = os.getenv('EMAIL_PASS')
     smtp_server = os.getenv('SMTP_SERVER')
     smtp_port = os.getenv('SMTP_PORT')
-    # print(f"user name is {user_name}")
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')
+    to_admin_email = os.getenv('TO_ADMIN_EMAIL')
+
+    # Debug: print all values
+    # print("EMAIL_USER:", from_email)
+    # print("EMAIL_PASS:", "<hidden>" if password else None)
+    # print("SMTP_SERVER:", smtp_server)
+    # print("SMTP_PORT:", smtp_port)
+    # print("TO_RECRUITING_EMAIL:", to_recruiting_email)
+    # print("TO_ADMIN_EMAIL:", to_admin_email)
+
+    if not all([from_email, password, smtp_server, smtp_port]):
+        raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
+
+    # Filter out None values from admin email list
+    admin_emails = list( [to_recruiting_email, to_admin_email])
+
+    if not admin_emails:
+        raise HTTPException(status_code=500, detail="No admin email addresses configured.")
 
     # Email content for the user
     user_html_content = f"""
     <html>
         <body>
             <p>Dear {user_name},</p>
-            <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
+            <p>Thank you for registering with us. Our team will contact you shortly.</p>
             <p>Best regards,<br>Recruitment Team</p>
         </body>
     </html>
@@ -613,19 +672,18 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     <html>
         <body>
             <p>Hello Admin,</p>
-            <p>A new user has registered on the website. Please review their details and provide access.</p>
-            <p><strong>User Details:</strong></p>
+            <p>A new user has registered. Please review their details:</p>
             <ul>
-                <li>Name: {user_name}</li>
-                <li>Email: {user_email}</li>
-                <li>Email: {user_phone}</li>
+                <li><strong>Name:</strong> {user_name}</li>
+                <li><strong>Email:</strong> {user_email}</li>
+                <li><strong>Phone:</strong> {user_phone}</li>
             </ul>
             <p>Best regards,<br>System Notification</p>
         </body>
     </html>
     """
+
     try:
-        # Establish the connection with the email server
         server = smtplib.SMTP(smtp_server, int(smtp_port))
         server.starttls()
         server.login(from_email, password)
@@ -634,49 +692,23 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
         user_msg = MIMEMultipart()
         user_msg['From'] = from_email
         user_msg['To'] = user_email
-        user_msg['Subject'] = 'Registration Successful - Recruiting Team will Reach Out'
+        user_msg['Subject'] = 'Registration Successful'
         user_msg.attach(MIMEText(user_html_content, 'html'))
         server.sendmail(from_email, user_email, user_msg.as_string())
-        
-        # List of admin emails to notify
 
-        # for admin_emails in [to_recruiting_email, to_admin_email]:
-        for admin_emails in filter(None, [to_recruiting_email, to_admin_email]):
-
-
-
-            # Send email to the admin
+        # Send email to admins
+        for admin_email in admin_emails:
             admin_msg = MIMEMultipart()
-            admin_msg['From'] = from_email  
-            admin_msg['To'] = admin_emails
+            admin_msg['From'] = from_email
+            admin_msg['To'] = admin_email
             admin_msg['Subject'] = 'New User Registration Notification'
             admin_msg.attach(MIMEText(admin_html_content, 'html'))
-            server.sendmail(from_email, admin_emails, admin_msg.as_string())
+            server.sendmail(from_email, admin_email, admin_msg.as_string())
 
-        # Send email to the admin
-        admin_msg = MIMEMultipart()
-        admin_msg['From'] = from_email
-        admin_msg['To'] = to_admin_email
-        admin_msg['Subject'] = 'New User Registration Notification'
-        admin_msg.attach(MIMEText(admin_html_content, 'html'))
-        server.sendmail(from_email, to_admin_email, admin_msg.as_string())
-
-        # Close the server
         server.quit()
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f'Error while sending emails: {e}')
-
-
-def send_html_email(server, from_email, to_email, subject, html_content):
-    msg = MIMEMultipart()
-    msg['From'] = from_email
-    msg['To'] = to_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(html_content, 'html'))
-    server.sendmail(from_email, to_email, msg.as_string())
-
-
+        raise HTTPException(status_code=500, detail=f"Error while sending emails: {e}")
 
 def clean_input_fields(user_data: UserRegistration):
     """Convert empty strings and format datetimes for MySQL"""
@@ -732,8 +764,11 @@ async def register_user(request:Request,user: UserRegistration):
     country=user.country,
     message=user.message,
     registereddate=user.registereddate,
+
     level3date=user.level3date,    
     visa_status=user.visa_status,
+
+  
     experience=user.experience,
     education=user.education,
     referby=user.referby,
@@ -961,7 +996,7 @@ async def contact(user: ContactForm):
 
     await user_contact(
         # name=f"{user.firstName} {user.lastName}",
-        name=f"{user.firstName} {user.lastName}",
+        full_name=f"{user.firstName} {user.lastName}",
         email=user.email,
         phone=user.phone,
         message=user.message        
@@ -1059,3 +1094,15 @@ async def get_candidate_marketing(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
   
+
+
+
+
+
+
+
+
+
+
+
+

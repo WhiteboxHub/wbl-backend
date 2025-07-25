@@ -58,9 +58,11 @@ def determine_user_role(userinfo: dict) -> str:
 
 class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json"]
-        if request.url.path in skip_paths:
+        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json","/api/auth/callback/google","/api/auth/error", ]
+        if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
+        # if request.url.path in skip_paths:
+        #     return await call_next(request)
 
         apiToken = request.headers.get('Authtoken')
         if not apiToken:
@@ -188,7 +190,7 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
             cache_set(username, userinfo)
         role = determine_user_role(userinfo)
         to_encode["role"] = role
-        
+
         if "domain" in userinfo:
             to_encode["domain"] = userinfo["domain"]
 
