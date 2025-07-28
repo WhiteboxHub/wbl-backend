@@ -693,12 +693,8 @@ async def register_user(request:Request,user: UserRegistration):
     instructor=user.instructor,
     override=user.override,
     lastlogin=user.lastlogin,
-
-    
-
     logincount=user.logincount,   
     fullname=fullname,
-
     phone=user.phone,
     address=user.address,
     city=user.city,
@@ -706,11 +702,8 @@ async def register_user(request:Request,user: UserRegistration):
     country=user.country,
     message=user.message,
     registereddate=user.registereddate,
-
     level3date=user.level3date,    
     visa_status=user.visa_status,
-
-  
     experience=user.experience,
     education=user.education,
     referby=user.referby,
@@ -932,46 +925,97 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/contact")
+# @app.post("/api/contact")
 
-async def contact(user: ContactForm):
+# async def contact(user: ContactForm):
 
-    await user_contact(
-        # name=f"{user.firstName} {user.lastName}",
-        full_name=f"{user.firstName} {user.lastName}",
-        email=user.email,
-        phone=user.phone,
-        message=user.message        
-        )
+#     await user_contact(
+#         # name=f"{user.firstName} {user.lastName}",
+#         full_name=f"{user.firstName} {user.lastName}",
+#         email=user.email,
+#         phone=user.phone,
+#         message=user.message        
+#         )
 
-    def sendEmail(email):
-        from_Email = os.getenv('EMAIL_USER')
-        password = os.getenv('EMAIL_PASS')
-        to_email = email
-        smtp_server = os.getenv('SMTP_SERVER')
-        smtp_port = os.getenv('SMTP_PORT')
-        html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
-        msg = MIMEMultipart()
-        msg['From'] = from_Email
-        msg['To'] = to_email
-        msg['Subject'] = 'WBL Contact lead generated'
-        msg.attach(MIMEText(html_content, 'html'))
-        try:
-            # server = smtplib.SMTP('smtp.gmail.com',587)
-            server = smtplib.SMTP(smtp_server, int(smtp_port))
-            server.starttls()
-            server.login(from_Email,password)
-            text = msg.as_string()
-            server.sendmail(from_Email,to_email,text)
-            server.quit()
-        except Exception as e:
-            print(e)
-            raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
+#     def sendEmail(email):
+#         from_Email = os.getenv('EMAIL_USER')
+#         password = os.getenv('EMAIL_PASS')
+#         to_email = email
+#         smtp_server = os.getenv('SMTP_SERVER')
+#         smtp_port = os.getenv('SMTP_PORT')
+#         html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
+#         msg = MIMEMultipart()
+#         msg['From'] = from_Email
+#         msg['To'] = to_email
+#         msg['Subject'] = 'WBL Contact lead generated'
+#         msg.attach(MIMEText(html_content, 'html'))
+#         try:
+#             
+#             server = smtplib.SMTP(smtp_server, int(smtp_port))
+#             server.starttls()
+#             server.login(from_Email,password)
+#             text = msg.as_string()
+#             server.sendmail(from_Email,to_email,text)
+#             server.quit()
+#         except Exception as e:
+#             print(e)
+#             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
     
 
    
-    sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
-    sendEmail(os.getenv('TO_ADMIN_EMAIL'))
+#     sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
+#     sendEmail(os.getenv('TO_ADMIN_EMAIL'))
+
+#     return {"detail": "Message Sent Successfully"}
+
+async def sendEmail(to_email, html_content):
+    from_Email = os.getenv('EMAIL_USER')
+    password = os.getenv('EMAIL_PASS')
+    smtp_server = os.getenv('SMTP_SERVER')
+    smtp_port = os.getenv('SMTP_PORT')
+
+    if not all([from_Email, password, smtp_server, smtp_port]):
+        raise HTTPException(status_code=500, detail="Missing email environment configuration.")
+
+    msg = MIMEMultipart()
+    msg['From'] = from_Email
+    msg['To'] = to_email
+    msg['Subject'] = 'WBL Contact lead generated'
+    msg.attach(MIMEText(html_content, 'html'))
+
+    try:
+        server = smtplib.SMTP(smtp_server, int(smtp_port))
+        server.starttls()
+        server.login(from_Email, password)
+        server.sendmail(from_Email, to_email, msg.as_string())
+        server.quit()
+    except Exception as e:
+        print("Email send failed:", e)
+        raise HTTPException(status_code=500, detail='Error while sending email to the team')
+
+@app.post("/api/contact")
+async def contact(user: ContactForm):
+    print("Incoming contact data:", user.dict())
+
+  
+    await user_contact(
+        full_name=f"{user.firstName} {user.lastName}",
+        email=user.email,
+        phone=user.phone,
+        message=user.message
+    )
+
+  
+    html_content = ContactMail_HTML_templete(
+        f"{user.firstName} {user.lastName}",
+        user.email,
+        user.phone,
+        user.message
+    )
+
+   
+    await sendEmail(os.getenv('TO_RECRUITING_EMAIL'), html_content)
+    await sendEmail(os.getenv('TO_ADMIN_EMAIL'), html_content)
 
     return {"detail": "Message Sent Successfully"}
             
