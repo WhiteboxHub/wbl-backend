@@ -9,10 +9,10 @@ from  fapi.db import (
     get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_connection
 
 )
-from .utils.leads_utils import fetch_all_leads_paginated, create_lead, update_lead, delete_lead
+from .utils.lead_utils import fetch_all_leads_paginated, create_lead, update_lead, delete_lead
 
 from typing import Dict, Any
-from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
+from  fapi.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
@@ -297,6 +297,18 @@ async def get_all_leads(
     return fetch_all_leads_paginated(page, limit)
 
 
+# class PaginatedLeadResponse(BaseModel):
+#     page: int
+#     limit: int
+#     total: int
+#     data: List[Lead]
+
+# @app.get("/api/leads_new", response_model=Dict[str, Any], summary="Get all leads (paginated)")
+# async def get_all_leads(
+#     page: int = Query(1, ge=1),
+#     limit: int = Query(100, ge=1, le=1000)
+# ) -> Dict[str, Any]:
+#     return fetch_all_leads_paginated(page, limit)
 
 @app.post("/api/leads_new", summary="Create new lead", response_model=Lead)
 async def create_new_lead(lead: LeadCreate):

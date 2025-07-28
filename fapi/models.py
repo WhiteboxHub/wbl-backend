@@ -201,6 +201,7 @@ class RecentInterview(BaseModel):
 
 
 # Base class shared by all lead operations
+
 class LeadBase(BaseModel):
     id: Optional[int] = None
     full_name: Optional[str] = None
