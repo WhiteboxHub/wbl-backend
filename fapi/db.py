@@ -11,6 +11,9 @@ from dotenv import load_dotenv
 
 from datetime import date,datetime, time, timedelta  
 from typing import List
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
  
 # **********************************************NEW INNOVAPATH**********************************
 from typing import Dict, List
@@ -23,6 +26,13 @@ db_config = {
     'port': os.getenv('DB_PORT')
 }
 
+DATABASE_URL = (
+    f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
+    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+)
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()

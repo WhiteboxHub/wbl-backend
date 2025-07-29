@@ -1,6 +1,6 @@
 
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,CandidateMarketing,Lead,LeadCreate,Candidate, CandidateCreate, CandidateUpdate,BaseModel
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,CandidateMarketing,Candidate, CandidateCreate, CandidateUpdate,LeadCreate,Lead
 from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
@@ -9,8 +9,9 @@ from  fapi.db import (
     get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_connection
 
 )
-from .utils.lead_utils import fetch_all_leads_paginated, create_lead, update_lead, delete_lead
-
+from fapi.schemas import LeadORM
+from .utils.lead_utils import fetch_all_leads_paginated, get_lead_by_id,create_lead,update_lead,delete_lead
+# , create_lead, update_lead, delete_lead
 from typing import Dict, Any
 from  fapi.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
@@ -46,7 +47,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fapi.models import VendorResponse
 from fapi.db import db_config
-
+from typing import Dict, Any
+from fastapi import FastAPI, Query, Path
 # from fapi.db import fetch_all_
 
 load_dotenv()
@@ -296,6 +298,32 @@ async def get_all_leads(
 ) -> Dict[str, Any]:
     return fetch_all_leads_paginated(page, limit)
 
+@app.get("/api/leads_new/{lead_id}")
+def read_lead(lead_id: int = Path(...)) -> Dict[str, Any]:
+    return get_lead_by_id(lead_id)
+
+# @app.post("/api/leads_new")
+# def create_new_lead(lead: LeadCreate) -> Dict[str, Any]:
+#     return create_lead(lead)
+
+
+
+# @app.post("/api/leads_new", response_model=None)
+# def create_new_lead(lead: LeadCreate):
+#     return create_lead(lead)
+
+
+@app.post("/api/leads_new", response_model=Lead)
+def create_new_lead(lead: LeadCreate):
+    return create_lead(lead)
+
+@app.put("/api/leads_new/{lead_id}")
+def update_existing_lead(lead_id: int, lead: LeadCreate) -> Dict[str, Any]:
+    return update_lead(lead_id, lead)
+
+@app.delete("/api/leads_new/{lead_id}")
+def delete_existing_lead(lead_id: int) -> Dict[str, str]:
+    return delete_lead(lead_id)
 
 # class PaginatedLeadResponse(BaseModel):
 #     page: int
@@ -310,20 +338,20 @@ async def get_all_leads(
 # ) -> Dict[str, Any]:
 #     return fetch_all_leads_paginated(page, limit)
 
-@app.post("/api/leads_new", summary="Create new lead", response_model=Lead)
-async def create_new_lead(lead: LeadCreate):
-    return create_lead(lead.dict())
+# @app.post("/api/leads_new", summary="Create new lead", response_model=Lead)
+# async def create_new_lead(lead: LeadCreate):
+#     return create_lead(lead.dict())
 
-@app.put("/api/leads_new/{lead_id}", summary="Update lead by ID", response_model=Lead)
-async def update_lead_by_id(
-    lead_id: int = Path(..., ge=1),
-    lead_data: LeadCreate = Body(...)
-):
-    return update_lead(lead_id, lead_data.dict())
+# @app.put("/api/leads_new/{lead_id}", summary="Update lead by ID", response_model=Lead)
+# async def update_lead_by_id(
+#     lead_id: int = Path(..., ge=1),
+#     lead_data: LeadCreate = Body(...)
+# ):
+#     return update_lead(lead_id, lead_data.dict())
 
-@app.delete("/api/leads_new/{lead_id}", summary="Delete lead by ID")
-async def delete_lead_by_id(lead_id: int = Path(..., ge=1)):
-    return delete_lead(lead_id)
+# @app.delete("/api/leads_new/{lead_id}", summary="Delete lead by ID")
+# async def delete_lead_by_id(lead_id: int = Path(..., ge=1)):
+#     return delete_lead(lead_id)
 
 
 # Temporary route to insert test data
