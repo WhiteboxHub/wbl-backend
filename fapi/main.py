@@ -1,7 +1,7 @@
-# wbl-backend/fapi/main.py
+# wbl-backend/fapi/main.pycontactMailTemplet
 from fapi.models import EmailRequest,CandidateMarketing, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
-      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+      fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, 
 
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
@@ -12,7 +12,7 @@ from  fapi.db import (
  
   
 )
-from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
+# from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
 from  fapi.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.mail_service import send_reset_password_email ,send_request_demo_emails
@@ -33,13 +33,11 @@ from datetime import date,datetime, timedelta
 import jwt
 from fapi.models import Candidate, CandidateCreate, CandidateUpdate,LeadBase, LeadCreate, Lead,UnsubscribeRequest
 from fapi.models import LeadBase, LeadCreate, Lead
-
 from fapi.db import get_connection
 import fapi.db as leads_db
-
-
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-
+from fapi.utils.auth_utils import md5_hash, verify_md5_hash, hash_password, verify_reset_token
+from fapi.mail_service import mail_conf 
+from fapi.utils.emails_utils import send_email_to_user , send_contact_emails
 
 from fapi.db import (
     # get_all_candidates,
@@ -563,83 +561,6 @@ async def authenticate_user(uname: str, passwd: str):
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
-
-# Send email function
-
-def send_email_to_user(user_email: str, user_name: str, user_phone: str):
-
-    from_email = os.getenv('EMAIL_USER')  # The "from" email (distributor)
-    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')  # Admin email from environment variable
-    to_admin_email = os.getenv('TO_Admin_EMAIL') 
-
-    password = os.getenv('EMAIL_PASS')
-    smtp_server = os.getenv('SMTP_SERVER')
-    smtp_port = os.getenv('SMTP_PORT')
-    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')
-    to_admin_email = os.getenv('TO_ADMIN_EMAIL')
-
-    if not all([from_email, password, smtp_server, smtp_port]):
-        raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
-
-    admin_emails = [email for email in [to_recruiting_email, to_admin_email]if email]
-
-    if not admin_emails:
-        raise HTTPException(status_code=500, detail="No admin email addresses configured.")
-
-    # Email content for the user
-    user_html_content = f"""
-    <html>
-        <body>
-            <p>Dear {user_name},</p>
-            <p>Thank you for registering with us. We are pleased to inform you that our recruiting team will reach out to you shortly.</p>
-            <p>Best regards,<br>Recruitment Team</p>
-        </body>
-    </html>
-    """
-
-    # Email content for the admin
-    admin_html_content = f"""
-    <html>
-        <body>
-            <p>Hello Admin,</p>
-            <p>A new user has registered. Please review their details:</p>
-            <ul>
-                <li><strong>Name:</strong> {user_name}</li>
-                <li><strong>Email:</strong> {user_email}</li>
-                <li><strong>Phone:</strong> {user_phone}</li>
-            </ul>
-            <p>Best regards,<br>System Notification</p>
-        </body>
-    </html>
-    """
-
-    try:
-        server = smtplib.SMTP(smtp_server, int(smtp_port))
-        server.starttls()
-        server.login(from_email, password)
-
-        # Send email to the user
-        user_msg = MIMEMultipart()
-        user_msg['From'] = from_email
-        user_msg['To'] = user_email
-        user_msg['Subject'] = 'Registration Successful'
-        user_msg.attach(MIMEText(user_html_content, 'html'))
-        server.sendmail(from_email, user_email, user_msg.as_string())
-
-        # Send email to admins
-        for admin_email in admin_emails:
-            admin_msg = MIMEMultipart()
-            admin_msg['From'] = from_email
-            admin_msg['To'] = admin_email
-            admin_msg['Subject'] = 'New User Registration Notification'
-            admin_msg.attach(MIMEText(admin_html_content, 'html'))
-            server.sendmail(from_email, admin_email, admin_msg.as_string())
-
-        server.quit()
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error while sending emails: {e}")
-
 def clean_input_fields(user_data: UserRegistration):
     """Convert empty strings and format datetimes for MySQL"""
     # Convert empty strings to None for all fields
@@ -668,21 +589,11 @@ async def register_user(request:Request,user: UserRegistration):
     # Clean inputs (only change needed)
     user = clean_input_fields(user)
 
-    # Rest of your existing code remains exactly the same...
     hashed_password = md5_hash(user.passwd)
-    # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-    # fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     user.fullname = fullname
-
-    # print(" Full name constructed:", fullname)  # <---- Add this line
-
-    # print("Final fullname:", user.fullname)
-
-
     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
     # leads_full_name = f"{signup_data.get('firstName', '')} {signup_data.get('lastName', '')}".strip()
-
 
     await insert_user(
     uname=user.uname,
@@ -925,100 +836,19 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# @app.post("/api/contact")
-
-# async def contact(user: ContactForm):
-
-#     await user_contact(
-#         # name=f"{user.firstName} {user.lastName}",
-#         full_name=f"{user.firstName} {user.lastName}",
-#         email=user.email,
-#         phone=user.phone,
-#         message=user.message        
-#         )
-
-#     def sendEmail(email):
-#         from_Email = os.getenv('EMAIL_USER')
-#         password = os.getenv('EMAIL_PASS')
-#         to_email = email
-#         smtp_server = os.getenv('SMTP_SERVER')
-#         smtp_port = os.getenv('SMTP_PORT')
-#         html_content = ContactMail_HTML_templete(f"{user.firstName} {user.lastName}",user.email,user.phone,user.message)
-#         msg = MIMEMultipart()
-#         msg['From'] = from_Email
-#         msg['To'] = to_email
-#         msg['Subject'] = 'WBL Contact lead generated'
-#         msg.attach(MIMEText(html_content, 'html'))
-#         try:
-#             
-#             server = smtplib.SMTP(smtp_server, int(smtp_port))
-#             server.starttls()
-#             server.login(from_Email,password)
-#             text = msg.as_string()
-#             server.sendmail(from_Email,to_email,text)
-#             server.quit()
-#         except Exception as e:
-#             print(e)
-#             raise HTTPException(status_code=500, detail='Erro while sending the mail to recruiting teams')
-    
-
-   
-#     sendEmail(os.getenv('TO_RECRUITING_EMAIL'))
-#     sendEmail(os.getenv('TO_ADMIN_EMAIL'))
-
-#     return {"detail": "Message Sent Successfully"}
-
-async def sendEmail(to_email, html_content):
-    from_Email = os.getenv('EMAIL_USER')
-    password = os.getenv('EMAIL_PASS')
-    smtp_server = os.getenv('SMTP_SERVER')
-    smtp_port = os.getenv('SMTP_PORT')
-
-    if not all([from_Email, password, smtp_server, smtp_port]):
-        raise HTTPException(status_code=500, detail="Missing email environment configuration.")
-
-    msg = MIMEMultipart()
-    msg['From'] = from_Email
-    msg['To'] = to_email
-    msg['Subject'] = 'WBL Contact lead generated'
-    msg.attach(MIMEText(html_content, 'html'))
-
-    try:
-        server = smtplib.SMTP(smtp_server, int(smtp_port))
-        server.starttls()
-        server.login(from_Email, password)
-        server.sendmail(from_Email, to_email, msg.as_string())
-        server.quit()
-    except Exception as e:
-        print("Email send failed:", e)
-        raise HTTPException(status_code=500, detail='Error while sending email to the team')
-
 @app.post("/api/contact")
+
 async def contact(user: ContactForm):
-    print("Incoming contact data:", user.dict())
+        
+        send_contact_emails(
+            first_name=user.firstName,
+            last_name=user.lastName,
+            email=user.email,
+            phone=user.phone,
+            message=user.message
+        )
+        return {"detail": "Message sent successfully"}
 
-  
-    await user_contact(
-        full_name=f"{user.firstName} {user.lastName}",
-        email=user.email,
-        phone=user.phone,
-        message=user.message
-    )
-
-  
-    html_content = ContactMail_HTML_templete(
-        f"{user.firstName} {user.lastName}",
-        user.email,
-        user.phone,
-        user.message
-    )
-
-   
-    await sendEmail(os.getenv('TO_RECRUITING_EMAIL'), html_content)
-    await sendEmail(os.getenv('TO_ADMIN_EMAIL'), html_content)
-
-    return {"detail": "Message Sent Successfully"}
-            
 @app.get("/api/coursecontent")
 def get_course_content():
     content = course_content()
