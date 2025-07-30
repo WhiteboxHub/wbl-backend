@@ -836,18 +836,30 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/contact")
 
+@app.post("/api/contact")
 async def contact(user: ContactForm):
-        
-        send_contact_emails(
-            first_name=user.firstName,
-            last_name=user.lastName,
-            email=user.email,
-            phone=user.phone,
-            message=user.message
-        )
-        return {"detail": "Message sent successfully"}
+    # Send emails
+    send_contact_emails(
+        first_name=user.firstName,
+        last_name=user.lastName,
+        email=user.email,
+        phone=user.phone,
+        message=user.message
+    )
+    
+    # Save to database
+    full_name = f"{user.firstName} {user.lastName}"
+    await user_contact(
+        full_name=full_name,
+        email=user.email,
+        phone=user.phone,
+        message=user.message
+    )
+    
+    return {"detail": "Message sent successfully"}
+       
+
 
 @app.get("/api/coursecontent")
 def get_course_content():
@@ -909,16 +921,5 @@ async def get_candidate_marketing(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
-  
-
-
-
-
-
-
-
-
-
-
 
 
