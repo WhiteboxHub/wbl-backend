@@ -8,16 +8,7 @@ import os
 from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
-
 from datetime import date,datetime, time, timedelta  
-from typing import List
- 
-# **********************************************NEW INNOVAPATH**********************************
-
-from typing import Dict, List
-
-
-
 
 
 load_dotenv()
@@ -55,9 +46,9 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
         """
         await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
 
-        # Insert into leads_new instead of old leads table
+        # Insert into lead instead of old leads table
         query2 = """
-            INSERT INTO leads_new (
+            INSERT INTO lead (
                 full_name, email
             ) VALUES (
                 %s, %s
@@ -192,7 +183,7 @@ async def insert_lead_new(
         cursor = conn.cursor()
 
         query = """
-            INSERT INTO leads_new (
+            INSERT INTO `lead` (
                 full_name, phone, email, address, workstatus,
                 status, secondary_email, secondary_phone,
                 closed_date, notes
@@ -214,7 +205,7 @@ async def insert_lead_new(
 
     except Error as e:
         conn.rollback()
-        print("Lead Insert Error (leads_new):", e)
+        print("Lead Insert Error (lead):", e)
         raise HTTPException(status_code=500, detail="Error inserting into new leads table")
 
     finally:
@@ -605,7 +596,7 @@ async def user_contact(full_name: str, email: str = None, phone: str = None,  me
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO whitebox_learning.leads (
+            INSERT INTO whitebox_learning.lead (
                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
@@ -1294,7 +1285,7 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT massemail_unsubscribe FROM leads_new WHERE email = %s", (email,))
+        cursor.execute("SELECT massemail_unsubscribe FROM lead WHERE email = %s", (email,))
         result = cursor.fetchone()
 
         if result is None:
@@ -1304,7 +1295,7 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
             return True, "Already unsubscribed"
 
 
-        cursor.execute("UPDATE leads_new SET massemail_unsubscribe = %s WHERE email = %s", (1, email))
+        cursor.execute("UPDATE lead SET massemail_unsubscribe = %s WHERE email = %s", (1, email))
 
         conn.commit()
 
