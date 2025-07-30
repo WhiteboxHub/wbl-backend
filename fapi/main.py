@@ -6,7 +6,7 @@ from  fapi.db import (
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_status,update_status,unsubscribe_lead_user
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,unsubscribe_lead_user
   
 )
 from  fapi.utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
