@@ -302,15 +302,6 @@ async def get_all_leads(
 def read_lead(lead_id: int = Path(...)) -> Dict[str, Any]:
     return get_lead_by_id(lead_id)
 
-# @app.post("/api/leads_new")
-# def create_new_lead(lead: LeadCreate) -> Dict[str, Any]:
-#     return create_lead(lead)
-
-
-
-# @app.post("/api/leads_new", response_model=None)
-# def create_new_lead(lead: LeadCreate):
-#     return create_lead(lead)
 
 
 @app.post("/api/leads_new", response_model=Lead)
@@ -324,35 +315,6 @@ def update_existing_lead(lead_id: int, lead: LeadCreate) -> Dict[str, Any]:
 @app.delete("/api/leads_new/{lead_id}")
 def delete_existing_lead(lead_id: int) -> Dict[str, str]:
     return delete_lead(lead_id)
-
-# class PaginatedLeadResponse(BaseModel):
-#     page: int
-#     limit: int
-#     total: int
-#     data: List[Lead]
-
-# @app.get("/api/leads_new", response_model=Dict[str, Any], summary="Get all leads (paginated)")
-# async def get_all_leads(
-#     page: int = Query(1, ge=1),
-#     limit: int = Query(100, ge=1, le=1000)
-# ) -> Dict[str, Any]:
-#     return fetch_all_leads_paginated(page, limit)
-
-# @app.post("/api/leads_new", summary="Create new lead", response_model=Lead)
-# async def create_new_lead(lead: LeadCreate):
-#     return create_lead(lead.dict())
-
-# @app.put("/api/leads_new/{lead_id}", summary="Update lead by ID", response_model=Lead)
-# async def update_lead_by_id(
-#     lead_id: int = Path(..., ge=1),
-#     lead_data: LeadCreate = Body(...)
-# ):
-#     return update_lead(lead_id, lead_data.dict())
-
-# @app.delete("/api/leads_new/{lead_id}", summary="Delete lead by ID")
-# async def delete_lead_by_id(lead_id: int = Path(..., ge=1)):
-#     return delete_lead(lead_id)
-
 
 # Temporary route to insert test data
 @app.get("/debug/insert-test-data")

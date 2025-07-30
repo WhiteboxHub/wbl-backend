@@ -200,41 +200,6 @@ class RecentInterview(BaseModel):
 # ------------------------------------------- Leads----------------------------------------
 
 
-# Base class shared by all lead operations
-# class LeadBase(BaseModel):
-#     id: Optional[int] = None
-#     full_name: Optional[str] = None
-#     entry_date: Optional[datetime] = None
-#     phone: Optional[str] = None
-#     email: EmailStr  # Required field
-#     workstatus: Optional[str] = None
-#     status: Optional[str] = None
-#     secondary_email: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     address: Optional[str] = None
-#     closed_date: Optional[date] = None
-#     notes: Optional[str] = None
-#     last_modified: Optional[datetime] = None
-#     massemail_unsubscribe: Optional[str] = None
-#     massemail_email_sent: Optional[str] = None
-#     moved_to_candidate: Optional[bool] = None  # Assuming TINYINT(1) represents boolean
-
-# # For creating new leads
-# class LeadCreate(LeadBase):
-#     email: EmailStr  # Ensure email is still required
-#     id: Optional[int] = None  # Usually auto-incremented
-
-# # For reading/fetching lead data (response model)
-# class Lead(LeadBase):
-#     leadid: int = Field(..., alias="id")  # Maps DB 'id' to model field 'leadid'
-
-#     class Config:
-#         from_attributes = True
-#         populate_by_name = True
-
-
-
-
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, date
@@ -256,16 +221,15 @@ class LeadBase(BaseModel):
     massemail_email_sent: Optional[str] = None
     moved_to_candidate: Optional[bool] = None
 
-# ✅ For input
+
 class LeadCreate(LeadBase):
     pass
 
-# ✅ For output/response
 class Lead(LeadBase):
     id: int
 
     class Config:
-        from_attributes = True  # For ORM to Pydantic conversion
+        from_attributes = True  
 
 
 class CandidateBase(BaseModel):
