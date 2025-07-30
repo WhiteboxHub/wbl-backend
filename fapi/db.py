@@ -1303,7 +1303,9 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
         if result[0] == 1:
             return True, "Already unsubscribed"
 
+
         cursor.execute("UPDATE leads_new SET massemail_unsubscribe = %s WHERE email = %s", (1, email))
+
         conn.commit()
 
         return True, "Successfully unsubscribed"
