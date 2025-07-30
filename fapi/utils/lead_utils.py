@@ -98,6 +98,9 @@ def update_lead(lead_id: int, lead_data: LeadCreate) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
+
+
+
 def delete_lead(lead_id: int) -> Dict[str, str]:
     session = SessionLocal()
     try:

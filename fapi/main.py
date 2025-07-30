@@ -1,15 +1,15 @@
 
 # wbl-backend/fapi/main.py
-from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate,CandidateMarketing,Candidate, CandidateCreate, CandidateUpdate,LeadCreate,Lead
+from fapi.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,CandidateMarketing,Candidate, CandidateCreate, CandidateUpdate,LeadCreate,Lead,CandidatePlacement, CandidatePlacementCreate,CandidateMarketingCreate
 from  fapi.db import (
-      fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+      fetch_sessions_by_type, fetch_types,fetch_candidates, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_connection
+    get_placement_by_id,SessionLocal,engine,update_placement,delete_placement,get_connection
 
 )
-from fapi.schemas import LeadORM
+from fapi.schemas import LeadORM,Base
 from .utils.lead_utils import fetch_all_leads_paginated, get_lead_by_id,create_lead,update_lead,delete_lead
 # , create_lead, update_lead, delete_lead
 from typing import Dict, Any
@@ -31,8 +31,28 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
-import logging
-# from fapi.models import Lead
+from sqlalchemy.orm import Session
+
+
+from fapi.utils.candidate_utils import (
+    get_all_placements,
+    get_placement_by_id,
+    create_placement,
+    update_placement,
+    delete_placement,
+)
+
+
+from fapi.utils.candidate_utils import (
+    get_all_marketing_records,
+    get_marketing_by_id,
+    create_marketing,
+    update_marketing,
+    delete_marketing,
+)
+
+
+from fastapi import Query, Path
 
 from fapi.db import (
     # get_all_candidates,
@@ -49,13 +69,17 @@ from fapi.models import VendorResponse
 from fapi.db import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
-# from fapi.db import fetch_all_
 
 load_dotenv()
 
-
-# Initialize FastAPI app
+Base.metadata.create_all(bind=engine)
 app = FastAPI()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -66,9 +90,7 @@ router = APIRouter()
 app.add_middleware(
     CORSMiddleware,
 
-
     allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
-
 
     allow_credentials=True,
     allow_methods=["*"],
@@ -218,77 +240,51 @@ async def delete_candidate(candidateid: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
+# --------------------------------------------------------Marketing--------------------------------------
+@app.get("/api/candidate/marketing", summary="Get all candidate marketing records")
+def read_all_marketing(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
+    return get_all_marketing_records(page, limit)
+
+@app.get("/api/candidate/marketing/{record_id}", summary="Get marketing record by ID")
+def read_marketing_record(record_id: int = Path(...)):
+    return get_marketing_by_id(record_id)
+
+@app.post("/api/candidate/marketing", response_model=CandidateMarketing, summary="Create candidate marketing record")
+def create_marketing_record(record: CandidateMarketingCreate):
+    return create_marketing(record)
+
+@app.put("/api/candidate/marketing/{record_id}", response_model=CandidateMarketing, summary="Update candidate marketing record")
+def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
+    return update_marketing(record_id, record)
+
+@app.delete("/api/candidate/marketing/{record_id}", summary="Delete candidate marketing record")
+def delete_marketing_record(record_id: int):
+    return delete_marketing(record_id)
 
 # ------------------------------------------------------Placements--------------------------------------
 
-# GET all placements
-@app.get("/api/placements", response_model=List[Placement])
-async def get_placements(page: int = 1, limit: int = 100):
-    try:
-        rows = get_all_placements(page, limit)
-        return [Placement(**row) for row in rows]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/candidate/placements", summary="Get all placements (paginated)")
+def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
+    return get_all_placements(page, limit)
 
-# GET placement by ID
-@app.get("/api/placements/{placement_id}", response_model=Placement)
-async def get_placement(placement_id: int):
-    row = get_placement_by_id(placement_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Placement not found")
-    return Placement(**row)
+@app.get("/api/candidate/placements/{placement_id}", summary="Get placement by ID")
+def read_placement(placement_id: int = Path(...)):
+    return get_placement_by_id(placement_id)
 
+@app.post("/api/candidate/placements", response_model=CandidatePlacement, summary="Create a new placement")
+def create_new_placement(placement: CandidatePlacementCreate):
+    return create_placement(placement)
 
-# GET placements by candidate name
-@app.get("/api/placements/by-name/{candidate_name}", response_model=List[Placement])
-async def get_placements_by_name(candidate_name: str):
-    rows = search_placements_by_candidate_name(candidate_name)
-    if not rows:
-        raise HTTPException(status_code=404, detail="No placements found")
-    return [Placement(**row) for row in rows]
+@app.put("/api/candidate/placements/{placement_id}", response_model=CandidatePlacement, summary="Update placement")
+def update_existing_placement(placement_id: int, placement: CandidatePlacementCreate):
+    return update_placement(placement_id, placement)
 
-
-# POST - Create placement
-@app.post("/api/placements", response_model=Placement)
-async def create_placement_endpoint(data: PlacementCreate):
-    try:
-        fields = data.dict(exclude_unset=True)
-        new_id = create_placement(fields)
-        return Placement(**fields, id=new_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Insertion failed: {str(e)}")
-
-
-# PUT - Update placement
-@app.put("/api/placements/{placement_id}", response_model=Placement)
-async def update_placement_endpoint(placement_id: int, update_data: PlacementUpdate):
-    fields = update_data.dict(exclude_unset=True)
-    if not fields:
-        raise HTTPException(status_code=400, detail="No data to update")
-    try:
-        update_placement(placement_id, fields)
-        return Placement(**fields, id=placement_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
-
-
-# DELETE placement
-@app.delete("/api/placements/{placement_id}")
-async def delete_placement_endpoint(placement_id: int):
-    try:
-        delete_placement(placement_id)
-        return {"detail": f"Placement {placement_id} deleted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+@app.delete("/api/candidate/placements/{placement_id}", summary="Delete placement")
+def delete_existing_placement(placement_id: int):
+    return delete_placement(placement_id)
 
 # ------------------------------------------------------- Leads -------------------------------------------------
-
-
-
-
-
-
 
 
 @app.get("/api/leads_new", summary="Get all leads (paginated)")
@@ -298,23 +294,27 @@ async def get_all_leads(
 ) -> Dict[str, Any]:
     return fetch_all_leads_paginated(page, limit)
 
+
 @app.get("/api/leads_new/{lead_id}")
 def read_lead(lead_id: int = Path(...)) -> Dict[str, Any]:
     return get_lead_by_id(lead_id)
-
 
 
 @app.post("/api/leads_new", response_model=Lead)
 def create_new_lead(lead: LeadCreate):
     return create_lead(lead)
 
+
 @app.put("/api/leads_new/{lead_id}")
 def update_existing_lead(lead_id: int, lead: LeadCreate) -> Dict[str, Any]:
     return update_lead(lead_id, lead)
 
+
 @app.delete("/api/leads_new/{lead_id}")
 def delete_existing_lead(lead_id: int) -> Dict[str, str]:
     return delete_lead(lead_id)
+
+# -----------------------------------------------------------------------------------------------------
 
 # Temporary route to insert test data
 @app.get("/debug/insert-test-data")
@@ -872,7 +872,7 @@ async def reset_password(data: ResetPassword):
 
 # ...................................NEW INNOVAPATH......................................
 
-@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+@app.get("/api/candidate_marketing/", response_model=List[CandidateMarketing])
 async def get_candidate_marketing(
     role: Optional[str] = None,
     experience: Optional[int] = None,

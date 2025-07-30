@@ -5,15 +5,14 @@ import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
 import os
-from typing import Optional,Dict
+from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
-
-from datetime import date,datetime, time, timedelta  
-from typing import List
-
+from datetime import date,datetime,time, timedelta  
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+
  
 # **********************************************NEW INNOVAPATH**********************************
 from typing import Dict, List
@@ -33,6 +32,8 @@ DATABASE_URL = (
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
 
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
@@ -57,6 +58,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
     finally:
         cursor.close()
         conn.close()
+
 
 async def get_google_user_by_email(email: str):
     loop = asyncio.get_event_loop()

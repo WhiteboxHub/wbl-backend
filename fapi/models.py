@@ -1,88 +1,11 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from decimal import Decimal 
+from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-# from .db import Base, engine, get_db
-
-class UserCreate(BaseModel):
-    uname: str
-    passwd: str
 
 
-# class UserRegistration(BaseModel):
-#     uname: str
-#     passwd: str
-#     dailypwd: Optional[str] = None
-#     team: Optional[str] = None
-#     level: Optional[str] = None
-#     instructor: Optional[str] = None
-#     override: Optional[str] = None
-#     status: Optional[str] = None
-#     lastlogin: Optional[str] = None
-#     logincount: Optional[str] = None
-#     # firstname: Optional[str] = None
-#     # lastname: Optional[str] = None
-#     firstname: Optional[str] = Field(None, alias="firstName")
-#     lastname: Optional[str] = Field(None, alias="lastName")
-#     fullname: Optional[str] = None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     city: Optional[str] = None
-#     Zip: Optional[str] = None
-#     country: Optional[str] = None
-#     message: Optional[str] = None
-#     registereddate: Optional[str] = None
-#     level3date: Optional[str] = None
-#     last: Optional[str] = None
-#     visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
-#     experience: Optional[str] = None
-#     education: Optional[str] = None
-#     specialization: Optional[str] = None
-#     referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
-
-#     class Config:
-#         allow_population_by_field_name = True
-
-
-# class ContactForm(BaseModel):
-#     firstName: str
-#     lastName: str
-#     email: str
-#     phone: str
-#     message: str
-
-# class Token(BaseModel):
-#     access_token: str
-#     token_type: str
-
-# class EmailRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPasswordRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPassword(BaseModel):
-#     token: str
-#     new_password: str
-
-
-# # class UserCreate(BaseModel):
-# #     email: str
-# #     name: str   
-# #     google_id: str
-
-
-# # Model for Google user creation
-# class GoogleUserCreate(BaseModel):
-#     name: str
-#     email: str
-#     google_id: str
-
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import time, date, datetime
-from decimal import Decimal 
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -406,9 +329,7 @@ class CandidateMarketing(CandidateMarketingBaseModel):
 
 
 
-from pydantic import BaseModel
-from typing import Optional
-from datetime import date
+
 
 class VendorBase(BaseModel):
     id: Optional[int]
@@ -429,7 +350,54 @@ class VendorUpdate(VendorBase):
     pass
 
 class VendorResponse(VendorBase):
-    id: int  # ✅ correct usage in Pydantic
+    id: int  # correct usage in Pydantic
 
     class Config:
         from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
+
+
+
+
+
+# --------------------------------------Candidate_placement-------------------------------
+class CandidateMarketingBase(BaseModel):
+    candidate_id: int
+    primary_instructor_id: Optional[int] = None
+    sec_instructor_id: Optional[int] = None
+    marketing_manager: Optional[int] = None
+    start_date: date
+    notes: Optional[str] = None
+    status: Literal['active', 'break', 'not responding']
+
+class CandidateMarketingCreate(CandidateMarketingBase):
+    pass
+
+class CandidateMarketing(CandidateMarketingBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+
+class CandidatePlacementBase(BaseModel):
+    candidate_id: int
+    company: str
+    placement_date: date
+    type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
+    status: Literal['scheduled', 'cancelled']
+    base_salary_offered: Optional[float] = None
+    benefits: Optional[str] = None
+    fee_paid: Optional[float] = None
+    notes: Optional[str] = None
+
+class CandidatePlacementCreate(CandidatePlacementBase):
+    pass
+
+class CandidatePlacement(CandidatePlacementBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+
+    class Config:
+        from_attributes = True
