@@ -7,76 +7,6 @@ class UserCreate(BaseModel):
     uname: str
     passwd: str
 
-
-# class UserRegistration(BaseModel):
-#     uname: str
-#     passwd: str
-#     dailypwd: Optional[str] = None
-#     team: Optional[str] = None
-#     level: Optional[str] = None
-#     instructor: Optional[str] = None
-#     override: Optional[str] = None
-#     status: Optional[str] = None
-#     lastlogin: Optional[str] = None
-#     logincount: Optional[str] = None
-#     # firstname: Optional[str] = None
-#     # lastname: Optional[str] = None
-#     firstname: Optional[str] = Field(None, alias="firstName")
-#     lastname: Optional[str] = Field(None, alias="lastName")
-#     fullname: Optional[str] = None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     city: Optional[str] = None
-#     Zip: Optional[str] = None
-#     country: Optional[str] = None
-#     message: Optional[str] = None
-#     registereddate: Optional[str] = None
-#     level3date: Optional[str] = None
-#     last: Optional[str] = None
-#     visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
-#     experience: Optional[str] = None
-#     education: Optional[str] = None
-#     specialization: Optional[str] = None
-#     referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
-
-#     class Config:
-#         allow_population_by_field_name = True
-
-
-# class ContactForm(BaseModel):
-#     firstName: str
-#     lastName: str
-#     email: str
-#     phone: str
-#     message: str
-
-# class Token(BaseModel):
-#     access_token: str
-#     token_type: str
-
-# class EmailRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPasswordRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPassword(BaseModel):
-#     token: str
-#     new_password: str
-
-
-# # class UserCreate(BaseModel):
-# #     email: str
-# #     name: str   
-# #     google_id: str
-
-
-# # Model for Google user creation
-# class GoogleUserCreate(BaseModel):
-#     name: str
-#     email: str
-#     google_id: str
-
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import time, date, datetime
@@ -177,16 +107,6 @@ class RecentPlacement(BaseModel):
     placement_date: str
 
 
-# class RecentInterview(BaseModel):
-#     id: int
-#     candidate_name: str
-#     candidate_role: Optional[str]
-#     interview_time: time
-#     interview_date: date
-#     interview_mode: Optional[str]
-#     client_name: Optional[str]
-#     interview_location: Optional[str]
-#     created_at: datetime
 class RecentInterview(BaseModel):
     candidate_name: str
     candidate_role: Optional[str] = None
@@ -243,11 +163,89 @@ class Lead(LeadBase):
         orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
 
 
+# class CandidateBase(BaseModel):
+#     name: Optional[str]
+#     enrolleddate: Optional[date]
+#     email: Optional[str]
+#     course: Optional[str]
+#     phone: Optional[str]
+#     status: Optional[str]
+#     workstatus: Optional[str]
+#     education: Optional[str]
+#     workexperience: Optional[str]
+#     ssn: Optional[str]
+#     agreement: Optional[str]
+#     promissory: Optional[str]
+#     driverslicense: Optional[str]
+#     workpermit: Optional[str]
+#     wpexpirationdate: Optional[date]
+#     offerletter: Optional[str]
+#     secondaryemail: Optional[str]
+#     secondaryphone: Optional[str]
+#     address: Optional[str]
+#     city: Optional[str]
+#     state: Optional[str]
+#     country: Optional[str]
+#     zip: Optional[str]
+#     linkedin: Optional[str]
+#     dob: Optional[date]
+#     emergcontactname: Optional[str]
+#     emergcontactemail: Optional[str]
+#     emergcontactphone: Optional[str]
+#     emergcontactaddrs: Optional[str]
+#     guidelines: Optional[str]
+#     ssnvalidated: Optional[str]
+#     bgv: Optional[str]
+#     term: Optional[str]
+#     feepaid: Optional[float]
+#     feedue: Optional[float]
+#     salary0: Optional[str]
+#     salary6: Optional[str]
+#     salary12: Optional[str]
+#     guarantorname: Optional[str]
+#     guarantordesignation: Optional[str]
+#     guarantorcompany: Optional[str]
+#     contracturl: Optional[str]
+#     empagreementurl: Optional[str]
+#     offerletterurl: Optional[str]
+#     dlurl: Optional[str]
+#     workpermiturl: Optional[str]
+#     ssnurl: Optional[str]
+#     referralid: Optional[int]
+#     portalid: Optional[int]
+#     avatarid: Optional[int]
+#     notes: Optional[str]
+#     batchname: str
+#     background: Optional[str]
+#     recruiterassesment: Optional[str]
+#     processflag: Optional[str] = "N"
+#     defaultprocessflag: Optional[str] = "N"
+#     originalresume: Optional[str]
+#     statuschangedate: Optional[date]
+#     diceflag: Optional[str]
+#     batchid: int
+#     emaillist: Optional[str] = "Y"
+#     marketing_startdate: Optional[date]
+#     instructor: Optional[str]
+#     second_instructor: Optional[str]
+
+# class CandidateCreate(CandidateBase):
+#     pass
+
+# class CandidateUpdate(CandidateBase):
+#     pass
+
+# class Candidate(CandidateBase):
+#     candidateid: int
+
+#     class Config:
+#         orm_mode = True
+
+
 class CandidateBase(BaseModel):
-    name: Optional[str]
-    enrolleddate: Optional[date]
+    full_name: Optional[str]
+    enrolled_date: Optional[date]
     email: Optional[str]
-    course: Optional[str]
     phone: Optional[str]
     status: Optional[str]
     workstatus: Optional[str]
@@ -255,59 +253,18 @@ class CandidateBase(BaseModel):
     workexperience: Optional[str]
     ssn: Optional[str]
     agreement: Optional[str]
-    promissory: Optional[str]
-    driverslicense: Optional[str]
-    workpermit: Optional[str]
-    wpexpirationdate: Optional[date]
-    offerletter: Optional[str]
     secondaryemail: Optional[str]
     secondaryphone: Optional[str]
     address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    country: Optional[str]
-    zip: Optional[str]
-    linkedin: Optional[str]
+    linkedin_id: Optional[str]
     dob: Optional[date]
     emergcontactname: Optional[str]
     emergcontactemail: Optional[str]
     emergcontactphone: Optional[str]
     emergcontactaddrs: Optional[str]
-    guidelines: Optional[str]
-    ssnvalidated: Optional[str]
-    bgv: Optional[str]
-    term: Optional[str]
-    feepaid: Optional[float]
-    feedue: Optional[float]
-    salary0: Optional[str]
-    salary6: Optional[str]
-    salary12: Optional[str]
-    guarantorname: Optional[str]
-    guarantordesignation: Optional[str]
-    guarantorcompany: Optional[str]
-    contracturl: Optional[str]
-    empagreementurl: Optional[str]
-    offerletterurl: Optional[str]
-    dlurl: Optional[str]
-    workpermiturl: Optional[str]
-    ssnurl: Optional[str]
-    referralid: Optional[int]
-    portalid: Optional[int]
-    avatarid: Optional[int]
+    fee_paid: Optional[int]
     notes: Optional[str]
-    batchname: str
-    background: Optional[str]
-    recruiterassesment: Optional[str]
-    processflag: Optional[str] = "N"
-    defaultprocessflag: Optional[str] = "N"
-    originalresume: Optional[str]
-    statuschangedate: Optional[date]
-    diceflag: Optional[str]
     batchid: int
-    emaillist: Optional[str] = "Y"
-    marketing_startdate: Optional[date]
-    instructor: Optional[str]
-    second_instructor: Optional[str]
 
 class CandidateCreate(CandidateBase):
     pass
@@ -316,7 +273,7 @@ class CandidateUpdate(CandidateBase):
     pass
 
 class Candidate(CandidateBase):
-    candidateid: int
+    id: int
 
     class Config:
         orm_mode = True
