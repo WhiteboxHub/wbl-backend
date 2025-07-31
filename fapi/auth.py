@@ -12,6 +12,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional  
 from datetime import timedelta  
 import asyncio
+from fapi.utils.auth_utils import md5_hash, verify_md5_hash, hash_password, verify_reset_token
 
 # Load environment variables from .env file
 load_dotenv()

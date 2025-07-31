@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import time, date, datetime
 from decimal import Decimal 
+from fapi.utils.auth_utils import md5_hash, verify_md5_hash, hash_password, verify_reset_token
 
 class UserCreate(BaseModel):
     uname: str
