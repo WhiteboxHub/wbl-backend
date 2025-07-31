@@ -164,11 +164,89 @@ class Lead(LeadBase):
         orm_mode = True  # not strictly needed for raw dict cursor, but helpful for future ORM
 
 
+# class CandidateBase(BaseModel):
+#     name: Optional[str]
+#     enrolleddate: Optional[date]
+#     email: Optional[str]
+#     course: Optional[str]
+#     phone: Optional[str]
+#     status: Optional[str]
+#     workstatus: Optional[str]
+#     education: Optional[str]
+#     workexperience: Optional[str]
+#     ssn: Optional[str]
+#     agreement: Optional[str]
+#     promissory: Optional[str]
+#     driverslicense: Optional[str]
+#     workpermit: Optional[str]
+#     wpexpirationdate: Optional[date]
+#     offerletter: Optional[str]
+#     secondaryemail: Optional[str]
+#     secondaryphone: Optional[str]
+#     address: Optional[str]
+#     city: Optional[str]
+#     state: Optional[str]
+#     country: Optional[str]
+#     zip: Optional[str]
+#     linkedin: Optional[str]
+#     dob: Optional[date]
+#     emergcontactname: Optional[str]
+#     emergcontactemail: Optional[str]
+#     emergcontactphone: Optional[str]
+#     emergcontactaddrs: Optional[str]
+#     guidelines: Optional[str]
+#     ssnvalidated: Optional[str]
+#     bgv: Optional[str]
+#     term: Optional[str]
+#     feepaid: Optional[float]
+#     feedue: Optional[float]
+#     salary0: Optional[str]
+#     salary6: Optional[str]
+#     salary12: Optional[str]
+#     guarantorname: Optional[str]
+#     guarantordesignation: Optional[str]
+#     guarantorcompany: Optional[str]
+#     contracturl: Optional[str]
+#     empagreementurl: Optional[str]
+#     offerletterurl: Optional[str]
+#     dlurl: Optional[str]
+#     workpermiturl: Optional[str]
+#     ssnurl: Optional[str]
+#     referralid: Optional[int]
+#     portalid: Optional[int]
+#     avatarid: Optional[int]
+#     notes: Optional[str]
+#     batchname: str
+#     background: Optional[str]
+#     recruiterassesment: Optional[str]
+#     processflag: Optional[str] = "N"
+#     defaultprocessflag: Optional[str] = "N"
+#     originalresume: Optional[str]
+#     statuschangedate: Optional[date]
+#     diceflag: Optional[str]
+#     batchid: int
+#     emaillist: Optional[str] = "Y"
+#     marketing_startdate: Optional[date]
+#     instructor: Optional[str]
+#     second_instructor: Optional[str]
+
+# class CandidateCreate(CandidateBase):
+#     pass
+
+# class CandidateUpdate(CandidateBase):
+#     pass
+
+# class Candidate(CandidateBase):
+#     candidateid: int
+
+#     class Config:
+#         orm_mode = True
+
+
 class CandidateBase(BaseModel):
-    name: Optional[str]
-    enrolleddate: Optional[date]
+    full_name: Optional[str]
+    enrolled_date: Optional[date]
     email: Optional[str]
-    course: Optional[str]
     phone: Optional[str]
     status: Optional[str]
     workstatus: Optional[str]
@@ -176,59 +254,18 @@ class CandidateBase(BaseModel):
     workexperience: Optional[str]
     ssn: Optional[str]
     agreement: Optional[str]
-    promissory: Optional[str]
-    driverslicense: Optional[str]
-    workpermit: Optional[str]
-    wpexpirationdate: Optional[date]
-    offerletter: Optional[str]
     secondaryemail: Optional[str]
     secondaryphone: Optional[str]
     address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    country: Optional[str]
-    zip: Optional[str]
-    linkedin: Optional[str]
+    linkedin_id: Optional[str]
     dob: Optional[date]
     emergcontactname: Optional[str]
     emergcontactemail: Optional[str]
     emergcontactphone: Optional[str]
     emergcontactaddrs: Optional[str]
-    guidelines: Optional[str]
-    ssnvalidated: Optional[str]
-    bgv: Optional[str]
-    term: Optional[str]
-    feepaid: Optional[float]
-    feedue: Optional[float]
-    salary0: Optional[str]
-    salary6: Optional[str]
-    salary12: Optional[str]
-    guarantorname: Optional[str]
-    guarantordesignation: Optional[str]
-    guarantorcompany: Optional[str]
-    contracturl: Optional[str]
-    empagreementurl: Optional[str]
-    offerletterurl: Optional[str]
-    dlurl: Optional[str]
-    workpermiturl: Optional[str]
-    ssnurl: Optional[str]
-    referralid: Optional[int]
-    portalid: Optional[int]
-    avatarid: Optional[int]
+    fee_paid: Optional[int]
     notes: Optional[str]
-    batchname: str
-    background: Optional[str]
-    recruiterassesment: Optional[str]
-    processflag: Optional[str] = "N"
-    defaultprocessflag: Optional[str] = "N"
-    originalresume: Optional[str]
-    statuschangedate: Optional[date]
-    diceflag: Optional[str]
     batchid: int
-    emaillist: Optional[str] = "Y"
-    marketing_startdate: Optional[date]
-    instructor: Optional[str]
-    second_instructor: Optional[str]
 
 class CandidateCreate(CandidateBase):
     pass
@@ -237,7 +274,7 @@ class CandidateUpdate(CandidateBase):
     pass
 
 class Candidate(CandidateBase):
-    candidateid: int
+    id: int
 
     class Config:
         orm_mode = True
