@@ -1285,7 +1285,7 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT massemail_unsubscribe FROM lead WHERE email = %s", (email,))
+        cursor.execute("SELECT massemail_unsubscribe FROM `lead` WHERE email = %s", (email,))
         result = cursor.fetchone()
 
         if result is None:
@@ -1295,7 +1295,7 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
             return True, "Already unsubscribed"
 
 
-        cursor.execute("UPDATE lead SET massemail_unsubscribe = %s WHERE email = %s", (1, email))
+        cursor.execute("UPDATE `lead` SET massemail_unsubscribe = %s WHERE email = %s", (1, email))
 
         conn.commit()
 
