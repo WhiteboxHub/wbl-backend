@@ -524,14 +524,18 @@
 
 # wbl-backend/fapi/db.py
 from fapi.utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
-import mysql.connector
+#import mysql.connector
 from fastapi import HTTPException, status
-from mysql.connector import Error
+#from mysql.connector import Error
 import os
 from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
-
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import declarative_base
+from fapi.models import EmployeeORM
 from datetime import date,datetime, time, timedelta  
 from typing import List
  
@@ -548,14 +552,13 @@ from typing import Dict, List
 
 load_dotenv()
 
-db_config = {
-    'host': os.getenv('DB_HOST'),
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'database': os.getenv('DB_NAME'),
-    'port': os.getenv('DB_PORT')
-}
+DATABASE_URL = (
+    f"mysql+mysqlconnector://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
+    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+)
 
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 async def insert_google_user_db(email: str, name: str, google_id: str):
     loop = asyncio.get_event_loop()
@@ -996,7 +999,7 @@ async def fetch_types(team: str):
         if team in ["admin", "instructor"]:
             query = "SELECT DISTINCT type FROM session ORDER BY type ASC;"
         else:
-            allowed_types = ("Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc")
+            allowed_types = ("Resume Session", "Job Help", "Interview Prep", "FollowUp Sessions", "Group Mock", "Misc")
             query = "SELECT DISTINCT type FROM session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
 
         await loop.run_in_executor(None, cursor.execute, query, allowed_types if team not in ["admin", "instructor"] else ())
@@ -1029,7 +1032,7 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
         """
 
         if team not in ["admin", "instructor"]:
-            allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
+            allowed_types = ["Resume Session", "Job Help", "Interview Prep", "FollowUp Sessions", "Group Mock", "Misc"]
             if session_type not in allowed_types:
                 return []  # Return empty list if type not allowed for normal users
 
@@ -1657,3 +1660,32 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
     finally:
         cursor.close()
         conn.close()
+#-----------------------employee------------------------
+def get_all_employees() -> list[dict]:
+    with SessionLocal() as session:
+        employees = session.query(EmployeeORM).order_by(EmployeeORM.id.desc()).all()
+        return [emp.__dict__ for emp in employees]
+
+
+def update_employee_db(employee_id: int, fields: dict) -> None:
+    with SessionLocal() as session:
+        employee = session.query(EmployeeORM).filter(EmployeeORM.id == employee_id).first()
+        if not employee:
+            raise ValueError("Employee not found")
+
+        for key, value in fields.items():
+            if hasattr(employee, key):
+                setattr(employee, key, value)
+
+        session.commit()
+
+
+def delete_employee_db(employee_id: int) -> None:
+    with SessionLocal() as session:
+        employee = session.query(EmployeeORM).filter(EmployeeORM.id == employee_id).first()
+        if not employee:
+            raise ValueError("Employee not found")
+
+        session.delete(employee)
+        session.commit()
+

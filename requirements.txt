@@ -11,3 +11,6 @@ fastapi-mail
 PyJWT
 pydantic[email]
 slowapi
+SQLAlchemy>=2.0
+asyncmy
+alembic

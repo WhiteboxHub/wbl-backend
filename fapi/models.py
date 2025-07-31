@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import time, date, datetime
+from sqlalchemy import Column, Integer, String, Date, DateTime, Text
+from sqlalchemy.orm import declarative_base
 # from .db import Base, engine, get_db
 
 class UserCreate(BaseModel):
@@ -384,6 +386,54 @@ class RecentInterview(BaseModel):
     client_name: Optional[str]
     interview_location: Optional[str]
     created_at: datetime
+
+
+#------------------------------------------------Employee----------------------------------------------
+
+Base = declarative_base()
+
+class EmployeeORM(Base):
+    __tablename__ = "employee"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    phone = Column(String(50))
+    address = Column(String(255))
+    dob = Column(Date)
+    startdate = Column(Date)
+    role = Column(String(100))
+    enddate = Column(DateTime)
+    notes = Column(Text)
+
+class Employee(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone: Optional[str]
+    address: Optional[str]
+    dob: Optional[date]
+    startdate: Optional[date]
+    role: Optional[str]
+    enddate: Optional[datetime]
+    notes: Optional[str] = None
+
+
+    class Config:
+        from_attributes = True 
+
+class EmployeeUpdate(BaseModel):
+    id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[str] = None
+    startdate: Optional[str] = None
+    role: Optional[str] = None
+    enddate: Optional[str] = None
+    notes: Optional[str] = None
 
 
 # .......................................NEW INNOVAPATH..............................
