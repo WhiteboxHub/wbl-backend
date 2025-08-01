@@ -524,9 +524,15 @@ async def authenticate_user(uname: str, passwd: str):
         return "inactive"  # User status is not active
 
     # Fetch candidateid from the candidate table
+    # candidate_info = await fetch_candidate_id_by_email(uname)
+    # candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
+    # return {**user, "candidateid": candidateid}
+
     candidate_info = await fetch_candidate_id_by_email(uname)
-    candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
-    return {**user, "candidateid": candidateid}
+    candidateid = candidate_info["id"] if candidate_info else None
+
+    return {**user, "id": candidateid}
+
 
 # mail_conf = ConnectionConfig(
 #     MAIL_USERNAME=os.getenv('EMAIL_USER'),
