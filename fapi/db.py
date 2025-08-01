@@ -54,7 +54,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
                 NULL, NULL, NULL, NULL, NULL
             );
         """
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_dummy"))
+        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_register"))
 
         # Insert into lead instead of old leads table
         query2 = """
