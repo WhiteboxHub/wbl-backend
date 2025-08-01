@@ -347,8 +347,8 @@ class RecentInterview(BaseModel):
 # .......................................NEW INNOVAPATH..............................
 
 
-class CandidateMarketingBaseModel(BaseModel):
-    candidate_id: int
+class TalentSearchBaseModel(BaseModel):
+    id: int
     full_name: str
     email: str
     phone: str
@@ -358,10 +358,10 @@ class CandidateMarketingBaseModel(BaseModel):
     availability: str
     skills: str
 
-# class CandidateMarketingCreate(CandidateMarketingBase):
+# class TalentSearchCreate(TalentSearchBase):
     # pass
 
-class CandidateMarketing(CandidateMarketingBaseModel):
+class TalentSearch(TalentSearchBaseModel):
     id: int
     
     class Config:

@@ -58,7 +58,7 @@ async def insert_google_user_db(email: str, name: str, google_id: str):
 
         # Insert into lead instead of old leads table
         query2 = """
-            INSERT INTO lead (
+            INSERT INTO `lead` (
                 full_name, email
             ) VALUES (
                 %s, %s
@@ -606,7 +606,7 @@ async def user_contact(full_name: str, email: str = None, phone: str = None,  me
     try:
         cursor = conn.cursor()
         query = """
-            INSERT INTO whitebox_learning.lead (
+            INSERT INTO `lead` (
                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
@@ -830,7 +830,7 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
         conn = get_db()
         cursor = conn.cursor(dictionary=True)
 
-        query = "SELECT * FROM candidate_marketing WHERE 1=1"
+        query = "SELECT * FROM talent_search WHERE 1=1"
         params = []
 
         if filters.get("role"):

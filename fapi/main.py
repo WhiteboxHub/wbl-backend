@@ -1,5 +1,5 @@
 # wbl-backend/fapi/main.pycontactMailTemplet
-from fapi.models import EmailRequest,CandidateMarketing, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
+from fapi.models import EmailRequest,TalentSearch, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,Placement, PlacementCreate, PlacementUpdate
 from  fapi.db import (
       fetch_sessions_by_type,fetch_candidates, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, 
 
@@ -952,8 +952,8 @@ async def reset_password(data: ResetPassword):
 
 # ...................................NEW INNOVAPATH......................................
 
-@app.get("/api/candidate_marketing", response_model=List[CandidateMarketing])
-async def get_candidate_marketing(
+@app.get("/api/talent_search", response_model=List[TalentSearch])
+async def get_talent_search(
     role: Optional[str] = None,
     experience: Optional[int] = None,
     location: Optional[str] = None,
