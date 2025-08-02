@@ -14,6 +14,7 @@ def get_all_candidates_paginated(page: int = 1, limit: int = 100):
     conn.close()
     return rows
 
+
 def get_candidate_by_id(candidate_id: int):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
@@ -23,7 +24,12 @@ def get_candidate_by_id(candidate_id: int):
     conn.close()
     return row
 
+
 def create_candidate(candidate_data: dict):
+    # Normalize email to lowercase if present
+    if "email" in candidate_data and candidate_data["email"]:
+        candidate_data["email"] = candidate_data["email"].lower()
+
     conn = get_connection()
     cursor = conn.cursor()
     placeholders = ", ".join(["%s"] * len(candidate_data))
@@ -36,7 +42,12 @@ def create_candidate(candidate_data: dict):
     conn.close()
     return new_id
 
+
 def update_candidate(candidate_id: int, candidate_data: dict):
+    # Normalize email to lowercase if present
+    if "email" in candidate_data and candidate_data["email"]:
+        candidate_data["email"] = candidate_data["email"].lower()
+
     conn = get_connection()
     cursor = conn.cursor()
     set_clause = ", ".join([f"{key}=%s" for key in candidate_data.keys()])
@@ -46,6 +57,7 @@ def update_candidate(candidate_id: int, candidate_data: dict):
     conn.commit()
     cursor.close()
     conn.close()
+
 
 def delete_candidate(candidate_id: int):
     conn = get_connection()
