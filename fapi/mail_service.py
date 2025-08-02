@@ -6,6 +6,8 @@ import os
 from fapi.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template
 
 from fapi.contactMailTemplet import ContactMail_HTML_templete
+# from mail_services import mail_conf
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -43,7 +45,7 @@ async def send_request_demo_emails(name: str, email: str, phone: str, address: s
 
     admin_message = MessageSchema(
         subject=f"New Demo Request from {name}",
-        recipients=["hemanthdobriyal@gmail.com", "abhirohith516@gmail.com"],
+        recipients=["sampath.velupula@gmail.com", "recruiting@whitebox-learning.com","info@innova-path.com"],
         body=RequestDemo_Admin_HTML_template(name, email, phone, address),
         subtype="html"
     )

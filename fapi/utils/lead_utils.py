@@ -1,8 +1,8 @@
 # # =================================Lead================================
 
 from sqlalchemy.orm import Session
-from fapi.db import SessionLocal
-from fapi.models import LeadCreate
+from fapi.db.database import SessionLocal
+from fapi.db.models import LeadCreate
 from typing import Dict,Any
 from fastapi import HTTPException
 from sqlalchemy import func

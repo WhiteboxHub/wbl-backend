@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from fapi.db import SessionLocal
+from fapi.db.database import SessionLocal
 from fapi.schemas import CandidatePlacementORM,CandidateMarketingORM
-from fapi.models import CandidatePlacementCreate,CandidateMarketingCreate
+from fapi.db.models import CandidatePlacementCreate,CandidateMarketingCreate
 from fastapi import HTTPException
 from typing import List, Dict
 
