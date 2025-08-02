@@ -638,6 +638,7 @@ def clean_input_fields(user_data: UserRegistration):
 @app.post("/api/signup")
 @limiter.limit("15/minute")
 async def register_user(request:Request,user: UserRegistration):
+    user.uname = user.uname.lower().strip()
     # Check if user exists
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
@@ -648,6 +649,7 @@ async def register_user(request:Request,user: UserRegistration):
 
     hashed_password = md5_hash(user.passwd)
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+    fullname = fullname.lower()
     user.fullname = fullname
     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
     # leads_full_name = f"{signup_data.get('firstName', '')} {signup_data.get('lastName', '')}".strip()
@@ -716,7 +718,13 @@ async def register_user(request:Request,user: UserRegistration):
     secondary_email=None,  # Or user.secondaryemail if you collect it
     secondary_phone=None,  # Or user.secondaryphone
     closed_date=None,
-    notes=None
+    notes=None,
+    visa_status=user.visa_status,
+    experience=user.experience,
+    education=user.education,
+    referby=user.referby,
+    specialization=user.specialization
+
     )
     # Send confirmation email to the user and notify the admin
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
