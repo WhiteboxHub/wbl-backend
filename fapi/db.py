@@ -184,7 +184,12 @@ async def insert_lead_new(
     secondary_email: Optional[str] = None,
     secondary_phone: Optional[str] = None,
     closed_date: Optional[date] = None,
-    notes: Optional[str] = None
+    notes: Optional[str] = None,
+    visa_status: Optional[str] = None,
+    experience : Optional[str] = None,
+    education : Optional[str] = None,
+    referby : Optional[str] = None,
+    specialization : Optional[str] = None
 ):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -196,18 +201,18 @@ async def insert_lead_new(
             INSERT INTO `lead` (
                 full_name, phone, email, address, workstatus,
                 status, secondary_email, secondary_phone,
-                closed_date, notes
+                closed_date, notes,  visa_status, experience, education, referby, specialization
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s,
-                %s, %s
+                %s, %s, %s, %s, %s, %s, %s
             );
         """
 
         values = (
             full_name, phone, email, address, workstatus,
             status, secondary_email, secondary_phone,
-            closed_date, notes
+            closed_date, notes, visa_status, experience, education, referby, specialization
         )
 
         await loop.run_in_executor(None, cursor.execute, query, values)
@@ -601,6 +606,8 @@ async def fetch_candidate_id_by_email(email: str):
 
 
 async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
+    full_name = full_name.lower().strip() if full_name else None
+    email = email.lower().strip() if email else None
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
