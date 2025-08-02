@@ -1,5 +1,5 @@
 # wbl-backend/fapi/auth.py
-from fapi.db import get_user_by_username_sync,get_user_by_username
+from fapi.db.database import get_user_by_username_sync,get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
@@ -58,9 +58,10 @@ def determine_user_role(userinfo: dict) -> str:
 
 class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json","/api/auth/callback/google","/api/auth/error", ]
+        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json","/api/auth/callback/google","/api/auth/error"]
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
+        
         # if request.url.path in skip_paths:
         #     return await call_next(request)
 

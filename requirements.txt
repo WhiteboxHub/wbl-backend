@@ -11,3 +11,9 @@ fastapi-mail
 PyJWT
 pydantic[email]
 slowapi
+email-validator
+pydantic
+PyJWT
+python-jose
+sqlalchemy
+pymysql
