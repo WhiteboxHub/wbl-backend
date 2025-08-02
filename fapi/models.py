@@ -3,86 +3,14 @@ from typing import Optional, List
 from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean
 from sqlalchemy.ext.declarative import declarative_base
+from decimal import Decimal 
+
 # from .db import Base, engine, get_db
 
 class UserCreate(BaseModel):
     uname: str
     passwd: str
 
-
-# class UserRegistration(BaseModel):
-#     uname: str
-#     passwd: str
-#     dailypwd: Optional[str] = None
-#     team: Optional[str] = None
-#     level: Optional[str] = None
-#     instructor: Optional[str] = None
-#     override: Optional[str] = None
-#     status: Optional[str] = None
-#     lastlogin: Optional[str] = None
-#     logincount: Optional[str] = None
-#     # firstname: Optional[str] = None
-#     # lastname: Optional[str] = None
-#     firstname: Optional[str] = Field(None, alias="firstName")
-#     lastname: Optional[str] = Field(None, alias="lastName")
-#     fullname: Optional[str] = None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     city: Optional[str] = None
-#     Zip: Optional[str] = None
-#     country: Optional[str] = None
-#     message: Optional[str] = None
-#     registereddate: Optional[str] = None
-#     level3date: Optional[str] = None
-#     last: Optional[str] = None
-#     visastatus: Optional[str] = Field(None, alias="visaStatus")  # with alias
-#     experience: Optional[str] = None
-#     education: Optional[str] = None
-#     specialization: Optional[str] = None
-#     referred_by: Optional[str] = Field(None, alias="referredBy")  # with alias
-
-#     class Config:
-#         allow_population_by_field_name = True
-
-
-# class ContactForm(BaseModel):
-#     firstName: str
-#     lastName: str
-#     email: str
-#     phone: str
-#     message: str
-
-# class Token(BaseModel):
-#     access_token: str
-#     token_type: str
-
-# class EmailRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPasswordRequest(BaseModel):
-#     email: EmailStr
-
-# class ResetPassword(BaseModel):
-#     token: str
-#     new_password: str
-
-
-# # class UserCreate(BaseModel):
-# #     email: str
-# #     name: str   
-# #     google_id: str
-
-
-# # Model for Google user creation
-# class GoogleUserCreate(BaseModel):
-#     name: str
-#     email: str
-#     google_id: str
-
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import time, date, datetime
-from decimal import Decimal 
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -178,16 +106,7 @@ class RecentPlacement(BaseModel):
     placement_date: str
 
 
-# class RecentInterview(BaseModel):
-#     id: int
-#     candidate_name: str
-#     candidate_role: Optional[str]
-#     interview_time: time
-#     interview_date: date
-#     interview_mode: Optional[str]
-#     client_name: Optional[str]
-#     interview_location: Optional[str]
-#     created_at: datetime
+
 class RecentInterview(BaseModel):
     candidate_name: str
     candidate_role: Optional[str] = None
@@ -199,10 +118,6 @@ class RecentInterview(BaseModel):
     
 # ------------------------------------------- Leads----------------------------------------
 
-
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import datetime, date
 
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -217,8 +132,8 @@ class LeadBase(BaseModel):
     closed_date: Optional[date] = None
     notes: Optional[str] = None
     last_modified: Optional[datetime] = None
-    massemail_unsubscribe: Optional[str] = None
-    massemail_email_sent: Optional[str] = None
+    massemail_unsubscribe: Optional[bool] = None
+    massemail_email_sent: Optional[bool] = None
     moved_to_candidate: Optional[bool] = None
 
 
@@ -230,6 +145,7 @@ class Lead(LeadBase):
 
     class Config:
         from_attributes = True  
+
 
 
 class CandidateBase(BaseModel):
@@ -311,9 +227,6 @@ class Candidate(CandidateBase):
         orm_mode = True
 
         
-
-
-
 
 class PlacementBase(BaseModel):
     candidate_id: Optional[int]
@@ -429,7 +342,44 @@ class VendorUpdate(VendorBase):
     pass
 
 class VendorResponse(VendorBase):
-    id: int  # ✅ correct usage in Pydantic
+    id: int  #  correct usage in Pydantic
 
     class Config:
         from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
+
+
+
+
+
+from sqlalchemy import Column, Integer, String, Date, Enum, Text, CHAR
+from sqlalchemy.ext.declarative import declarative_base
+from datetime import date
+
+Base = declarative_base()
+
+class CandidateNewORM(Base):
+    __tablename__ = "candidate_new1"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(100), nullable=False)
+    enrolled_date = Column(Date, nullable=False)
+    email = Column(String(100), nullable=False, unique=True)
+    phone = Column(String(100), default=None)
+    status = Column(Enum("active", "discontinued", "break"), default="active")
+    workstatus = Column(Enum("Citizen", "Visa", "Permanent resident", "EAD", "Waiting for Status"), default=None)
+    education = Column(String(200), default=None)
+    workexperience = Column(String(200), default=None)
+    ssn = Column(String(10), default=None)
+    agreement = Column(CHAR(1), default="N")
+    secondaryemail = Column(String(100), default=None)
+    secondaryphone = Column(String(45), default=None)
+    address = Column(String(300), default=None)
+    linkedin_id = Column(CHAR(1), default=None)
+    dob = Column(Date, default=None)
+    emergcontactname = Column(String(100), default=None)
+    emergcontactemail = Column(String(100), default=None)
+    emergcontactphone = Column(String(100), default=None)
+    emergcontactaddrs = Column(String(300), default=None)
+    fee_paid = Column(Integer, default=None)
+    notes = Column(Text, default=None)
+    batchid = Column(Integer, nullable=False)

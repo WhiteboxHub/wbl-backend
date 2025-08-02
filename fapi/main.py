@@ -5,12 +5,21 @@ from  fapi.db import (
       fetch_sessions_by_type, fetch_types, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,get_candidates_by_status,fetch_interview_by_id,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
-    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_connection
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,insert_vendor ,fetch_recent_placements , fetch_recent_interviews, get_candidate_by_name, get_candidate_by_id, create_candidate, delete_candidate as db_delete_candidate,update_candidate as db_update_candidate,get_all_placements,
+    get_placement_by_id,search_placements_by_candidate_name,create_placement,update_placement,delete_placement,get_connection,get_db
 
 )
 from fapi.schemas import LeadORM
-from .utils.lead_utils import fetch_all_leads_paginated, get_lead_by_id,create_lead,update_lead,delete_lead
+from .utils.lead_utils import (fetch_all_leads_paginated, 
+                                get_lead_by_id,
+                                create_lead,
+                                update_lead,
+                                delete_lead,
+                                move_lead_to_candidate,
+                                get_lead_info_mark_move_to_candidate_true,
+                                create_candidate_from_lead,
+                                delete_candidate_by_email_and_phone,
+                                check_and_reset_moved_to_candidate)
 # , create_lead, update_lead, delete_lead
 from typing import Dict, Any
 from  fapi.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -46,9 +55,11 @@ from fapi.db import (
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fapi.models import VendorResponse
-from fapi.db import db_config
+# from fapi.db import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
+from sqlalchemy.orm import Session
+
 # from fapi.db import fetch_all_
 
 load_dotenv()
@@ -140,6 +151,8 @@ async def get_all_candidates_endpoint(page: int = 1, limit: int = 100):
     
     
     # GET Candidate status
+
+
 @app.get("/api/candidates/{status}", response_model=List[Candidate])
 async def get_candidates_by_dynamic_status(
     status: str,
@@ -159,8 +172,6 @@ async def get_candidates_by_dynamic_status(
         raise HTTPException(status_code=500, detail=str(e))
     
     
-
-
 #GET candidate by Name
 @app.get("/api/candidates/by-name/{name}", response_model=List[Candidate])
 async def get_candidates_by_name_endpoint(name: str):
@@ -177,10 +188,6 @@ async def get_candidate(candidateid: int):
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return Candidate(**candidate)
-
-
-    
-
 
 
 
@@ -282,39 +289,145 @@ async def delete_placement_endpoint(placement_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
-# ------------------------------------------------------- Leads -------------------------------------------------
+# ------------------------------------------------------- Lead -------------------------------------------------
 
 
-
-
-
-
-
-
-@app.get("/api/leads_new", summary="Get all leads (paginated)")
+@app.get("/api/lead", summary="Get all leads (paginated)")
 async def get_all_leads(
     page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=1000)
 ) -> Dict[str, Any]:
     return fetch_all_leads_paginated(page, limit)
 
-@app.get("/api/leads_new/{lead_id}")
+
+@app.get("/api/lead/{lead_id}")
 def read_lead(lead_id: int = Path(...)) -> Dict[str, Any]:
     return get_lead_by_id(lead_id)
 
 
-
-@app.post("/api/leads_new", response_model=Lead)
+@app.post("/api/lead", response_model=Lead)
 def create_new_lead(lead: LeadCreate):
     return create_lead(lead)
 
-@app.put("/api/leads_new/{lead_id}")
+
+@app.put("/api/lead/{lead_id}")
 def update_existing_lead(lead_id: int, lead: LeadCreate) -> Dict[str, Any]:
     return update_lead(lead_id, lead)
 
-@app.delete("/api/leads_new/{lead_id}")
+
+@app.delete("/api/lead/{lead_id}")
 def delete_existing_lead(lead_id: int) -> Dict[str, str]:
     return delete_lead(lead_id)
+
+# @router.post("/api/move_to_candidate/{lead_id}")
+# def move_to_candidate_endpoint(lead_id: int, db: Session = Depends(get_db)):
+#     return move_lead_to_candidate(lead_id, db)
+
+@app.post("/api/lead/movetocandidate/{lead_id}")
+def move_to_candidate_endpoint(lead_id: int):
+    logger.info(f"⏩ Starting move_to_candidate for lead_id: {lead_id}")
+    
+    try:
+        # Start transaction
+        logger.info("1️⃣ Beginning database transaction")
+        
+        # Get the lead
+        logger.info(f"2️⃣ Querying lead with id: {lead_id}")
+        leaddata = get_lead_info_mark_move_to_candidate_true(lead_id)
+        print("aka here2")
+      
+        if leaddata.get("already_moved",False):
+            logger.info(f"3️⃣ Found lead: ID={lead.id}, Name={lead.full_name}, AlreadyMoved={lead.already_moved}")
+            raise HTTPException(status_code=404, detail=lead_data.message)
+        
+        
+        
+        logger.info("4️⃣ Creating new candidate record")
+        
+        create_candidate = create_candidate_from_lead(leaddata)
+        
+        if create_candidate['success']:
+            # Add to session
+            logger.info("6️⃣ New candidate added to session")
+            
+            # Update lead status
+            logger.info(f"7️⃣ Lead marked as moved: {leaddata['id']}")
+            
+            # Commit transaction
+            logger.info("8️⃣ Committing transaction...")
+            
+            logger.info("✅ Transaction committed successfully")
+            return {
+            "message": "Lead moved to candidate successfully",
+            "lead_id": leaddata['id'],
+            "candidate_id": create_candidate['candidate_id']
+            }
+    except HTTPException as he:
+        # Re-raise to send correct message to frontend
+        raise he
+
+    except Exception as e:
+        logger.error(f"‼️ Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.delete("/api/lead/movetocandidate/{lead_id}")
+def delete_candidate_move(lead_id : int):
+    try:
+        data = check_and_reset_moved_to_candidate(lead_id)
+        print("aka here this is aka")
+        res = delete_candidate_by_email_and_phone(data['email'],data['phone'])
+        print(res)
+        if res['success']:
+            return {
+            "message": "Candidate deleted successfully",
+            "candidate_id": res['candidate_id'],
+            }
+        else:
+            raise Exception
+    except HTTPException as he:
+        # Re-raise to send correct message to frontend
+        raise he
+
+    except Exception as e:
+        logger.error(f"‼️ Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    
+
+# # test_move_lead.py
+# import requests
+# import logging
+# import json
+
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+
+# def test_move_lead(lead_id):
+#     url = f"http://localhost:8000/api/move_to_candidate/{lead_id}"
+#     logger.info(f"Testing move for lead ID: {lead_id}")
+    
+#     try:
+#         response = requests.post(url)
+#         logger.info(f"Response status: {response.status_code}")
+        
+#         if response.status_code == 200:
+#             data = response.json()
+#             logger.info(f"Response data: {json.dumps(data, indent=2)}")
+            
+#             if 'already_moved' in data:
+#                 logger.warning("Lead was already moved")
+#             else:
+#                 logger.info(f"New candidate ID: {data.get('candidate_id')}")
+        
+#         return response.json()
+#     except Exception as e:
+#         logger.error(f"Test failed: {str(e)}")
+#         return {"error": str(e)}
+
+
+#     test_move_lead(10799)
+
+# -----------------------------------------------------------------------------------------------------------------------------
 
 # Temporary route to insert test data
 @app.get("/debug/insert-test-data")
@@ -346,6 +459,7 @@ async def get_recent_placements():
 @app.get("/api/interviews", response_model=List[dict])
 async def get_interviews(limit: int = 10, offset: int = 0):
     return await fetch_recent_interviews(limit, offset)
+ 
 
 @app.get("/api/interviews/{interview_id}", response_model=dict)
 async def get_interview_by_id(interview_id: int):
@@ -354,14 +468,17 @@ async def get_interview_by_id(interview_id: int):
         raise HTTPException(status_code=404, detail="Interview not found")
     return interview
 
+
 @app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
 async def get_interview_by_name(candidate_name: str):
     return await fetch_interviews_by_name(candidate_name)
+
 
 @app.post("/api/interviews")
 async def create_interview(data: RecentInterview):
     await insert_interview(data)
     return {"message": "Interview created successfully"}
+
 
 @app.put("/api/interviews/{interview_id}")
 async def update_interview_api(interview_id: int, data: RecentInterview):
@@ -370,6 +487,7 @@ async def update_interview_api(interview_id: int, data: RecentInterview):
         raise HTTPException(status_code=404, detail="Interview not found")
     await update_interview(interview_id, data)
     return {"message": "Interview updated successfully"}
+
 
 @app.delete("/api/interviews/{interview_id}")
 async def remove_interview(interview_id: int):
@@ -435,6 +553,7 @@ async def register_google_user(request:Request,user: GoogleUserCreate):
     await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
     return {"message": "Google user registered successfully!"}
 
+
 @app.post("/api/google_login/")
 @limiter.limit("15/minute")
 async def login_google_user(request:Request,user: GoogleUserCreate):
@@ -457,6 +576,7 @@ async def login_google_user(request:Request,user: GoogleUserCreate):
         "access_token": access_token,
         "token_type": "bearer"
     }
+ 
 
 @app.post("/api/verify_google_token/")
 #@limiter.limit("5/minute")
@@ -476,6 +596,7 @@ async def verify_google_token(token: str):
 # ------------------------------------------------------------------------------------
 
 async def authenticate_user(uname: str, passwd: str):
+
     user = await get_user_by_username(uname)
     if not user or not verify_md5_hash(passwd, user["passwd"]):
         return None
@@ -485,6 +606,7 @@ async def authenticate_user(uname: str, passwd: str):
 
     # Fetch candidateid from the candidate table
     candidate_info = await fetch_candidate_id_by_email(uname)
+    print("-"*100)
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
 
@@ -584,8 +706,7 @@ async def register_user(request:Request,user: UserRegistration):
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     # print(" Full name constructed:", fullname)  # <---- Add this line
 
-  
-    
+
 
     await insert_user(
     uname=user.uname,
@@ -635,33 +756,41 @@ async def register_user(request:Request,user: UserRegistration):
 @app.post("/api/login", response_model=Token)
 @limiter.limit("15/minute")
 async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
-    user = await authenticate_user(form_data.username, form_data.password)
-    if user == "inactive":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        print("aka 1")
+        user = await authenticate_user(form_data.username, form_data.password)
+        if user == "inactive":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Inactive Account !! Please Contact Recruiting '+1 925-557-1053'",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        elif not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Not a Valid User / Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        await update_login_info(user["id"])
+
+        await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
+
+        access_token = create_access_token(
+            data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
         )
-    elif not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not a Valid User / Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "team": user["team"],  # Explicitly include team info in response
+        }
+    except Exception as e:
+        # Catch unexpected errors
+        print(f"Unexpected error in /login: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error"}
         )
-
-    await update_login_info(user["id"])
-    await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
-
-    access_token = create_access_token(
-        data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "team": user["team"],  # Explicitly include team info in response
-    }
-
 
 
 
@@ -777,6 +906,7 @@ async def get_batches(course: str = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/recording")
 @limiter.limit("15/minute")
 async def get_recordings(request:Request,course: str = None, batchid: int = None, search: str = None):
@@ -872,7 +1002,7 @@ async def reset_password(data: ResetPassword):
 
 # ...................................NEW INNOVAPATH......................................
 
-@app.get("/candidate_marketing/", response_model=List[CandidateMarketing])
+@app.get("/api/candidate_marketing/", response_model=List[CandidateMarketing])
 async def get_candidate_marketing(
     role: Optional[str] = None,
     experience: Optional[int] = None,

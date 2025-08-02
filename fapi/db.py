@@ -510,7 +510,7 @@ async def fetch_candidate_id_by_email(email: str):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT candidateid FROM candidate WHERE email = %s;"
+        query = "SELECT id FROM candidate WHERE email = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (email,))
         result = cursor.fetchone()
         return result
