@@ -1,6 +1,6 @@
 
 # wbl-backend/fapi/db.py
-from fapi.utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
+from fapi.util import md5_hash,verify_md5_hash,hash_password,verify_reset_token
 import mysql.connector
 from fastapi import HTTPException, status
 from mysql.connector import Error
@@ -888,86 +888,86 @@ def get_connection():
         raise HTTPException(status_code=500, detail="Database connection failed")
     
 
-def get_all_candidates_paginated(page: int = 1, limit: int = 100):
-    offset = (page - 1) * limit
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    query = "SELECT * FROM candidate ORDER BY id DESC LIMIT %s OFFSET %s"
-    cursor.execute(query, (limit, offset))
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return rows
+# def get_all_candidates_paginated(page: int = 1, limit: int = 100):
+#     offset = (page - 1) * limit
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     query = "SELECT * FROM candidate ORDER BY id DESC LIMIT %s OFFSET %s"
+#     cursor.execute(query, (limit, offset))
+#     rows = cursor.fetchall()
+#     cursor.close()
+#     conn.close()
+#     return rows
 
-def get_candidate_by_name(name: str):
-    name = name.strip().lower()
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        query = "SELECT * FROM candidate WHERE LOWER(full_name) LIKE %s"
-        cursor.execute(query, (f"%{name}%",))
-        rows = cursor.fetchall()
-        return rows
-    finally:
-        cursor.close()
-        conn.close()
+# def get_candidate_by_name(name: str):
+#     name = name.strip().lower()
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     try:
+#         query = "SELECT * FROM candidate WHERE LOWER(full_name) LIKE %s"
+#         cursor.execute(query, (f"%{name}%",))
+#         rows = cursor.fetchall()
+#         return rows
+#     finally:
+#         cursor.close()
+#         conn.close()
 
-def get_candidates_by_status(status: str, page: int = 1, limit: int = 100) -> List[dict]:
-    offset = (page - 1) * limit
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    query = """
-        SELECT * FROM candidate
-        WHERE LOWER(status) = %s
-        ORDER BY id DESC
-        LIMIT %s OFFSET %s
-    """
-    cursor.execute(query, (status.lower(), limit, offset))
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return rows
+# def get_candidates_by_status(status: str, page: int = 1, limit: int = 100) -> List[dict]:
+#     offset = (page - 1) * limit
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     query = """
+#         SELECT * FROM candidate
+#         WHERE LOWER(status) = %s
+#         ORDER BY id DESC
+#         LIMIT %s OFFSET %s
+#     """
+#     cursor.execute(query, (status.lower(), limit, offset))
+#     rows = cursor.fetchall()
+#     cursor.close()
+#     conn.close()
+#     return rows
 
-def get_candidate_by_id(candidate_id: int):
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM candidate WHERE id = %s", (candidate_id,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return row
+# def get_candidate_by_id(candidate_id: int):
+#     conn = get_connection()
+#     cursor = conn.cursor(dictionary=True)
+#     cursor.execute("SELECT * FROM candidate WHERE id = %s", (candidate_id,))
+#     row = cursor.fetchone()
+#     cursor.close()
+#     conn.close()
+#     return row
 
-def create_candidate(candidate_data: dict):
-    conn = get_connection()
-    cursor = conn.cursor()
-    placeholders = ", ".join(["%s"] * len(candidate_data))
-    columns = ", ".join(candidate_data.keys())
-    sql = f"INSERT INTO candidate ({columns}) VALUES ({placeholders})"
-    cursor.execute(sql, list(candidate_data.values()))
-    conn.commit()
-    new_id = cursor.lastrowid
-    cursor.close()
-    conn.close()
-    return new_id
+# def create_candidate(candidate_data: dict):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     placeholders = ", ".join(["%s"] * len(candidate_data))
+#     columns = ", ".join(candidate_data.keys())
+#     sql = f"INSERT INTO candidate ({columns}) VALUES ({placeholders})"
+#     cursor.execute(sql, list(candidate_data.values()))
+#     conn.commit()
+#     new_id = cursor.lastrowid
+#     cursor.close()
+#     conn.close()
+#     return new_id
 
-def update_candidate(candidate_id: int, candidate_data: dict):
-    conn = get_connection()
-    cursor = conn.cursor()
-    set_clause = ", ".join([f"{key}=%s" for key in candidate_data.keys()])
-    sql = f"UPDATE candidate SET {set_clause} WHERE id=%s"
-    values = list(candidate_data.values()) + [candidate_id]
-    cursor.execute(sql, values)
-    conn.commit()
-    cursor.close()
-    conn.close()
+# def update_candidate(candidate_id: int, candidate_data: dict):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     set_clause = ", ".join([f"{key}=%s" for key in candidate_data.keys()])
+#     sql = f"UPDATE candidate SET {set_clause} WHERE id=%s"
+#     values = list(candidate_data.values()) + [candidate_id]
+#     cursor.execute(sql, values)
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
 
-def delete_candidate(candidate_id: int):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM candidate WHERE id = %s", (candidate_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+# def delete_candidate(candidate_id: int):
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     cursor.execute("DELETE FROM candidate WHERE id = %s", (candidate_id,))
+#     conn.commit()
+#     cursor.close()
+#     conn.close()
 
 
 
