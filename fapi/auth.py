@@ -1,5 +1,5 @@
 # wbl-backend/fapi/auth.py
-from fapi.db import get_user_by_username_sync
+from fapi.db.database import get_user_by_username_sync,get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
@@ -58,9 +58,12 @@ def determine_user_role(userinfo: dict) -> str:
 
 class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json"]
-        if request.url.path in skip_paths:
+        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json","/api/auth/callback/google","/api/auth/error"]
+        if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
+        
+        # if request.url.path in skip_paths:
+        #     return await call_next(request)
 
         apiToken = request.headers.get('Authtoken')
         if not apiToken:
@@ -158,7 +161,25 @@ def get_password_hash(password: str):
 #     return encoded_jwt
 
 
-def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+# def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+#     to_encode = data.copy()
+#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+
+#     username = data.get("sub")
+#     if username:
+#         userinfo = cache_get(username)
+#         if not userinfo:
+#             userinfo = asyncio.run(get_user_by_username(username))
+#             cache_set(username, userinfo)
+#         role = determine_user_role(userinfo)
+#         to_encode["role"] = role
+
+#     to_encode["exp"] = expire
+#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+
+async def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
@@ -166,14 +187,16 @@ def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = 
     if username:
         userinfo = cache_get(username)
         if not userinfo:
-            userinfo = asyncio.run(get_user_by_username(username))
+            userinfo = await get_user_by_username(username) 
             cache_set(username, userinfo)
         role = determine_user_role(userinfo)
         to_encode["role"] = role
 
+        if "domain" in userinfo:
+            to_encode["domain"] = userinfo["domain"]
+
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
 
 # -------------------------------------------------- Avatar --------------------------------------------------
 def create_access_token(data: dict, expires_delta: timedelta = None):

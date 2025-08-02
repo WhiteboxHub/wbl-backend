@@ -1,12 +1,12 @@
 # # =================================Lead================================
 
 from sqlalchemy.orm import Session
-from fapi.db import SessionLocal
-from fapi.models import LeadCreate
+from fapi.db.database import SessionLocal
+from fapi.db.models import LeadCreate
 from typing import Dict,Any
 from fastapi import HTTPException
 from sqlalchemy import func
-from fapi.schemas import LeadORM
+from fapi.db.schemas import LeadORM
 from datetime import datetime
 
 def fetch_all_leads_paginated(page: int, limit: int) -> Dict[str, any]:
