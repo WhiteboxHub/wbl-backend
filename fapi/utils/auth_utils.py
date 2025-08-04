@@ -3,9 +3,8 @@ import hashlib
 import jwt
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from fapi.core.config import SECRET_KEY, ALGORITHM
 
-load_dotenv()
 
 # MD5 hashing functions
 
@@ -24,20 +23,16 @@ def check_password_strength(password: str) -> bool:
     # Example criteria: at least 8 characters long
     return len(password) >= 8
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable not set")
 
 def create_reset_token(email: str):
     expiration = datetime.utcnow() + timedelta(hours=1)
     to_encode = {"sub": email, "exp": expiration}
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 def verify_reset_token(token: str):
     try:
-        decoded_jwt = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        decoded_jwt = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return decoded_jwt["sub"]
     except jwt.ExpiredSignatureError:
         return None

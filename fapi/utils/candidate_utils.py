@@ -1,10 +1,91 @@
+# wbl-backend/fapi/utils/candidate_utils.py
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
-from fapi.db.models import CandidatePlacementORM,CandidateMarketingORM
+from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM
 from fapi.db.schemas import CandidatePlacementCreate,CandidateMarketingCreate
 from fastapi import HTTPException
 from typing import List, Dict
 
+
+
+def get_all_candidates_paginated(page: int = 1, limit: int = 100) -> Dict:
+    db: Session = SessionLocal()
+    try:
+        total = db.query(CandidateORM).count()
+        results = (
+            db.query(CandidateORM)
+            .order_by(CandidateORM.id.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+        data = [r.__dict__ for r in results]
+        for item in data:
+            item.pop('_sa_instance_state', None)
+        return {"page": page, "limit": limit, "total": total, "data": data}
+    finally:
+        db.close()
+
+
+def get_candidate_by_id(candidate_id: int) -> Dict:
+    db: Session = SessionLocal()
+    try:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        data = candidate.__dict__.copy()
+        data.pop('_sa_instance_state', None)
+        return data
+    finally:
+        db.close()
+
+
+def create_candidate(candidate_data: dict) -> int:
+    db: Session = SessionLocal()
+    try:
+        if "email" in candidate_data and candidate_data["email"]:
+            candidate_data["email"] = candidate_data["email"].lower()
+
+        new_candidate = CandidateORM(**candidate_data)
+        db.add(new_candidate)
+        db.commit()
+        db.refresh(new_candidate)
+        return new_candidate.id
+    finally:
+        db.close()
+
+
+def update_candidate(candidate_id: int, candidate_data: dict):
+    db: Session = SessionLocal()
+    try:
+        if "email" in candidate_data and candidate_data["email"]:
+            candidate_data["email"] = candidate_data["email"].lower()
+
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+
+        for key, value in candidate_data.items():
+            setattr(candidate, key, value)
+
+        db.commit()
+    finally:
+        db.close()
+
+
+def delete_candidate(candidate_id: int):
+    db: Session = SessionLocal()
+    try:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        db.delete(candidate)
+        db.commit()
+    finally:
+        db.close()
+
+
+# -----------------------------------------------Marketing----------------------------
 
 def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
@@ -72,6 +153,10 @@ def delete_marketing(record_id: int) -> Dict:
         return {"message": "Marketing record deleted successfully"}
     finally:
         db.close()
+
+
+
+# ----------------------------------------------------Placement---------------------------------
 
 
 def get_all_placements(page: int, limit: int) -> Dict:

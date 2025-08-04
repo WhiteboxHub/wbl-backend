@@ -5,11 +5,9 @@ from fapi.db.schemas import GoogleUserCreate
 from fapi.db.database import SessionLocal
 from fapi.utils.google_auth_utils import get_google_user_by_email, insert_google_user_db,get_google_user_by_email
 from  fapi.auth import create_google_access_token
-import jwt
+from fapi.core.config import SECRET_KEY, ALGORITHM
 from fapi.db import models
-
-
-# from app.core.config import SECRET_KEY, ALGORITHM
+import jwt
 
 router = APIRouter()
 
@@ -20,8 +18,8 @@ def get_db():
     finally:
         db.close()
 
-SECRET_KEY = "your_secret_key"
-ALGORITHM = "HS256"
+# SECRET_KEY = "your_secret_key"
+# ALGORITHM = "HS256"
 
 @router.post("/check_user/")
 async def check_user_exists(user: GoogleUserCreate, db: Session = Depends(get_db)):
@@ -33,7 +31,7 @@ async def check_user_exists(user: GoogleUserCreate, db: Session = Depends(get_db
 
 @router.post("/check_user_direct/")
 async def check_user_exists_direct(user: GoogleUserCreate):
-    from app.db.database import SessionLocal
+    # from app.db.database import SessionLocal
     db = SessionLocal()
     try:
         existing_user = get_google_user_by_email(db, user.email)

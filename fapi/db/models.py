@@ -84,11 +84,11 @@ class AuthUser(Base):
     status = Column(String(50), default="inactive")
     registereddate = Column(DateTime, default=datetime.utcnow)
 
-class Lead(Base):
-    __tablename__ = "lead"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    full_name = Column(String(255))
-    email = Column(String(255), unique=True)
+# class Lead(Base):
+#     __tablename__ = "lead"
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     full_name = Column(String(255))
+#     email = Column(String(255), unique=True)
 
 
 # ---------------------------- Innovapath - Request demo --------------------
@@ -123,7 +123,7 @@ class RecentInterview(BaseModel):
     
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
-    __tablename__ = "leads_new"
+    __tablename__ = "lead"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     full_name = Column(String(255))
@@ -342,6 +342,33 @@ class VendorResponse(VendorBase):
         from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
 
 
+# ----------------------------------------Candidate------------------------------------
+class CandidateORM(Base):
+    __tablename__ = "candidate"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100), nullable=True)
+    enrolled_date = Column(Date, nullable=True)
+    email = Column(String(100), nullable=True)
+    phone = Column(String(100), nullable=True)
+    status = Column(String(20), nullable=True)  # No ENUM used
+    workstatus = Column(String(50), nullable=True)  # No ENUM used
+    education = Column(String(200), nullable=True)
+    workexperience = Column(String(200), nullable=True)
+    ssn = Column(String(11), nullable=True)
+    agreement = Column(String(1), default="N", nullable=True)
+    secondaryemail = Column(String(100), nullable=True)
+    secondaryphone = Column(String(45), nullable=True)
+    address = Column(String(300), nullable=True)
+    linkedin_id = Column(String(100), nullable=True)
+    dob = Column(Date, nullable=True)
+    emergcontactname = Column(String(100), nullable=True)
+    emergcontactemail = Column(String(100), nullable=True)
+    emergcontactphone = Column(String(100), nullable=True)
+    emergcontactaddrs = Column(String(300), nullable=True)
+    fee_paid = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
+    batchid = Column(Integer, nullable=False)
 
 
 

@@ -3,7 +3,7 @@ from fapi.db.database import get_user_by_username_sync,get_user_by_username
 from jose import jwt, JWTError,ExpiredSignatureError
 from datetime import datetime, timedelta
 import os
-from dotenv import load_dotenv
+from fapi.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
 import hashlib
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -13,17 +13,6 @@ from typing import Optional
 from datetime import timedelta  
 import asyncio
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Retrieve the secret key from environment variables
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is not set")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 1440
-# ACCESS_TOKEN_EXPIRE_MINUTES =1
-PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 15  # Token expiry time for password reset
 
 # Simple in-memory cache dictionary
 cache = {}

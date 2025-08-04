@@ -38,6 +38,49 @@ class LeadSchema(LeadBase):
 
 # --------------------------------------------------------candidate-------------------------------------------------------
 
+class CandidateBase(BaseModel):
+    full_name: Optional[str]
+    enrolled_date: Optional[date]
+    email: Optional[str]
+    phone: Optional[str]
+    status: Optional[str]
+    workstatus: Optional[str]
+    education: Optional[str]
+    workexperience: Optional[str]
+    ssn: Optional[str]
+    agreement: Optional[str]
+    secondaryemail: Optional[str]
+    secondaryphone: Optional[str]
+    address: Optional[str]
+    linkedin_id: Optional[str]
+    dob: Optional[date]
+    emergcontactname: Optional[str]
+    emergcontactemail: Optional[str]
+    emergcontactphone: Optional[str]
+    emergcontactaddrs: Optional[str]
+    fee_paid: Optional[int]
+    notes: Optional[str]
+    batchid: int
+
+class CandidateCreate(CandidateBase):
+    pass
+
+class CandidateUpdate(CandidateBase):
+    pass
+
+class Candidate(CandidateBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+class PaginatedCandidateResponse(BaseModel):
+    page: int
+    limit: int
+    total: int
+    data: List[Candidate]
+
+
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
     primary_instructor_id: Optional[int] = None

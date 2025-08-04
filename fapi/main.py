@@ -1,5 +1,5 @@
 # wbl-backend/fapi/main.py
-from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,Candidate, CandidateCreate, CandidateUpdate,Lead, TalentSearch
+from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,Candidate, CandidateCreate, CandidateUpdate,LeadORM, TalentSearch
 from  fapi.db.database import (
       fetch_sessions_by_type, fetch_types,fetch_candidates, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
@@ -35,6 +35,7 @@ from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
+from fapi.core.config import SECRET_KEY, ALGORITHM
 
 
 load_dotenv()
@@ -71,17 +72,6 @@ app.add_middleware(
 
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Retrieve the secret key from environment variables
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is not set")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 
 
