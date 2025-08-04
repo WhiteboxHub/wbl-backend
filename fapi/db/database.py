@@ -1,3 +1,4 @@
+
 # wbl-backend/fapi/db.py
 from fapi.utils.auth_utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
 import mysql.connector
@@ -13,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 load_dotenv()
+
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
@@ -30,58 +32,6 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
-
-async def insert_google_user_db(email: str, name: str, google_id: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-
-        # Insert user into authuser table
-        query1 = """
-            INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
-            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
-            registereddate, level3date) 
-            VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-        """
-
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_register"))
-        # Insert into lead instead of old leads table
-        query2 = """
-            INSERT INTO `lead` (
-                full_name, email
-            ) VALUES (
-                %s, %s
-            );
-        """
-        await loop.run_in_executor(None, cursor.execute, query2, (name, email))
-   
-        conn.commit()
-
-    except Error as e:
-        conn.rollback()
-        print(f"Error inserting user: {e}")
-        raise HTTPException(status_code=500, detail="Error inserting user")
-    finally:
-        cursor.close()
-        conn.close()
-
-
-async def get_google_user_by_email(email: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM authuser WHERE uname = %s;"
-        await loop.run_in_executor(None, cursor.execute, query, (email,))
-        user = cursor.fetchone()
-        return user
-    except Exception as e:
-        print(f"Error fetching user: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching Google  user")
-    finally:
-        cursor.close()
-        conn.close()
 
 
 async def insert_user(
@@ -576,7 +526,7 @@ async def user_contact(full_name: str, email: str = None, phone: str = None,  me
                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
         """
         values = (
-            name, email, phone,message)
+            full_name, email, phone,message)
         await loop.run_in_executor(None, cursor.execute, query, values)
         conn.commit()
     except Error as e:
@@ -855,46 +805,3 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
     finally:
         cursor.close()
         conn.close()
-
-# ----------------------------------------------Candidate_code-------------------
-
-# ------------------- Utility DB Query Helpers for Sync Code -------------------
-
-def execute_fetchall(query: str, params: tuple = ()):
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-        return results
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def execute_fetchone(query: str, params: tuple = ()):
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute(query, params)
-        result = cursor.fetchone()
-        return result
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def execute_commit(query: str, params: tuple = ()):
-    conn = get_db()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(query, params)
-        conn.commit()
-        return cursor.lastrowid
-    except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"DB Commit Error: {str(e)}")
-    finally:
-        cursor.close()
-        conn.close()
-

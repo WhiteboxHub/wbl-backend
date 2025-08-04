@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
-from fapi.schemas import CandidatePlacementORM,CandidateMarketingORM, CandidateORM
-from fapi.db.models import CandidatePlacementCreate,CandidateMarketingCreate
+from fapi.db.models import CandidatePlacementORM,CandidateMarketingORM, CandidateORM
+from fapi.db.schemas import CandidatePlacementCreate,CandidateMarketingCreate
 from fastapi import HTTPException
 from typing import List, Dict
-from fapi.db.database import execute_commit, execute_fetchall, execute_fetchone
+# from fapi.db.database import execute_commit, execute_fetchall, execute_fetchone
 
-# --------------------------------Karimulla_Candidate_code------------------------------
+# --------------------------------Candidate------------------------------
 
 def get_all_candidates_paginated(page: int = 1, limit: int = 100) -> Dict:
     db: Session = SessionLocal()
@@ -84,38 +84,6 @@ def delete_candidate(candidate_id: int):
     finally:
         db.close()
         
-# def get_all_candidates_paginated(page: int = 1, limit: int = 100):
-#     offset = (page - 1) * limit
-#     query = "SELECT * FROM candidate ORDER BY id DESC LIMIT %s OFFSET %s"
-#     return execute_fetchall(query, (limit, offset))
-
-
-# def get_candidate_by_id(candidate_id: int):
-#     return execute_fetchone("SELECT * FROM candidate WHERE id = %s", (candidate_id,))
-
-
-# def create_candidate(candidate_data: dict):
-#     if "email" in candidate_data and candidate_data["email"]:
-#         candidate_data["email"] = candidate_data["email"].lower()
-#     columns = ", ".join(candidate_data.keys())
-#     placeholders = ", ".join(["%s"] * len(candidate_data))
-#     query = f"INSERT INTO candidate ({columns}) VALUES ({placeholders})"
-#     return execute_commit(query, tuple(candidate_data.values()))
-
-
-# def update_candidate(candidate_id: int, candidate_data: dict):
-#     if "email" in candidate_data and candidate_data["email"]:
-#         candidate_data["email"] = candidate_data["email"].lower()
-#     set_clause = ", ".join([f"{key} = %s" for key in candidate_data])
-#     query = f"UPDATE candidate SET {set_clause} WHERE id = %s"
-#     values = tuple(candidate_data.values()) + (candidate_id,)
-#     execute_commit(query, values)
-
-
-# def delete_candidate(candidate_id: int):
-#     query = "DELETE FROM candidate WHERE id = %s"
-#     execute_commit(query, (candidate_id,))
-# ---------------------------------------------------------------------------------------------------------
 
 def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
@@ -251,7 +219,3 @@ def delete_placement(placement_id: int) -> Dict:
         return {"message": "Placement deleted successfully"}
     finally:
         db.close()
-
-
-
-

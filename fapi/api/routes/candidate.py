@@ -1,6 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Query, Path, HTTPException
-from fapi.db.models import (
+from fapi.db.schemas import (
     CandidateBase, CandidateUpdate,
     CandidatePlacement, CandidatePlacementCreate,
     CandidateMarketing, CandidateMarketingCreate, PaginatedCandidateResponse
@@ -14,6 +14,7 @@ from fapi.utils.candidate_utils import (
 router = APIRouter()
 
 # ------------------------Candidate------------------------------------
+
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(page: int = 1, limit: int = 100):
     return candidate_utils.get_all_candidates_paginated(page, limit)
@@ -42,6 +43,7 @@ def delete_candidate(candidate_id: int):
 
 
 # ------------------- Marketing -------------------
+
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
 def read_all_marketing(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return get_all_marketing_records(page, limit)
@@ -63,6 +65,7 @@ def delete_marketing_record(record_id: int):
     return delete_marketing(record_id)
 
 # ------------------- Placements -------------------
+
 @router.get("/candidate/placements")
 def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return get_all_placements(page, limit)
