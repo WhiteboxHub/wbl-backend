@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Query, Path
 from typing import Dict, Any
-from fapi.db.models import Lead, LeadCreate
+from fapi.db.schemas import LeadSchema, LeadCreate
 from fapi.utils.lead_utils import fetch_all_leads_paginated, get_lead_by_id, create_lead, update_lead, delete_lead
 
 router = APIRouter()
@@ -15,7 +15,7 @@ def get_all_leads(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1
 def read_lead(lead_id: int = Path(...)) -> Dict[str, Any]:
     return get_lead_by_id(lead_id)
 
-@router.post("/leads_new", response_model=Lead)
+@router.post("/leads_new", response_model=LeadSchema)
 def create_new_lead(lead: LeadCreate):
     return create_lead(lead)
 

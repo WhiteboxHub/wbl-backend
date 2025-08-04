@@ -1,7 +1,7 @@
 # fapi/api/routes/candidate.py
 
 from fastapi import APIRouter, Query, Path
-from fapi.db.models import CandidatePlacement, CandidatePlacementCreate, CandidateMarketing, CandidateMarketingCreate
+from fapi.db.schemas import CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate
 from fapi.utils.candidate_utils import (
     get_all_marketing_records, get_marketing_by_id, create_marketing, update_marketing, delete_marketing,
     get_all_placements, get_placement_by_id, create_placement, update_placement, delete_placement

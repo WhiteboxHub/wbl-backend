@@ -32,58 +32,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-async def insert_google_user_db(email: str, name: str, google_id: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-
-        # Insert user into authuser table
-        query1 = """
-            INSERT INTO authuser (uname, fullname, googleId, passwd, status,  dailypwd, team, level, 
-            instructor, override, lastlogin, logincount, phone, address, city, Zip, country, message, 
-            registereddate, level3date) 
-            VALUES (%s, %s, %s, %s, 'inactive', NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-        """
-
-        await loop.run_in_executor(None, cursor.execute, query1, (email, name, google_id, "google_register"))
-        # Insert into lead instead of old leads table
-        query2 = """
-            INSERT INTO `lead` (
-                full_name, email
-            ) VALUES (
-                %s, %s
-            );
-        """
-        await loop.run_in_executor(None, cursor.execute, query2, (name, email))
-   
-        conn.commit()
-
-    except Error as e:
-        conn.rollback()
-        print(f"Error inserting user: {e}")
-        raise HTTPException(status_code=500, detail="Error inserting user")
-    finally:
-        cursor.close()
-        conn.close()
-
-
-async def get_google_user_by_email(email: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM authuser WHERE uname = %s;"
-        await loop.run_in_executor(None, cursor.execute, query, (email,))
-        user = cursor.fetchone()
-        return user
-    except Exception as e:
-        print(f"Error fetching user: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching Google  user")
-    finally:
-        cursor.close()
-        conn.close()
-
 
 async def insert_user(
     uname: str,

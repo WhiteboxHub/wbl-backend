@@ -2,9 +2,10 @@ from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal 
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, DateTime, Date, Boolean
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-
+from fapi.db.database import Base
+Base = declarative_base()
 
 class UserCreate(BaseModel):
     uname: str
@@ -71,10 +72,23 @@ class ResetPassword(BaseModel):
     new_password: str
 
 
-class GoogleUserCreate(BaseModel):
-    name: str
-    email: str
-    google_id: str
+# --------google_login=-------------
+class AuthUser(Base): 
+    __tablename__ = "authuser"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uname = Column(String(255), unique=True, index=True)
+    fullname = Column(String(255))
+    googleId = Column(String(255))
+    passwd = Column(String(255))
+    status = Column(String(50), default="inactive")
+    registereddate = Column(DateTime, default=datetime.utcnow)
+
+class Lead(Base):
+    __tablename__ = "lead"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(255))
+    email = Column(String(255), unique=True)
 
 
 # ---------------------------- Innovapath - Request demo --------------------
@@ -108,33 +122,28 @@ class RecentInterview(BaseModel):
     interview_location: Optional[str] = None
     
 # ------------------------------------------- Leads----------------------------------------
+class LeadORM(Base):
+    __tablename__ = "leads_new"
 
-class LeadBase(BaseModel):
-    full_name: Optional[str] = None
-    entry_date: Optional[datetime] = None
-    phone: Optional[str] = None
-    email: EmailStr
-    workstatus: Optional[str] = None
-    status: Optional[str] = None
-    secondary_email: Optional[str] = None
-    secondary_phone: Optional[str] = None
-    address: Optional[str] = None
-    closed_date: Optional[date] = None
-    notes: Optional[str] = None
-    last_modified: Optional[datetime] = None
-    massemail_unsubscribe: Optional[str] = None
-    massemail_email_sent: Optional[str] = None
-    moved_to_candidate: Optional[bool] = None
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(255))
+    entry_date = Column(DateTime)
+    phone = Column(String(20))
+    email = Column(String(255), nullable=False)
+    workstatus = Column(String(50))
+    status = Column(String(50))
+    secondary_email = Column(String(255))
+    secondary_phone = Column(String(20))
+    address = Column(String(255))
+    closed_date = Column(Date)
+    notes = Column(String(500))
+    last_modified = Column(DateTime)
+    massemail_unsubscribe = Column(String(5))
+    massemail_email_sent = Column(String(5))
+    moved_to_candidate = Column(Boolean)
 
+# -------------------------------------------------------------------------------
 
-class LeadCreate(LeadBase):
-    pass
-
-class Lead(LeadBase):
-    id: int
-
-    class Config:
-        from_attributes = True  
 
 
 class CandidateBase(BaseModel):
@@ -308,8 +317,6 @@ class UnsubscribeRequest(BaseModel):
 
 
 
-
-
 class VendorBase(BaseModel):
     id: Optional[int]
     full_name: Optional[str]
@@ -338,45 +345,41 @@ class VendorResponse(VendorBase):
 
 
 
-# --------------------------------------Candidate_placement-------------------------------
-class CandidateMarketingBase(BaseModel):
-    candidate_id: int
-    primary_instructor_id: Optional[int] = None
-    sec_instructor_id: Optional[int] = None
-    marketing_manager: Optional[int] = None
-    start_date: date
-    notes: Optional[str] = None
-    status: Literal['active', 'break', 'not responding']
-
-class CandidateMarketingCreate(CandidateMarketingBase):
-    pass
-
-class CandidateMarketing(CandidateMarketingBase):
-    id: int
-    last_mod_datetime: Optional[datetime]
-
-    class Config:
-        from_attributes = True
+# --------------------------------------Candidate_Marketing-------------------------------
 
 
+class CandidateMarketingORM(Base):
+    __tablename__ = "candidate_marketing"
 
-class CandidatePlacementBase(BaseModel):
-    candidate_id: int
-    company: str
-    placement_date: date
-    type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-    status: Literal['scheduled', 'cancelled']
-    base_salary_offered: Optional[float] = None
-    benefits: Optional[str] = None
-    fee_paid: Optional[float] = None
-    notes: Optional[str] = None
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(Integer)
+    # primary_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    primary_instructor_id = Column(Integer)
+    # sec_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    sec_instructor_id = Column(Integer)
+    # marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    marketing_manager = Column(Integer)
+    start_date = Column(Date, nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(Enum('active', 'break', 'not responding'), nullable=False)
+    last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-class CandidatePlacementCreate(CandidatePlacementBase):
-    pass
 
-class CandidatePlacement(CandidatePlacementBase):
-    id: int
-    last_mod_datetime: Optional[datetime]
+# --------------------------------------Candidate_Placement-------------------------------
 
-    class Config:
-        from_attributes = True
+class CandidatePlacementORM(Base):
+    __tablename__ = "candidate_placement"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(Integer)
+    company = Column(String(200), nullable=False)
+    placement_date = Column(Date, nullable=False)
+    type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
+    status = Column(Enum('scheduled', 'cancelled'), nullable=False)
+    base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
+    benefits = Column(Text, nullable=True)
+    fee_paid = Column(DECIMAL(10, 2), nullable=True)
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)

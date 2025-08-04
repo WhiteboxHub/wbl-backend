@@ -147,38 +147,6 @@ def get_password_hash(password: str):
     return hashlib.md5(password.encode()).hexdigest()
 
 
-# def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-#     to_encode = data.copy()
-    
-#     # Set expiration based on expires_delta or default to ACCESS_TOKEN_EXPIRE_MINUTES
-#     if expires_delta:
-#         expire = datetime.utcnow() + expires_delta
-#     else:
-#         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-#     to_encode.update({"exp": expire})
-#     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-#     return encoded_jwt
-
-
-# def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-#     to_encode = data.copy()
-#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-
-#     username = data.get("sub")
-#     if username:
-#         userinfo = cache_get(username)
-#         if not userinfo:
-#             userinfo = asyncio.run(get_user_by_username(username))
-#             cache_set(username, userinfo)
-#         role = determine_user_role(userinfo)
-#         to_encode["role"] = role
-
-#     to_encode["exp"] = expire
-#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-
 async def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))

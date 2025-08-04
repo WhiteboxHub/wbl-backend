@@ -1,14 +1,14 @@
 # wbl-backend/fapi/main.py
-from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword ,GoogleUserCreate, VendorCreate , RecentPlacement , RecentInterview,CandidateMarketing,Candidate, CandidateCreate, CandidateUpdate,LeadCreate,Lead,CandidatePlacement, CandidatePlacementCreate,CandidateMarketingCreate, TalentSearch
+from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,Candidate, CandidateCreate, CandidateUpdate,Lead, TalentSearch
 from  fapi.db.database import (
       fetch_sessions_by_type, fetch_types,fetch_candidates, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,fetch_interview_by_id,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,get_google_user_by_email,insert_google_user_db,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead_new
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead_new
 )
 from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,create_google_access_token,determine_user_role
+from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, verify_password_reset_token, get_password_hash ,determine_user_role
 from  fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.utils.email_utils import send_reset_password_email ,send_request_demo_emails,send_contact_emails,send_email_to_user
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status,Path
@@ -27,7 +27,7 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads
+from fapi.api.routes import candidate, leads, google_auth
 from fastapi import Query, Path
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -36,12 +36,15 @@ from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
 
+
 load_dotenv()
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
+
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
+app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
 
 def get_db():
     db.database = SessionLocal()
@@ -164,7 +167,6 @@ async def remove_interview(interview_id: int):
 
 
 
-
 # -------------------------------------------------------- IP -----------------------------------------
 
 
@@ -190,71 +192,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-
-# --------------------------------------------------------------------------------------
-
-@app.post("/api/check_user/")
-async def check_user_exists(user: GoogleUserCreate):
-    existing_user = await get_google_user_by_email(user.email)
-    if existing_user:
-        return {"exists": True, "status": existing_user['status']}
-    return {"exists": False}
-
-
-@app.post("/api/google_users/")
-@limiter.limit("15/minute")
-async def register_google_user(request:Request,user: GoogleUserCreate):
-    existing_user = await get_google_user_by_email(user.email)
-    
-    if existing_user:
-        if existing_user['status'] == 'active':
-            return {"message": "User already registered and active, please log in."}
-        else:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
-
-    await insert_google_user_db(email=user.email, name=user.name, google_id=user.google_id)
-    return {"message": "Google user registered successfully!"}
-    
-
-@app.post("/api/google_login/")
-@limiter.limit("15/minute")
-async def login_google_user(request:Request,user: GoogleUserCreate):
-    existing_user = await get_google_user_by_email(user.email)
-    if existing_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if existing_user['status'] == 'inactive':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive account. Please contact admin.")
-
-    # Generate token upon successful login
-    token_data = {
-        "sub": existing_user['uname'],
-        "name": existing_user['fullname'],
-        "google_id": existing_user['googleId'],
-    }   
-    
-    access_token = await create_google_access_token(data=token_data)
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
-
-@app.post("/api/verify_google_token/")
-#@limiter.limit("5/minute")
-async def verify_google_token(token: str):
-    try:
-        # Remove extra quotes from token if present
-        if token.startswith('"') and token.endswith('"'):
-            token = token[1:-1]
-        
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 # ------------------------------------------------------------------------------------
 
