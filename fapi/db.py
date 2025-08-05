@@ -524,9 +524,9 @@
 
 # wbl-backend/fapi/db.py
 from fapi.utils import md5_hash,verify_md5_hash,hash_password,verify_reset_token
-#import mysql.connector
+import mysql.connector
 from fastapi import HTTPException, status
-#from mysql.connector import Error
+from mysql.connector import Error
 import os
 from typing import Optional,Dict,List
 import asyncio
@@ -556,6 +556,15 @@ DATABASE_URL = (
     f"mysql+mysqlconnector://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
     f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 )
+
+db_config = {
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME"),
+    "port": int(os.getenv("DB_PORT")),
+}
+
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -1049,7 +1058,7 @@ async def fetch_candidate_id_by_email(email: str):
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
     try:
         cursor = conn.cursor(dictionary=True)
-        query = "SELECT candidateid FROM candidate WHERE email = %s;"
+        query = "SELECT id FROM candidate WHERE email = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (email,))
         result = cursor.fetchone()
         return result
@@ -1660,7 +1669,7 @@ def unsubscribe_lead_user(email: str) -> (bool, str):
     finally:
         cursor.close()
         conn.close()
-#-----------------------employee------------------------
+#-----------------------------------------employee-------------------------------------------
 def get_all_employees() -> list[dict]:
     with SessionLocal() as session:
         employees = session.query(EmployeeORM).order_by(EmployeeORM.id.desc()).all()
@@ -1689,3 +1698,14 @@ def delete_employee_db(employee_id: int) -> None:
         session.delete(employee)
         session.commit()
 
+def create_employee_db(data: dict) -> dict:
+    with SessionLocal() as session:
+        try:
+            new_employee = EmployeeORM(**data)
+            session.add(new_employee)
+            session.commit()
+            session.refresh(new_employee)
+            return new_employee.__dict__
+        except Exception as e:
+            session.rollback()
+            raise e

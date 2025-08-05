@@ -400,11 +400,14 @@ class EmployeeORM(Base):
     email = Column(String(255), nullable=False)
     phone = Column(String(50))
     address = Column(String(255))
-    dob = Column(Date)
+    state = Column(String(150))	
+    dob = Column(Date)	
     startdate = Column(Date)
-    role = Column(String(100))
+    instructor = Column(Integer)
     enddate = Column(DateTime)
     notes = Column(Text)
+    status = Column(Integer)
+    aadhaar = Column(Integer)
 
 class Employee(BaseModel):
     id: int
@@ -412,11 +415,14 @@ class Employee(BaseModel):
     email: str
     phone: Optional[str]
     address: Optional[str]
+    state: Optional[str]
     dob: Optional[date]
     startdate: Optional[date]
-    role: Optional[str]
     enddate: Optional[datetime]
     notes: Optional[str] = None
+    status:Optional[int]
+    instructor:Optional[int]
+    aadhaar:Optional[str]
 
 
     class Config:
@@ -431,9 +437,26 @@ class EmployeeUpdate(BaseModel):
     state: Optional[str] = None
     dob: Optional[str] = None
     startdate: Optional[str] = None
-    role: Optional[str] = None
     enddate: Optional[str] = None
     notes: Optional[str] = None
+    status:int
+    instructor:int
+    aadhaar:Optional[str]=None
+
+class EmployeeCreate(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
 
 
 # .......................................NEW INNOVAPATH..............................
