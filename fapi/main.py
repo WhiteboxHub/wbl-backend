@@ -1,10 +1,10 @@
 # wbl-backend/fapi/main.py
-from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,Candidate, CandidateCreate, CandidateUpdate,Lead, TalentSearch
+from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM, TalentSearch,RecentInterview
 from  fapi.db.database import (
       fetch_sessions_by_type, fetch_types,fetch_candidates, insert_login_history, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording, user_contact, course_content, fetch_candidate_id_by_email,fetch_interview_by_id,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead_new
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,fetch_candidate_id_by_email,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead
 )
 from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -27,11 +27,10 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth
+from fapi.api.routes import candidate, lead, google_auth
 from fastapi import Query, Path
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
@@ -43,13 +42,13 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
-app.include_router(leads.router, prefix="/api", tags=["Leads"])
+app.include_router(lead.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
 
 def get_db():
     db.database = SessionLocal()
     try:
-        yield db
+        yield 
     finally:
         db.close()
 
@@ -282,7 +281,7 @@ async def register_user(request:Request,user: UserRegistration):
         }
     )
 
-    await insert_lead_new(
+    await insert_lead(
     full_name=leads_full_name,
     phone=user.phone,
     email=user.uname,

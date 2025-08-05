@@ -4,6 +4,7 @@ from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
 from fapi.db.database import Base
 Base = declarative_base()
 
@@ -84,11 +85,11 @@ class AuthUser(Base):
     status = Column(String(50), default="inactive")
     registereddate = Column(DateTime, default=datetime.utcnow)
 
-class Lead(Base):
-    __tablename__ = "lead"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    full_name = Column(String(255))
-    email = Column(String(255), unique=True)
+# class Lead(Base):
+#     __tablename__ = "lead"
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     full_name = Column(String(255))
+#     email = Column(String(255), unique=True)
 
 
 # ---------------------------- Innovapath - Request demo --------------------
@@ -123,7 +124,8 @@ class RecentInterview(BaseModel):
     
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
-    __tablename__ = "leads_new"
+    __tablename__ = "lead"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     full_name = Column(String(255))
@@ -138,91 +140,44 @@ class LeadORM(Base):
     closed_date = Column(Date)
     notes = Column(String(500))
     last_modified = Column(DateTime)
-    massemail_unsubscribe = Column(String(5))
-    massemail_email_sent = Column(String(5))
-    moved_to_candidate = Column(Boolean)
+    massemail_unsubscribe = Column(Boolean, nullable=True)
+    massemail_email_sent = Column(Boolean, nullable=True)
+    moved_to_candidate = Column(Boolean,server_default='0')
 
 # -------------------------------------------------------------------------------
+class CandidateORM(Base):
+    __tablename__ = "candidate"
 
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100), nullable=True)
 
+    email = Column(String(100),  nullable=False)
+    phone = Column(String(45), nullable=True)
+    secondaryemail = Column(String(100), nullable=True)
+    secondaryphone = Column(String(45), nullable=True)
 
-class CandidateBase(BaseModel):
-    name: Optional[str]
-    enrolleddate: Optional[date]
-    email: Optional[str]
-    course: Optional[str]
-    phone: Optional[str]
-    status: Optional[str]
-    workstatus: Optional[str]
-    education: Optional[str]
-    workexperience: Optional[str]
-    ssn: Optional[str]
-    agreement: Optional[str]
-    promissory: Optional[str]
-    driverslicense: Optional[str]
-    workpermit: Optional[str]
-    wpexpirationdate: Optional[date]
-    offerletter: Optional[str]
-    secondaryemail: Optional[str]
-    secondaryphone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    country: Optional[str]
-    zip: Optional[str]
-    linkedin: Optional[str]
-    dob: Optional[date]
-    emergcontactname: Optional[str]
-    emergcontactemail: Optional[str]
-    emergcontactphone: Optional[str]
-    emergcontactaddrs: Optional[str]
-    guidelines: Optional[str]
-    ssnvalidated: Optional[str]
-    bgv: Optional[str]
-    term: Optional[str]
-    feepaid: Optional[float]
-    feedue: Optional[float]
-    salary0: Optional[str]
-    salary6: Optional[str]
-    salary12: Optional[str]
-    guarantorname: Optional[str]
-    guarantordesignation: Optional[str]
-    guarantorcompany: Optional[str]
-    contracturl: Optional[str]
-    empagreementurl: Optional[str]
-    offerletterurl: Optional[str]
-    dlurl: Optional[str]
-    workpermiturl: Optional[str]
-    ssnurl: Optional[str]
-    referralid: Optional[int]
-    portalid: Optional[int]
-    avatarid: Optional[int]
-    notes: Optional[str]
-    batchname: str
-    background: Optional[str]
-    recruiterassesment: Optional[str]
-    processflag: Optional[str] = "N"
-    defaultprocessflag: Optional[str] = "N"
-    originalresume: Optional[str]
-    statuschangedate: Optional[date]
-    diceflag: Optional[str]
-    batchid: int
-    emaillist: Optional[str] = "Y"
-    marketing_startdate: Optional[date]
-    instructor: Optional[str]
-    second_instructor: Optional[str]
+    status = Column(String(50), nullable=True)
+    workstatus = Column(String(50), nullable=True)
+    education = Column(String(255), nullable=True)
+    workexperience = Column(String(255), nullable=True)
 
-class CandidateCreate(CandidateBase):
-    pass
+    ssn = Column(String(20), nullable=True)
+    agreement = Column(Boolean, default=False)
 
-class CandidateUpdate(CandidateBase):
-    pass
+    linkedin_id = Column(String(255), nullable=True)
+    enrolled_date = Column(DateTime, default=func.now())
+    dob = Column(Date, nullable=True)
 
-class Candidate(CandidateBase):
-    candidateid: int
+    emergcontactname = Column(String(100), nullable=True)
+    emergcontactemail = Column(String(100), nullable=True)
+    emergcontactphone = Column(String(45), nullable=True)
+    emergcontactaddrs = Column(String(300), nullable=True)
 
-    class Config:
-        orm_mode = True
+    address = Column(String(300), nullable=True)
+    fee_paid = Column(Boolean, default=False)
+    notes = Column(Text, nullable=True)
+    batchid = Column(Integer, nullable=True)  # ForeignKey can be added if batch table exists
+
 
         
 

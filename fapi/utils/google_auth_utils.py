@@ -1,7 +1,7 @@
 # wbl-backend\fapi\utils\google_auth_utils.py
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from fapi.db.models import AuthUser,Lead
+from fapi.db.models import AuthUser,LeadORM
 
 
 def get_google_user_by_email(db: Session, email: str):
@@ -18,10 +18,10 @@ def insert_google_user_db(db: Session, email: str, name: str, google_id: str):
             status="inactive",
         )
         db.add(new_user)
-        print("Creating Lead instance:", type(Lead))
-        print("Lead module:", Lead.__module__)
+        print("Creating Lead instance:", type(LeadORM))
+        print("Lead module:", LeadORM.__module__)
 
-        new_lead = Lead(full_name=name, email=email)
+        new_lead = LeadORM(full_name=name, email=email)
         db.add(new_lead)
         db.commit()
     except Exception as e:

@@ -105,7 +105,7 @@ async def insert_user(
 
 # ---------------hkd-----------------------------------
 
-async def insert_lead_new(
+async def insert_lead(
     full_name: str,
     phone: Optional[str],
     email: str,
