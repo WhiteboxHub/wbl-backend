@@ -74,7 +74,6 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
-
 load_dotenv()
 
 
@@ -132,10 +131,10 @@ async def get_recent_placements():
     return placements
 
 
-
 @app.get("/api/interviews", response_model=List[dict])
 async def get_interviews(limit: int = 10, offset: int = 0):
     return await fetch_recent_interviews(limit, offset)
+
 
 @app.get("/api/interviews/{interview_id}", response_model=dict)
 async def get_interview_by_id(interview_id: int):
@@ -144,14 +143,17 @@ async def get_interview_by_id(interview_id: int):
         raise HTTPException(status_code=404, detail="Interview not found")
     return interview
 
+
 @app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
 async def get_interview_by_name(candidate_name: str):
     return await fetch_interviews_by_name(candidate_name)
+
 
 @app.post("/api/interviews")
 async def create_interview(data: RecentInterview):
     await insert_interview(data)
     return {"message": "Interview created successfully"}
+
 
 @app.put("/api/interviews/{interview_id}")
 async def update_interview_api(interview_id: int, data: RecentInterview):
@@ -161,15 +163,13 @@ async def update_interview_api(interview_id: int, data: RecentInterview):
     await update_interview(interview_id, data)
     return {"message": "Interview updated successfully"}
 
+
 @app.delete("/api/interviews/{interview_id}")
 async def remove_interview(interview_id: int):
     await delete_interview(interview_id)
     return {"message": "Interview deleted successfully"}
 
-
-
 # ---------------------- IP ----------------------------
-
 
 @app.post("/api/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
@@ -193,7 +193,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ------------------------------------------------------------------------------------
 
 async def authenticate_user(uname: str, passwd: str):
@@ -204,7 +203,6 @@ async def authenticate_user(uname: str, passwd: str):
     if user["status"] != 'active':
         return "inactive"  
 
-   
     candidate_info = await fetch_candidate_id_by_email(uname)
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
@@ -220,11 +218,9 @@ def clean_input_fields(user_data: UserRegistration):
         elif value and 'T' in value:  
             setattr(user_data, field, value.replace('T', ' ').split('.')[0])
     
-    
     user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
     
     return user_data
-
 
 @app.post("/api/signup")
 @limiter.limit("15/minute")
@@ -238,7 +234,6 @@ async def register_user(request:Request,user: UserRegistration):
     
     user = clean_input_fields(user)
 
-    
     hashed_password = md5_hash(user.passwd)
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     fullname = fullname.lower()
@@ -246,7 +241,6 @@ async def register_user(request:Request,user: UserRegistration):
     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
     
 
-  
     await insert_user(
     uname=user.uname,
     passwd=hashed_password,
@@ -295,7 +289,6 @@ async def register_user(request:Request,user: UserRegistration):
     notes=None
     )
 
-    
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
 
@@ -331,9 +324,6 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     }
 
 
-
-
-
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -353,7 +343,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-
 @app.post("/api/verify_token")
 async def verify_token_endpoint(token: Token):
     try:
@@ -365,6 +354,7 @@ async def verify_token_endpoint(token: Token):
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
 
 @app.get("/api/materials")
 @limiter.limit("15/minute")
@@ -382,8 +372,6 @@ async def get_materials(request:Request,course: str = Query(...), search: str = 
     except HTTPException as e:
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
 
-
-
 @app.get("/api/user_dashboard")
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
@@ -399,6 +387,7 @@ async def get_types(current_user: dict = Depends(get_current_user)):
         return {"types": types}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/sessions")
 async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
@@ -433,8 +422,6 @@ async def get_sessions(course_name: Optional[str] = None, session_type: Optional
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-
-
 @app.get("/api/batches")
 async def get_batches(course: str = None):
     try:
@@ -444,6 +431,7 @@ async def get_batches(course: str = None):
         return {"batches": batches}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/recording")
 @limiter.limit("15/minute")
@@ -466,6 +454,7 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/contact")
 async def contact(user: ContactForm):
@@ -494,6 +483,7 @@ def get_course_content():
     content = course_content()
     return {"coursecontent": content}
 
+
 @app.put("/api/unsubscribe")
 def unsubscribe(request: EmailRequest):
     status, message = unsubscribe_user(request.email)
@@ -501,6 +491,7 @@ def unsubscribe(request: EmailRequest):
         return {"message": message}
     else:
         raise HTTPException(status_code=404, detail=message)
+
 
 @app.post("/api/forget-password")
 async def forget_password(request: ResetPasswordRequest):
@@ -510,6 +501,7 @@ async def forget_password(request: ResetPasswordRequest):
     token = create_reset_token(user["uname"])
     await send_reset_password_email(user["uname"], token)
     return JSONResponse(content={"message": "Password reset link has been sent to your email", "token": token})
+
 
 @app.post("/api/reset-password")
 async def reset_password(data: ResetPassword):

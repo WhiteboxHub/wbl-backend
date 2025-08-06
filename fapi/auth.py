@@ -34,6 +34,7 @@ def cache_set(key, value, ttl_seconds=cache_clear_seconds):
     expiration_time = datetime.utcnow() + timedelta(seconds=ttl_seconds)
     cache[key] = (value, expiration_time)
 
+
 def cache_get(key):
     if key in cache:
         value, expiration_time = cache[key]
@@ -94,7 +95,6 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
@@ -112,7 +112,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-    
+
 def verify_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -143,7 +143,6 @@ def verify_password_reset_token(token: str):
 
 def get_password_hash(password: str):
     return hashlib.md5(password.encode()).hexdigest()
-
 
 
 async def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):

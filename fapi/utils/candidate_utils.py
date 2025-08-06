@@ -54,7 +54,6 @@ def create_candidate(candidate_data: dict) -> int:
         db.close()
 
 
-
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
@@ -84,7 +83,6 @@ def delete_candidate(candidate_id: int):
     finally:
         db.close()
         
-
 
 def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
@@ -171,6 +169,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
         return {"page": page, "limit": limit, "total": total, "data": data}
     finally:
         db.close()
+
 
 def get_placement_by_id(placement_id: int) -> Dict:
     db: Session = SessionLocal()

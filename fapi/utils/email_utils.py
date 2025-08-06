@@ -37,6 +37,7 @@ def validate_email_config(config: dict):
     
     return admin_emails
 
+
 def send_html_email(server, from_email: str, to_emails: list[str], subject: str, html_content: str):
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -44,6 +45,7 @@ def send_html_email(server, from_email: str, to_emails: list[str], subject: str,
     msg['Subject'] = subject
     msg.attach(MIMEText(html_content, 'html'))
     server.sendmail(from_email, to_emails, msg.as_string())
+
 
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     config = get_email_config()
@@ -57,7 +59,6 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
             server.starttls()
             server.login(config['from_email'], config['password'])
 
-            
             send_html_email(
                 server=server,
                 from_email=config['from_email'],
@@ -66,7 +67,6 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
                 html_content=user_html_content
             )
 
-            
             send_html_email(
                 server=server,
                 from_email=config['from_email'],
@@ -77,6 +77,7 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error while sending registration emails: {e}')
+
 
 def send_contact_emails(first_name: str, last_name: str, email: str, phone: str, message: str):
     config = get_email_config()
@@ -132,6 +133,7 @@ async def send_reset_password_email(email: EmailStr, token: str):
     )
     fm = FastMail(fastmail_config)
     await fm.send_message(message)
+
 
 async def send_request_demo_emails(name: str, email: str, phone: str, address: str = ""):
     user_message = MessageSchema(

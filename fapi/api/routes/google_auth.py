@@ -29,7 +29,6 @@ async def check_user_exists(user: GoogleUserCreate, db: Session = Depends(get_db
         return {"exists": True, "status": existing_user.status}
     return {"exists": False}
 
-
 @router.post("/check_user_direct/")
 async def check_user_exists_direct(user: GoogleUserCreate):
     

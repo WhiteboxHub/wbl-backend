@@ -9,7 +9,6 @@ from typing import Optional, List, Literal
 
 Base = declarative_base()
 
-  
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
@@ -26,7 +25,6 @@ class LeadBase(BaseModel):
     massemail_unsubscribe: Optional[str] = None
     massemail_email_sent: Optional[str] = None
     moved_to_candidate: Optional[bool] = None
-
 
 class LeadCreate(LeadBase):
     pass
@@ -81,7 +79,6 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[Candidate]
 
-
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
     primary_instructor_id: Optional[int] = None
@@ -100,7 +97,6 @@ class CandidateMarketing(CandidateMarketingBase):
 
     class Config:
         from_attributes = True
-
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int

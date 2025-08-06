@@ -8,6 +8,7 @@ def get_google_user_by_email(db: Session, email: str):
     user = db.query(AuthUser).filter(AuthUser.uname == email).first()
     return user
 
+
 def insert_google_user_db(db: Session, email: str, name: str, google_id: str):
     try:
         new_user = AuthUser(

@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-
 def md5_hash(password: str) -> str:
     return hashlib.md5(password.encode()).hexdigest()
 

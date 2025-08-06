@@ -8,11 +8,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
 Base = declarative_base()
 
-
 class UserCreate(BaseModel):
     uname: str
     passwd: str
-
 
 class UserRegistration(BaseModel):
     uname: str
@@ -47,7 +45,6 @@ class UserRegistration(BaseModel):
         allow_population_by_field_name = True
         allow_population_by_alias = True
 
-
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
@@ -55,24 +52,19 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
-
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-
 class EmailRequest(BaseModel):
     email: EmailStr
-
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
 
-
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-
 
 # --------google_login=-------------
 class AuthUser(Base): 
@@ -167,9 +159,6 @@ class CandidateORM(Base):
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
 
-
-        
-
 class PlacementBase(BaseModel):
     candidate_id: Optional[int]
     candidate_name: Optional[str]
@@ -195,14 +184,11 @@ class PlacementBase(BaseModel):
     placement_verified: Optional[bool] = False
     joining_letter_url: Optional[str]
 
-
 class PlacementCreate(PlacementBase):
     pass
 
-
 class PlacementUpdate(PlacementBase):
     pass
-
 
 class Placement(PlacementBase):
     id: int
@@ -218,7 +204,6 @@ class RecentPlacement(BaseModel):
     company: str
     position: str
     placement_date: str
-
 
 class RecentInterview(BaseModel):
     id: int
@@ -252,12 +237,8 @@ class TalentSearch(TalentSearchBaseModel):
     class Config:
         orm_mode = True
 
-
 class UnsubscribeRequest(BaseModel):
     email: str
-
-
-
 
 
 class VendorBase(BaseModel):
@@ -285,11 +266,7 @@ class VendorResponse(VendorBase):
         from_attributes = True  
 
 
-
-
-
 # --------------------------Candidate_Marketing-------------------------------
-
 
 class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"

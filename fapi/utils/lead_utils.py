@@ -23,7 +23,6 @@ def fetch_all_leads_paginated(page: int, limit: int) -> Dict[str, any]:
             .all()
         )
 
-        
         leads_data = [lead.__dict__ for lead in leads]
         for lead in leads_data:
             lead.pop('_sa_instance_state', None) 
@@ -34,8 +33,6 @@ def fetch_all_leads_paginated(page: int, limit: int) -> Dict[str, any]:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
-
-
 
 
 def get_lead_by_id(lead_id: int) -> Dict[str, Any]:
@@ -56,7 +53,7 @@ def get_lead_by_id(lead_id: int) -> Dict[str, Any]:
     finally:
         session.close()
 
-     
+
 def create_lead(lead_data: LeadCreate) -> LeadORM:
     session = SessionLocal()
     try:
@@ -98,7 +95,6 @@ def update_lead(lead_id: int, lead_data: LeadCreate) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         session.close()
-
 
 
 def delete_lead(lead_id: int) -> Dict[str, str]:
