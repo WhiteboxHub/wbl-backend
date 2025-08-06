@@ -10,8 +10,6 @@ import jwt
 from fapi.db import models
 
 
-# from app.core.config import SECRET_KEY, ALGORITHM
-
 router = APIRouter()
 
 def get_db():
@@ -34,7 +32,7 @@ async def check_user_exists(user: GoogleUserCreate, db: Session = Depends(get_db
 
 @router.post("/check_user_direct/")
 async def check_user_exists_direct(user: GoogleUserCreate):
-    # from app.db.database import SessionLocal
+    
     db = SessionLocal()
     try:
         existing_user = get_google_user_by_email(db, user.email)
@@ -70,7 +68,7 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
         "name": existing_user.fullname,
         "google_id": existing_user.googleId,
     }
-    # Assume the token function is imported
+    
     access_token = await create_google_access_token(data=token_data)
     return {"access_token": access_token, "token_type": "bearer"}
 

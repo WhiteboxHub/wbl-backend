@@ -23,10 +23,10 @@ def fetch_all_leads_paginated(page: int, limit: int) -> Dict[str, any]:
             .all()
         )
 
-        # Convert SQLAlchemy models to dict
+        
         leads_data = [lead.__dict__ for lead in leads]
         for lead in leads_data:
-            lead.pop('_sa_instance_state', None)  # remove SQLAlchemy internal data
+            lead.pop('_sa_instance_state', None) 
 
         return {"page": page, "limit": limit, "total": total, "data": leads_data}
 
@@ -62,7 +62,7 @@ def create_lead(lead_data: LeadCreate) -> LeadORM:
     try:
         lead_dict = lead_data.dict()
 
-        # Provide fallback for entry_date and last_modified
+        
         if not lead_dict.get("entry_date"):
             lead_dict["entry_date"] = datetime.utcnow()
         if not lead_dict.get("last_modified"):

@@ -87,7 +87,7 @@ class AuthUser(Base):
     registereddate = Column(DateTime, default=datetime.utcnow)
 
 
-# ---------------------------- Innovapath - Request demo --------------------
+# ----------------- Innovapath - Request demo --------------------
 
 class VendorCreate(BaseModel):
     full_name: str
@@ -117,7 +117,7 @@ class RecentInterview(BaseModel):
     client_name: Optional[str] = None
     interview_location: Optional[str] = None
     
-# ------------------------------------------- Leads----------------------------------------
+# -------------------------- Leads-------------------------
 class LeadORM(Base):
     __tablename__ = "lead"
 
@@ -148,8 +148,8 @@ class CandidateORM(Base):
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=True)  # No ENUM used
-    workstatus = Column(String(50), nullable=True)  # No ENUM used
+    status = Column(String(20), nullable=True)  
+    workstatus = Column(String(50), nullable=True)  
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
     ssn = Column(String(11), nullable=True)
@@ -177,7 +177,6 @@ class PlacementBase(BaseModel):
     company: Optional[str]
     client_id: Optional[int]
     batch: Optional[str]
-    # placed_date: Optional[date]
     placement_date: Optional[date]
     status: Optional[str]
     marketing_email_address: Optional[str]
@@ -280,29 +279,25 @@ class VendorUpdate(VendorBase):
     pass
 
 class VendorResponse(VendorBase):
-    id: int  # correct usage in Pydantic
+    id: int  
 
     class Config:
-        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
+        from_attributes = True  
 
 
 
 
 
-# --------------------------------------Candidate_Marketing-------------------------------
+# --------------------------Candidate_Marketing-------------------------------
 
 
 class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
     candidate_id = Column(Integer)
-    # primary_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     primary_instructor_id = Column(Integer)
-    # sec_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     sec_instructor_id = Column(Integer)
-    # marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
     marketing_manager = Column(Integer)
     start_date = Column(Date, nullable=False)
     notes = Column(Text, nullable=True)
@@ -310,13 +305,12 @@ class CandidateMarketingORM(Base):
     last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-# --------------------------------------Candidate_Placement-------------------------------
+# ----------------------------Candidate_Placement-------------------------------
 
 class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
     candidate_id = Column(Integer)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)

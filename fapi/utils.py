@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# MD5 hashing functions
+
 
 def md5_hash(password: str) -> str:
     return hashlib.md5(password.encode()).hexdigest()
@@ -21,7 +21,7 @@ def update_password(new_password: str) -> str:
 
 def check_password_strength(password: str) -> bool:
     """Check if the password meets certain strength criteria (e.g., length, complexity)."""
-    # Example criteria: at least 8 characters long
+    
     return len(password) >= 8
 
 SECRET_KEY = os.getenv("SECRET_KEY")

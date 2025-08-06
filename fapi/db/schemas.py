@@ -37,7 +37,7 @@ class LeadSchema(LeadBase):
         from_attributes = True  
 
 
-# --------------------------------------------------------candidate-------------------------------------------------------
+#------------------candidate---------------------
 
 class CandidateBase(BaseModel):
     full_name: Optional[str]

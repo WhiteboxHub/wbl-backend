@@ -59,7 +59,7 @@ app.state.limiter = limiter
 
 router = APIRouter()
 
-# Add CORS middleware
+
 app.add_middleware(
     CORSMiddleware,
 
@@ -70,14 +70,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OAuth2PasswordBearer instance
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
-# Load environment variables from .env file
+
 load_dotenv()
 
-# Retrieve the secret key from environment variables
+
 SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
@@ -123,7 +123,7 @@ def determine_user_role(userinfo):
 
     return "candidate"
 
-# # -----------------------------------------------------------------------------------------------------
+# # ------------------------------------------------------------
 
 
 @app.get("/api/placements", response_model=List[RecentPlacement])
@@ -168,18 +168,18 @@ async def remove_interview(interview_id: int):
 
 
 
-# -------------------------------------------------------- IP -----------------------------------------
+# ---------------------- IP ----------------------------
 
 
 @app.post("/api/request-demo")
 async def create_vendor_request_demo(vendor: VendorCreate):
     try:
         vendor_data = vendor.dict()
-        vendor_data["type"] = "IP_REQUEST_DEMO"  # force the type value
+        vendor_data["type"] = "IP_REQUEST_DEMO"  
 
         await insert_vendor(vendor_data)
 
-        # Trigger emails after saving the vendor info
+        
         await send_request_demo_emails(
             name=vendor_data.get("full_name", "User"),
             email=vendor_data.get("email"),
@@ -202,9 +202,9 @@ async def authenticate_user(uname: str, passwd: str):
         return None
 
     if user["status"] != 'active':
-        return "inactive"  # User status is not active
+        return "inactive"  
 
-    # Fetch candidateid from the candidate table
+   
     candidate_info = await fetch_candidate_id_by_email(uname)
     candidateid = candidate_info["candidateid"] if candidate_info else "Candidate ID not present"
     return {**user, "candidateid": candidateid}
@@ -212,15 +212,15 @@ async def authenticate_user(uname: str, passwd: str):
 
 def clean_input_fields(user_data: UserRegistration):
     """Convert empty strings and format datetimes for MySQL"""
-    # Convert empty strings to None for all fields
+    
     for field in ['lastlogin', 'registereddate', 'level3date']:
         value = getattr(user_data, field)
         if value == '':
             setattr(user_data, field, None)
-        elif value and 'T' in value:  # Format ISO datetime strings
+        elif value and 'T' in value:  
             setattr(user_data, field, value.replace('T', ' ').split('.')[0])
     
-    # Handle integer field
+    
     user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
     
     return user_data
@@ -230,22 +230,21 @@ def clean_input_fields(user_data: UserRegistration):
 @limiter.limit("15/minute")
 async def register_user(request:Request,user: UserRegistration):
     user.uname = user.uname.lower().strip()
-    # Check if user exists
+   
     existing_user = await get_user_by_username(user.uname)
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already registered")
 
-    # Clean inputs (only change needed)
+    
     user = clean_input_fields(user)
 
-    # Rest of your existing code remains exactly the same...
+    
     hashed_password = md5_hash(user.passwd)
-    # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
     fullname = fullname.lower()
     user.fullname = fullname
     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
-    # print(" Full name constructed:", fullname)  # <---- Add this line
+    
 
   
     await insert_user(
@@ -271,7 +270,7 @@ async def register_user(request:Request,user: UserRegistration):
     experience=user.experience,
     education=user.education,
     referby=user.referby,
-    candidate_info={  # optional dict
+    candidate_info={  
         'name': user.fullname,
         'enrolleddate': user.registereddate,
         'email': user.uname,
@@ -288,15 +287,15 @@ async def register_user(request:Request,user: UserRegistration):
     phone=user.phone,
     email=user.uname,
     address=user.address,
-    workstatus=None,  # If available, pass user.workstatus
+    workstatus=None,  
     status="Open",
-    secondary_email=None,  # Or user.secondaryemail if you collect it
-    secondary_phone=None,  # Or user.secondaryphone
+    secondary_email=None,  
+    secondary_phone=None,  
     closed_date=None,
     notes=None
     )
 
-    # Send confirmation email to the user and notify the admin
+    
     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
 
@@ -322,19 +321,19 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
     await insert_login_history(user["id"], request.client.host, request.headers.get('User-Agent', ''))
 
     access_token = create_access_token(
-        data={"sub": user["uname"], "team": user["team"]}  # Add team info to the token
+        data={"sub": user["uname"], "team": user["team"]}  
     )
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "team": user["team"],  # Explicitly include team info in response
+        "team": user["team"],  
     }
 
 
 
 
-# Function to get the current user based on the token
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -354,7 +353,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-# Token verification endpoint
+
 @app.post("/api/verify_token")
 async def verify_token_endpoint(token: Token):
     try:
@@ -384,7 +383,7 @@ async def get_materials(request:Request,course: str = Query(...), search: str = 
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
 
 
-# Fetch user details endpoint
+
 @app.get("/api/user_dashboard")
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
@@ -393,8 +392,8 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 @app.get("/api/session-types")
 async def get_types(current_user: dict = Depends(get_current_user)):
     try:
-        team = current_user.get("team", "null")  # Extract the team from the user data
-        types = await fetch_types(team)  # Pass the team to fetch_types
+        team = current_user.get("team", "null")  
+        types = await fetch_types(team)  
         if not types:
             raise HTTPException(status_code=404, detail="Types not found")
         return {"types": types}
@@ -404,38 +403,38 @@ async def get_types(current_user: dict = Depends(get_current_user)):
 @app.get("/api/sessions")
 async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     try:
-        # Local mapping of course names to course IDs for this endpoint only
+        
         course_name_to_id = {
             "QA": 1,
             "UI": 2,
             "ML": 3,
         }
 
-        # Validate and map course_name to course_id
+        
         if course_name:
-            course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
+            course_id = course_name_to_id.get(course_name.upper())  
             if not course_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
                 )
         else:
-            course_id = None  # If course_name is not provided, no filtering on course_id
+            course_id = None  
 
-        # Fetch the current user's team
+        
         team = current_user.get("team", "null")
 
-        # Call the function to fetch sessions by the provided course_id and session_type
-        sessions = await fetch_sessions_by_type(course_id, session_type, team)  # Pass the team to fetch_sessions_by_type
+        
+        sessions = await fetch_sessions_by_type(course_id, session_type, team) 
         if not sessions:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
         return {"sessions": sessions}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-###########################################################################
 
-# End Point to get batches info based on the course input
+
+
 @app.get("/api/batches")
 async def get_batches(course: str = None):
     try:
@@ -470,7 +469,7 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
 
 @app.post("/api/contact")
 async def contact(user: ContactForm):
-        # Send emails
+        
     send_contact_emails(
         first_name=user.firstName,
         last_name=user.lastName,
@@ -479,7 +478,7 @@ async def contact(user: ContactForm):
         message=user.message
     )
     
-    # Save to database
+    
     full_name = f"{user.firstName} {user.lastName}"
     await user_contact(
         full_name=full_name,
@@ -523,6 +522,7 @@ async def reset_password(data: ResetPassword):
 
 
 # ...................................NEW INNOVAPATH......................................
+
 @app.get("/api/talent_search", response_model=List[TalentSearch])
 async def get_talent_search(
     role: Optional[str] = None,

@@ -13,7 +13,7 @@ def get_user_email_content(user_name: str) -> str:
     </html>
     """
 
-# Email content for the admin
+
 
 def get_admin_email_content(user_name: str, user_email: str, user_phone: str) -> str:
     return f"""

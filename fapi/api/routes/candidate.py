@@ -15,6 +15,7 @@ router = APIRouter()
 
 # ------------------------Candidate------------------------------------
 
+
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(page: int = 1, limit: int = 100):
     return candidate_utils.get_all_candidates_paginated(page, limit)
@@ -27,19 +28,23 @@ def get_candidate(candidate_id: int):
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
 
+
 @router.post("/candidates", response_model=int)
 def create_candidate(candidate: CandidateBase):
     return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
+
 
 @router.put("/candidates/{candidate_id}")
 def update_candidate(candidate_id: int, candidate: CandidateUpdate):
     candidate_utils.update_candidate(candidate_id, candidate.dict(exclude_unset=True))
     return {"message": "Candidate updated successfully"}
 
+
 @router.delete("/candidates/{candidate_id}")
 def delete_candidate(candidate_id: int):
     candidate_utils.delete_candidate(candidate_id)
     return {"message": "Candidate deleted successfully"}
+
 
 
 # ------------------- Marketing -------------------
@@ -63,6 +68,7 @@ def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
 @router.delete("/candidate/marketing/{record_id}")
 def delete_marketing_record(record_id: int):
     return delete_marketing(record_id)
+
 
 # ------------------- Placements -------------------
 

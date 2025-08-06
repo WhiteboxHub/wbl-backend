@@ -4,7 +4,6 @@ from fapi.db.models import CandidatePlacementORM,CandidateMarketingORM, Candidat
 from fapi.db.schemas import CandidatePlacementCreate,CandidateMarketingCreate
 from fastapi import HTTPException
 from typing import List, Dict
-# from fapi.db.database import execute_commit, execute_fetchall, execute_fetchone
 
 # --------------------------------Candidate------------------------------
 
@@ -55,6 +54,7 @@ def create_candidate(candidate_data: dict) -> int:
         db.close()
 
 
+
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
@@ -84,6 +84,7 @@ def delete_candidate(candidate_id: int):
     finally:
         db.close()
         
+
 
 def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()

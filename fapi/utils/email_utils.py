@@ -13,7 +13,7 @@ from fapi.mail.templets.registerMailTemplet import get_user_email_content, get_a
 from fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
 from fapi.mail.templets.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template
 
-# Load environment variables
+
 load_dotenv()
 
 # ========== SMTP Email Configuration for smtplib ==========
@@ -57,7 +57,7 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
             server.starttls()
             server.login(config['from_email'], config['password'])
 
-            # Send to user
+            
             send_html_email(
                 server=server,
                 from_email=config['from_email'],
@@ -66,7 +66,7 @@ def send_email_to_user(user_email: str, user_name: str, user_phone: str):
                 html_content=user_html_content
             )
 
-            # Send to all admins
+            
             send_html_email(
                 server=server,
                 from_email=config['from_email'],

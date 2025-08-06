@@ -13,24 +13,24 @@ from typing import Optional
 from datetime import timedelta  
 import asyncio
 
-# Load environment variables from .env file
+
 load_dotenv()
 
-# Retrieve the secret key from environment variables
+
 SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 # ACCESS_TOKEN_EXPIRE_MINUTES =1
-PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 15  # Token expiry time for password reset
+PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 15  
 
 # Simple in-memory cache dictionary
 cache = {}
 
 cache_clear_seconds = 60*180
 
-def cache_set(key, value, ttl_seconds=cache_clear_seconds):  # Default TTL of 1 hour
+def cache_set(key, value, ttl_seconds=cache_clear_seconds):  
     expiration_time = datetime.utcnow() + timedelta(seconds=ttl_seconds)
     cache[key] = (value, expiration_time)
 
@@ -40,7 +40,7 @@ def cache_get(key):
         if expiration_time > datetime.utcnow():
             return value
         else:
-            del cache[key]  # Remove expired item from cache
+            del cache[key]  
     return None
 
 # ----------------------------------------------------------------------- Avatar ---------------------------------------------------------------------------
@@ -62,8 +62,6 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
         
-        # if request.url.path in skip_paths:
-        #     return await call_next(request)
 
         apiToken = request.headers.get('Authtoken')
         if not apiToken:
@@ -82,7 +80,7 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
                 cache_set(username, userinfo)
                 user = userinfo
 
-            # Attach user and role info to request state
+            
             request.state.user = user
             request.state.role = role
 
@@ -101,7 +99,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
-    # Get user info from DB (to add role into token)
+    
     username = data.get("sub")
     if username:
         userinfo = cache_get(username)
@@ -124,14 +122,14 @@ def verify_token(token: str):
     except JWTError:
         return JSONResponse(status_code=401, content={'detail': 'Unauthorized - invalid User, please login again'})
 
-# Function to create password reset token
+
 def generate_password_reset_token(email: str):
     expire = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": email, "exp": expire}
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# Function to verify password reset token
+
 def verify_password_reset_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -142,7 +140,7 @@ def verify_password_reset_token(token: str):
     except JWTError:
         return None
 
-# Function to hash the new password
+
 def get_password_hash(password: str):
     return hashlib.md5(password.encode()).hexdigest()
 
@@ -167,7 +165,7 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# -------------------------------------------------- Avatar --------------------------------------------------
+# ------------------------------ Avatar -------------------------
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
@@ -176,7 +174,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     if username:
         userinfo = cache_get(username)
         if not userinfo:
-            userinfo = get_user_by_username_sync(username)  # Using sync version
+            userinfo = get_user_by_username_sync(username)  
             cache_set(username, userinfo)
         role = determine_user_role(userinfo)
         to_encode["role"] = role

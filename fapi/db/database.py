@@ -90,7 +90,7 @@ async def insert_user(
 
             message, registereddate, level3date
         )
-        # print(" Values being inserted into DB:", values1)
+        
 
         await loop.run_in_executor(None, cursor.execute, query1, values1)
         conn.commit()
@@ -183,7 +183,7 @@ async def update_login_info(user_id: int):
         await loop.run_in_executor(None, cursor.execute, query, (user_id,))
         conn.commit()
     except Error as e:
-        # print(f"Error updating login info: {e}")
+        
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error updating login info")
     finally:
@@ -202,7 +202,7 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
         conn.commit()
     except Error as e:
-        # print(f"Error inserting login history: {e}")
+        
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error inserting login history")
     finally:
@@ -212,17 +212,17 @@ async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
 
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
-    # Combine the two lists
+    
     all_batches = q1_response + q2_response    
     seen_batches = set()
     unique_batches = []
 
     for batch in all_batches:
-        # print(batch['batchname'])
+        
         if batch['batchname'] not in seen_batches:
             seen_batches.add(batch['batchname'])
             unique_batches.append(batch)
-    # Sort unique_batches by batchname in descending order (latest to oldest)
+    
     unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
     return unique_batches
 
@@ -243,7 +243,7 @@ async def fetch_course_batches(subject:str=None):
         r1 = cursor.fetchall()
         return r1
     except Error as e:
-        # print(f"Error: {e}")
+       
         return []
     finally:
         conn.close()
@@ -316,10 +316,10 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
         keyword_search = f"%{keyword}%" if keyword else ""
         params = (subject, subject, keyword, keyword_search, subject, subject, keyword, keyword_search)
 
-        # Execute query
+       
         await loop.run_in_executor(None, cursor.execute, query, params)
 
-        # Fetch results
+        
         recordings = cursor.fetchall()
         return recordings
     finally:
@@ -407,7 +407,7 @@ async def fetch_keyword_presentation(search, course):
                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
             )
     except mysql.connector.Error as err:
-        # print(f"Error: {err}")
+       
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error occurred"
@@ -418,14 +418,14 @@ async def fetch_keyword_presentation(search, course):
 
 
 async def get_user_from_token(token: str):
-    # Verify the JWT token and extract the email
+    
     payload = verify_token(token)
-    if isinstance(payload, JSONResponse):  # Check if an error response was returned
+    if isinstance(payload, JSONResponse): 
         raise ValueError("Invalid or expired token")
     
-    email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
+    email = payload.get('sub')  
 
-    # Query the database to find the user by email
+    
     team = await fetch_user_team(email)
     return team
 
@@ -442,8 +442,8 @@ async def fetch_user_team(email: str):
         
         result = cursor.fetchone()
         if result:
-            return result['team']  # Returns 'admin', 'instructor', or None
-        return None  # User not found
+            return result['team']  
+        return None 
     finally:
         conn.close()
 
@@ -492,7 +492,7 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
         if team not in ["admin", "instructor"]:
             allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
             if session_type not in allowed_types:
-                return []  # Return empty list if type not allowed for normal users
+                return []  
 
         await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
         sessions = cursor.fetchall()
@@ -530,7 +530,7 @@ async def user_contact(full_name: str, email: str = None, phone: str = None,  me
         await loop.run_in_executor(None, cursor.execute, query, values)
         conn.commit()
     except Error as e:
-        # print(f"Error inserting user: {e}")
+       
         raise HTTPException(status_code=409, detail="Response already sent!")
     finally:
         cursor.close()
@@ -539,8 +539,7 @@ async def user_contact(full_name: str, email: str = None, phone: str = None,  me
 def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
-        cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        # cursor.execute("SELECT * FROM whitebox_learning.course_content")
+        cursor = conn.cursor(dictionary=True)  
         cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
         data = cursor.fetchall()
         return data 
@@ -548,7 +547,7 @@ def course_content():
         conn.close()
 
 
-def unsubscribe_user(email: str) -> (bool, str): # type: ignore
+def unsubscribe_user(email: str) -> (bool, str): 
     conn = mysql.connector.connect(**db_config)
     try:
         cursor = conn.cursor()
@@ -566,7 +565,7 @@ def unsubscribe_user(email: str) -> (bool, str): # type: ignore
 
         return True, "Successfully unsubscribed"
     except Error as e:
-        # print(f"Error: {e}")
+       
         return False, "An error occurred"
     finally:
         cursor.close()
@@ -591,7 +590,7 @@ async def update_user_password(uname: str, new_password: str):
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="User not found")
     except Error as e:
-        # print(f"Error updating password: {e}")
+        
         conn.rollback()
         raise HTTPException(status_code=500, detail="Error updating password")
     finally:
@@ -732,7 +731,7 @@ def get_user_by_username_sync(username: str):
     conn.close()
     return user
 
-# .................................NEW INNOVAPTH......................................................
+# .................NEW INNOVAPTH...........................
  
 def get_db():
     try:
@@ -781,7 +780,7 @@ async def fetch_candidates(filters: dict) -> List[Dict]:
             conn.close()
 
 
-# .................................Unsubscribe Leads......................................................
+# ................Unsubscribe Leads................................
 
 def unsubscribe_lead_user(email: str) -> (bool, str):
     conn = mysql.connector.connect(**db_config)
