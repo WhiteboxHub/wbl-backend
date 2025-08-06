@@ -5,7 +5,9 @@ from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
+# from config import Base
 Base = declarative_base()
+
 
 class UserCreate(BaseModel):
     uname: str
@@ -146,84 +148,6 @@ class LeadORM(Base):
 
 
 
-class CandidateBase(BaseModel):
-    name: Optional[str]
-    enrolleddate: Optional[date]
-    email: Optional[str]
-    course: Optional[str]
-    phone: Optional[str]
-    status: Optional[str]
-    workstatus: Optional[str]
-    education: Optional[str]
-    workexperience: Optional[str]
-    ssn: Optional[str]
-    agreement: Optional[str]
-    promissory: Optional[str]
-    driverslicense: Optional[str]
-    workpermit: Optional[str]
-    wpexpirationdate: Optional[date]
-    offerletter: Optional[str]
-    secondaryemail: Optional[str]
-    secondaryphone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    country: Optional[str]
-    zip: Optional[str]
-    linkedin: Optional[str]
-    dob: Optional[date]
-    emergcontactname: Optional[str]
-    emergcontactemail: Optional[str]
-    emergcontactphone: Optional[str]
-    emergcontactaddrs: Optional[str]
-    guidelines: Optional[str]
-    ssnvalidated: Optional[str]
-    bgv: Optional[str]
-    term: Optional[str]
-    feepaid: Optional[float]
-    feedue: Optional[float]
-    salary0: Optional[str]
-    salary6: Optional[str]
-    salary12: Optional[str]
-    guarantorname: Optional[str]
-    guarantordesignation: Optional[str]
-    guarantorcompany: Optional[str]
-    contracturl: Optional[str]
-    empagreementurl: Optional[str]
-    offerletterurl: Optional[str]
-    dlurl: Optional[str]
-    workpermiturl: Optional[str]
-    ssnurl: Optional[str]
-    referralid: Optional[int]
-    portalid: Optional[int]
-    avatarid: Optional[int]
-    notes: Optional[str]
-    batchname: str
-    background: Optional[str]
-    recruiterassesment: Optional[str]
-    processflag: Optional[str] = "N"
-    defaultprocessflag: Optional[str] = "N"
-    originalresume: Optional[str]
-    statuschangedate: Optional[date]
-    diceflag: Optional[str]
-    batchid: int
-    emaillist: Optional[str] = "Y"
-    marketing_startdate: Optional[date]
-    instructor: Optional[str]
-    second_instructor: Optional[str]
-
-class CandidateCreate(CandidateBase):
-    pass
-
-class CandidateUpdate(CandidateBase):
-    pass
-
-class Candidate(CandidateBase):
-    candidateid: int
-
-    class Config:
-        orm_mode = True
-
         
 
 class PlacementBase(BaseModel):
@@ -291,29 +215,25 @@ class RecentInterview(BaseModel):
 
 # .......................................NEW INNOVAPATH..............................
 
-class TalentSearchBaseModel(BaseModel):
-    id: int
-    full_name: str
-    email: str
-    phone: str
-    role: str
-    experience: int
-    location: str
-    availability: str
-    skills: str
 
+class TalentSearch(Base):
+    __tablename__ = "talent_search"
 
-class TalentSearch(TalentSearchBaseModel):
-    id: int
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100))
+    email = Column(String(100))
+    phone = Column(String(20))
+    role = Column(String(50))
+    experience = Column(Integer)
+    location = Column(String(100))
+    availability = Column(String(50))
+    skills = Column(Text)
+
     
-    class Config:
-        orm_mode = True
-
+# ------------------------------------------
 
 class UnsubscribeRequest(BaseModel):
     email: str
-
-
 
 
 

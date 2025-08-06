@@ -4,9 +4,14 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Literal
 
-
-
 Base = declarative_base()
+
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    team: str
 
   
 class LeadBase(BaseModel):
@@ -130,3 +135,45 @@ class GoogleUserCreate(BaseModel):
 
     class Config:
         orm_mode = True
+
+# ------------------------------------Innovapath----------------------------
+class TalentSearch(BaseModel):
+    id: int
+    full_name: Optional[str]
+    email: Optional[str]
+    phone: Optional[str]
+    role: Optional[str]
+    experience: Optional[int]
+    location: Optional[str]
+    availability: Optional[str]
+    skills: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+
+# ================================================contact====================================
+
+class ContactCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+    workstatus: Optional[str] = None
+
+
+class ContactFormResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+
+

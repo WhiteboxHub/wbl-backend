@@ -7,7 +7,6 @@ router = APIRouter()
 
 
 
-
 # ------------------------Candidate------------------------------------
 
 @router.get("/candidates", response_model=PaginatedCandidateResponse)

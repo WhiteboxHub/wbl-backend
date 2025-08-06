@@ -12,19 +12,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
+from urllib.parse import quote
 load_dotenv()
+
+raw_password = os.getenv('DB_PASSWORD')
+encoded_password = quote(raw_password)
 
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
+    'password': raw_password,
     'database': os.getenv('DB_NAME'),
-    'port': os.getenv('DB_PORT')
+    'port': int(os.getenv('DB_PORT')),
 }
 
 DATABASE_URL = (
-    f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
-    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    f"mysql+pymysql://{db_config['user']}:{encoded_password}"
+    f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 )
 
 engine = create_engine(DATABASE_URL)
@@ -189,24 +193,24 @@ async def update_login_info(user_id: int):
         cursor.close()
         conn.close()
 
-async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query = """
-            INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
-            VALUES (%s, NOW(), %s, %s);
-        """
-        await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
-        conn.commit()
-    except Error as e:
-        # print(f"Error inserting login history: {e}")
-        conn.rollback()
-        raise HTTPException(status_code=500, detail="Error inserting login history")
-    finally:
-        cursor.close()
-        conn.close()
+# async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+#         query = """
+#             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
+#             VALUES (%s, NOW(), %s, %s);
+#         """
+#         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
+#         conn.commit()
+#     except Error as e:
+#         # print(f"Error inserting login history: {e}")
+#         conn.rollback()
+#         raise HTTPException(status_code=500, detail="Error inserting login history")
+#     finally:
+#         cursor.close()
+#         conn.close()
     
 
 #fucntion to merge batchs
@@ -416,35 +420,35 @@ async def fetch_keyword_presentation(search, course):
         conn.close()
 
 
-async def get_user_from_token(token: str):
-    # Verify the JWT token and extract the email
-    payload = verify_token(token)
-    if isinstance(payload, JSONResponse):  # Check if an error response was returned
-        raise ValueError("Invalid or expired token")
+# async def get_user_from_token(token: str):
+#     # Verify the JWT token and extract the email
+#     payload = verify_token(token)
+#     if isinstance(payload, JSONResponse):  # Check if an error response was returned
+#         raise ValueError("Invalid or expired token")
     
-    email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
+#     email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
 
-    # Query the database to find the user by email
-    team = await fetch_user_team(email)
-    return team
+#     # Query the database to find the user by email
+#     team = await fetch_user_team(email)
+#     return team
 
 
-async def fetch_user_team(email: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
+# async def fetch_user_team(email: str):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
         
-        # Query to check the team column for the user
-        query = "SELECT team FROM authuser WHERE email = %s;"
-        await loop.run_in_executor(None, cursor.execute, query, (email,))
+#         # Query to check the team column for the user
+#         query = "SELECT team FROM authuser WHERE email = %s;"
+#         await loop.run_in_executor(None, cursor.execute, query, (email,))
         
-        result = cursor.fetchone()
-        if result:
-            return result['team']  # Returns 'admin', 'instructor', or None
-        return None  # User not found
-    finally:
-        conn.close()
+#         result = cursor.fetchone()
+#         if result:
+#             return result['team']  # Returns 'admin', 'instructor', or None
+#         return None  # User not found
+#     finally:
+#         conn.close()
 
 
 async def fetch_types(team: str):
@@ -500,40 +504,31 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
         conn.close()
 
 
-async def fetch_candidate_id_by_email(email: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT id FROM candidate WHERE email = %s;"
-        await loop.run_in_executor(None, cursor.execute, query, (email,))
-        result = cursor.fetchone()
-        return result
-    finally:
-        conn.close()
+# ------------------------------------------------contact-------------------------------
 
+# async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
+#     full_name = full_name.lower().strip() if full_name else None
+#     email = email.lower().strip() if email else None
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+#         query = """
+#             INSERT INTO whitebox_learning.lead (
+#                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
+#         """
+#         values = (
+#             full_name, email, phone,message)
+#         await loop.run_in_executor(None, cursor.execute, query, values)
+#         conn.commit()
+#     except Error as e:
+#         # print(f"Error inserting user: {e}")
+#         raise HTTPException(status_code=409, detail="Response already sent!")
+#     finally:
+#         cursor.close()
+#         conn.close()
 
-async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
-    full_name = full_name.lower().strip() if full_name else None
-    email = email.lower().strip() if email else None
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query = """
-            INSERT INTO whitebox_learning.lead (
-                full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
-        """
-        values = (
-            full_name, email, phone,message)
-        await loop.run_in_executor(None, cursor.execute, query, values)
-        conn.commit()
-    except Error as e:
-        # print(f"Error inserting user: {e}")
-        raise HTTPException(status_code=409, detail="Response already sent!")
-    finally:
-        cursor.close()
-        conn.close()
+# --------------------------------------------------------------contact end ----------------------------------
 
 def course_content():
     conn = mysql.connector.connect(**db_config)
@@ -730,54 +725,6 @@ def get_user_by_username_sync(username: str):
     cursor.close()
     conn.close()
     return user
-
-# .................................NEW INNOVAPTH......................................................
- 
-def get_db():
-    try:
-        conn = mysql.connector.connect(**db_config)
-        return conn
-    except Error as e:
-        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
-
-async def fetch_candidates(filters: dict) -> List[Dict]:
-    conn = None
-    cursor = None
-    try:
-        conn = get_db()
-        cursor = conn.cursor(dictionary=True)
-
-        query = "SELECT * FROM candidate_marketing WHERE 1=1"
-        params = []
-
-        if filters.get("role"):
-            query += " AND role = %s"
-            params.append(filters["role"])
-        if filters.get("experience"):
-            query += " AND experience >= %s"
-            params.append(int(filters["experience"]))
-        if filters.get("location"):
-            query += " AND location = %s"
-            params.append(filters["location"])
-        if filters.get("availability"):
-            query += " AND availability = %s"
-            params.append(filters["availability"])
-        if filters.get("skills"):
-            query += " AND skills LIKE %s"
-            params.append(f"%{filters['skills']}%")
-
-        cursor.execute(query, params)
-        result = cursor.fetchall()
-        return result
-    except Error as e:
-        if conn:
-            conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 # .................................Unsubscribe Leads......................................................
