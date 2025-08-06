@@ -5,7 +5,6 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Literal
 
 
-
 Base = declarative_base()
 
   
@@ -130,3 +129,83 @@ class GoogleUserCreate(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+
+# ================================================contact====================================
+
+class ContactCreate(BaseModel):
+    first_name: str
+    last_name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+    workstatus: Optional[str] = None
+
+
+class ContactFormResponse(BaseModel):
+    id: int
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+# ++++++++++++++++++++++++++++++++++ register++++++++++++++++++++++++++++++++++++++++++++++++
+
+class UserRegistration(BaseModel):
+    uname: EmailStr
+    passwd: str
+    dailypwd: Optional[str] = None
+    team: Optional[str] = None
+    level: Optional[str] = None
+    instructor: Optional[str] = None
+    override: Optional[str] = None
+    status: Optional[str] = "active"
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = 0
+    fullname: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    lastmoddatetime: Optional[datetime] = None
+    demo: Optional[str] = None
+    enddate: Optional[date] = None
+    googleId: Optional[str] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+    role: Optional[str] = None
+    visa_status: Optional[str] = None
+    experience: Optional[str] = None
+    education: Optional[str] = None
+    referby: Optional[str] = None
+    specialization: Optional[str] = None
+
+    
+class Lead(Base):
+    __tablename__ = "lead"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String)
+    phone = Column(String)
+    email = Column(String, unique=True)
+    address = Column(String)
+    workstatus = Column(String)
+    status = Column(String, default="Open")
+    visa_status = Column(String)
+    experience = Column(String)
+    education = Column(String)
+    referby = Column(String)
+    specialization = Column(String)
+
+
+

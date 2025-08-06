@@ -33,125 +33,125 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-async def insert_user(
-    uname: str,
-    passwd: str,
-    dailypwd: Optional[str] = None,
-    team: str = None,
-    level: str = None,
-    instructor: str = None,
-    override: str = None,
-    lastlogin: str = None,
-    logincount: str = None,
-    fullname: str = None,
-    phone: str = None,
-    address: str = None,
-    city: str = None,
-    Zip: str = None,
-    country: str = None,
-    message: str = None,
-    visa_status: Optional[str] = None,
-    registereddate: str = None,
-    level3date: str = None,
-    experience: Optional[str] = None,
-    education: Optional[str] = None,
-    specialization: Optional[str] = None,
-    referby: Optional[str] = None,
-    candidate_info: Dict[str, Optional[str]] = None
-):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query1 = """
-            INSERT INTO whitebox_learning.authuser (
+# async def insert_user(
+#     uname: str,
+#     passwd: str,
+#     dailypwd: Optional[str] = None,
+#     team: str = None,
+#     level: str = None,
+#     instructor: str = None,
+#     override: str = None,
+#     lastlogin: str = None,
+#     logincount: str = None,
+#     fullname: str = None,
+#     phone: str = None,
+#     address: str = None,
+#     city: str = None,
+#     Zip: str = None,
+#     country: str = None,
+#     message: str = None,
+#     visa_status: Optional[str] = None,
+#     registereddate: str = None,
+#     level3date: str = None,
+#     experience: Optional[str] = None,
+#     education: Optional[str] = None,
+#     specialization: Optional[str] = None,
+#     referby: Optional[str] = None,
+#     candidate_info: Dict[str, Optional[str]] = None
+# ):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+#         query1 = """
+#             INSERT INTO whitebox_learning.authuser (
 
 
-                uname, passwd, dailypwd, team, level, instructor, override, status, 
-                lastlogin, logincount, fullname, phone, address, city, Zip, country,
+#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
+#                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
 
-                visa_status,experience, education, specialization, referby,
+#                 visa_status,experience, education, specialization, referby,
 
-                `message`, registereddate, level3date
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, 'inactive',
-                %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s, %s
-            );
-        """
+#                 `message`, registereddate, level3date
+#             ) VALUES (
+#                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
+#                 %s, %s, %s, %s, %s, %s, %s, %s,
+#                 %s, %s, %s, %s,
+#                 %s, %s, %s, %s
+#             );
+#         """
 
-        values1 = (
-            uname, passwd, dailypwd, team, level, instructor, override, 
-            lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
+#         values1 = (
+#             uname, passwd, dailypwd, team, level, instructor, override, 
+#             lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
 
-            visa_status, experience, education, specialization, referby,
+#             visa_status, experience, education, specialization, referby,
 
-            message, registereddate, level3date
-        )
-        # print(" Values being inserted into DB:", values1)
+#             message, registereddate, level3date
+#         )
+#         # print(" Values being inserted into DB:", values1)
 
-        await loop.run_in_executor(None, cursor.execute, query1, values1)
-        conn.commit()
+#         await loop.run_in_executor(None, cursor.execute, query1, values1)
+#         conn.commit()
 
-    except Error as e:
-        conn.rollback()
-        print("Database Error:", e) 
-        raise HTTPException(status_code=500, detail="Error inserting user")
+#     except Error as e:
+#         conn.rollback()
+#         print("Database Error:", e) 
+#         raise HTTPException(status_code=500, detail="Error inserting user")
 
-    finally:
-        cursor.close()
-        conn.close()
+#     finally:
+#         cursor.close()
+#         conn.close()
 
-# ---------------hkd-----------------------------------
+# # ---------------hkd-----------------------------------
 
-async def insert_lead_new(
-    full_name: str,
-    phone: Optional[str],
-    email: str,
-    address: Optional[str],
-    workstatus: Optional[str],
-    status: Optional[str] = "Open",
-    secondary_email: Optional[str] = None,
-    secondary_phone: Optional[str] = None,
-    closed_date: Optional[date] = None,
-    notes: Optional[str] = None
-):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+# async def insert_lead_new(
+#     full_name: str,
+#     phone: Optional[str],
+#     email: str,
+#     address: Optional[str],
+#     workstatus: Optional[str],
+#     status: Optional[str] = "Open",
+#     secondary_email: Optional[str] = None,
+#     secondary_phone: Optional[str] = None,
+#     closed_date: Optional[date] = None,
+#     notes: Optional[str] = None
+# ):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 
-    try:
-        cursor = conn.cursor()
+#     try:
+#         cursor = conn.cursor()
 
-        query = """
-            INSERT INTO `lead` (
-                full_name, phone, email, address, workstatus,
-                status, secondary_email, secondary_phone,
-                closed_date, notes
-            ) VALUES (
-                %s, %s, %s, %s, %s,
-                %s, %s, %s,
-                %s, %s
-            );
-        """
+#         query = """
+#             INSERT INTO `lead` (
+#                 full_name, phone, email, address, workstatus,
+#                 status, secondary_email, secondary_phone,
+#                 closed_date, notes
+#             ) VALUES (
+#                 %s, %s, %s, %s, %s,
+#                 %s, %s, %s,
+#                 %s, %s
+#             );
+#         """
 
-        values = (
-            full_name, phone, email, address, workstatus,
-            status, secondary_email, secondary_phone,
-            closed_date, notes
-        )
+#         values = (
+#             full_name, phone, email, address, workstatus,
+#             status, secondary_email, secondary_phone,
+#             closed_date, notes
+#         )
 
-        await loop.run_in_executor(None, cursor.execute, query, values)
-        conn.commit()
+#         await loop.run_in_executor(None, cursor.execute, query, values)
+#         conn.commit()
 
-    except Error as e:
-        conn.rollback()
-        print("Lead Insert Error (lead):", e)
-        raise HTTPException(status_code=500, detail="Error inserting into new leads table")
+#     except Error as e:
+#         conn.rollback()
+#         print("Lead Insert Error (lead):", e)
+#         raise HTTPException(status_code=500, detail="Error inserting into new leads table")
 
-    finally:
-        cursor.close()
-        conn.close()
+#     finally:
+#         cursor.close()
+#         conn.close()
 
 
 # ---------------hkd-----------------------------------
@@ -221,11 +221,11 @@ def merge_batches(q1_response,q2_response):
         if batch['batchname'] not in seen_batches:
             seen_batches.add(batch['batchname'])
             unique_batches.append(batch)
-    # Sort unique_batches by batchname in descending order (latest to oldest)
+    
     unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
     return unique_batches
 
-#function to fetch batch names based on courses
+
 async def fetch_course_batches(subject:str=None):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -242,7 +242,7 @@ async def fetch_course_batches(subject:str=None):
         r1 = cursor.fetchall()
         return r1
     except Error as e:
-        # print(f"Error: {e}")
+
         return []
     finally:
         conn.close()
@@ -286,7 +286,7 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
     try:
         cursor = conn.cursor(dictionary=True)
 
-        # Base query with placeholders
+     
         query = """
             SELECT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject,
                    nr.filename, nr.lastmoddatetime, nr.new_subject_id,
@@ -311,14 +311,13 @@ async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
             ORDER BY classdate DESC;
         """
 
-        # Dynamically adjust parameters for query
+        
         keyword_search = f"%{keyword}%" if keyword else ""
         params = (subject, subject, keyword, keyword_search, subject, subject, keyword, keyword_search)
 
-        # Execute query
+     
         await loop.run_in_executor(None, cursor.execute, query, params)
 
-        # Fetch results
         recordings = cursor.fetchall()
         return recordings
     finally:
@@ -406,7 +405,7 @@ async def fetch_keyword_presentation(search, course):
                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
             )
     except mysql.connector.Error as err:
-        # print(f"Error: {err}")
+      
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error occurred"
@@ -417,14 +416,14 @@ async def fetch_keyword_presentation(search, course):
 
 
 async def get_user_from_token(token: str):
-    # Verify the JWT token and extract the email
+   
     payload = verify_token(token)
-    if isinstance(payload, JSONResponse):  # Check if an error response was returned
+    if isinstance(payload, JSONResponse):  
         raise ValueError("Invalid or expired token")
     
-    email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
+    email = payload.get('sub')  
 
-    # Query the database to find the user by email
+    
     team = await fetch_user_team(email)
     return team
 
@@ -435,14 +434,14 @@ async def fetch_user_team(email: str):
     try:
         cursor = conn.cursor(dictionary=True)
         
-        # Query to check the team column for the user
+       
         query = "SELECT team FROM authuser WHERE email = %s;"
         await loop.run_in_executor(None, cursor.execute, query, (email,))
         
         result = cursor.fetchone()
         if result:
-            return result['team']  # Returns 'admin', 'instructor', or None
-        return None  # User not found
+            return result['team']
+        return None 
     finally:
         conn.close()
 
@@ -491,7 +490,7 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
         if team not in ["admin", "instructor"]:
             allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
             if session_type not in allowed_types:
-                return []  # Return empty list if type not allowed for normal users
+                return []  
 
         await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
         sessions = cursor.fetchall()
@@ -513,33 +512,12 @@ async def fetch_candidate_id_by_email(email: str):
         conn.close()
 
 
-async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
-    full_name = full_name.lower().strip() if full_name else None
-    email = email.lower().strip() if email else None
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query = """
-            INSERT INTO whitebox_learning.lead (
-                full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
-        """
-        values = (
-            full_name, email, phone,message)
-        await loop.run_in_executor(None, cursor.execute, query, values)
-        conn.commit()
-    except Error as e:
-        # print(f"Error inserting user: {e}")
-        raise HTTPException(status_code=409, detail="Response already sent!")
-    finally:
-        cursor.close()
-        conn.close()
 
 def course_content():
     conn = mysql.connector.connect(**db_config)
     try:
-        cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        # cursor.execute("SELECT * FROM whitebox_learning.course_content")
+        cursor = conn.cursor(dictionary=True) 
+       
         cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
         data = cursor.fetchall()
         return data 

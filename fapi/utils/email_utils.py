@@ -8,7 +8,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
 from dotenv import load_dotenv
 
-from fapi.db.models import EmailRequest, UserRegistration, ContactForm
+from fapi.db.models import EmailRequest, UserRegistration
 from fapi.mail.templets.registerMailTemplet import get_user_email_content, get_admin_email_content
 from fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
 from fapi.mail.templets.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template
@@ -155,3 +155,6 @@ async def send_request_demo_emails(name: str, email: str, phone: str, address: s
     fm = FastMail(fastmail_config)
     await fm.send_message(user_message)
     await fm.send_message(admin_message)
+
+
+

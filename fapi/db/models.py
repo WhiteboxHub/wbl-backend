@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal 
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP, CHAR
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
 Base = declarative_base()
@@ -46,12 +46,6 @@ class UserRegistration(BaseModel):
         allow_population_by_alias = True
 
 
-class ContactForm(BaseModel):
-    firstName: str
-    lastName: str
-    email: str
-    phone: str
-    message: str
 
 
 class Token(BaseModel):
@@ -73,16 +67,48 @@ class ResetPassword(BaseModel):
 
 
 # --------google_login=-------------
-class AuthUser(Base): 
+# class AuthUser(Base): 
+#     __tablename__ = "authuser"
+
+#     id = Column(Integer, primary_key=True, index=True)
+#     uname = Column(String(255), unique=True, index=True)
+#     fullname = Column(String(255))
+#     googleId = Column(String(255))
+#     passwd = Column(String(255))
+#     status = Column(String(50), default="inactive")
+#     registereddate = Column(DateTime, default=datetime.utcnow)
+class AuthUser(Base):
     __tablename__ = "authuser"
 
-    id = Column(Integer, primary_key=True, index=True)
-    uname = Column(String(255), unique=True, index=True)
-    fullname = Column(String(255))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uname = Column(String(50), nullable=False, unique=True, index=True)
+    passwd = Column(String(32), nullable=False)
+    team = Column(String(255))
+    status = Column(String(255))
+    lastlogin = Column(DateTime)
+    logincount = Column(Integer)
+    fullname = Column(String(50))
+    address = Column(String(50))
+    phone = Column(String(20))
+    state = Column(String(45))
+    zip = Column(String(45))
+    city = Column(String(45))
+    country = Column(String(45))
+    message = Column(Text)
+    registereddate = Column(DateTime)
+    level3date = Column(DateTime)
+    lastmoddatetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    demo = Column(String(1), default='N', nullable=False)
+    enddate = Column(Date, default=datetime(1990, 1, 1), nullable=False)
     googleId = Column(String(255))
-    passwd = Column(String(255))
-    status = Column(String(50), default="inactive")
-    registereddate = Column(DateTime, default=datetime.utcnow)
+    reset_token = Column(String(255))
+    token_expiry = Column(DateTime)
+    role = Column(String(100))
+    visa_status = Column(String(50))
+    experience = Column(String(100))
+    education = Column(String(255))
+    referby = Column(String(100))
+    specialization = Column(String(255))
 
 # class Lead(Base):
 #     __tablename__ = "lead"
@@ -122,25 +148,54 @@ class RecentInterview(BaseModel):
     interview_location: Optional[str] = None
     
 # ------------------------------------------- Leads----------------------------------------
+# class LeadORM(Base):
+#     __tablename__ = "lead"
+
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     full_name = Column(String(255))
+#     entry_date = Column(DateTime)
+#     phone = Column(String(20))
+#     email = Column(String(255), nullable=False)
+#     workstatus = Column(String(50))
+#     status = Column(String(50))
+#     secondary_email = Column(String(255))
+#     secondary_phone = Column(String(20))
+#     address = Column(String(255))
+#     closed_date = Column(Date)
+#     notes = Column(String(500))
+#     last_modified = Column(DateTime)
+#     massemail_unsubscribe = Column(String(5))
+#     massemail_email_sent = Column(String(5))
+#     moved_to_candidate = Column(Boolean)
 class LeadORM(Base):
     __tablename__ = "lead"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    full_name = Column(String(255))
-    entry_date = Column(DateTime)
-    phone = Column(String(20))
-    email = Column(String(255), nullable=False)
-    workstatus = Column(String(50))
-    status = Column(String(50))
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False, unique=True, index=True)
+    phone = Column(String(20), nullable=True)
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
-    address = Column(String(255))
+    address = Column(String(255), nullable=True)
+    workstatus = Column(String(50), nullable=True)
+    status = Column(String(50), default="Open")
+    visa_status = Column(String, nullable=True)
+    experience = Column(String, nullable=True)
+    education = Column(String, nullable=True)
+    referby = Column(String, nullable=True)
+    specialization = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    # Tracking and system fields
+    entry_date = Column(DateTime)
     closed_date = Column(Date)
-    notes = Column(String(500))
     last_modified = Column(DateTime)
     massemail_unsubscribe = Column(String(5))
     massemail_email_sent = Column(String(5))
     moved_to_candidate = Column(Boolean)
+
+    # created_at = Column(DateTime, default=datetime.utcnow)
+    # is_processed = Column(Boolean, default=False)
 
 # -------------------------------------------------------------------------------
 
@@ -336,10 +391,10 @@ class VendorUpdate(VendorBase):
     pass
 
 class VendorResponse(VendorBase):
-    id: int  # correct usage in Pydantic
+    id: int  
 
     class Config:
-        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
+        from_attributes = True  
 
 
 # ----------------------------------------Candidate------------------------------------
@@ -410,3 +465,91 @@ class CandidatePlacementORM(Base):
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+
+
+# ===================================================register+++++++++++++++++++++
+
+
+# class AuthUser(Base):
+#     __tablename__ = "authuser"
+
+#     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+#     uname = Column(String(50), nullable=False, unique=True)
+#     passwd = Column(String(32), nullable=False)
+#     dailypwd = Column(String(255))
+#     team = Column(String(255))
+#     level = Column(String(255))
+#     instructor = Column(String(100))
+#     override = Column(CHAR(1))
+#     status = Column(String(255), default="active")
+#     lastlogin = Column(DateTime)
+#     logincount = Column(Integer, default=0)
+#     fullname = Column(String(50))
+#     address = Column(String(50))
+#     phone = Column(String(20))
+#     state = Column(String(45))
+#     zip = Column(String(45))
+#     city = Column(String(45))
+#     country = Column(String(45))
+#     message = Column(Text)
+#     registereddate = Column(DateTime, default=datetime.utcnow)
+#     level3date = Column(DateTime)
+#     lastmoddatetime = Column(TIMESTAMP)
+#     demo = Column(CHAR(1))
+#     enddate = Column(Date)
+#     googleId = Column(String(255))
+#     reset_token = Column(String(255))
+#     token_expiry = Column(DateTime)
+#     role = Column(String(100))
+#     visa_status = Column(String(50))
+#     experience = Column(String(100))
+#     education = Column(String(255))
+#     referby = Column(String(100))
+#     specialization = Column(String(255))
+
+
+# class LeadORM(Base):
+#     __tablename__ = "lead"
+
+#     id = Column(Integer, primary_key=True, index=True)
+#     full_name = Column(String)
+#     phone = Column(String)
+#     email = Column(String, unique=True)
+#     address = Column(String)
+#     workstatus = Column(String)
+#     status = Column(String, default="Open")
+#     visa_status = Column(String)
+#     experience = Column(String)
+#     education = Column(String)
+#     referby = Column(String)
+#     specialization = Column(String)
+
+# class LeadORM(Base):
+#     __tablename__ = "lead"
+
+#     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+#     full_name = Column(String(255), nullable=False)
+#     email = Column(String(255), nullable=False, unique=True, index=True)
+#     phone = Column(String(20), nullable=True)
+#     secondary_email = Column(String(255))
+#     secondary_phone = Column(String(20))
+#     address = Column(String(255), nullable=True)
+#     workstatus = Column(String(50), nullable=True)
+#     status = Column(String(50), default="Open")
+#     visa_status = Column(String, nullable=True)
+#     experience = Column(String, nullable=True)
+#     education = Column(String, nullable=True)
+#     referby = Column(String, nullable=True)
+#     specialization = Column(String, nullable=True)
+#     notes = Column(Text, nullable=True)
+    
+#     # Tracking and system fields
+#     entry_date = Column(DateTime)
+#     closed_date = Column(Date)
+#     last_modified = Column(DateTime)
+#     massemail_unsubscribe = Column(String(5))
+#     massemail_email_sent = Column(String(5))
+#     moved_to_candidate = Column(Boolean)
+
+#     created_at = Column(DateTime, default=datetime.utcnow)
+#     is_processed = Column(Boolean, default=False)
