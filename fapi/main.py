@@ -39,8 +39,8 @@ from fapi.core.config import SECRET_KEY, ALGORITHM
 
 # from sqlalchemy.orm import Session
 
-from fastapi_limiter import FastAPILimiter
-import aioredis
+# from fastapi_limiter import FastAPILimiter
+# import aioredis
 
 
 load_dotenv()
@@ -49,17 +49,17 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
-@app.on_event("startup")
-async def startup():
-    redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
-    await FastAPILimiter.init(redis)
+# @app.on_event("startup")
+# async def startup():
+#     redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
+#     await FastAPILimiter.init(redis)
 
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
-app.include_router(login.router, prefix="/api", tags=["Login"])
+# app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 
 from fapi.db.database import SessionLocal
@@ -347,7 +347,7 @@ async def get_types(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/sessions")
-async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
     try:
         # Local mapping of course names to course IDs for this endpoint only
         course_name_to_id = {
@@ -368,7 +368,7 @@ async def get_sessions(course_name: Optional[str] = None, session_type: Optional
             course_id = None  # If course_name is not provided, no filtering on course_id
 
         # Fetch the current user's team
-        team = current_user.get("team", "null")
+        team = 'admin'
 
         # Call the function to fetch sessions by the provided course_id and session_type
         sessions = await fetch_sessions_by_type(course_id, session_type, team)  # Pass the team to fetch_sessions_by_type
