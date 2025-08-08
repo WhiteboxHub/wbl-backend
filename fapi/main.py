@@ -27,14 +27,13 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth
-from fastapi import Query, Path
+from fapi.api.routes import candidate, leads, google_auth,vendor_contact ,vendor, vendor_activity
+from fastapi import FastAPI,Query, Path
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
-from fastapi import FastAPI, Query, Path
 from fapi.core.config import SECRET_KEY, ALGORITHM
 
 
@@ -46,6 +45,9 @@ app = FastAPI()
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
+app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
+app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
+app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
 
 def get_db():
     db.database = SessionLocal()

@@ -11,20 +11,21 @@ from datetime import date,datetime,time, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-
+from urllib.parse import quote
 load_dotenv()
-
+raw_password = os.getenv('DB_PASSWORD')
+encoded_password = quote(raw_password)
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
+    'password': raw_password,
     'database': os.getenv('DB_NAME'),
-    'port': os.getenv('DB_PORT')
+    'port': int(os.getenv('DB_PORT')),
 }
 
 DATABASE_URL = (
-    f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
-    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    f"mysql+pymysql://{db_config['user']}:{encoded_password}"
+    f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 )
 
 engine = create_engine(DATABASE_URL)
