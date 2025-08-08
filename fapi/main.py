@@ -36,6 +36,18 @@ from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
 from fapi.core.config import SECRET_KEY, ALGORITHM
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+from fapi.db.database import course_content as get_course_content_data ,get_db
+from fapi.db.schemas import CourseContentResponse
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+# from fapi.db.database import get_db
+from fapi.db.models import CourseContent
+
+
 
 # from sqlalchemy.orm import Session
 
@@ -45,7 +57,7 @@ from fapi.core.config import SECRET_KEY, ALGORITHM
 
 load_dotenv()
 
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
@@ -62,13 +74,13 @@ app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 # app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 
-from fapi.db.database import SessionLocal
-def get_db():
-    db.database = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# from fapi.db.database import SessionLocal
+# def get_db():
+#     db.database = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -439,10 +451,29 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
 # -----------------------------------------------------------------------------contact end -----
 
 
-@app.get("/api/coursecontent")
-def get_course_content():
-    content = course_content()
-    return {"coursecontent": content}
+# @app.get("/api/coursecontent")
+# def get_course_content():
+#     content = course_content()
+#     return {"coursecontent": content}
+
+# @app.get("/api/coursecontent", response_model=List[CourseContentResponse])
+# async def get_course_content(db: AsyncSession = Depends(get_db)):
+#     data = await get_course_content_data(db)
+#     return data
+
+
+# @app.get("/api/coursecontent", response_model=List[CourseContentResponse])
+# async def get_course_content(db: AsyncSession = Depends(get_db)):
+#     data = await get_course_content_data(db)
+#     return data
+
+
+
+@app.get("/course-content", response_model=List[CourseContentResponse])
+async def get_course_content(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(CourseContent))
+    return result.scalars().all()
+
 
 @app.put("/api/unsubscribe")
 def unsubscribe(request: EmailRequest):

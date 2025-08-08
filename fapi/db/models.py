@@ -5,10 +5,12 @@ from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
+from sqlalchemy.orm import declarative_base
 # from config import Base
-Base = declarative_base()
+from fapi.db.base import Base  # only import from base.py
+from pydantic import BaseModel 
 
-
+# Base = declarative_base()
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -330,3 +332,20 @@ class CandidatePlacementORM(Base):
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+
+
+# class CourseContent(Base):
+#     __tablename__ = "course_content"
+
+#     id = Column(Integer, primary_key=True, index=True)
+#     Fundamentals = Column(String(1000))
+#     AIML = Column(String(1000))
+
+class CourseContent(Base):
+    __tablename__ = "course_content"
+
+    id = Column(Integer, primary_key=True, index=True)
+    Fundamentals = Column(String(255), nullable=True)
+    AIML = Column(String(255), nullable=False)
+    UI = Column(String(255), nullable=True)
+    QE = Column(String(255), nullable=True)

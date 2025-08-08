@@ -4,7 +4,9 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List, Literal
 
-Base = declarative_base()
+
+
+# Base = declarative_base()
 
 
 
@@ -177,3 +179,34 @@ class ContactFormResponse(BaseModel):
 
 
 
+
+# class CourseContentResponse(BaseModel):
+#     Fundamentals: str | None
+#     AIML: str | None
+
+#     class Config:
+#         orm_mode = True
+
+
+# class CourseContentResponse(BaseModel):
+#     Fundamentals: str | None
+#     AIML: str
+#     UI: str | None
+#     QE: str | None
+
+#     class Config:
+#         orm_mode = True
+
+   
+
+class CourseContentCreate(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+
+class CourseContentResponse(CourseContentCreate):
+    id: int
+
+    class Config:
+        orm_mode = True

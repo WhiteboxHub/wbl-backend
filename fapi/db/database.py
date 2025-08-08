@@ -8,15 +8,21 @@ from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
 from datetime import date,datetime,time, timedelta  
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine 
+from sqlalchemy.orm import sessionmaker , declarative_base
 from sqlalchemy.ext.declarative import declarative_base
-
+from sqlalchemy.ext.asyncio import AsyncSession ,create_async_engine
+from sqlalchemy.future import select
+# from fapi.db.models import CourseContent
 from urllib.parse import quote
+from sqlalchemy.orm import declarative_base
+from fapi.db.base import Base
+
 load_dotenv()
 
-raw_password = os.getenv('DB_PASSWORD')
-encoded_password = quote(raw_password)
+# Read from environment variables
+raw_password = os.getenv('DB_PASSWORD')  # assuming you store plain password in .env
+encoded_password = quote(raw_password)  # encodes special characters like @, #
 
 db_config = {
     'host': os.getenv('DB_HOST'),
@@ -26,16 +32,27 @@ db_config = {
     'port': int(os.getenv('DB_PORT')),
 }
 
+# Async SQLAlchemy URL (uses aiomysql)
 DATABASE_URL = (
-    f"mysql+pymysql://{db_config['user']}:{encoded_password}"
+    f"mysql+aiomysql://{db_config['user']}:{encoded_password}"
     f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 )
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Async Engine and Session
+engine = create_async_engine(DATABASE_URL, echo=False)
+SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-Base = declarative_base()
 
+
+# Dependency for FastAPI route injection
+async def get_db():
+    async with SessionLocal() as session:
+        yield session
+
+# @asynccontextmanager
+# async def get_db():
+#     async with SessionLocal() as session:
+#         yield session
 
 async def insert_user(
     uname: str,
@@ -530,16 +547,35 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
 
 # --------------------------------------------------------------contact end ----------------------------------
 
-def course_content():
-    conn = mysql.connector.connect(**db_config)
-    try:
-        cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        # cursor.execute("SELECT * FROM whitebox_learning.course_content")
-        cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
-        data = cursor.fetchall()
-        return data 
-    finally:
-        conn.close()
+# def course_content():
+#     conn = mysql.connector.connect(**db_config)
+#     try:
+#         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
+#         # cursor.execute("SELECT * FROM whitebox_learning.course_content")
+#         cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
+#         data = cursor.fetchall()
+#         return data 
+#     finally:
+#         conn.close()
+
+
+
+# async def course_content(session: AsyncSession):
+#     result = await session.execute(select(CourseContent.Fundamentals, CourseContent.AIML))
+#     rows = result.all()
+#     return [dict(Fundamentals=row[0], AIML=row[1]) for row in rows]
+
+
+async def course_content(session: AsyncSession):
+    result = await session.execute(select(
+        CourseContent.Fundamentals,
+        CourseContent.AIML,
+        CourseContent.UI,
+        CourseContent.QE
+    ))
+    rows = result.all()
+    return [dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3]) for row in rows]
+
 
 
 def unsubscribe_user(email: str) -> (bool, str): # type: ignore
