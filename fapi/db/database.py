@@ -36,129 +36,134 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+# ------------------------------------------------------------------Register -----------------------------------
 
-async def insert_user(
-    uname: str,
-    passwd: str,
-    dailypwd: Optional[str] = None,
-    team: str = None,
-    level: str = None,
-    instructor: str = None,
-    override: str = None,
-    lastlogin: str = None,
-    logincount: str = None,
-    fullname: str = None,
-    phone: str = None,
-    address: str = None,
-    city: str = None,
-    Zip: str = None,
-    country: str = None,
-    message: str = None,
-    visa_status: Optional[str] = None,
-    registereddate: str = None,
-    level3date: str = None,
-    experience: Optional[str] = None,
-    education: Optional[str] = None,
-    specialization: Optional[str] = None,
-    referby: Optional[str] = None,
-    candidate_info: Dict[str, Optional[str]] = None
-):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query1 = """
-            INSERT INTO whitebox_learning.authuser (
+# async def insert_user(
+#     uname: str,
+#     passwd: str,
+#     dailypwd: Optional[str] = None,
+#     team: str = None,
+#     level: str = None,
+#     instructor: str = None,
+#     override: str = None,
+#     lastlogin: str = None,
+#     logincount: str = None,
+#     fullname: str = None,
+#     phone: str = None,
+#     address: str = None,
+#     city: str = None,
+#     Zip: str = None,
+#     country: str = None,
+#     message: str = None,
+#     visa_status: Optional[str] = None,
+#     registereddate: str = None,
+#     level3date: str = None,
+#     experience: Optional[str] = None,
+#     education: Optional[str] = None,
+#     specialization: Optional[str] = None,
+#     referby: Optional[str] = None,
+#     candidate_info: Dict[str, Optional[str]] = None
+# ):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor()
+#         query1 = """
+#             INSERT INTO whitebox_learning.authuser (
 
 
-                uname, passwd, dailypwd, team, level, instructor, override, status, 
-                lastlogin, logincount, fullname, phone, address, city, Zip, country,
+#                 uname, passwd, dailypwd, team, level, instructor, override, status, 
+#                 lastlogin, logincount, fullname, phone, address, city, Zip, country,
 
-                visa_status,experience, education, specialization, referby,
+#                 visa_status,experience, education, specialization, referby,
 
-                `message`, registereddate, level3date
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, 'inactive',
-                %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s, %s
-            );
-        """
+#                 `message`, registereddate, level3date
+#             ) VALUES (
+#                 %s, %s, %s, %s, %s, %s, %s, 'inactive',
+#                 %s, %s, %s, %s, %s, %s, %s, %s,
+#                 %s, %s, %s, %s,
+#                 %s, %s, %s, %s
+#             );
+#         """
 
-        values1 = (
-            uname, passwd, dailypwd, team, level, instructor, override, 
-            lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
+#         values1 = (
+#             uname, passwd, dailypwd, team, level, instructor, override, 
+#             lastlogin, logincount, fullname, phone, address, city, Zip.lower() if Zip else None, country,
 
-            visa_status, experience, education, specialization, referby,
+#             visa_status, experience, education, specialization, referby,
 
-            message, registereddate, level3date
-        )
-        # print(" Values being inserted into DB:", values1)
+#             message, registereddate, level3date
+#         )
+#         # print(" Values being inserted into DB:", values1)
 
-        await loop.run_in_executor(None, cursor.execute, query1, values1)
-        conn.commit()
+#         await loop.run_in_executor(None, cursor.execute, query1, values1)
+#         conn.commit()
 
-    except Error as e:
-        conn.rollback()
-        print("Database Error:", e) 
-        raise HTTPException(status_code=500, detail="Error inserting user")
+#     except Error as e:
+#         conn.rollback()
+#         print("Database Error:", e) 
+#         raise HTTPException(status_code=500, detail="Error inserting user")
 
-    finally:
-        cursor.close()
-        conn.close()
+#     finally:
+#         cursor.close()
+#         conn.close()
 
-# ---------------hkd-----------------------------------
 
-async def insert_lead_new(
-    full_name: str,
-    phone: Optional[str],
-    email: str,
-    address: Optional[str],
-    workstatus: Optional[str],
-    status: Optional[str] = "Open",
-    secondary_email: Optional[str] = None,
-    secondary_phone: Optional[str] = None,
-    closed_date: Optional[date] = None,
-    notes: Optional[str] = None
-):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-
-    try:
-        cursor = conn.cursor()
-
-        query = """
-            INSERT INTO `lead` (
-                full_name, phone, email, address, workstatus,
-                status, secondary_email, secondary_phone,
-                closed_date, notes
-            ) VALUES (
-                %s, %s, %s, %s, %s,
-                %s, %s, %s,
-                %s, %s
-            );
-        """
-
-        values = (
-            full_name, phone, email, address, workstatus,
-            status, secondary_email, secondary_phone,
-            closed_date, notes
-        )
-
-        await loop.run_in_executor(None, cursor.execute, query, values)
-        conn.commit()
-
-    except Error as e:
-        conn.rollback()
-        print("Lead Insert Error (lead):", e)
-        raise HTTPException(status_code=500, detail="Error inserting into new leads table")
-
-    finally:
-        cursor.close()
-        conn.close()
 
 
 # ---------------hkd-----------------------------------
+
+# async def insert_lead_new(
+#     full_name: str,
+#     phone: Optional[str],
+#     email: str,
+#     address: Optional[str],
+#     workstatus: Optional[str],
+#     status: Optional[str] = "Open",
+#     secondary_email: Optional[str] = None,
+#     secondary_phone: Optional[str] = None,
+#     closed_date: Optional[date] = None,
+#     notes: Optional[str] = None
+# ):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+
+#     try:
+#         cursor = conn.cursor()
+
+#         query = """
+#             INSERT INTO `lead` (
+#                 full_name, phone, email, address, workstatus,
+#                 status, secondary_email, secondary_phone,
+#                 closed_date, notes
+#             ) VALUES (
+#                 %s, %s, %s, %s, %s,
+#                 %s, %s, %s,
+#                 %s, %s
+#             );
+#         """
+
+#         values = (
+#             full_name, phone, email, address, workstatus,
+#             status, secondary_email, secondary_phone,
+#             closed_date, notes
+#         )
+
+#         await loop.run_in_executor(None, cursor.execute, query, values)
+#         conn.commit()
+
+#     except Error as e:
+#         conn.rollback()
+#         print("Lead Insert Error (lead):", e)
+#         raise HTTPException(status_code=500, detail="Error inserting into new leads table")
+
+#     finally:
+#         cursor.close()
+#         conn.close()
+
+
+# ---------------hkd-----------------------------------
+# --------------------------------------------------------Register end-------------------------------
 
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
@@ -503,32 +508,6 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
     finally:
         conn.close()
 
-
-# ------------------------------------------------contact-------------------------------
-
-# async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
-#     full_name = full_name.lower().strip() if full_name else None
-#     email = email.lower().strip() if email else None
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = """
-#             INSERT INTO whitebox_learning.lead (
-#                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
-#         """
-#         values = (
-#             full_name, email, phone,message)
-#         await loop.run_in_executor(None, cursor.execute, query, values)
-#         conn.commit()
-#     except Error as e:
-#         # print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=409, detail="Response already sent!")
-#     finally:
-#         cursor.close()
-#         conn.close()
-
-# --------------------------------------------------------------contact end ----------------------------------
 
 def course_content():
     conn = mysql.connector.connect(**db_config)
