@@ -17,6 +17,3 @@ PyJWT
 python-jose
 sqlalchemy
 pymysql
-fastapi-limiter
-aioredis
-redis

@@ -13,6 +13,34 @@ class Token(BaseModel):
     token_type: str
     team: str
 
+
+class UserRegistration(BaseModel):
+    uname: EmailStr
+    passwd: str
+    dailypwd: Optional[str] = None
+    team: Optional[str]
+    level: Optional[str]
+    instructor: Optional[str]
+    override: Optional[str]
+    lastlogin: Optional[str]
+    logincount: Optional[int]
+    firstname: Optional[str]
+    lastname: Optional[str]
+    phone: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
+    Zip: Optional[str]
+    country: Optional[str]
+    message: Optional[str]
+    visa_status: Optional[str]  # Maps from workauthorization
+    registereddate: Optional[datetime]
+    level3date: Optional[datetime]
+    experience: Optional[str]
+    education: Optional[str]
+    specialization: Optional[str]
+    referby: Optional[str]
+
+
   
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -155,25 +183,30 @@ class TalentSearch(BaseModel):
 
 # ================================================contact====================================
 
-class ContactCreate(BaseModel):
-    first_name: str
-    last_name: str
+# class ContactCreate(BaseModel):
+#     first_name: str
+#     last_name: str
+#     email: EmailStr
+#     phone: Optional[str] = None
+#     notes: Optional[str] = None
+#     workstatus: Optional[str] = None
+
+
+# class ContactFormResponse(BaseModel):
+#     id: int
+#     full_name: str
+#     email: str
+#     phone: Optional[str] = None
+#     notes: Optional[str] = None
+
+#     class Config:
+#         orm_mode = True
+
+class ContactForm(BaseModel):
+    firstName: str
+    lastName: str
     email: EmailStr
-    phone: Optional[str] = None
-    notes: Optional[str] = None
-    workstatus: Optional[str] = None
-
-
-class ContactFormResponse(BaseModel):
-    id: int
-    full_name: str
-    email: str
-    phone: Optional[str] = None
-    notes: Optional[str] = None
-
-    class Config:
-        orm_mode = True
-
-
+    phone: str
+    message: str
 
 

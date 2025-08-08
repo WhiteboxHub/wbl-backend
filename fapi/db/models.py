@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal 
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
+from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
@@ -13,41 +14,71 @@ class UserCreate(BaseModel):
     uname: str
     passwd: str
 
+# -----------------------------------------------------
+class AuthUserORM(Base):
+    __tablename__ = "authuser"
 
-class UserRegistration(BaseModel):
-    uname: str
-    passwd: str
-    dailypwd: Optional[str] = None
-    team: Optional[str] = None
-    level: Optional[str] = None
-    instructor: Optional[str] = None
-    override: Optional[str] = None
-    status: Optional[str] = None
-    lastlogin: Optional[str] = None
-    logincount: Optional[str] = None
-    firstname: Optional[str] = Field(None, alias="firstName")
-    lastname: Optional[str] = Field(None, alias="lastName")
-    fullname: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    Zip: Optional[str] = None
-    country: Optional[str] = None
-    message: Optional[str] = None
-    registereddate: Optional[str] = None
-    level3date: Optional[str] = None
-    last: Optional[str] = None
-    visa_status: Optional[str] = Field(None, alias="visaStatus")  
-    experience: Optional[str] = None
-    education: Optional[str] = None
-    specialization: Optional[str] = None
-    referby: Optional[str] = Field(None, alias="referredBy")  
-
-    class Config:
-        allow_population_by_field_name = True
-        allow_population_by_alias = True
+    id = Column(Integer, primary_key=True, index=True)
+    uname = Column(String(50), unique=True, nullable=False, default="")
+    passwd = Column(String(32), nullable=False)
+    team = Column(String(255))
+    status = Column(String(255), default="inactive")
+    lastlogin = Column(DateTime)
+    logincount = Column(Integer)
+    fullname = Column(String(50))
+    phone = Column(String(20))
+    address = Column(String(50))
+    city = Column(String(45))
+    zip = Column(String(45))
+    country = Column(String(45))
+    message = Column(Text)
+    registereddate = Column(DateTime)
+    level3date = Column(DateTime)
+    lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    demo = Column(String(1), default="N")
+    enddate = Column(Date, default="1990-01-01")
+    visa_status = Column(String(50))
+    education = Column(String(255))
+    experience = Column(String(100))
+    specialization = Column(String(255))
+    referby = Column(String(100))
 
 
+
+# class UserRegistration(BaseModel):
+#     uname: str
+#     passwd: str
+#     dailypwd: Optional[str] = None
+#     team: Optional[str] = None
+#     level: Optional[str] = None
+#     instructor: Optional[str] = None
+#     override: Optional[str] = None
+#     status: Optional[str] = None
+#     lastlogin: Optional[str] = None
+#     logincount: Optional[str] = None
+#     firstname: Optional[str] = Field(None, alias="firstName")
+#     lastname: Optional[str] = Field(None, alias="lastName")
+#     fullname: Optional[str] = None
+#     phone: Optional[str] = None
+#     address: Optional[str] = None
+#     city: Optional[str] = None
+#     Zip: Optional[str] = None
+#     country: Optional[str] = None
+#     message: Optional[str] = None
+#     registereddate: Optional[str] = None
+#     level3date: Optional[str] = None
+#     last: Optional[str] = None
+#     visa_status: Optional[str] = Field(None, alias="visaStatus")  
+#     experience: Optional[str] = None
+#     education: Optional[str] = None
+#     specialization: Optional[str] = None
+#     referby: Optional[str] = Field(None, alias="referredBy")  
+
+    # class Config:
+    #     allow_population_by_field_name = True
+    #     allow_population_by_alias = True
+
+# ----------------------------------------------
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
@@ -75,16 +106,16 @@ class ResetPassword(BaseModel):
 
 
 # --------google_login=-------------
-class AuthUser(Base): 
-    __tablename__ = "authuser"
+# class AuthUser(Base): 
+#     __tablename__ = "authuser"
 
-    id = Column(Integer, primary_key=True, index=True)
-    uname = Column(String(255), unique=True, index=True)
-    fullname = Column(String(255))
-    googleId = Column(String(255))
-    passwd = Column(String(255))
-    status = Column(String(50), default="inactive")
-    registereddate = Column(DateTime, default=datetime.utcnow)
+#     id = Column(Integer, primary_key=True, index=True)
+#     uname = Column(String(255), unique=True, index=True)
+#     fullname = Column(String(255))
+#     googleId = Column(String(255))
+#     passwd = Column(String(255))
+#     status = Column(String(50), default="inactive")
+#     registereddate = Column(DateTime, default=datetime.utcnow)
 
 # class Lead(Base):
 #     __tablename__ = "lead"
