@@ -1,10 +1,11 @@
 # wbl-backend/fapi/main.py
-from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
+from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
-      fetch_sessions_by_type, fetch_types, insert_user, get_user_by_username,
+      fetch_sessions_by_type, fetch_types, get_user_by_username, update_login_info, verify_md5_hash,
      fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches,  course_content, fetch_interview_by_id,
-    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead_new
+    unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
+
 )
 from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
@@ -27,49 +28,20 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login,recordings
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,recordings
 from fastapi import Query, Path
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
-from fapi.core.config import SECRET_KEY, ALGORITHM
-
-# from sqlalchemy.orm import Session
+from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
+from fapi.db.database import SessionLocal
 
 from fastapi_limiter import FastAPILimiter
 # import aioredis
 import redis.asyncio as redis
 
-
-# load_dotenv()
-
-# Base.metadata.create_all(bind=engine)
 app = FastAPI()
-
-
-# @app.on_event("startup")
-# async def startup():
-#     redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
-#     await FastAPILimiter.init(redis)
-
-
-
-load_dotenv()
-
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-
-redis_client = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=REDIS_DB,
-    decode_responses=True,
-    encoding="utf-8"
-)
 
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
@@ -79,8 +51,9 @@ app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(recordings.router, prefix="", tags=["Recordings"])
+app.include_router(register.router, prefix="/api", tags=["Register"])
 
-from fapi.db.database import SessionLocal
+
 def get_db():
     db.database = SessionLocal()
     try:
@@ -88,8 +61,6 @@ def get_db():
     finally:
         db.close()
 
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
 
 router = APIRouter()
 
@@ -110,25 +81,25 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 # ----------------------------------- Avatar --------------------------------------
-security = HTTPBearer()
+# security = HTTPBearer()
 
-@app.get("/api/user_role")
-async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if not username:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except (ExpiredSignatureError, JWTError):
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+# @app.get("/api/user_role")
+# async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
+#     token = credentials.credentials
+#     try:
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         username = payload.get("sub")
+#         if not username:
+#             raise HTTPException(status_code=401, detail="Invalid token")
+#     except (ExpiredSignatureError, JWTError):
+#         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    userinfo = await get_user_by_username(username)
-    if not userinfo:
-        raise HTTPException(status_code=404, detail="User not found")
+#     userinfo = await get_user_by_username(username)
+#     if not userinfo:
+#         raise HTTPException(status_code=404, detail="User not found")
 
-    role = determine_user_role(userinfo)
-    return {"role": role}
+#     role = determine_user_role(userinfo)
+#     return {"role": role}
 
 
 
@@ -205,97 +176,100 @@ async def create_vendor_request_demo(vendor: VendorCreate):
 
 
 
-def clean_input_fields(user_data: UserRegistration):
-    """Convert empty strings and format datetimes for MySQL"""
-    # Convert empty strings to None for all fields
-    for field in ['lastlogin', 'registereddate', 'level3date']:
-        value = getattr(user_data, field)
-        if value == '':
-            setattr(user_data, field, None)
-        elif value and 'T' in value:  # Format ISO datetime strings
-            setattr(user_data, field, value.replace('T', ' ').split('.')[0])
+# def clean_input_fields(user_data: UserRegistration):
+#     """Convert empty strings and format datetimes for MySQL"""
+#     # Convert empty strings to None for all fields
+#     for field in ['lastlogin', 'registereddate', 'level3date']:
+#         value = getattr(user_data, field)
+#         if value == '':
+#             setattr(user_data, field, None)
+#         elif value and 'T' in value:  # Format ISO datetime strings
+#             setattr(user_data, field, value.replace('T', ' ').split('.')[0])
     
-    # Handle integer field
-    user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
+#     # Handle integer field
+#     user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
     
-    return user_data
+#     return user_data
 
+# --------------------------------------Register-----------------------------
 
-@app.post("/api/signup")
-@limiter.limit("15/minute")
-async def register_user(request:Request,user: UserRegistration):
-    user.uname = user.uname.lower().strip()
-    # Check if user exists
-    existing_user = await get_user_by_username(user.uname)
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
+# @app.post("/api/signup")
+# @limiter.limit("15/minute")
+# async def register_user(request:Request,user: UserRegistration):
+#     user.uname = user.uname.lower().strip()
+#     # Check if user exists
+#     existing_user = await get_user_by_username(user.uname)
+#     if existing_user:
+#         raise HTTPException(status_code=400, detail="Username already registered")
 
-    # Clean inputs (only change needed)
-    user = clean_input_fields(user)
+#     # Clean inputs (only change needed)
+#     user = clean_input_fields(user)
 
-    # Rest of your existing code remains exactly the same...
-    hashed_password = md5_hash(user.passwd)
-    # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-    fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
-    fullname = fullname.lower()
-    user.fullname = fullname
-    leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
-    # print(" Full name constructed:", fullname)  # <---- Add this line
+#     # Rest of your existing code remains exactly the same...
+#     hashed_password = md5_hash(user.passwd)
+#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
+#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
+#     fullname = fullname.lower()
+#     user.fullname = fullname
+#     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
+#     # print(" Full name constructed:", fullname)  # <---- Add this line
 
   
-    await insert_user(
-    uname=user.uname,
-    passwd=hashed_password,
-    dailypwd=user.dailypwd,
-    team=user.team,
-    level=user.level,
-    instructor=user.instructor,
-    override=user.override,
-    lastlogin=user.lastlogin,
-    logincount=user.logincount,   
-    fullname=fullname,
-    phone=user.phone,
-    address=user.address,
-    city=user.city,
-    Zip=user.Zip,
-    country=user.country,
-    message=user.message,
-    registereddate=user.registereddate,
-    level3date=user.level3date,    
-    visa_status=user.visa_status,
-    experience=user.experience,
-    education=user.education,
-    referby=user.referby,
-    candidate_info={  # optional dict
-        'name': user.fullname,
-        'enrolleddate': user.registereddate,
-        'email': user.uname,
-        'phone': user.phone,
-        'address': user.address,
-        'city': user.city,
-        'country': user.country,
-        'zip': user.Zip,
-        }
-    )
+#     await insert_user(
+#     uname=user.uname,
+#     passwd=hashed_password,
+#     dailypwd=user.dailypwd,
+#     team=user.team,
+#     level=user.level,
+#     instructor=user.instructor,
+#     override=user.override,
+#     lastlogin=user.lastlogin,
+#     logincount=user.logincount,   
+#     fullname=fullname,
+#     phone=user.phone,
+#     address=user.address,
+#     city=user.city,
+#     Zip=user.Zip,
+#     country=user.country,
+#     message=user.message,
+#     registereddate=user.registereddate,
+#     level3date=user.level3date,    
+#     visa_status=user.visa_status,
+#     experience=user.experience,
+#     education=user.education,
+#     referby=user.referby,
+#     candidate_info={  # optional dict
+#         'name': user.fullname,
+#         'enrolleddate': user.registereddate,
+#         'email': user.uname,
+#         'phone': user.phone,
+#         'address': user.address,
+#         'city': user.city,
+#         'country': user.country,
+#         'zip': user.Zip,
+#         }
+#     )
 
-    await insert_lead_new(
-    full_name=leads_full_name,
-    phone=user.phone,
-    email=user.uname,
-    address=user.address,
-    workstatus=None,  # If available, pass user.workstatus
-    status="Open",
-    secondary_email=None,  # Or user.secondaryemail if you collect it
-    secondary_phone=None,  # Or user.secondaryphone
-    closed_date=None,
-    notes=None
-    )
+#     await insert_lead_new(
+#     full_name=leads_full_name,
+#     phone=user.phone,
+#     email=user.uname,
+#     address=user.address,
+#     workstatus=None,  # If available, pass user.workstatus
+#     status="Open",
+#     secondary_email=None,  # Or user.secondaryemail if you collect it
+#     secondary_phone=None,  # Or user.secondaryphone
+#     closed_date=None,
+#     notes=None
+#     )
 
-    # Send confirmation email to the user and notify the admin
-    send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
-    return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
+#     # Send confirmation email to the user and notify the admin
+#     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
+#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
 
 
+
+# ---------------------------------Register end--------------------------------
 
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -408,8 +382,6 @@ async def get_batches(course: str = None):
         return {"batches": batches}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 @app.get("/api/coursecontent")
 def get_course_content():
