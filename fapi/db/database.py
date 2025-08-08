@@ -193,25 +193,7 @@ async def update_login_info(user_id: int):
         cursor.close()
         conn.close()
 
-# async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = """
-#             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
-#             VALUES (%s, NOW(), %s, %s);
-#         """
-#         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
-#         conn.commit()
-#     except Error as e:
-#         # print(f"Error inserting login history: {e}")
-#         conn.rollback()
-#         raise HTTPException(status_code=500, detail="Error inserting login history")
-#     finally:
-#         cursor.close()
-#         conn.close()
-    
+
 
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
@@ -252,81 +234,6 @@ async def fetch_course_batches(subject:str=None):
         conn.close()
 
 
-async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = f"""
-               SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
-                FROM recording nr
-                JOIN recording_batch rb ON nr.id = rb.recording_id
-                JOIN batch b ON rb.batch_id = b.batchid
-                JOIN course_subject ncs ON b.courseid = ncs.course_id
-                JOIN course nc ON ncs.course_id = nc.id
-                WHERE nc.alias = '{subject}'
-                AND b.batchid = '{batchid}'
-                AND nr.new_subject_id IN (
-                SELECT subject_id
-                FROM course_subject
-                WHERE course_id = (
-                SELECT id
-                FROM course
-                WHERE alias = '{subject}'
-                )               
-                )
-                ORDER BY nr.classdate Desc;
-                """
-        await loop.run_in_executor(None, cursor.execute, query)
-        recordings = cursor.fetchall()
-        return recordings
-    finally:
-        conn.close()
-
-
-async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-
-        # Base query with placeholders
-        query = """
-            SELECT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject,
-                   nr.filename, nr.lastmoddatetime, nr.new_subject_id,
-                   'recording' AS source
-            FROM recording nr
-            JOIN subject ns ON nr.new_subject_id = ns.id
-            JOIN course_subject ncs ON ns.id = ncs.subject_id
-            JOIN course nc ON ncs.course_id = nc.id
-            WHERE (%s = '' OR nc.alias = %s)
-              AND (%s = '' OR nr.description LIKE %s)
-
-            UNION
-
-            SELECT ns.sessionid AS id, ns.title AS batchname, ns.title AS description, ns.type, ns.sessiondate AS classdate, ns.link, ns.videoid, ns.subject,
-                   NULL AS filename, ns.lastmoddatetime, ns.subject_id AS new_subject_id,
-                   'session' AS source
-            FROM session ns
-            JOIN course_subject ncs ON ns.subject_id = ncs.subject_id
-            JOIN course nc ON ncs.course_id = nc.id
-            WHERE (%s = '' OR nc.alias = %s)
-              AND (%s = '' OR ns.title LIKE %s)
-            ORDER BY classdate DESC;
-        """
-
-        # Dynamically adjust parameters for query
-        keyword_search = f"%{keyword}%" if keyword else ""
-        params = (subject, subject, keyword, keyword_search, subject, subject, keyword, keyword_search)
-
-        # Execute query
-        await loop.run_in_executor(None, cursor.execute, query, params)
-
-        # Fetch results
-        recordings = cursor.fetchall()
-        return recordings
-    finally:
-        conn.close()
 
 
 async def insert_vendor(data: Dict):
@@ -419,38 +326,6 @@ async def fetch_keyword_presentation(search, course):
         cursor.close()
         conn.close()
 
-
-# async def get_user_from_token(token: str):
-#     # Verify the JWT token and extract the email
-#     payload = verify_token(token)
-#     if isinstance(payload, JSONResponse):  # Check if an error response was returned
-#         raise ValueError("Invalid or expired token")
-    
-#     email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
-
-#     # Query the database to find the user by email
-#     team = await fetch_user_team(email)
-#     return team
-
-
-# async def fetch_user_team(email: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-        
-#         # Query to check the team column for the user
-#         query = "SELECT team FROM authuser WHERE email = %s;"
-#         await loop.run_in_executor(None, cursor.execute, query, (email,))
-        
-#         result = cursor.fetchone()
-#         if result:
-#             return result['team']  # Returns 'admin', 'instructor', or None
-#         return None  # User not found
-#     finally:
-#         conn.close()
-
-
 async def fetch_types(team: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -503,30 +378,6 @@ async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
     finally:
         conn.close()
 
-
-# ------------------------------------------------contact-------------------------------
-
-# async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
-#     full_name = full_name.lower().strip() if full_name else None
-#     email = email.lower().strip() if email else None
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = """
-#             INSERT INTO whitebox_learning.lead (
-#                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
-#         """
-#         values = (
-#             full_name, email, phone,message)
-#         await loop.run_in_executor(None, cursor.execute, query, values)
-#         conn.commit()
-#     except Error as e:
-#         # print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=409, detail="Response already sent!")
-#     finally:
-#         cursor.close()
-#         conn.close()
 
 # --------------------------------------------------------------contact end ----------------------------------
 

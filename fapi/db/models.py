@@ -4,7 +4,7 @@ from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from fapi.db.database import Base
+# from fapi.db.database import Base
 # from config import Base
 Base = declarative_base()
 
@@ -330,3 +330,91 @@ class CandidatePlacementORM(Base):
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+
+
+
+
+
+
+
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
+class Course(Base):
+    __tablename__ = "course"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    alias = Column(String(100), unique=True)
+    subjects = relationship("CourseSubject", back_populates="course")
+    batches = relationship("Batch", back_populates="course")
+
+class Subject(Base):
+    __tablename__ = "subject"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    course_subjects = relationship("CourseSubject", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject")
+    sessions = relationship("Session", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject")  # ✅ Must match
+
+
+class CourseSubject(Base):
+    __tablename__ = "course_subject"
+    subject_id = Column(Integer, ForeignKey("subject.id"), primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"), primary_key=True)
+    lastmoddatetime = Column(DateTime)
+
+    course = relationship("Course", back_populates="subjects")
+    subject = relationship("Subject", back_populates="course_subjects")
+
+class Batch(Base):
+    __tablename__ = "batch"
+    batchid = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    courseid = Column(Integer, ForeignKey("course.id"))
+
+    course = relationship("Course", back_populates="batches")
+    recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+class Recording(Base):
+    __tablename__ = "recording"
+    id = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    description = Column(Text)
+    type = Column(String(50))
+    classdate = Column(DateTime)
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    subject = Column(String(255))
+    filename = Column(String(255))
+    lastmoddatetime = Column(DateTime)
+    new_subject_id = Column(Integer, ForeignKey("subject.id"))
+
+    subject = relationship("Subject", back_populates="recordings")  # ✅ This is the missing piece!
+    recording_batches = relationship("RecordingBatch", back_populates="recording")
+
+
+
+class RecordingBatch(Base):
+    __tablename__ = "recording_batch"
+    recording_id = Column(Integer, ForeignKey("recording.id"), primary_key=True)
+    batch_id = Column(Integer, ForeignKey("batch.batchid"), primary_key=True)
+
+    recording = relationship("Recording", back_populates="recording_batches")
+    batch = relationship("Batch", back_populates="recording_batches")
+class Session(Base):
+    __tablename__ = "session"
+    sessionid = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255))
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    # subject = Column(String(255))
+    type = Column(String(50))
+    sessiondate = Column(DateTime)
+    lastmoddatetime = Column(DateTime)
+    subject_id = Column(Integer, ForeignKey("subject.id"))
+
+    subject = relationship("Subject", back_populates="sessions")

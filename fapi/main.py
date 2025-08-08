@@ -1,9 +1,9 @@
 # wbl-backend/fapi/main.py
 from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
-      fetch_sessions_by_type, fetch_types, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
-    fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
- fetch_course_batches, fetch_subject_batch_recording,  course_content, fetch_interview_by_id,
+      fetch_sessions_by_type, fetch_types, insert_user, get_user_by_username,
+     fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
+ fetch_course_batches,  course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead_new
 )
 from typing import Dict, Any
@@ -27,7 +27,7 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login,recordings
 from fastapi import Query, Path
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -40,19 +40,36 @@ from fapi.core.config import SECRET_KEY, ALGORITHM
 # from sqlalchemy.orm import Session
 
 from fastapi_limiter import FastAPILimiter
-import aioredis
+# import aioredis
+import redis.asyncio as redis
+
+
+# load_dotenv()
+
+# Base.metadata.create_all(bind=engine)
+app = FastAPI()
+
+
+# @app.on_event("startup")
+# async def startup():
+#     redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
+#     await FastAPILimiter.init(redis)
+
 
 
 load_dotenv()
 
-Base.metadata.create_all(bind=engine)
-app = FastAPI()
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
 
-
-@app.on_event("startup")
-async def startup():
-    redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
-    await FastAPILimiter.init(redis)
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    decode_responses=True,
+    encoding="utf-8"
+)
 
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
@@ -61,6 +78,7 @@ app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
+app.include_router(recordings.router, prefix="", tags=["Recordings"])
 
 from fapi.db.database import SessionLocal
 def get_db():
@@ -391,52 +409,6 @@ async def get_batches(course: str = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/recording")
-@limiter.limit("15/minute")
-async def get_recordings(request:Request,course: str = None, batchid: int = None, search: str = None):
-    try:
-        if not course:
-            return {"details": "Course expected"}
-        if not batchid and not search:
-            return {"details": "Batchid or Search Keyword expected"}
-        if search:
-            recordings = await fetch_keyword_recordings(course, search)
-            if not recordings:
-                raise HTTPException(status_code=404, detail="No recordings found for the provided search keyword.")
-            return {"batch_recordings": recordings}
-        recordings = await fetch_subject_batch_recording(course, batchid)
-        if not recordings:
-            raise HTTPException(status_code=404, detail="No recordings found for the provided course and batch.")
-        return {"batch_recordings": recordings}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-
-# --------------------------------------------contact------------------------
-# @app.post("/api/contact")
-# async def contact(user: ContactForm):
-#         # Send emails
-#     send_contact_emails(
-#         first_name=user.firstName,
-#         last_name=user.lastName,
-#         email=user.email,
-#         phone=user.phone,
-#         message=user.message
-#     )
-    
-#     # Save to database
-#     full_name = f"{user.firstName} {user.lastName}"
-#     await user_contact(
-#         full_name=full_name,
-#         email=user.email,
-#         phone=user.phone,
-#         message=user.message
-#     )
-#     return {"detail": "Message sent successfully"}
-
-# -----------------------------------------------------------------------------contact end -----
 
 
 @app.get("/api/coursecontent")
