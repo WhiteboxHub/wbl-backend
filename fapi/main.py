@@ -1,7 +1,7 @@
 # wbl-backend/fapi/main.py
 from fapi.db.models import EmailRequest, UserCreate, Token, UserRegistration, ContactForm, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
-      fetch_sessions_by_type, fetch_types, insert_user, get_user_by_username, update_login_info, verify_md5_hash,
+       insert_user, get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording,  course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_user,insert_vendor ,fetch_recent_placements , fetch_recent_interviews,insert_lead_new
@@ -40,19 +40,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from fapi.db.database import course_content as get_course_content_data ,get_db
 from fapi.db.schemas import CourseContentResponse
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 # from fapi.db.database import get_db
 from fapi.db.models import CourseContent
+from fapi.api.routes import resources
 
-
-
-# from sqlalchemy.orm import Session
-
-# from fastapi_limiter import FastAPILimiter
-# import aioredis
 
 
 load_dotenv()
@@ -61,11 +55,6 @@ load_dotenv()
 app = FastAPI()
 
 
-# @app.on_event("startup")
-# async def startup():
-#     redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
-#     await FastAPILimiter.init(redis)
-
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
@@ -73,14 +62,8 @@ app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 # app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
+app.include_router(resources.router, prefix="/api", tags=["Resources"])
 
-# from fapi.db.database import SessionLocal
-# def get_db():
-#     db.database = SessionLocal()
-#     try:
-#         yield db
-#     finally:
-#         db.close()
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -347,48 +330,48 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 
-@app.get("/api/session-types")
-async def get_types(current_user: dict = Depends(get_current_user)):
-    try:
-        team = current_user.get("team", "null")  # Extract the team from the user data
-        types = await fetch_types(team)  # Pass the team to fetch_types
-        if not types:
-            raise HTTPException(status_code=404, detail="Types not found")
-        return {"types": types}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.get("/api/session-types")
+# async def get_types(current_user: dict = Depends(get_current_user)):
+#     try:
+#         team = current_user.get("team", "null")  # Extract the team from the user data
+#         types = await fetch_types(team)  # Pass the team to fetch_types
+#         if not types:
+#             raise HTTPException(status_code=404, detail="Types not found")
+#         return {"types": types}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/sessions")
-async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
-    try:
-        # Local mapping of course names to course IDs for this endpoint only
-        course_name_to_id = {
-            "QA": 1,
-            "UI": 2,
-            "ML": 3,
-        }
+# @app.get("/api/sessions")
+# async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None):
+#     try:
+#         # Local mapping of course names to course IDs for this endpoint only
+#         course_name_to_id = {
+#             "QA": 1,
+#             "UI": 2,
+#             "ML": 3,
+#         }
 
-        # Validate and map course_name to course_id
-        if course_name:
-            course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
-            if not course_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
-                )
-        else:
-            course_id = None  # If course_name is not provided, no filtering on course_id
+#         # Validate and map course_name to course_id
+#         if course_name:
+#             course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
+#             if not course_id:
+#                 raise HTTPException(
+#                     status_code=status.HTTP_400_BAD_REQUEST,
+#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
+#                 )
+#         else:
+#             course_id = None  # If course_name is not provided, no filtering on course_id
 
-        # Fetch the current user's team
-        team = 'admin'
+#         # Fetch the current user's team
+#         team = 'admin'
 
-        # Call the function to fetch sessions by the provided course_id and session_type
-        sessions = await fetch_sessions_by_type(course_id, session_type, team)  # Pass the team to fetch_sessions_by_type
-        if not sessions:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
-        return {"sessions": sessions}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+#         # Call the function to fetch sessions by the provided course_id and session_type
+#         sessions = await fetch_sessions_by_type(course_id, session_type, team)  # Pass the team to fetch_sessions_by_type
+#         if not sessions:
+#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
+#         return {"sessions": sessions}
+#     except Exception as e:
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 ###########################################################################
 
@@ -425,49 +408,6 @@ async def get_recordings(request:Request,course: str = None, batchid: int = None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
-# --------------------------------------------contact------------------------
-# @app.post("/api/contact")
-# async def contact(user: ContactForm):
-#         # Send emails
-#     send_contact_emails(
-#         first_name=user.firstName,
-#         last_name=user.lastName,
-#         email=user.email,
-#         phone=user.phone,
-#         message=user.message
-#     )
-    
-#     # Save to database
-#     full_name = f"{user.firstName} {user.lastName}"
-#     await user_contact(
-#         full_name=full_name,
-#         email=user.email,
-#         phone=user.phone,
-#         message=user.message
-#     )
-#     return {"detail": "Message sent successfully"}
-
-# -----------------------------------------------------------------------------contact end -----
-
-
-# @app.get("/api/coursecontent")
-# def get_course_content():
-#     content = course_content()
-#     return {"coursecontent": content}
-
-# @app.get("/api/coursecontent", response_model=List[CourseContentResponse])
-# async def get_course_content(db: AsyncSession = Depends(get_db)):
-#     data = await get_course_content_data(db)
-#     return data
-
-
-# @app.get("/api/coursecontent", response_model=List[CourseContentResponse])
-# async def get_course_content(db: AsyncSession = Depends(get_db)):
-#     data = await get_course_content_data(db)
-#     return data
-
-
 
 @app.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(db: AsyncSession = Depends(get_db)):

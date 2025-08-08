@@ -5,7 +5,7 @@ from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base , relationship
 # from config import Base
 from fapi.db.base import Base  # only import from base.py
 from pydantic import BaseModel 
@@ -349,3 +349,29 @@ class CourseContent(Base):
     AIML = Column(String(255), nullable=False)
     UI = Column(String(255), nullable=True)
     QE = Column(String(255), nullable=True)
+
+
+class Session(Base):
+    __tablename__ = 'session'
+    sessionid = Column(Integer, primary_key=True)
+    subject_id = Column(Integer, ForeignKey('subject.id'))
+    type = Column(String(100))
+    sessiondate = Column(DateTime)
+    title = Column(String(255))
+    link = Column(String(500))
+    # ... other fields ...
+
+
+class CourseSubject(Base):
+    __tablename__ = 'course_subject'
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"))
+    subject_id = Column(Integer, ForeignKey("subject.id"))
+    # ... other fields ...
+
+
+class Course(Base):
+    __tablename__ = 'course'
+    id = Column(Integer, primary_key=True)
+    alias = Column(String(50))
+    # ... other fields ...

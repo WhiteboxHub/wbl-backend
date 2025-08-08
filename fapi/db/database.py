@@ -210,25 +210,6 @@ async def update_login_info(user_id: int):
         cursor.close()
         conn.close()
 
-# async def insert_login_history(user_id: int, ipaddress: str, useragent: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor()
-#         query = """
-#             INSERT INTO whitebox_learning.loginhistory (loginid, logindatetime, ipaddress, useragent) 
-#             VALUES (%s, NOW(), %s, %s);
-#         """
-#         await loop.run_in_executor(None, cursor.execute, query, (user_id, ipaddress, useragent))
-#         conn.commit()
-#     except Error as e:
-#         # print(f"Error inserting login history: {e}")
-#         conn.rollback()
-#         raise HTTPException(status_code=500, detail="Error inserting login history")
-#     finally:
-#         cursor.close()
-#         conn.close()
-    
 
 #fucntion to merge batchs
 def merge_batches(q1_response,q2_response):
@@ -437,133 +418,57 @@ async def fetch_keyword_presentation(search, course):
         conn.close()
 
 
-# async def get_user_from_token(token: str):
-#     # Verify the JWT token and extract the email
-#     payload = verify_token(token)
-#     if isinstance(payload, JSONResponse):  # Check if an error response was returned
-#         raise ValueError("Invalid or expired token")
-    
-#     email = payload.get('sub')  # Assuming 'sub' contains the email or user identifier
-
-#     # Query the database to find the user by email
-#     team = await fetch_user_team(email)
-#     return team
-
-
-# async def fetch_user_team(email: str):
+# async def fetch_types(team: str):
 #     loop = asyncio.get_event_loop()
 #     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
 #     try:
 #         cursor = conn.cursor(dictionary=True)
-        
-#         # Query to check the team column for the user
-#         query = "SELECT team FROM authuser WHERE email = %s;"
-#         await loop.run_in_executor(None, cursor.execute, query, (email,))
-        
-#         result = cursor.fetchone()
-#         if result:
-#             return result['team']  # Returns 'admin', 'instructor', or None
-#         return None  # User not found
+
+#         if team in ["admin", "instructor"]:
+#             query = "SELECT DISTINCT type FROM session ORDER BY type ASC;"
+#         else:
+#             allowed_types = ("Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc")
+#             query = "SELECT DISTINCT type FROM session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
+
+#         await loop.run_in_executor(None, cursor.execute, query, allowed_types if team not in ["admin", "instructor"] else ())
+#         types = cursor.fetchall()
+#         return types
 #     finally:
 #         conn.close()
 
 
-async def fetch_types(team: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
+# async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
+#     if not course_id or not session_type:
+#         raise ValueError("Invalid course_id or session_type")
 
-        if team in ["admin", "instructor"]:
-            query = "SELECT DISTINCT type FROM session ORDER BY type ASC;"
-        else:
-            allowed_types = ("Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc")
-            query = "SELECT DISTINCT type FROM session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
-
-        await loop.run_in_executor(None, cursor.execute, query, allowed_types if team not in ["admin", "instructor"] else ())
-        types = cursor.fetchall()
-        return types
-    finally:
-        conn.close()
-
-
-async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
-    if not course_id or not session_type:
-        raise ValueError("Invalid course_id or session_type")
-
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-
-    try:
-        cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT ns.*
-            FROM session ns
-            JOIN course_subject ncs 
-            ON ns.subject_id = ncs.subject_id
-            WHERE ns.subject_id != 0
-            AND ncs.course_id IN (%s) 
-            AND ns.type = %s 
-            AND (ncs.course_id != 3 OR ns.sessiondate >= '2024-01-01')
-            ORDER BY ns.sessiondate DESC;
-        """
-
-        if team not in ["admin", "instructor"]:
-            allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
-            if session_type not in allowed_types:
-                return []  # Return empty list if type not allowed for normal users
-
-        await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
-        sessions = cursor.fetchall()
-        return sessions
-    finally:
-        conn.close()
-
-
-# ------------------------------------------------contact-------------------------------
-
-# async def user_contact(full_name: str, email: str = None, phone: str = None,  message: str = None):
-#     full_name = full_name.lower().strip() if full_name else None
-#     email = email.lower().strip() if email else None
 #     loop = asyncio.get_event_loop()
 #     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+
 #     try:
-#         cursor = conn.cursor()
+#         cursor = conn.cursor(dictionary=True)
+        
 #         query = """
-#             INSERT INTO whitebox_learning.lead (
-#                 full_name,email, phone,notes) VALUES (%s, %s, %s, %s);
+#             SELECT ns.*
+#             FROM session ns
+#             JOIN course_subject ncs 
+#             ON ns.subject_id = ncs.subject_id
+#             WHERE ns.subject_id != 0
+#             AND ncs.course_id IN (%s) 
+#             AND ns.type = %s 
+#             AND (ncs.course_id != 3 OR ns.sessiondate >= '2024-01-01')
+#             ORDER BY ns.sessiondate DESC;
 #         """
-#         values = (
-#             full_name, email, phone,message)
-#         await loop.run_in_executor(None, cursor.execute, query, values)
-#         conn.commit()
-#     except Error as e:
-#         # print(f"Error inserting user: {e}")
-#         raise HTTPException(status_code=409, detail="Response already sent!")
-#     finally:
-#         cursor.close()
-#         conn.close()
 
-# --------------------------------------------------------------contact end ----------------------------------
+#         if team not in ["admin", "instructor"]:
+#             allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
+#             if session_type not in allowed_types:
+#                 return []  # Return empty list if type not allowed for normal users
 
-# def course_content():
-#     conn = mysql.connector.connect(**db_config)
-#     try:
-#         cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-#         # cursor.execute("SELECT * FROM whitebox_learning.course_content")
-#         cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
-#         data = cursor.fetchall()
-#         return data 
+#         await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
+#         sessions = cursor.fetchall()
+#         return sessions
 #     finally:
 #         conn.close()
-
-
-
-# async def course_content(session: AsyncSession):
-#     result = await session.execute(select(CourseContent.Fundamentals, CourseContent.AIML))
-#     rows = result.all()
-#     return [dict(Fundamentals=row[0], AIML=row[1]) for row in rows]
 
 
 async def course_content(session: AsyncSession):
