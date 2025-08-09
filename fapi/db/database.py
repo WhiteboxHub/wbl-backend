@@ -38,8 +38,6 @@ Base = declarative_base()
 
 
 
-# --------------------------------------------------------Register end-------------------------------
-
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
@@ -142,6 +140,7 @@ async def fetch_keyword_presentation(search, course):
     finally:
         cursor.close()
         conn.close()
+
 
 async def fetch_types(team: str):
     loop = asyncio.get_event_loop()
