@@ -115,38 +115,38 @@ async def get_recent_placements():
     return placements
 
 
-@app.get("/api/interviews", response_model=List[dict])
-async def get_interviews(limit: int = 10, offset: int = 0):
-    return await fetch_recent_interviews(limit, offset)
+# @app.get("/api/interviews", response_model=List[dict])
+# async def get_interviews(limit: int = 10, offset: int = 0):
+#     return await fetch_recent_interviews(limit, offset)
 
-@app.get("/api/interviews/{interview_id}", response_model=dict)
-async def get_interview_by_id(interview_id: int):
-    interview = await fetch_interview_by_id(interview_id)
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
-    return interview
+# @app.get("/api/interviews/{interview_id}", response_model=dict)
+# async def get_interview_by_id(interview_id: int):
+#     interview = await fetch_interview_by_id(interview_id)
+#     if not interview:
+#         raise HTTPException(status_code=404, detail="Interview not found")
+#     return interview
 
-@app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
-async def get_interview_by_name(candidate_name: str):
-    return await fetch_interviews_by_name(candidate_name)
+# @app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
+# async def get_interview_by_name(candidate_name: str):
+#     return await fetch_interviews_by_name(candidate_name)
 
-@app.post("/api/interviews")
-async def create_interview(data: RecentInterview):
-    await insert_interview(data)
-    return {"message": "Interview created successfully"}
+# @app.post("/api/interviews")
+# async def create_interview(data: RecentInterview):
+#     await insert_interview(data)
+#     return {"message": "Interview created successfully"}
 
-@app.put("/api/interviews/{interview_id}")
-async def update_interview_api(interview_id: int, data: RecentInterview):
-    existing = await fetch_interview_by_id(interview_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Interview not found")
-    await update_interview(interview_id, data)
-    return {"message": "Interview updated successfully"}
+# @app.put("/api/interviews/{interview_id}")
+# async def update_interview_api(interview_id: int, data: RecentInterview):
+#     existing = await fetch_interview_by_id(interview_id)
+#     if not existing:
+#         raise HTTPException(status_code=404, detail="Interview not found")
+#     await update_interview(interview_id, data)
+#     return {"message": "Interview updated successfully"}
 
-@app.delete("/api/interviews/{interview_id}")
-async def remove_interview(interview_id: int):
-    await delete_interview(interview_id)
-    return {"message": "Interview deleted successfully"}
+# @app.delete("/api/interviews/{interview_id}")
+# async def remove_interview(interview_id: int):
+#     await delete_interview(interview_id)
+#     return {"message": "Interview deleted successfully"}
 
 
 
