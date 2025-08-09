@@ -45,6 +45,7 @@ class UserRegistration(BaseModel):
     specialization: Optional[str] = None
     notes: Optional[str] = None
   
+
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
@@ -58,8 +59,8 @@ class LeadBase(BaseModel):
     closed_date: Optional[date] = None
     notes: Optional[str] = None
     last_modified: Optional[datetime] = None
-    massemail_unsubscribe: Optional[str] = None
-    massemail_email_sent: Optional[str] = None
+    massemail_unsubscribe: Optional[bool] = None
+    massemail_email_sent: Optional[bool] = None
     moved_to_candidate: Optional[bool] = None
 
 
@@ -71,8 +72,9 @@ class LeadSchema(LeadBase):
     class Config:
         from_attributes = True  
 
-
+ 
 # --------------------------------------------------------candidate-------------------------------------------------------
+
 
 class CandidateBase(BaseModel):
     full_name: Optional[str]
@@ -104,18 +106,17 @@ class CandidateCreate(CandidateBase):
 class CandidateUpdate(CandidateBase):
     pass
 
-class Candidate(CandidateBase):
+class CandidateDelete(CandidateBase):
     id: int
 
     class Config:
         from_attributes = True
-
+    
 class PaginatedCandidateResponse(BaseModel):
     page: int
     limit: int
     total: int
-    data: List[Candidate]
-
+    data: List[CandidateBase]
 
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
@@ -192,4 +193,106 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
+class CourseBase(BaseModel):
+    name: str
+    alias: str
 
+class CourseCreate(CourseBase):
+    pass
+
+class Course(CourseBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class SubjectBase(BaseModel):
+    name: str
+
+class SubjectCreate(SubjectBase):
+    pass
+
+class Subject(SubjectBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class CourseSubjectBase(BaseModel):
+    course_id: int
+    subject_id: int
+
+class CourseSubjectCreate(CourseSubjectBase):
+    pass
+
+class CourseSubject(CourseSubjectBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+
+class BatchCreate(BatchBase):
+    pass
+
+class Batch(BatchBase):
+    batchid: int
+
+    class Config:
+        orm_mode = True
+
+class RecordingBase(BaseModel):
+    batchname: str
+    description: Optional[str] = None
+    type: Optional[str] = None
+    classdate: Optional[datetime] = None
+    link: Optional[str] = None
+    videoid: Optional[str] = None
+    subject: Optional[str] = None
+    filename: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
+    new_subject_id: Optional[int] = None
+
+class RecordingCreate(RecordingBase):
+    pass
+
+class Recording(RecordingBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class RecordingBatchBase(BaseModel):
+    recording_id: int
+    batch_id: int
+
+class RecordingBatchCreate(RecordingBatchBase):
+    pass
+
+class RecordingBatch(RecordingBatchBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class SessionBase(BaseModel):
+    title: str
+    link: Optional[str] = None
+    videoid: Optional[str] = None
+    subject: Optional[str] = None
+    type: Optional[str] = None
+    sessiondate: Optional[datetime] = None
+    lastmoddatetime: Optional[datetime] = None
+    subject_id: int
+
+class SessionCreate(SessionBase):
+    pass
+
+class Session(SessionBase):
+    sessionid: int
+
+    class Config:
+        orm_mode = True
