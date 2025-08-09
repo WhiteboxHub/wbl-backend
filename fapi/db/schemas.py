@@ -185,26 +185,6 @@ class TalentSearch(BaseModel):
 
 
 # ================================================contact====================================
-
-# class ContactCreate(BaseModel):
-#     first_name: str
-#     last_name: str
-#     email: EmailStr
-#     phone: Optional[str] = None
-#     notes: Optional[str] = None
-#     workstatus: Optional[str] = None
-
-
-# class ContactFormResponse(BaseModel):
-#     id: int
-#     full_name: str
-#     email: str
-#     phone: Optional[str] = None
-#     notes: Optional[str] = None
-
-#     class Config:
-#         orm_mode = True
-
 class ContactForm(BaseModel):
     firstName: str
     lastName: str

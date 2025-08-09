@@ -51,40 +51,6 @@ class AuthUserORM(Base):
     notes = Column(Text)
 
 
-
-# class UserRegistration(BaseModel):
-#     uname: str
-#     passwd: str
-#     dailypwd: Optional[str] = None
-#     team: Optional[str] = None
-#     level: Optional[str] = None
-#     instructor: Optional[str] = None
-#     override: Optional[str] = None
-#     status: Optional[str] = None
-#     lastlogin: Optional[str] = None
-#     logincount: Optional[str] = None
-#     firstname: Optional[str] = Field(None, alias="firstName")
-#     lastname: Optional[str] = Field(None, alias="lastName")
-#     fullname: Optional[str] = None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     city: Optional[str] = None
-#     Zip: Optional[str] = None
-#     country: Optional[str] = None
-#     message: Optional[str] = None
-#     registereddate: Optional[str] = None
-#     level3date: Optional[str] = None
-#     last: Optional[str] = None
-#     visa_status: Optional[str] = Field(None, alias="visaStatus")  
-#     experience: Optional[str] = None
-#     education: Optional[str] = None
-#     specialization: Optional[str] = None
-#     referby: Optional[str] = Field(None, alias="referredBy")  
-
-    # class Config:
-    #     allow_population_by_field_name = True
-    #     allow_population_by_alias = True
-
 # ----------------------------------------------
 class ContactForm(BaseModel):
     firstName: str
@@ -110,25 +76,6 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-
-
-# --------google_login=-------------
-# class AuthUser(Base): 
-#     __tablename__ = "authuser"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     uname = Column(String(255), unique=True, index=True)
-#     fullname = Column(String(255))
-#     googleId = Column(String(255))
-#     passwd = Column(String(255))
-#     status = Column(String(50), default="inactive")
-#     registereddate = Column(DateTime, default=datetime.utcnow)
-
-# class Lead(Base):
-#     __tablename__ = "lead"
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     full_name = Column(String(255))
-#     email = Column(String(255), unique=True)
 
 
 # ---------------------------- Innovapath - Request demo --------------------

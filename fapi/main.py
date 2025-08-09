@@ -82,28 +82,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 
-# ----------------------------------- Avatar --------------------------------------
-# security = HTTPBearer()
-
-# @app.get("/api/user_role")
-# async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
-#     token = credentials.credentials
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         username = payload.get("sub")
-#         if not username:
-#             raise HTTPException(status_code=401, detail="Invalid token")
-#     except (ExpiredSignatureError, JWTError):
-#         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-#     userinfo = await get_user_by_username(username)
-#     if not userinfo:
-#         raise HTTPException(status_code=404, detail="User not found")
-
-#     role = determine_user_role(userinfo)
-#     return {"role": role}
-
-
 
 
 # # -----------------------------------------------------------------------------------------------------
@@ -113,40 +91,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
-
-
-# @app.get("/api/interviews", response_model=List[dict])
-# async def get_interviews(limit: int = 10, offset: int = 0):
-#     return await fetch_recent_interviews(limit, offset)
-
-# @app.get("/api/interviews/{interview_id}", response_model=dict)
-# async def get_interview_by_id(interview_id: int):
-#     interview = await fetch_interview_by_id(interview_id)
-#     if not interview:
-#         raise HTTPException(status_code=404, detail="Interview not found")
-#     return interview
-
-# @app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
-# async def get_interview_by_name(candidate_name: str):
-#     return await fetch_interviews_by_name(candidate_name)
-
-# @app.post("/api/interviews")
-# async def create_interview(data: RecentInterview):
-#     await insert_interview(data)
-#     return {"message": "Interview created successfully"}
-
-# @app.put("/api/interviews/{interview_id}")
-# async def update_interview_api(interview_id: int, data: RecentInterview):
-#     existing = await fetch_interview_by_id(interview_id)
-#     if not existing:
-#         raise HTTPException(status_code=404, detail="Interview not found")
-#     await update_interview(interview_id, data)
-#     return {"message": "Interview updated successfully"}
-
-# @app.delete("/api/interviews/{interview_id}")
-# async def remove_interview(interview_id: int):
-#     await delete_interview(interview_id)
-#     return {"message": "Interview deleted successfully"}
 
 
 
@@ -193,85 +137,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
     
 #     return user_data
 
-# --------------------------------------Register-----------------------------
-
-# @app.post("/api/signup")
-# @limiter.limit("15/minute")
-# async def register_user(request:Request,user: UserRegistration):
-#     user.uname = user.uname.lower().strip()
-#     # Check if user exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="Username already registered")
-
-#     # Clean inputs (only change needed)
-#     user = clean_input_fields(user)
-
-#     # Rest of your existing code remains exactly the same...
-#     hashed_password = md5_hash(user.passwd)
-#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     fullname = fullname.lower()
-#     user.fullname = fullname
-#     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     # print(" Full name constructed:", fullname)  # <---- Add this line
-
-  
-#     await insert_user(
-#     uname=user.uname,
-#     passwd=hashed_password,
-#     dailypwd=user.dailypwd,
-#     team=user.team,
-#     level=user.level,
-#     instructor=user.instructor,
-#     override=user.override,
-#     lastlogin=user.lastlogin,
-#     logincount=user.logincount,   
-#     fullname=fullname,
-#     phone=user.phone,
-#     address=user.address,
-#     city=user.city,
-#     Zip=user.Zip,
-#     country=user.country,
-#     message=user.message,
-#     registereddate=user.registereddate,
-#     level3date=user.level3date,    
-#     visa_status=user.visa_status,
-#     experience=user.experience,
-#     education=user.education,
-#     referby=user.referby,
-#     candidate_info={  # optional dict
-#         'name': user.fullname,
-#         'enrolleddate': user.registereddate,
-#         'email': user.uname,
-#         'phone': user.phone,
-#         'address': user.address,
-#         'city': user.city,
-#         'country': user.country,
-#         'zip': user.Zip,
-#         }
-#     )
-
-#     await insert_lead_new(
-#     full_name=leads_full_name,
-#     phone=user.phone,
-#     email=user.uname,
-#     address=user.address,
-#     workstatus=None,  # If available, pass user.workstatus
-#     status="Open",
-#     secondary_email=None,  # Or user.secondaryemail if you collect it
-#     secondary_phone=None,  # Or user.secondaryphone
-#     closed_date=None,
-#     notes=None
-#     )
-
-#     # Send confirmation email to the user and notify the admin
-#     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
-#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
-
-
-
-# ---------------------------------Register end--------------------------------
 
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
