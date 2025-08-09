@@ -1,7 +1,7 @@
 # wbl-backend/fapi/main.py
 from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
-      fetch_sessions_by_type, fetch_types, get_user_by_username, update_login_info, verify_md5_hash,
+      fetch_sessions_by_type, fetch_types, get_user_by_username, verify_md5_hash,
      fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
   course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
@@ -36,10 +36,6 @@ from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
 from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
-
-from fastapi_limiter import FastAPILimiter
-# import aioredis
-import redis.asyncio as redis
 
 app = FastAPI()
 
@@ -78,32 +74,6 @@ app.add_middleware(
 
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-
-
-# ----------------------------------- Avatar --------------------------------------
-# security = HTTPBearer()
-
-# @app.get("/api/user_role")
-# async def get_user_role(credentials: HTTPAuthorizationCredentials = Depends(security)):
-#     token = credentials.credentials
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         username = payload.get("sub")
-#         if not username:
-#             raise HTTPException(status_code=401, detail="Invalid token")
-#     except (ExpiredSignatureError, JWTError):
-#         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-#     userinfo = await get_user_by_username(username)
-#     if not userinfo:
-#         raise HTTPException(status_code=404, detail="User not found")
-
-#     role = determine_user_role(userinfo)
-#     return {"role": role}
-
-
-
 
 # # -----------------------------------------------------------------------------------------------------
 
@@ -173,101 +143,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
-# def clean_input_fields(user_data: UserRegistration):
-#     """Convert empty strings and format datetimes for MySQL"""
-#     # Convert empty strings to None for all fields
-#     for field in ['lastlogin', 'registereddate', 'level3date']:
-#         value = getattr(user_data, field)
-#         if value == '':
-#             setattr(user_data, field, None)
-#         elif value and 'T' in value:  # Format ISO datetime strings
-#             setattr(user_data, field, value.replace('T', ' ').split('.')[0])
-    
-#     # Handle integer field
-#     user_data.logincount = 0 if user_data.logincount in ('', None) else int(user_data.logincount)
-    
-#     return user_data
-
-# --------------------------------------Register-----------------------------
-
-# @app.post("/api/signup")
-# @limiter.limit("15/minute")
-# async def register_user(request:Request,user: UserRegistration):
-#     user.uname = user.uname.lower().strip()
-#     # Check if user exists
-#     existing_user = await get_user_by_username(user.uname)
-#     if existing_user:
-#         raise HTTPException(status_code=400, detail="Username already registered")
-
-#     # Clean inputs (only change needed)
-#     user = clean_input_fields(user)
-
-#     # Rest of your existing code remains exactly the same...
-#     hashed_password = md5_hash(user.passwd)
-#     # fullname = f"{user.firstname or ''} {user.lastname or ''}".strip(),
-#     fullname = user.fullname or f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     fullname = fullname.lower()
-#     user.fullname = fullname
-#     leads_full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
-#     # print(" Full name constructed:", fullname)  # <---- Add this line
-
-  
-#     await insert_user(
-#     uname=user.uname,
-#     passwd=hashed_password,
-#     dailypwd=user.dailypwd,
-#     team=user.team,
-#     level=user.level,
-#     instructor=user.instructor,
-#     override=user.override,
-#     lastlogin=user.lastlogin,
-#     logincount=user.logincount,   
-#     fullname=fullname,
-#     phone=user.phone,
-#     address=user.address,
-#     city=user.city,
-#     Zip=user.Zip,
-#     country=user.country,
-#     message=user.message,
-#     registereddate=user.registereddate,
-#     level3date=user.level3date,    
-#     visa_status=user.visa_status,
-#     experience=user.experience,
-#     education=user.education,
-#     referby=user.referby,
-#     candidate_info={  # optional dict
-#         'name': user.fullname,
-#         'enrolleddate': user.registereddate,
-#         'email': user.uname,
-#         'phone': user.phone,
-#         'address': user.address,
-#         'city': user.city,
-#         'country': user.country,
-#         'zip': user.Zip,
-#         }
-#     )
-
-#     await insert_lead_new(
-#     full_name=leads_full_name,
-#     phone=user.phone,
-#     email=user.uname,
-#     address=user.address,
-#     workstatus=None,  # If available, pass user.workstatus
-#     status="Open",
-#     secondary_email=None,  # Or user.secondaryemail if you collect it
-#     secondary_phone=None,  # Or user.secondaryphone
-#     closed_date=None,
-#     notes=None
-#     )
-
-#     # Send confirmation email to the user and notify the admin
-#     send_email_to_user(user_email=user.uname, user_name=user.fullname, user_phone=user.phone)
-#     return {"message": "User registered successfully. Confirmation email sent to the user and notification sent to the admin."}
-
 
 
 # ---------------------------------Register end--------------------------------

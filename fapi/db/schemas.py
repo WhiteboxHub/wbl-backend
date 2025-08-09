@@ -73,47 +73,6 @@ class LeadSchema(LeadBase):
 # --------------------------------------------------------candidate-------------------------------------------------------
 
 
-
-
-# class CandidateBase(BaseModel):
-#     full_name: str
-#     email: EmailStr
-#     phone: Optional[str] = None
-#     status: Optional[Literal["active", "discontinued", "break"]] = "active"
-#     workstatus: Optional[Literal["Citizen", "Visa", "Permanent resident", "EAD", "Waiting for Status"]] = None
-#     education: Optional[str] = None
-#     workexperience: Optional[str] = None
-#     ssn: Optional[str] = None
-#     agreement: Optional[Literal["Y", "N"]] = "N"
-#     secondaryemail: Optional[EmailStr] = None
-#     secondaryphone: Optional[str] = None
-#     address: Optional[str] = None
-#     linkedin_id: Optional[Literal["Y", "N"]] = None
-#     dob: Optional[date] = None
-#     emergcontactname: Optional[str] = None
-#     emergcontactemail: Optional[EmailStr] = None
-#     emergcontactphone: Optional[str] = None
-#     emergcontactaddrs: Optional[str] = None
-#     fee_paid: Optional[int] = None
-#     notes: Optional[str] = None
-#     batchid: int
-
-
-# class CandidateCreate(CandidateBase):
-#     enrolled_date: Optional[date] = Field(default_factory=date.today)
-
-
-# class CandidateOut(CandidateBase):
-#     id: int
-#     enrolled_date: date
-
-#     class Config:
-#         orm_mode = True
-
-
-
-
-
 class CandidateBase(BaseModel):
     full_name: Optional[str]
     enrolled_date: Optional[date]
@@ -225,39 +184,13 @@ class TalentSearch(BaseModel):
 
 # ================================================contact====================================
 
-# class ContactCreate(BaseModel):
-#     first_name: str
-#     last_name: str
-#     email: EmailStr
-#     phone: Optional[str] = None
-#     notes: Optional[str] = None
-#     workstatus: Optional[str] = None
-
-
-# class ContactFormResponse(BaseModel):
-#     id: int
-#     full_name: str
-#     email: str
-#     phone: Optional[str] = None
-#     notes: Optional[str] = None
-
-#     class Config:
-#         orm_mode = True
-
+#
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
     email: EmailStr
     phone: str
     message: str
-
-
-
-
-
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
 
 class CourseBase(BaseModel):
     name: str
