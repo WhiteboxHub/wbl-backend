@@ -1,34 +1,39 @@
-# fapi/utils/resources_util.py
 
-from sqlalchemy.ext.asyncio import AsyncSession
+# fapi/utils/resources_utils.py
+
+from sqlalchemy.orm import Session
 from sqlalchemy.future import select
-from sqlalchemy import and_, or_
-from fapi.db.models import Session, CourseSubject, Course
+from sqlalchemy import case, or_
+from fapi.db.models import Session as SessionORM, CourseSubject , CourseMaterial
 from typing import List
+from fastapi import HTTPException, status
+from sqlalchemy import case, or_
+from fapi.db.database import SessionLocal
 
 
-async def fetch_session_types_by_team(db: AsyncSession, team: str) -> List[str]:
+
+def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
     if team in ["admin", "instructor"]:
-        result = await db.execute(select(Session.type).distinct().order_by(Session.type))
+        result = db.execute(select(SessionORM.type).distinct().order_by(SessionORM.type))
     else:
         allowed_types = [
-            "Resume Session", "Job Help", "Interview Prep", 
+            "Resume Session", "Job Help", "Interview Prep",
             "Individual Mock", "Group Mock", "Misc"
         ]
-        result = await db.execute(
-            select(Session.type).distinct()
-            .where(Session.type.in_(allowed_types))
-            .order_by(Session.type)
+        result = db.execute(
+            select(SessionORM.type).distinct()
+            .where(SessionORM.type.in_(allowed_types))
+            .order_by(SessionORM.type)
         )
     return [row[0] for row in result.fetchall()]
 
 
-async def fetch_sessions_by_type_orm(db: AsyncSession, course_id: int, session_type: str, team: str):
+def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str):
     if not course_id or not session_type:
         return []
 
     allowed_types = [
-        "Resume Session", "Job Help", "Interview Prep", 
+        "Resume Session", "Job Help", "Interview Prep",
         "Individual Mock", "Group Mock", "Misc"
     ]
 
@@ -36,19 +41,83 @@ async def fetch_sessions_by_type_orm(db: AsyncSession, course_id: int, session_t
         return []
 
     query = (
-        select(Session)
-        .join(CourseSubject, Session.subject_id == CourseSubject.subject_id)
+        select(SessionORM)
+        .join(CourseSubject, SessionORM.subject_id == CourseSubject.subject_id)
         .where(
-            Session.subject_id != 0,
+            SessionORM.subject_id != 0,
             CourseSubject.course_id == course_id,
-            Session.type == session_type,
+            SessionORM.type == session_type,
             or_(
                 CourseSubject.course_id != 3,
-                Session.sessiondate >= "2024-01-01"
+                SessionORM.sessiondate >= "2024-01-01"
             )
         )
-        .order_by(Session.sessiondate.desc())
+        .order_by(SessionORM.sessiondate.desc())
     )
 
-    result = await db.execute(query)
+    result = db.execute(query)
     return result.scalars().all()
+
+
+def fetch_keyword_presentation(search: str, course: str):
+    """
+    ORM version of fetching course materials based on type and course.
+    Uses sync SessionLocal to match existing DB setup.
+    """
+    # Map readable names to DB type codes
+    type_mapping = {
+        "Presentations": "P",
+        "Cheatsheets": "C",
+        "Diagrams": "D",
+        "Installations": "I",
+        "Templates": "T",
+        "Books": "B",
+        "Softwares": "S",
+        "Newsletters": "N"
+    }
+    type_code = type_mapping.get(search)
+    if not type_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
+        )
+
+    # Map course alias to courseid
+    courseid_mapping = {
+        "QA": 1,
+        "UI": 2,
+        "ML": 3
+    }
+    selected_courseid = courseid_mapping.get(course.upper())
+
+    # Priority ordering
+    priority_order = case(
+        (CourseMaterial.name == 'Software Architecture', 1),
+        (CourseMaterial.name == 'SDLC', 2),
+        (CourseMaterial.name == 'JIRA Agile', 3),
+        (CourseMaterial.name == 'HTTP', 4),
+        (CourseMaterial.name == 'Web Services', 5),
+        (CourseMaterial.name == 'UNIX - Shell Scripting', 6),
+        (CourseMaterial.name == 'MY SQL', 7),
+        (CourseMaterial.name == 'Git', 8),
+        (CourseMaterial.name == 'json', 9),
+        else_=10
+    )
+
+    # Query using ORM
+    with SessionLocal() as session:
+        results = (
+            session.query(CourseMaterial)
+            .filter(
+                CourseMaterial.type == type_code,
+                or_(CourseMaterial.courseid == 0, CourseMaterial.courseid == selected_courseid)
+            )
+            .order_by(priority_order)
+            .all()
+        )
+
+        # Convert ORM objects to dictionaries
+        return [
+            {column.name: getattr(row, column.name) for column in row.__table__.columns}
+            for row in results
+        ]

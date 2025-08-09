@@ -2,12 +2,13 @@ from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal 
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
+from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
 from sqlalchemy.orm import declarative_base , relationship
 # from config import Base
-from fapi.db.base import Base  # only import from base.py
+from fapi.db.base import Base  
 from pydantic import BaseModel 
 
 # Base = declarative_base()
@@ -15,41 +16,37 @@ class UserCreate(BaseModel):
     uname: str
     passwd: str
 
+# -----------------------------------------------------
+class AuthUserORM(Base):
+    __tablename__ = "authuser"
 
-class UserRegistration(BaseModel):
-    uname: str
-    passwd: str
-    dailypwd: Optional[str] = None
-    team: Optional[str] = None
-    level: Optional[str] = None
-    instructor: Optional[str] = None
-    override: Optional[str] = None
-    status: Optional[str] = None
-    lastlogin: Optional[str] = None
-    logincount: Optional[str] = None
-    firstname: Optional[str] = Field(None, alias="firstName")
-    lastname: Optional[str] = Field(None, alias="lastName")
-    fullname: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    Zip: Optional[str] = None
-    country: Optional[str] = None
-    message: Optional[str] = None
-    registereddate: Optional[str] = None
-    level3date: Optional[str] = None
-    last: Optional[str] = None
-    visa_status: Optional[str] = Field(None, alias="visaStatus")  
-    experience: Optional[str] = None
-    education: Optional[str] = None
-    specialization: Optional[str] = None
-    referby: Optional[str] = Field(None, alias="referredBy")  
-
-    class Config:
-        allow_population_by_field_name = True
-        allow_population_by_alias = True
+    id = Column(Integer, primary_key=True, index=True)
+    uname = Column(String(50), unique=True, nullable=False, default="")
+    passwd = Column(String(32), nullable=False)
+    team = Column(String(255))
+    status = Column(String(255), default="inactive")
+    lastlogin = Column(DateTime)
+    logincount = Column(Integer)
+    fullname = Column(String(50))
+    phone = Column(String(20))
+    address = Column(String(50))
+    city = Column(String(45))
+    zip = Column(String(45))
+    country = Column(String(45))
+    message = Column(Text)
+    registereddate = Column(DateTime)
+    level3date = Column(DateTime)
+    lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    demo = Column(String(1), default="N")
+    enddate = Column(Date, default="1990-01-01")
+    visa_status = Column(String(50))
+    education = Column(String(255))
+    experience = Column(String(100))
+    specialization = Column(String(255))
+    referby = Column(String(100))
 
 
+# ----------------------------------------------
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
@@ -74,25 +71,6 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-
-
-# --------google_login=-------------
-class AuthUser(Base): 
-    __tablename__ = "authuser"
-
-    id = Column(Integer, primary_key=True, index=True)
-    uname = Column(String(255), unique=True, index=True)
-    fullname = Column(String(255))
-    googleId = Column(String(255))
-    passwd = Column(String(255))
-    status = Column(String(50), default="inactive")
-    registereddate = Column(DateTime, default=datetime.utcnow)
-
-# class Lead(Base):
-#     __tablename__ = "lead"
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     full_name = Column(String(255))
-#     email = Column(String(255), unique=True)
 
 
 # ---------------------------- Innovapath - Request demo --------------------
@@ -334,13 +312,6 @@ class CandidatePlacementORM(Base):
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
 
-# class CourseContent(Base):
-#     __tablename__ = "course_content"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     Fundamentals = Column(String(1000))
-#     AIML = Column(String(1000))
-
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -359,7 +330,7 @@ class Session(Base):
     sessiondate = Column(DateTime)
     title = Column(String(255))
     link = Column(String(500))
-    # ... other fields ...
+    
 
 
 class CourseSubject(Base):
@@ -367,11 +338,19 @@ class CourseSubject(Base):
     id = Column(Integer, primary_key=True)
     course_id = Column(Integer, ForeignKey("course.id"))
     subject_id = Column(Integer, ForeignKey("subject.id"))
-    # ... other fields ...
+   
 
 
 class Course(Base):
     __tablename__ = 'course'
     id = Column(Integer, primary_key=True)
     alias = Column(String(50))
-    # ... other fields ...
+
+class CourseMaterial(Base):
+    __tablename__ = "course_material"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    type = Column(String(1))
+    courseid = Column(Integer)
+    
