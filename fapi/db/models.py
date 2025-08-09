@@ -2,51 +2,84 @@ from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal 
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func 
+from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.database import Base
-import enum 
+import enum
+# from config import Base
 Base = declarative_base()
+
 
 class UserCreate(BaseModel):
     uname: str
     passwd: str
 
+# -----------------------------------------------------
+class AuthUserORM(Base):
+    __tablename__ = "authuser"
 
-class UserRegistration(BaseModel):
-    uname: str
-    passwd: str
-    dailypwd: Optional[str] = None
-    team: Optional[str] = None
-    level: Optional[str] = None
-    instructor: Optional[str] = None
-    override: Optional[str] = None
-    status: Optional[str] = None
-    lastlogin: Optional[str] = None
-    logincount: Optional[str] = None
-    firstname: Optional[str] = Field(None, alias="firstName")
-    lastname: Optional[str] = Field(None, alias="lastName")
-    fullname: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    Zip: Optional[str] = None
-    country: Optional[str] = None
-    message: Optional[str] = None
-    registereddate: Optional[str] = None
-    level3date: Optional[str] = None
-    last: Optional[str] = None
-    visa_status: Optional[str] = Field(None, alias="visaStatus")  
-    experience: Optional[str] = None
-    education: Optional[str] = None
-    specialization: Optional[str] = None
-    referby: Optional[str] = Field(None, alias="referredBy")  
-
-    class Config:
-        allow_population_by_field_name = True
-        allow_population_by_alias = True
+    id = Column(Integer, primary_key=True, index=True)
+    uname = Column(String(50), unique=True, nullable=False, default="")
+    passwd = Column(String(32), nullable=False)
+    team = Column(String(255))
+    status = Column(String(255), default="inactive")
+    lastlogin = Column(DateTime)
+    logincount = Column(Integer)
+    fullname = Column(String(50))
+    phone = Column(String(20))
+    address = Column(String(50))
+    city = Column(String(45))
+    zip = Column(String(45))
+    country = Column(String(45))
+    message = Column(Text)
+    registereddate = Column(DateTime)
+    level3date = Column(DateTime)
+    lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    demo = Column(String(1), default="N")
+    enddate = Column(Date, default="1990-01-01")
+    visa_status = Column(String(50))
+    education = Column(String(255))
+    experience = Column(String(100))
+    specialization = Column(String(255))
+    referby = Column(String(100))
 
 
+
+# class UserRegistration(BaseModel):
+#     uname: str
+#     passwd: str
+#     dailypwd: Optional[str] = None
+#     team: Optional[str] = None
+#     level: Optional[str] = None
+#     instructor: Optional[str] = None
+#     override: Optional[str] = None
+#     status: Optional[str] = None
+#     lastlogin: Optional[str] = None
+#     logincount: Optional[str] = None
+#     firstname: Optional[str] = Field(None, alias="firstName")
+#     lastname: Optional[str] = Field(None, alias="lastName")
+#     fullname: Optional[str] = None
+#     phone: Optional[str] = None
+#     address: Optional[str] = None
+#     city: Optional[str] = None
+#     Zip: Optional[str] = None
+#     country: Optional[str] = None
+#     message: Optional[str] = None
+#     registereddate: Optional[str] = None
+#     level3date: Optional[str] = None
+#     last: Optional[str] = None
+#     visa_status: Optional[str] = Field(None, alias="visaStatus")  
+#     experience: Optional[str] = None
+#     education: Optional[str] = None
+#     specialization: Optional[str] = None
+#     referby: Optional[str] = Field(None, alias="referredBy")  
+
+    # class Config:
+    #     allow_population_by_field_name = True
+    #     allow_population_by_alias = True
+
+# ----------------------------------------------
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
@@ -74,16 +107,16 @@ class ResetPassword(BaseModel):
 
 
 # --------google_login=-------------
-class AuthUser(Base): 
-    __tablename__ = "authuser"
+# class AuthUser(Base): 
+#     __tablename__ = "authuser"
 
-    id = Column(Integer, primary_key=True, index=True)
-    uname = Column(String(255), unique=True, index=True)
-    fullname = Column(String(255))
-    googleId = Column(String(255))
-    passwd = Column(String(255))
-    status = Column(String(50), default="inactive")
-    registereddate = Column(DateTime, default=datetime.utcnow)
+#     id = Column(Integer, primary_key=True, index=True)
+#     uname = Column(String(255), unique=True, index=True)
+#     fullname = Column(String(255))
+#     googleId = Column(String(255))
+#     passwd = Column(String(255))
+#     status = Column(String(50), default="inactive")
+#     registereddate = Column(DateTime, default=datetime.utcnow)
 
 # class Lead(Base):
 #     __tablename__ = "lead"
@@ -146,84 +179,6 @@ class LeadORM(Base):
 # -------------------------------------------------------------------------------
 
 
-
-class CandidateBase(BaseModel):
-    name: Optional[str]
-    enrolleddate: Optional[date]
-    email: Optional[str]
-    course: Optional[str]
-    phone: Optional[str]
-    status: Optional[str]
-    workstatus: Optional[str]
-    education: Optional[str]
-    workexperience: Optional[str]
-    ssn: Optional[str]
-    agreement: Optional[str]
-    promissory: Optional[str]
-    driverslicense: Optional[str]
-    workpermit: Optional[str]
-    wpexpirationdate: Optional[date]
-    offerletter: Optional[str]
-    secondaryemail: Optional[str]
-    secondaryphone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    country: Optional[str]
-    zip: Optional[str]
-    linkedin: Optional[str]
-    dob: Optional[date]
-    emergcontactname: Optional[str]
-    emergcontactemail: Optional[str]
-    emergcontactphone: Optional[str]
-    emergcontactaddrs: Optional[str]
-    guidelines: Optional[str]
-    ssnvalidated: Optional[str]
-    bgv: Optional[str]
-    term: Optional[str]
-    feepaid: Optional[float]
-    feedue: Optional[float]
-    salary0: Optional[str]
-    salary6: Optional[str]
-    salary12: Optional[str]
-    guarantorname: Optional[str]
-    guarantordesignation: Optional[str]
-    guarantorcompany: Optional[str]
-    contracturl: Optional[str]
-    empagreementurl: Optional[str]
-    offerletterurl: Optional[str]
-    dlurl: Optional[str]
-    workpermiturl: Optional[str]
-    ssnurl: Optional[str]
-    referralid: Optional[int]
-    portalid: Optional[int]
-    avatarid: Optional[int]
-    notes: Optional[str]
-    batchname: str
-    background: Optional[str]
-    recruiterassesment: Optional[str]
-    processflag: Optional[str] = "N"
-    defaultprocessflag: Optional[str] = "N"
-    originalresume: Optional[str]
-    statuschangedate: Optional[date]
-    diceflag: Optional[str]
-    batchid: int
-    emaillist: Optional[str] = "Y"
-    marketing_startdate: Optional[date]
-    instructor: Optional[str]
-    second_instructor: Optional[str]
-
-class CandidateCreate(CandidateBase):
-    pass
-
-class CandidateUpdate(CandidateBase):
-    pass
-
-class Candidate(CandidateBase):
-    candidateid: int
-
-    class Config:
-        orm_mode = True
 
         
 
@@ -292,29 +247,25 @@ class RecentInterview(BaseModel):
 
 # .......................................NEW INNOVAPATH..............................
 
-class TalentSearchBaseModel(BaseModel):
-    id: int
-    full_name: str
-    email: str
-    phone: str
-    role: str
-    experience: int
-    location: str
-    availability: str
-    skills: str
 
+class TalentSearch(Base):
+    __tablename__ = "talent_search"
 
-class TalentSearch(TalentSearchBaseModel):
-    id: int
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100))
+    email = Column(String(100))
+    phone = Column(String(20))
+    role = Column(String(50))
+    experience = Column(Integer)
+    location = Column(String(100))
+    availability = Column(String(50))
+    skills = Column(Text)
+
     
-    class Config:
-        orm_mode = True
-
+# ------------------------------------------
 
 class UnsubscribeRequest(BaseModel):
     email: str
-
-
 
 
 

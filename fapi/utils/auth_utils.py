@@ -1,4 +1,4 @@
-# wbl-backend/fapi/utils.py
+# wbl-backend/fapi/auth/autils.py
 import hashlib
 import jwt
 import os

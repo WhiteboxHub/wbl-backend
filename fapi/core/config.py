@@ -1,8 +1,15 @@
 import os
 from dotenv import load_dotenv
+# fapi/utils/limiter_config.py
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+
+
 
 # Load environment variables from .env file
 load_dotenv()
+limiter = Limiter(key_func=get_remote_address)
 
 # Get secret values from environment
 SECRET_KEY = os.getenv("SECRET_KEY")

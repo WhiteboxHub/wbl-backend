@@ -1,23 +1,30 @@
 # wbl-backend\fapi\utils\google_auth_utils.py
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from fapi.db.models import AuthUser,LeadORM
+from fapi.db.models import AuthUserORM,LeadORM
+from datetime import datetime
 
 
 def get_google_user_by_email(db: Session, email: str):
-    user = db.query(AuthUser).filter(AuthUser.uname == email).first()
+    user = db.query(AuthUserORM).filter(AuthUserORM.uname == email).first()
     return user
 
 def insert_google_user_db(db: Session, email: str, name: str, google_id: str):
     try:
         new_user = AuthUser(
             uname=email,
+            
             fullname=name,
             googleId=google_id,
             passwd="google_register",
             status="inactive",
         )
-        db.add(new_user)
+        # db.add(new_user)
+        # new_lead = LeadORM(
+        #     full_name=name,
+        #     email=email,
+        #     entry_date=datetime.utcnow(),  # ✅ This fixes the error
+        # )
         print("Creating Lead instance:", type(LeadORM))
         print("Lead module:", LeadORM.__module__)
 

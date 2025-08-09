@@ -4,9 +4,43 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field,validator
 from typing import Optional, List, Literal
 from enum import Enum
-
-
 Base = declarative_base()
+
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    team: str
+
+
+class UserRegistration(BaseModel):
+    uname: EmailStr
+    passwd: str
+    dailypwd: Optional[str] = None
+    team: Optional[str]
+    level: Optional[str]
+    instructor: Optional[str]
+    override: Optional[str]
+    lastlogin: Optional[str]
+    logincount: Optional[int]
+    firstname: Optional[str]
+    lastname: Optional[str]
+    phone: Optional[str]
+    address: Optional[str]
+    city: Optional[str]
+    Zip: Optional[str]
+    country: Optional[str]
+    message: Optional[str]
+    visa_status: Optional[str]  # Maps from workauthorization
+    registereddate: Optional[datetime]
+    level3date: Optional[datetime]
+    experience: Optional[str]
+    education: Optional[str]
+    specialization: Optional[str]
+    referby: Optional[str]
+
+
 
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -130,6 +164,7 @@ class GoogleUserCreate(BaseModel):
     class Config:
         orm_mode = True
 
+
 #----------------------------vendor - tables -----------------
 # -------------------- Enums --------------------
 class VendorTypeEnum(str, Enum):
@@ -153,6 +188,19 @@ class VendorContactExtract(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
+
+# ------------------------------------Innovapath----------------------------
+class TalentSearch(BaseModel):
+    id: int
+    full_name: Optional[str]
+    email: Optional[str]
+    phone: Optional[str]
+    role: Optional[str]
+    experience: Optional[int]
+    location: Optional[str]
+    availability: Optional[str]
+    skills: Optional[str]
+
 
     class Config:
         orm_mode = True
@@ -278,3 +326,33 @@ class DailyVendorActivityUpdate(BaseModel):
     contacted_on_linkedin: Optional[YesNoEnum] = None
     notes: Optional[str] = None
     employee_id: Optional[int] = None
+
+# ================================================contact====================================
+
+# class ContactCreate(BaseModel):
+#     first_name: str
+#     last_name: str
+#     email: EmailStr
+#     phone: Optional[str] = None
+#     notes: Optional[str] = None
+#     workstatus: Optional[str] = None
+
+
+# class ContactFormResponse(BaseModel):
+#     id: int
+#     full_name: str
+#     email: str
+#     phone: Optional[str] = None
+#     notes: Optional[str] = None
+
+#     class Config:
+#         orm_mode = True
+
+class ContactForm(BaseModel):
+    firstName: str
+    lastName: str
+    email: EmailStr
+    phone: str
+    message: str
+
+
