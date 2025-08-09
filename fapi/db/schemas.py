@@ -41,7 +41,8 @@ class UserRegistration(BaseModel):
     referby: Optional[str]
 
 
-  
+# ----------------------Lead-------------------------
+
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
@@ -55,8 +56,8 @@ class LeadBase(BaseModel):
     closed_date: Optional[date] = None
     notes: Optional[str] = None
     last_modified: Optional[datetime] = None
-    massemail_unsubscribe: Optional[str] = None
-    massemail_email_sent: Optional[str] = None
+    massemail_unsubscribe: Optional[bool] = None
+    massemail_email_sent: Optional[bool] = None
     moved_to_candidate: Optional[bool] = None
 
 
@@ -68,8 +69,50 @@ class LeadSchema(LeadBase):
     class Config:
         from_attributes = True  
 
-
+ 
 # --------------------------------------------------------candidate-------------------------------------------------------
+
+
+
+
+# class CandidateBase(BaseModel):
+#     full_name: str
+#     email: EmailStr
+#     phone: Optional[str] = None
+#     status: Optional[Literal["active", "discontinued", "break"]] = "active"
+#     workstatus: Optional[Literal["Citizen", "Visa", "Permanent resident", "EAD", "Waiting for Status"]] = None
+#     education: Optional[str] = None
+#     workexperience: Optional[str] = None
+#     ssn: Optional[str] = None
+#     agreement: Optional[Literal["Y", "N"]] = "N"
+#     secondaryemail: Optional[EmailStr] = None
+#     secondaryphone: Optional[str] = None
+#     address: Optional[str] = None
+#     linkedin_id: Optional[Literal["Y", "N"]] = None
+#     dob: Optional[date] = None
+#     emergcontactname: Optional[str] = None
+#     emergcontactemail: Optional[EmailStr] = None
+#     emergcontactphone: Optional[str] = None
+#     emergcontactaddrs: Optional[str] = None
+#     fee_paid: Optional[int] = None
+#     notes: Optional[str] = None
+#     batchid: int
+
+
+# class CandidateCreate(CandidateBase):
+#     enrolled_date: Optional[date] = Field(default_factory=date.today)
+
+
+# class CandidateOut(CandidateBase):
+#     id: int
+#     enrolled_date: date
+
+#     class Config:
+#         orm_mode = True
+
+
+
+
 
 class CandidateBase(BaseModel):
     full_name: Optional[str]
@@ -101,18 +144,17 @@ class CandidateCreate(CandidateBase):
 class CandidateUpdate(CandidateBase):
     pass
 
-class Candidate(CandidateBase):
+class CandidateDelete(CandidateBase):
     id: int
 
     class Config:
         from_attributes = True
-
+    
 class PaginatedCandidateResponse(BaseModel):
     page: int
     limit: int
     total: int
-    data: List[Candidate]
-
+    data: List[CandidateBase]
 
 class CandidateMarketingBase(BaseModel):
     candidate_id: int

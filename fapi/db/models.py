@@ -157,6 +157,7 @@ class RecentInterview(BaseModel):
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
     __tablename__ = "lead"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     full_name = Column(String(255))
@@ -171,9 +172,10 @@ class LeadORM(Base):
     closed_date = Column(Date)
     notes = Column(String(500))
     last_modified = Column(DateTime)
-    massemail_unsubscribe = Column(String(5))
-    massemail_email_sent = Column(String(5))
-    moved_to_candidate = Column(Boolean)
+    massemail_unsubscribe = Column(Boolean, nullable=True)
+    massemail_email_sent = Column(Boolean, nullable=True)
+    moved_to_candidate = Column(Boolean,server_default='0')
+
 
 # -------------------------------------------------------------------------------
 
@@ -263,37 +265,72 @@ class TalentSearch(Base):
     
 # ------------------------------------------
 
-class UnsubscribeRequest(BaseModel):
-    email: str
+# class UnsubscribeRequest(BaseModel):
+#     email: str
 
 
 
-class VendorBase(BaseModel):
-    id: Optional[int]
-    full_name: Optional[str]
-    phone_number: Optional[str]
-    email: Optional[str]
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    address: Optional[str] = None
-    country: Optional[str] = None
-    type: Optional[str] = None
-    note: Optional[str] = None
-    last_contacted: Optional[date] = None
-class VendorCreate(VendorBase):
-    pass
+# class VendorBase(BaseModel):
+#     id: Optional[int]
+#     full_name: Optional[str]
+#     phone_number: Optional[str]
+#     email: Optional[str]
+#     city: Optional[str] = None
+#     postal_code: Optional[str] = None
+#     address: Optional[str] = None
+#     country: Optional[str] = None
+#     type: Optional[str] = None
+#     note: Optional[str] = None
+#     last_contacted: Optional[date] = None
+# class VendorCreate(VendorBase):
+#     pass
 
-class VendorUpdate(VendorBase):
-    pass
+# class VendorUpdate(VendorBase):
+#     pass
 
-class VendorResponse(VendorBase):
-    id: int  # correct usage in Pydantic
+# class VendorResponse(VendorBase):
+#     id: int  # correct usage in Pydantic
 
-    class Config:
-        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
+#     class Config:
+#         from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
 
 
 # ----------------------------------------Candidate------------------------------------
+# class CandidateORM(Base):
+#     __tablename__ = "candidate"
+
+#     id = Column(Integer, primary_key=True, index=True)
+#     full_name = Column(String(100), nullable=True)
+
+#     email = Column(String(100),  nullable=False)
+#     phone = Column(String(45), nullable=True)
+#     secondaryemail = Column(String(100), nullable=True)
+#     secondaryphone = Column(String(45), nullable=True)
+
+#     status = Column(String(50), nullable=True)
+#     workstatus = Column(String(50), nullable=True)
+#     education = Column(String(255), nullable=True)
+#     workexperience = Column(String(255), nullable=True)
+
+#     ssn = Column(String(20), nullable=True)
+#     agreement = Column(Boolean, default=False)
+
+#     linkedin_id = Column(String(255), nullable=True)
+#     enrolled_date = Column(DateTime, default=func.now())
+#     dob = Column(Date, nullable=True)
+
+#     emergcontactname = Column(String(100), nullable=True)
+#     emergcontactemail = Column(String(100), nullable=True)
+#     emergcontactphone = Column(String(45), nullable=True)
+#     emergcontactaddrs = Column(String(300), nullable=True)
+
+#     address = Column(String(300), nullable=True)
+#     fee_paid = Column(Boolean, default=False)
+#     notes = Column(Text, nullable=True)
+#     batchid = Column(Integer, nullable=True)  # ForeignKey can be added if batch table exists
+
+
+
 class CandidateORM(Base):
     __tablename__ = "candidate"
 
@@ -320,8 +357,6 @@ class CandidateORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
-
-
 
 # --------------------------------------Candidate_Marketing-------------------------------
 
@@ -365,7 +400,7 @@ class CandidatePlacementORM(Base):
 
 
 
-
+# ----------------------Recording--------------------
 
 
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text

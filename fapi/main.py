@@ -3,13 +3,13 @@ from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest
 from  fapi.db.database import (
       fetch_sessions_by_type, fetch_types, get_user_by_username, update_login_info, verify_md5_hash,
      fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
- fetch_course_batches,  course_content, fetch_interview_by_id,
+  course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 
 )
 from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
+from  fapi.auth import verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
 from  fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.utils.email_utils import send_reset_password_email ,send_request_demo_emails,send_contact_emails,send_email_to_user
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status,Path
@@ -28,9 +28,9 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,recordings
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,Resources
 from fastapi import Query, Path
-from fapi.db.models import VendorResponse
+# from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
@@ -50,7 +50,8 @@ app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
-app.include_router(recordings.router, prefix="", tags=["Recordings"])
+app.include_router(Resources.router, prefix="", tags=["Resources"])
+
 app.include_router(register.router, prefix="/api", tags=["Register"])
 
 
@@ -372,16 +373,7 @@ async def get_sessions(course_name: Optional[str] = None, session_type: Optional
 
 ###########################################################################
 
-# End Point to get batches info based on the course input
-@app.get("/api/batches")
-async def get_batches(course: str = None):
-    try:
-        if not course:
-            return {"details": "Course subject Expected", "batches": []}
-        batches = await fetch_course_batches(course)
-        return {"batches": batches}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/coursecontent")
 def get_course_content():

@@ -201,42 +201,42 @@ async def update_login_info(user_id: int):
 
 
 #fucntion to merge batchs
-def merge_batches(q1_response,q2_response):
-    # Combine the two lists
-    all_batches = q1_response + q2_response    
-    seen_batches = set()
-    unique_batches = []
+# def merge_batches(q1_response,q2_response):
+#     # Combine the two lists
+#     all_batches = q1_response + q2_response    
+#     seen_batches = set()
+#     unique_batches = []
 
-    for batch in all_batches:
-        # print(batch['batchname'])
-        if batch['batchname'] not in seen_batches:
-            seen_batches.add(batch['batchname'])
-            unique_batches.append(batch)
-    # Sort unique_batches by batchname in descending order (latest to oldest)
-    unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
-    return unique_batches
+#     for batch in all_batches:
+#         # print(batch['batchname'])
+#         if batch['batchname'] not in seen_batches:
+#             seen_batches.add(batch['batchname'])
+#             unique_batches.append(batch)
+#     # Sort unique_batches by batchname in descending order (latest to oldest)
+#     unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
+#     return unique_batches
 
 #function to fetch batch names based on courses
-async def fetch_course_batches(subject:str=None):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        batchquery = f"""
-                SELECT batchname,batchid 
-                FROM whitebox_learning.batch
-                WHERE subject = '{subject}'
-                GROUP BY batchname,batchid
-                ORDER BY batchname DESC;
-                """
-        await loop.run_in_executor(None, cursor.execute, batchquery)
-        r1 = cursor.fetchall()
-        return r1
-    except Error as e:
-        # print(f"Error: {e}")
-        return []
-    finally:
-        conn.close()
+# async def fetch_course_batches(subject:str=None):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         batchquery = f"""
+#                 SELECT batchname,batchid 
+#                 FROM whitebox_learning.batch
+#                 WHERE subject = '{subject}'
+#                 GROUP BY batchname,batchid
+#                 ORDER BY batchname DESC;
+#                 """
+#         await loop.run_in_executor(None, cursor.execute, batchquery)
+#         r1 = cursor.fetchall()
+#         return r1
+#     except Error as e:
+#         # print(f"Error: {e}")
+#         return []
+#     finally:
+#         conn.close()
 
 
 
