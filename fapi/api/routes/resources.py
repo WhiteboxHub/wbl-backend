@@ -96,20 +96,4 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
-# @router.get("/materials")
-# @limiter.limit("15/minute")  # Rate limit: 15 requests per minute
-# def get_materials(
-#     request: Request,  # <-- Required for slowapi limiter
-#     course: str = Query(..., description="Course name: QA, UI, or ML"),
-#     search: str = Query(..., description="Type of material: Presentations, Cheatsheets, etc.")
-# ):
-#     valid_courses = ["QA", "UI", "ML"]
-#     if course.upper() not in valid_courses:
-#         raise HTTPException(
-#             status_code=400,
-#             detail="Invalid course. Please select one of: QA, UI, ML"
-#         )
-
-#     data = fetch_keyword_presentation(search, course)
-#     return JSONResponse(content=data)
 

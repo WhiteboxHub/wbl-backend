@@ -228,64 +228,64 @@ async def insert_vendor(data: Dict):
         conn.close()
 
 
-async def fetch_keyword_presentation(search, course):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        type_mapping = {
-            "Presentations": "P",
-            "Cheatsheets": "C",
-            "Diagrams": "D",
-            "Installations": "I",
-            "Templates": "T",
-            "Books": "B",
-            "Softwares": "S",
-            "Newsletters": "N"
-        }
-        type_code = type_mapping.get(search)
-        if type_code:
-            query = """
-            SELECT * FROM whitebox_learning.course_material 
-            WHERE type = %s 
-            AND (courseid = 0 OR courseid = %s)
-            ORDER BY CASE
-            WHEN name = 'Software Architecture' THEN 1
-            WHEN name = 'SDLC' THEN 2
-            WHEN name = 'JIRA Agile' THEN 3
-            WHEN name = 'HTTP' THEN 4
-            WHEN name = 'Web Services' THEN 5
-            WHEN name = 'UNIX - Shell Scripting' THEN 6
-            WHEN name = 'MY SQL' THEN 7
-            WHEN name = 'Git' THEN 8
-            WHEN name = 'json' THEN 9
-            ELSE 10 -- Topics not explicitly listed will appear after the specified ones
-            END;
-            """
-            courseid_mapping = {
-                "QA": 1,
-                "UI": 2,
-                "ML": 3
-            }
-            selected_courseid = courseid_mapping.get(course.upper())
+# async def fetch_keyword_presentation(search, course):
+#     loop = asyncio.get_event_loop()
+#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+#         type_mapping = {
+#             "Presentations": "P",
+#             "Cheatsheets": "C",
+#             "Diagrams": "D",
+#             "Installations": "I",
+#             "Templates": "T",
+#             "Books": "B",
+#             "Softwares": "S",
+#             "Newsletters": "N"
+#         }
+#         type_code = type_mapping.get(search)
+#         if type_code:
+#             query = """
+#             SELECT * FROM whitebox_learning.course_material 
+#             WHERE type = %s 
+#             AND (courseid = 0 OR courseid = %s)
+#             ORDER BY CASE
+#             WHEN name = 'Software Architecture' THEN 1
+#             WHEN name = 'SDLC' THEN 2
+#             WHEN name = 'JIRA Agile' THEN 3
+#             WHEN name = 'HTTP' THEN 4
+#             WHEN name = 'Web Services' THEN 5
+#             WHEN name = 'UNIX - Shell Scripting' THEN 6
+#             WHEN name = 'MY SQL' THEN 7
+#             WHEN name = 'Git' THEN 8
+#             WHEN name = 'json' THEN 9
+#             ELSE 10 -- Topics not explicitly listed will appear after the specified ones
+#             END;
+#             """
+#             courseid_mapping = {
+#                 "QA": 1,
+#                 "UI": 2,
+#                 "ML": 3
+#             }
+#             selected_courseid = courseid_mapping.get(course.upper())
 
-            await loop.run_in_executor(None, cursor.execute, query, (type_code, selected_courseid))
-            data = cursor.fetchall()
-            return data
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
-            )
-    except mysql.connector.Error as err:
-        # print(f"Error: {err}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred"
-        )
-    finally:
-        cursor.close()
-        conn.close()
+#             await loop.run_in_executor(None, cursor.execute, query, (type_code, selected_courseid))
+#             data = cursor.fetchall()
+#             return data
+#         else:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
+#             )
+#     except mysql.connector.Error as err:
+#         # print(f"Error: {err}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Database error occurred"
+#         )
+#     finally:
+#         cursor.close()
+#         conn.close()
 
 
 async def course_content(session: AsyncSession):

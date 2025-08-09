@@ -2,7 +2,7 @@
 from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
        get_user_by_username, update_login_info, verify_md5_hash,
-    fetch_keyword_recordings, fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
+    fetch_keyword_recordings,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
  fetch_course_batches, fetch_subject_batch_recording,  course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 )
@@ -182,22 +182,6 @@ async def verify_token_endpoint(token: Token):
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-# @app.get("/api/materials")
-# @limiter.limit("15/minute")
-# async def get_materials(request:Request,course: str = Query(...), search: str = Query(...)):
-#     valid_courses = ["QA", "UI", "ML"]
-#     if course.upper() not in valid_courses:
-#         raise HTTPException(
-#             status_code=status.HTTP_400_BAD_REQUEST,
-#             detail="Invalid course. Please select one of: QA, UI, ML"
-#         )
-
-#     try:
-#         data = await fetch_keyword_presentation(search, course)
-#         return JSONResponse(content=data)
-#     except HTTPException as e:
-#         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
 
 
 # Fetch user details endpoint
