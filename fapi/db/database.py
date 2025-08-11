@@ -44,8 +44,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# ---------------hkd-----------------------------------
-# --------------------------------------------------------Register end-------------------------------
 
 async def get_user_by_username(uname: str):
     loop = asyncio.get_event_loop()
@@ -58,143 +56,6 @@ async def get_user_by_username(uname: str):
         return result
     finally:
         conn.close()   
-
-
-async def update_login_info(user_id: int):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor()
-        query = """
-            UPDATE whitebox_learning.authuser 
-            SET lastlogin = NOW(), logincount = logincount + 1 
-            WHERE id = %s;
-        """
-        await loop.run_in_executor(None, cursor.execute, query, (user_id,))
-        conn.commit()
-    except Error as e:
-        # print(f"Error updating login info: {e}")
-        conn.rollback()
-        raise HTTPException(status_code=500, detail="Error updating login info")
-    finally:
-        cursor.close()
-        conn.close()
-
-
-#fucntion to merge batchs
-def merge_batches(q1_response,q2_response):
-    # Combine the two lists
-    all_batches = q1_response + q2_response    
-    seen_batches = set()
-    unique_batches = []
-
-    for batch in all_batches:
-        # print(batch['batchname'])
-        if batch['batchname'] not in seen_batches:
-            seen_batches.add(batch['batchname'])
-            unique_batches.append(batch)
-    # Sort unique_batches by batchname in descending order (latest to oldest)
-    unique_batches.sort(key=lambda x: x['batchname'], reverse=True)
-    return unique_batches
-
-#function to fetch batch names based on courses
-async def fetch_course_batches(subject:str=None):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        batchquery = f"""
-                SELECT batchname,batchid 
-                FROM whitebox_learning.batch
-                WHERE subject = '{subject}'
-                GROUP BY batchname,batchid
-                ORDER BY batchname DESC;
-                """
-        await loop.run_in_executor(None, cursor.execute, batchquery)
-        r1 = cursor.fetchall()
-        return r1
-    except Error as e:
-        # print(f"Error: {e}")
-        return []
-    finally:
-        conn.close()
-
-
-async def fetch_subject_batch_recording(subject: str = None, batchid: int = None):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = f"""
-               SELECT DISTINCT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject, nr.filename, nr.lastmoddatetime, nr.new_subject_id
-                FROM recording nr
-                JOIN recording_batch rb ON nr.id = rb.recording_id
-                JOIN batch b ON rb.batch_id = b.batchid
-                JOIN course_subject ncs ON b.courseid = ncs.course_id
-                JOIN course nc ON ncs.course_id = nc.id
-                WHERE nc.alias = '{subject}'
-                AND b.batchid = '{batchid}'
-                AND nr.new_subject_id IN (
-                SELECT subject_id
-                FROM course_subject
-                WHERE course_id = (
-                SELECT id
-                FROM course
-                WHERE alias = '{subject}'
-                )               
-                )
-                ORDER BY nr.classdate Desc;
-                """
-        await loop.run_in_executor(None, cursor.execute, query)
-        recordings = cursor.fetchall()
-        return recordings
-    finally:
-        conn.close()
-
-
-async def fetch_keyword_recordings(subject: str = "", keyword: str = ""):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-
-        # Base query with placeholders
-        query = """
-            SELECT nr.id, nr.batchname, nr.description, nr.type, nr.classdate, nr.link, nr.videoid, nr.subject,
-                   nr.filename, nr.lastmoddatetime, nr.new_subject_id,
-                   'recording' AS source
-            FROM recording nr
-            JOIN subject ns ON nr.new_subject_id = ns.id
-            JOIN course_subject ncs ON ns.id = ncs.subject_id
-            JOIN course nc ON ncs.course_id = nc.id
-            WHERE (%s = '' OR nc.alias = %s)
-              AND (%s = '' OR nr.description LIKE %s)
-
-            UNION
-
-            SELECT ns.sessionid AS id, ns.title AS batchname, ns.title AS description, ns.type, ns.sessiondate AS classdate, ns.link, ns.videoid, ns.subject,
-                   NULL AS filename, ns.lastmoddatetime, ns.subject_id AS new_subject_id,
-                   'session' AS source
-            FROM session ns
-            JOIN course_subject ncs ON ns.subject_id = ncs.subject_id
-            JOIN course nc ON ncs.course_id = nc.id
-            WHERE (%s = '' OR nc.alias = %s)
-              AND (%s = '' OR ns.title LIKE %s)
-            ORDER BY classdate DESC;
-        """
-
-        # Dynamically adjust parameters for query
-        keyword_search = f"%{keyword}%" if keyword else ""
-        params = (subject, subject, keyword, keyword_search, subject, subject, keyword, keyword_search)
-
-        # Execute query
-        await loop.run_in_executor(None, cursor.execute, query, params)
-
-        # Fetch results
-        recordings = cursor.fetchall()
-        return recordings
-    finally:
-        conn.close()
 
 
 async def insert_vendor(data: Dict):
@@ -228,64 +89,6 @@ async def insert_vendor(data: Dict):
         conn.close()
 
 
-# async def fetch_keyword_presentation(search, course):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         type_mapping = {
-#             "Presentations": "P",
-#             "Cheatsheets": "C",
-#             "Diagrams": "D",
-#             "Installations": "I",
-#             "Templates": "T",
-#             "Books": "B",
-#             "Softwares": "S",
-#             "Newsletters": "N"
-#         }
-#         type_code = type_mapping.get(search)
-#         if type_code:
-#             query = """
-#             SELECT * FROM whitebox_learning.course_material 
-#             WHERE type = %s 
-#             AND (courseid = 0 OR courseid = %s)
-#             ORDER BY CASE
-#             WHEN name = 'Software Architecture' THEN 1
-#             WHEN name = 'SDLC' THEN 2
-#             WHEN name = 'JIRA Agile' THEN 3
-#             WHEN name = 'HTTP' THEN 4
-#             WHEN name = 'Web Services' THEN 5
-#             WHEN name = 'UNIX - Shell Scripting' THEN 6
-#             WHEN name = 'MY SQL' THEN 7
-#             WHEN name = 'Git' THEN 8
-#             WHEN name = 'json' THEN 9
-#             ELSE 10 -- Topics not explicitly listed will appear after the specified ones
-#             END;
-#             """
-#             courseid_mapping = {
-#                 "QA": 1,
-#                 "UI": 2,
-#                 "ML": 3
-#             }
-#             selected_courseid = courseid_mapping.get(course.upper())
-
-#             await loop.run_in_executor(None, cursor.execute, query, (type_code, selected_courseid))
-#             data = cursor.fetchall()
-#             return data
-#         else:
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
-#             )
-#     except mysql.connector.Error as err:
-#         # print(f"Error: {err}")
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail="Database error occurred"
-#         )
-#     finally:
-#         cursor.close()
-#         conn.close()
 
 
 async def course_content(session: AsyncSession):
@@ -297,6 +100,8 @@ async def course_content(session: AsyncSession):
     ))
     rows = result.all()
     return [dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3]) for row in rows]
+
+
 
 
 

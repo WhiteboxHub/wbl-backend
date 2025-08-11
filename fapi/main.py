@@ -1,14 +1,15 @@
 # wbl-backend/fapi/main.py
 from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
-       get_user_by_username, update_login_info, verify_md5_hash,
-    fetch_keyword_recordings,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
- fetch_course_batches, fetch_subject_batch_recording,  course_content, fetch_interview_by_id,
+       get_user_by_username, verify_md5_hash,
+     fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
+  course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
+
 )
 from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
+from  fapi.auth import verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
 from  fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
 from  fapi.utils.email_utils import send_reset_password_email ,send_request_demo_emails,send_contact_emails,send_email_to_user
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status,Path
@@ -27,9 +28,9 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,Resources
 from fastapi import Query, Path
-from fapi.db.models import VendorResponse
+# from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
@@ -44,10 +45,6 @@ from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
 
 
-
-load_dotenv()
-
-# Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
@@ -59,6 +56,7 @@ app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api", tags=["Resources"])
+app.include_router(Resources.router, prefix="", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 
 
@@ -79,6 +77,7 @@ app.add_middleware(
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+
 # # -----------------------------------------------------------------------------------------------------
 
 
@@ -86,40 +85,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 async def get_recent_placements():
     placements = await fetch_recent_placements()
     return placements
-
-
-@app.get("/api/interviews", response_model=List[dict])
-async def get_interviews(limit: int = 10, offset: int = 0):
-    return await fetch_recent_interviews(limit, offset)
-
-@app.get("/api/interviews/{interview_id}", response_model=dict)
-async def get_interview_by_id(interview_id: int):
-    interview = await fetch_interview_by_id(interview_id)
-    if not interview:
-        raise HTTPException(status_code=404, detail="Interview not found")
-    return interview
-
-@app.get("/api/interviews/name/{candidate_name}", response_model=List[dict])
-async def get_interview_by_name(candidate_name: str):
-    return await fetch_interviews_by_name(candidate_name)
-
-@app.post("/api/interviews")
-async def create_interview(data: RecentInterview):
-    await insert_interview(data)
-    return {"message": "Interview created successfully"}
-
-@app.put("/api/interviews/{interview_id}")
-async def update_interview_api(interview_id: int, data: RecentInterview):
-    existing = await fetch_interview_by_id(interview_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Interview not found")
-    await update_interview(interview_id, data)
-    return {"message": "Interview updated successfully"}
-
-@app.delete("/api/interviews/{interview_id}")
-async def remove_interview(interview_id: int):
-    await delete_interview(interview_id)
-    return {"message": "Interview deleted successfully"}
 
 
 
@@ -148,7 +113,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ---------------------------------Register end--------------------------------
 
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -191,39 +155,6 @@ async def read_users_me(current_user: dict = Depends(get_current_user)):
 
 ###########################################################################
 
-# End Point to get batches info based on the course input
-@app.get("/api/batches")
-async def get_batches(course: str = None):
-    try:
-        if not course:
-            return {"details": "Course subject Expected", "batches": []}
-        batches = await fetch_course_batches(course)
-        return {"batches": batches}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/recording")
-@limiter.limit("15/minute")
-async def get_recordings(request:Request,course: str = None, batchid: int = None, search: str = None):
-    try:
-        if not course:
-            return {"details": "Course expected"}
-        if not batchid and not search:
-            return {"details": "Batchid or Search Keyword expected"}
-        if search:
-            recordings = await fetch_keyword_recordings(course, search)
-            if not recordings:
-                raise HTTPException(status_code=404, detail="No recordings found for the provided search keyword.")
-            return {"batch_recordings": recordings}
-        recordings = await fetch_subject_batch_recording(course, batchid)
-        if not recordings:
-            raise HTTPException(status_code=404, detail="No recordings found for the provided course and batch.")
-        return {"batch_recordings": recordings}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
 
 
 

@@ -5,11 +5,13 @@ from datetime import time, date, datetime
 from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from fapi.db.database import Base
-from sqlalchemy.orm import declarative_base , relationship
-# from config import Base
-from fapi.db.base import Base  
-from pydantic import BaseModel 
+from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
 
 # Base = declarative_base()
 class UserCreate(BaseModel):
@@ -17,6 +19,7 @@ class UserCreate(BaseModel):
     passwd: str
 
 # -----------------------------------------------------
+
 class AuthUserORM(Base):
     __tablename__ = "authuser"
 
@@ -28,10 +31,11 @@ class AuthUserORM(Base):
     lastlogin = Column(DateTime)
     logincount = Column(Integer)
     fullname = Column(String(50))
-    phone = Column(String(20))
     address = Column(String(50))
-    city = Column(String(45))
+    phone = Column(String(20))
+    state = Column(String(45))
     zip = Column(String(45))
+    city = Column(String(45))
     country = Column(String(45))
     message = Column(Text)
     registereddate = Column(DateTime)
@@ -39,11 +43,16 @@ class AuthUserORM(Base):
     lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     demo = Column(String(1), default="N")
     enddate = Column(Date, default="1990-01-01")
+    googleId = Column(String(255))
+    reset_token = Column(String(255))
+    token_expiry = Column(DateTime)
+    role = Column(String(100))
     visa_status = Column(String(50))
-    education = Column(String(255))
     experience = Column(String(100))
-    specialization = Column(String(255))
+    education = Column(String(255))
     referby = Column(String(100))
+    specialization = Column(String(255))
+    notes = Column(Text)
 
 
 # ----------------------------------------------
@@ -106,6 +115,7 @@ class RecentInterview(BaseModel):
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
     __tablename__ = "lead"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     full_name = Column(String(255))
@@ -120,9 +130,10 @@ class LeadORM(Base):
     closed_date = Column(Date)
     notes = Column(String(500))
     last_modified = Column(DateTime)
-    massemail_unsubscribe = Column(String(5))
-    massemail_email_sent = Column(String(5))
-    moved_to_candidate = Column(Boolean)
+    massemail_unsubscribe = Column(Boolean, nullable=True)
+    massemail_email_sent = Column(Boolean, nullable=True)
+    moved_to_candidate = Column(Boolean,server_default='0')
+
 
 # -------------------------------------------------------------------------------
 
@@ -209,40 +220,8 @@ class TalentSearch(Base):
     availability = Column(String(50))
     skills = Column(Text)
 
-    
-# ------------------------------------------
-
-class UnsubscribeRequest(BaseModel):
-    email: str
 
 
-
-class VendorBase(BaseModel):
-    id: Optional[int]
-    full_name: Optional[str]
-    phone_number: Optional[str]
-    email: Optional[str]
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    address: Optional[str] = None
-    country: Optional[str] = None
-    type: Optional[str] = None
-    note: Optional[str] = None
-    last_contacted: Optional[date] = None
-class VendorCreate(VendorBase):
-    pass
-
-class VendorUpdate(VendorBase):
-    pass
-
-class VendorResponse(VendorBase):
-    id: int  # correct usage in Pydantic
-
-    class Config:
-        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
-
-
-# ----------------------------------------Candidate------------------------------------
 class CandidateORM(Base):
     __tablename__ = "candidate"
 
@@ -269,8 +248,6 @@ class CandidateORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
-
-
 
 # --------------------------------------Candidate_Marketing-------------------------------
 
@@ -354,3 +331,83 @@ class CourseMaterial(Base):
     type = Column(String(1))
     courseid = Column(Integer)
     
+
+
+# ----------------------Recording--------------------
+
+
+class Course(Base):
+    __tablename__ = "course"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    alias = Column(String(100), unique=True)
+    subjects = relationship("CourseSubject", back_populates="course")
+    batches = relationship("Batch", back_populates="course")
+
+class Subject(Base):
+    __tablename__ = "subject"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    course_subjects = relationship("CourseSubject", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject")
+    sessions = relationship("Session", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject")  # ✅ Must match
+
+
+class CourseSubject(Base):
+    __tablename__ = "course_subject"
+    subject_id = Column(Integer, ForeignKey("subject.id"), primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"), primary_key=True)
+    lastmoddatetime = Column(DateTime)
+
+    course = relationship("Course", back_populates="subjects")
+    subject = relationship("Subject", back_populates="course_subjects")
+
+class Batch(Base):
+    __tablename__ = "batch"
+    batchid = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    courseid = Column(Integer, ForeignKey("course.id"))
+
+    course = relationship("Course", back_populates="batches")
+    recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+class Recording(Base):
+    __tablename__ = "recording"
+    id = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    description = Column(Text)
+    type = Column(String(50))
+    classdate = Column(DateTime)
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    subject = Column(String(255))
+    filename = Column(String(255))
+    lastmoddatetime = Column(DateTime)
+    new_subject_id = Column(Integer, ForeignKey("subject.id"))
+
+    subject = relationship("Subject", back_populates="recordings")  # ✅ This is the missing piece!
+    recording_batches = relationship("RecordingBatch", back_populates="recording")
+
+
+
+class RecordingBatch(Base):
+    __tablename__ = "recording_batch"
+    recording_id = Column(Integer, ForeignKey("recording.id"), primary_key=True)
+    batch_id = Column(Integer, ForeignKey("batch.batchid"), primary_key=True)
+
+    recording = relationship("Recording", back_populates="recording_batches")
+    batch = relationship("Batch", back_populates="recording_batches")
+# class Session(Base):
+#     __tablename__ = "session"
+#     sessionid = Column(Integer, primary_key=True, index=True)
+#     title = Column(String(255))
+#     link = Column(String(1024))
+#     videoid = Column(String(255))
+#     # subject = Column(String(255))
+#     type = Column(String(50))
+#     sessiondate = Column(DateTime)
+#     lastmoddatetime = Column(DateTime)
+#     subject_id = Column(Integer, ForeignKey("subject.id"))
+
+#     subject = relationship("Subject", back_populates="sessions")
