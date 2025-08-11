@@ -5,6 +5,7 @@ from datetime import time, date, datetime
 from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -12,6 +13,7 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 
+# Base = declarative_base()
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -218,41 +220,6 @@ class TalentSearch(Base):
     availability = Column(String(50))
     skills = Column(Text)
 
-    
-# ----------------------------------------Candidate------------------------------------
-# class CandidateORM(Base):
-#     __tablename__ = "candidate"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     full_name = Column(String(100), nullable=True)
-
-#     email = Column(String(100),  nullable=False)
-#     phone = Column(String(45), nullable=True)
-#     secondaryemail = Column(String(100), nullable=True)
-#     secondaryphone = Column(String(45), nullable=True)
-
-#     status = Column(String(50), nullable=True)
-#     workstatus = Column(String(50), nullable=True)
-#     education = Column(String(255), nullable=True)
-#     workexperience = Column(String(255), nullable=True)
-
-#     ssn = Column(String(20), nullable=True)
-#     agreement = Column(Boolean, default=False)
-
-#     linkedin_id = Column(String(255), nullable=True)
-#     enrolled_date = Column(DateTime, default=func.now())
-#     dob = Column(Date, nullable=True)
-
-#     emergcontactname = Column(String(100), nullable=True)
-#     emergcontactemail = Column(String(100), nullable=True)
-#     emergcontactphone = Column(String(45), nullable=True)
-#     emergcontactaddrs = Column(String(300), nullable=True)
-
-#     address = Column(String(300), nullable=True)
-#     fee_paid = Column(Boolean, default=False)
-#     notes = Column(Text, nullable=True)
-#     batchid = Column(Integer, nullable=True)  # ForeignKey can be added if batch table exists
-
 
 
 class CandidateORM(Base):
@@ -322,12 +289,52 @@ class CandidatePlacementORM(Base):
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
 
+class CourseContent(Base):
+    __tablename__ = "course_content"
+
+    id = Column(Integer, primary_key=True, index=True)
+    Fundamentals = Column(String(255), nullable=True)
+    AIML = Column(String(255), nullable=False)
+    UI = Column(String(255), nullable=True)
+    QE = Column(String(255), nullable=True)
+
+
+class Session(Base):
+    __tablename__ = 'session'
+    sessionid = Column(Integer, primary_key=True)
+    subject_id = Column(Integer, ForeignKey('subject.id'))
+    type = Column(String(100))
+    sessiondate = Column(DateTime)
+    title = Column(String(255))
+    link = Column(String(500))
+    
+
+
+class CourseSubject(Base):
+    __tablename__ = 'course_subject'
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"))
+    subject_id = Column(Integer, ForeignKey("subject.id"))
+   
+
+
+class Course(Base):
+    __tablename__ = 'course'
+    id = Column(Integer, primary_key=True)
+    alias = Column(String(50))
+
+class CourseMaterial(Base):
+    __tablename__ = "course_material"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    type = Column(String(1))
+    courseid = Column(Integer)
+    
 
 
 # ----------------------Recording--------------------
 
-
-Base = declarative_base()
 
 class Course(Base):
     __tablename__ = "course"
@@ -391,16 +398,16 @@ class RecordingBatch(Base):
 
     recording = relationship("Recording", back_populates="recording_batches")
     batch = relationship("Batch", back_populates="recording_batches")
-class Session(Base):
-    __tablename__ = "session"
-    sessionid = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255))
-    link = Column(String(1024))
-    videoid = Column(String(255))
-    # subject = Column(String(255))
-    type = Column(String(50))
-    sessiondate = Column(DateTime)
-    lastmoddatetime = Column(DateTime)
-    subject_id = Column(Integer, ForeignKey("subject.id"))
+# class Session(Base):
+#     __tablename__ = "session"
+#     sessionid = Column(Integer, primary_key=True, index=True)
+#     title = Column(String(255))
+#     link = Column(String(1024))
+#     videoid = Column(String(255))
+#     # subject = Column(String(255))
+#     type = Column(String(50))
+#     sessiondate = Column(DateTime)
+#     lastmoddatetime = Column(DateTime)
+#     subject_id = Column(Integer, ForeignKey("subject.id"))
 
-    subject = relationship("Subject", back_populates="sessions")
+#     subject = relationship("Subject", back_populates="sessions")
