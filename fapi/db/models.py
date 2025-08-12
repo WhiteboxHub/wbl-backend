@@ -18,6 +18,7 @@ class UserCreate(BaseModel):
     passwd: str
 
 # -----------------------------------------------------
+
 class AuthUserORM(Base):
     __tablename__ = "authuser"
 
@@ -29,10 +30,11 @@ class AuthUserORM(Base):
     lastlogin = Column(DateTime)
     logincount = Column(Integer)
     fullname = Column(String(50))
-    phone = Column(String(20))
     address = Column(String(50))
-    city = Column(String(45))
+    phone = Column(String(20))
+    state = Column(String(45))
     zip = Column(String(45))
+    city = Column(String(45))
     country = Column(String(45))
     message = Column(Text)
     registereddate = Column(DateTime)
@@ -40,11 +42,16 @@ class AuthUserORM(Base):
     lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     demo = Column(String(1), default="N")
     enddate = Column(Date, default="1990-01-01")
+    googleId = Column(String(255))
+    reset_token = Column(String(255))
+    token_expiry = Column(DateTime)
+    role = Column(String(100))
     visa_status = Column(String(50))
-    education = Column(String(255))
     experience = Column(String(100))
-    specialization = Column(String(255))
+    education = Column(String(255))
     referby = Column(String(100))
+    specialization = Column(String(255))
+    notes = Column(Text)
 
 
 # ----------------------------------------------

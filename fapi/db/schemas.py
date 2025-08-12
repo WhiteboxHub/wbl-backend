@@ -17,31 +17,34 @@ class Token(BaseModel):
 class UserRegistration(BaseModel):
     uname: EmailStr
     passwd: str
-    dailypwd: Optional[str] = None
-    team: Optional[str]
-    level: Optional[str]
-    instructor: Optional[str]
-    override: Optional[str]
-    lastlogin: Optional[str]
-    logincount: Optional[int]
-    firstname: Optional[str]
-    lastname: Optional[str]
-    phone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    Zip: Optional[str]
-    country: Optional[str]
-    message: Optional[str]
-    visa_status: Optional[str]  # Maps from workauthorization
-    registereddate: Optional[datetime]
-    level3date: Optional[datetime]
-    experience: Optional[str]
-    education: Optional[str]
-    specialization: Optional[str]
-    referby: Optional[str]
-
-
-# ----------------------Lead-------------------------
+    team: Optional[str] = None
+    status: Optional[str] = None
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = None
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    demo: Optional[str] = None
+    enddate: Optional[date] = None
+    googleId: Optional[str] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+    role: Optional[str] = None
+    visa_status: Optional[str] = None
+    experience: Optional[str] = None
+    education: Optional[str] = None
+    referby: Optional[str] = None
+    specialization: Optional[str] = None
+    notes: Optional[str] = None
+  
 
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -183,8 +186,6 @@ class TalentSearch(BaseModel):
 
 
 # ================================================contact====================================
-
-
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
