@@ -5,13 +5,10 @@ from datetime import time, date, datetime
 from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from fapi.db.database import Base
-from sqlalchemy.orm import declarative_base , relationship
-# from config import Base
-from fapi.db.base import Base  
+from sqlalchemy.orm import declarative_base 
 from pydantic import BaseModel 
 
-# Base = declarative_base()
+Base = declarative_base()
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -126,10 +123,6 @@ class LeadORM(Base):
 
 # -------------------------------------------------------------------------------
 
-
-
-        
-
 class PlacementBase(BaseModel):
     candidate_id: Optional[int]
     candidate_name: Optional[str]
@@ -239,7 +232,7 @@ class VendorResponse(VendorBase):
     id: int  # correct usage in Pydantic
 
     class Config:
-        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
+        from_attributes = True  
 
 
 # ----------------------------------------Candidate------------------------------------
@@ -251,8 +244,8 @@ class CandidateORM(Base):
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=True)  # No ENUM used
-    workstatus = Column(String(50), nullable=True)  # No ENUM used
+    status = Column(String(20), nullable=True)  
+    workstatus = Column(String(50), nullable=True)  
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
     ssn = Column(String(11), nullable=True)
@@ -346,11 +339,15 @@ class Course(Base):
     id = Column(Integer, primary_key=True)
     alias = Column(String(50))
 
+
 class CourseMaterial(Base):
     __tablename__ = "course_material"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255))
-    type = Column(String(1))
-    courseid = Column(Integer)
-    
+    subjectid = Column(Integer, nullable=False, default=0)
+    courseid = Column(Integer, nullable=False)
+    name = Column(String(250), nullable=False)
+    description = Column(String(500))
+    type = Column(String(1), nullable=False, default='P')
+    link = Column(String(500), nullable=False)
+    sortorder = Column(Integer, nullable=False, default=9999)

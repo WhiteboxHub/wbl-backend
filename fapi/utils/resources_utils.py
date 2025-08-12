@@ -4,11 +4,13 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
 from sqlalchemy import case, or_
-from fapi.db.models import Session as SessionORM, CourseSubject , CourseMaterial
+from fapi.db.models import Session as SessionORM, CourseSubject , CourseMaterial , CourseContent
 from typing import List
 from fastapi import HTTPException, status
 from sqlalchemy import case, or_
 from fapi.db.database import SessionLocal
+from sqlalchemy.ext.asyncio import AsyncSession
+
 
 
 
@@ -121,3 +123,19 @@ def fetch_keyword_presentation(search: str, course: str):
             {column.name: getattr(row, column.name) for column in row.__table__.columns}
             for row in results
         ]
+    
+async def course_content(session: AsyncSession):
+    """
+    Fetch course content for Fundamentals, AIML, UI, and QE.
+    """
+    result = await session.execute(select(
+        CourseContent.Fundamentals,
+        CourseContent.AIML,
+        CourseContent.UI,
+        CourseContent.QE
+    ))
+    rows = result.all()
+    return [
+        dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3])
+        for row in rows
+    ]

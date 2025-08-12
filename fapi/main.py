@@ -3,7 +3,7 @@ from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest
 from  fapi.db.database import (
        get_user_by_username, update_login_info, verify_md5_hash,
     fetch_keyword_recordings,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
- fetch_course_batches, fetch_subject_batch_recording,  course_content, fetch_interview_by_id,
+ fetch_course_batches, fetch_subject_batch_recording, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 )
 from typing import Dict, Any
@@ -36,7 +36,8 @@ from fastapi import FastAPI, Query, Path
 from fapi.core.config import SECRET_KEY, ALGORITHM
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
-from fapi.db.database import course_content as get_course_content_data
+# from fapi.db.database import course_content as get_course_content_data
+from fapi.utils.resources_utils import course_content as get_course_content_data
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from fapi.api.routes import resources
