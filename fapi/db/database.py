@@ -8,15 +8,22 @@ from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
 from datetime import date,datetime,time, timedelta  
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine 
+from sqlalchemy.orm import sessionmaker , declarative_base
 from sqlalchemy.ext.declarative import declarative_base
-
+from sqlalchemy.ext.asyncio import AsyncSession ,create_async_engine
+from sqlalchemy.future import select
+# from fapi.db.models import CourseContent
 from urllib.parse import quote
+from sqlalchemy.orm import declarative_base
+from fapi.db.base import Base
+
 load_dotenv()
 
-raw_password = os.getenv('DB_PASSWORD')
-encoded_password = quote(raw_password)
+# Read from environment variables
+raw_password = os.getenv('DB_PASSWORD')  
+encoded_password = quote(raw_password)  
+
 
 db_config = {
     'host': os.getenv('DB_HOST'),
@@ -26,11 +33,13 @@ db_config = {
     'port': int(os.getenv('DB_PORT')),
 }
 
+# Async SQLAlchemy URL (uses aiomysql)
 DATABASE_URL = (
     f"mysql+pymysql://{db_config['user']}:{encoded_password}"
     f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 )
 
+# Async Engine and Session
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -40,7 +49,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 
 
 async def get_user_by_username(uname: str):
@@ -87,129 +95,18 @@ async def insert_vendor(data: Dict):
         conn.close()
 
 
-async def fetch_keyword_presentation(search, course):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        type_mapping = {
-            "Presentations": "P",
-            "Cheatsheets": "C",
-            "Diagrams": "D",
-            "Installations": "I",
-            "Templates": "T",
-            "Books": "B",
-            "Softwares": "S",
-            "Newsletters": "N"
-        }
-        type_code = type_mapping.get(search)
-        if type_code:
-            query = """
-            SELECT * FROM whitebox_learning.course_material 
-            WHERE type = %s 
-            AND (courseid = 0 OR courseid = %s)
-            ORDER BY CASE
-            WHEN name = 'Software Architecture' THEN 1
-            WHEN name = 'SDLC' THEN 2
-            WHEN name = 'JIRA Agile' THEN 
-            WHEN name = 'HTTP' THEN 4
-            WHEN name = 'Web Services' THEN 5
-            WHEN name = 'UNIX - Shell Scripting' THEN 6
-            WHEN name = 'MY SQL' THEN 7
-            WHEN name = 'Git' THEN 8
-            WHEN name = 'json' THEN 9
-            ELSE 10 -- Topics not explicitly listed will appear after the specified ones
-            END;
-            """
-            courseid_mapping = {
-                "QA": 1,
-                "UI": 2,
-                "ML": 3
-            }
-            selected_courseid = courseid_mapping.get(course.upper())
-
-            await loop.run_in_executor(None, cursor.execute, query, (type_code, selected_courseid))
-            data = cursor.fetchall()
-            return data
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
-            )
-    except mysql.connector.Error as err:
-        # print(f"Error: {err}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error occurred"
-        )
-    finally:
-        cursor.close()
-        conn.close()
+async def course_content(session: AsyncSession):
+    result = await session.execute(select(
+        CourseContent.Fundamentals,
+        CourseContent.AIML,
+        CourseContent.UI,
+        CourseContent.QE
+    ))
+    rows = result.all()
+    return [dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3]) for row in rows]
 
 
-async def fetch_types(team: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
 
-        if team in ["admin", "instructor"]:
-            query = "SELECT DISTINCT type FROM session ORDER BY type ASC;"
-        else:
-            allowed_types = ("Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc")
-            query = "SELECT DISTINCT type FROM session WHERE type IN (%s) ORDER BY type ASC;" % ", ".join(["%s"] * len(allowed_types))
-
-        await loop.run_in_executor(None, cursor.execute, query, allowed_types if team not in ["admin", "instructor"] else ())
-        types = cursor.fetchall()
-        return types
-    finally:
-        conn.close()
-
-
-async def fetch_sessions_by_type(course_id: int, session_type: str, team: str):
-    if not course_id or not session_type:
-        raise ValueError("Invalid course_id or session_type")
-
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-
-    try:
-        cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT ns.*
-            FROM session ns
-            JOIN course_subject ncs 
-            ON ns.subject_id = ncs.subject_id
-            WHERE ns.subject_id != 0
-            AND ncs.course_id IN (%s) 
-            AND ns.type = %s 
-            AND (ncs.course_id != 3 OR ns.sessiondate >= '2024-01-01')
-            ORDER BY ns.sessiondate DESC;
-        """
-
-        if team not in ["admin", "instructor"]:
-            allowed_types = ["Resume Session", "Job Help", "Interview Prep", "Individual Mock", "Group Mock", "Misc"]
-            if session_type not in allowed_types:
-                return []  # Return empty list if type not allowed for normal users
-
-        await loop.run_in_executor(None, cursor.execute, query, (course_id, session_type))
-        sessions = cursor.fetchall()
-        return sessions
-    finally:
-        conn.close()
-
-
-def course_content():
-    conn = mysql.connector.connect(**db_config)
-    try:
-        cursor = conn.cursor(dictionary=True)  # Use dictionary=True to get rows as dictionaries
-        # cursor.execute("SELECT * FROM whitebox_learning.course_content")
-        cursor.execute("SELECT Fundamentals, AIML FROM whitebox_learning.course_content")
-        data = cursor.fetchall()
-        return data 
-    finally:
-        conn.close()
 
 
 def unsubscribe_user(email: str) -> (bool, str): # type: ignore

@@ -1,8 +1,8 @@
 # wbl-backend/fapi/main.py
 from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest, ResetPassword , VendorCreate , RecentPlacement , RecentInterview,LeadORM
 from  fapi.db.database import (
-      fetch_sessions_by_type, fetch_types, get_user_by_username, verify_md5_hash,
-     fetch_keyword_presentation,fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
+       get_user_by_username, verify_md5_hash,
+     fetch_interviews_by_name,insert_interview,delete_interview,update_interview,
   course_content, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 
@@ -28,25 +28,43 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources
-from fastapi import Query, Path
+
+
 # from fapi.db.models import VendorResponse
 
+
+from fapi.db.database import Base, engine
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity
+from fastapi import Query, Path
+from fapi.db.database import db_config
+from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
+from fapi.core.config import SECRET_KEY, ALGORITHM
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+from fapi.db.database import course_content as get_course_content_data
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from fapi.api.routes import resources
 from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
 
+
 app = FastAPI()
+
 
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
+app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
+app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
+app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
+
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="", tags=["Resources"])
-
 app.include_router(register.router, prefix="/api", tags=["Register"])
 
 
@@ -56,7 +74,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
 
 router = APIRouter()
 
@@ -111,7 +128,6 @@ async def create_vendor_request_demo(vendor: VendorCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 # Function to get the current user based on the token
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
@@ -145,80 +161,17 @@ async def verify_token_endpoint(token: Token):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-@app.get("/api/materials")
-@limiter.limit("15/minute")
-async def get_materials(request:Request,course: str = Query(...), search: str = Query(...)):
-    valid_courses = ["QA", "UI", "ML"]
-    if course.upper() not in valid_courses:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid course. Please select one of: QA, UI, ML"
-        )
-
-    try:
-        data = await fetch_keyword_presentation(search, course)
-        return JSONResponse(content=data)
-    except HTTPException as e:
-        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
-
 
 # Fetch user details endpoint
 @app.get("/api/user_dashboard")
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
-
-@app.get("/api/session-types")
-async def get_types(current_user: dict = Depends(get_current_user)):
-    try:
-        team = current_user.get("team", "null")  # Extract the team from the user data
-        types = await fetch_types(team)  # Pass the team to fetch_types
-        if not types:
-            raise HTTPException(status_code=404, detail="Types not found")
-        return {"types": types}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/sessions")
-async def get_sessions(course_name: Optional[str] = None, session_type: Optional[str] = None, current_user: dict = Depends(get_current_user)):
-    try:
-        # Local mapping of course names to course IDs for this endpoint only
-        course_name_to_id = {
-            "QA": 1,
-            "UI": 2,
-            "ML": 3,
-        }
-
-        # Validate and map course_name to course_id
-        if course_name:
-            course_id = course_name_to_id.get(course_name.upper())  # Ensure case-insensitivity
-            if not course_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
-                )
-        else:
-            course_id = None  # If course_name is not provided, no filtering on course_id
-
-        # Fetch the current user's team
-        team = current_user.get("team", "null")
-
-        # Call the function to fetch sessions by the provided course_id and session_type
-        sessions = await fetch_sessions_by_type(course_id, session_type, team)  # Pass the team to fetch_sessions_by_type
-        if not sessions:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
-        return {"sessions": sessions}
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
 ###########################################################################
 
 
 
-@app.get("/api/coursecontent")
-def get_course_content():
-    content = course_content()
-    return {"coursecontent": content}
+
 
 @app.put("/api/unsubscribe")
 def unsubscribe(request: EmailRequest):

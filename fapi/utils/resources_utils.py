@@ -1,21 +1,25 @@
 
 
-from sqlalchemy.ext.asyncio import AsyncSession
+
+
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.future import select
-from sqlalchemy.orm import joinedload
-from fastapi import HTTPException
-from typing import Dict, Any, List
+from sqlalchemy import case, or_
+from fapi.db.models import Session as SessionORM, CourseSubject , CourseMaterial, Recording, RecordingBatch, CourseSubject, Course, Subject, Batch
+from typing import List, Dict, Any
+from fastapi import HTTPException, status
+from sqlalchemy import case, or_
+from fapi.db.database import SessionLocal
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from fapi.db.models import (
     Recording, RecordingBatch, CourseSubject,
     Course, Subject, Batch
 )
-from typing import Dict, Any
-from sqlalchemy.orm import Session
-
 
 logger = logging.getLogger(__name__)
+
 
 def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
     course_obj = db.query(Course).filter(Course.alias == course).first()

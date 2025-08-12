@@ -6,6 +6,7 @@ from fapi.utils.register_utils import create_user_and_lead
 from fapi.utils.email_utils import send_email_to_user
 from fapi.utils.auth_utils import md5_hash
 
+
 router = APIRouter()
 
 def get_db():
