@@ -3,8 +3,14 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field,validator
 from typing import Optional, List, Literal
-from enum import Enum
-Base = declarative_base()
+
+
+
+
+
+
+# Base = declarative_base()
+
 
 
 
@@ -17,30 +23,34 @@ class Token(BaseModel):
 class UserRegistration(BaseModel):
     uname: EmailStr
     passwd: str
-    dailypwd: Optional[str] = None
-    team: Optional[str]
-    level: Optional[str]
-    instructor: Optional[str]
-    override: Optional[str]
-    lastlogin: Optional[str]
-    logincount: Optional[int]
-    firstname: Optional[str]
-    lastname: Optional[str]
-    phone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    Zip: Optional[str]
-    country: Optional[str]
-    message: Optional[str]
-    visa_status: Optional[str]  # Maps from workauthorization
-    registereddate: Optional[datetime]
-    level3date: Optional[datetime]
-    experience: Optional[str]
-    education: Optional[str]
-    specialization: Optional[str]
-    referby: Optional[str]
-
-
+    team: Optional[str] = None
+    status: Optional[str] = None
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = None
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    demo: Optional[str] = None
+    enddate: Optional[date] = None
+    googleId: Optional[str] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+    role: Optional[str] = None
+    visa_status: Optional[str] = None
+    experience: Optional[str] = None
+    education: Optional[str] = None
+    referby: Optional[str] = None
+    specialization: Optional[str] = None
+    notes: Optional[str] = None
+  
 
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -55,8 +65,8 @@ class LeadBase(BaseModel):
     closed_date: Optional[date] = None
     notes: Optional[str] = None
     last_modified: Optional[datetime] = None
-    massemail_unsubscribe: Optional[str] = None
-    massemail_email_sent: Optional[str] = None
+    massemail_unsubscribe: Optional[bool] = None
+    massemail_email_sent: Optional[bool] = None
     moved_to_candidate: Optional[bool] = None
 
 
@@ -68,8 +78,9 @@ class LeadSchema(LeadBase):
     class Config:
         from_attributes = True  
 
-
+ 
 # --------------------------------------------------------candidate-------------------------------------------------------
+
 
 class CandidateBase(BaseModel):
     full_name: Optional[str]
@@ -101,18 +112,17 @@ class CandidateCreate(CandidateBase):
 class CandidateUpdate(CandidateBase):
     pass
 
-class Candidate(CandidateBase):
+class CandidateDelete(CandidateBase):
     id: int
 
     class Config:
         from_attributes = True
-
+    
 class PaginatedCandidateResponse(BaseModel):
     page: int
     limit: int
     total: int
-    data: List[Candidate]
-
+    data: List[CandidateBase]
 
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
@@ -329,25 +339,6 @@ class DailyVendorActivityUpdate(BaseModel):
 
 # ================================================contact====================================
 
-# class ContactCreate(BaseModel):
-#     first_name: str
-#     last_name: str
-#     email: EmailStr
-#     phone: Optional[str] = None
-#     notes: Optional[str] = None
-#     workstatus: Optional[str] = None
-
-
-# class ContactFormResponse(BaseModel):
-#     id: int
-#     full_name: str
-#     email: str
-#     phone: Optional[str] = None
-#     notes: Optional[str] = None
-
-#     class Config:
-#         orm_mode = True
-
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
@@ -355,4 +346,123 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
+class CourseBase(BaseModel):
+    name: str
+    alias: str
+
+class CourseCreate(CourseBase):
+    pass
+
+class Course(CourseBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class SubjectBase(BaseModel):
+    name: str
+
+class SubjectCreate(SubjectBase):
+    pass
+
+class Subject(SubjectBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class CourseSubjectBase(BaseModel):
+    course_id: int
+    subject_id: int
+
+class CourseSubjectCreate(CourseSubjectBase):
+    pass
+
+class CourseSubject(CourseSubjectBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+
+class BatchCreate(BatchBase):
+    pass
+
+class Batch(BatchBase):
+    batchid: int
+
+    class Config:
+        orm_mode = True
+
+class RecordingBase(BaseModel):
+    batchname: str
+    description: Optional[str] = None
+    type: Optional[str] = None
+    classdate: Optional[datetime] = None
+    link: Optional[str] = None
+    videoid: Optional[str] = None
+    subject: Optional[str] = None
+    filename: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
+    new_subject_id: Optional[int] = None
+
+class RecordingCreate(RecordingBase):
+    pass
+
+class Recording(RecordingBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class RecordingBatchBase(BaseModel):
+    recording_id: int
+    batch_id: int
+
+class RecordingBatchCreate(RecordingBatchBase):
+    pass
+
+class RecordingBatch(RecordingBatchBase):
+    id: int
+      
+    class Config:
+        orm_mode = True
+
+
+
+class CourseContentCreate(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+
+class CourseContentResponse(CourseContentCreate):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+
+class SessionBase(BaseModel):
+    title: str
+    link: Optional[str] = None
+    videoid: Optional[str] = None
+    subject: Optional[str] = None
+    type: Optional[str] = None
+    sessiondate: Optional[datetime] = None
+    lastmoddatetime: Optional[datetime] = None
+    subject_id: int
+
+class SessionCreate(SessionBase):
+    pass
+
+class Session(SessionBase):
+    sessionid: int
+
+    class Config:
+        orm_mode = True
 
