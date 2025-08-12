@@ -5,8 +5,8 @@ from datetime import time, date, datetime
 from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from fapi.db.database import Base
-# from config import Base
+
+
 Base = declarative_base()
 
 
@@ -78,35 +78,7 @@ class ResetPassword(BaseModel):
     new_password: str
 
 
-# ---------------------------- Innovapath - Request demo --------------------
 
-class VendorCreate(BaseModel):
-    full_name: str
-    phone_number: str
-    email: Optional[EmailStr] = None
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    address: Optional[str] = None
-    country: Optional[str] = None
-    note: Optional[str] = None
-# --------------------------------------------------------------------------
-
-class RecentPlacement(BaseModel):
-    id: int
-    candidate_name: str
-    company: str
-    position: str
-    placement_date: str
-
-
-class RecentInterview(BaseModel):
-    candidate_name: str
-    candidate_role: Optional[str] = None
-    interview_time: str
-    interview_date: str
-    interview_mode: Optional[str] = None
-    client_name: Optional[str] = None
-    interview_location: Optional[str] = None
     
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
@@ -133,71 +105,6 @@ class LeadORM(Base):
 
 
 
-        
-
-class PlacementBase(BaseModel):
-    candidate_id: Optional[int]
-    candidate_name: Optional[str]
-    candidate_email: Optional[str]
-    company: Optional[str]
-    client_id: Optional[int]
-    batch: Optional[str]
-    # placed_date: Optional[date]
-    placement_date: Optional[date]
-    status: Optional[str]
-    marketing_email_address: Optional[str]
-    vendor_or_client_name: Optional[str]
-    vendor_or_client_contact: Optional[str]
-    start_date: Optional[date]
-    position: Optional[str]
-    amount_paid: Optional[float]
-    work_authorization: Optional[str]
-    experience_in_resume: Optional[str]
-    role: Optional[str]
-    job_location: Optional[str]
-    terms_and_conditions: Optional[str]
-    notes: Optional[str]
-    candidate_profile_folder: Optional[str]
-    placement_verified: Optional[bool] = False
-    joining_letter_url: Optional[str]
-
-
-class PlacementCreate(PlacementBase):
-    pass
-
-
-class PlacementUpdate(PlacementBase):
-    pass
-
-
-class Placement(PlacementBase):
-    id: int
-
-    class Config:
-        orm_mode = True
-
-
-
-class RecentPlacement(BaseModel):
-    id: int
-    candidate_name: str
-    company: str
-    position: str
-    placement_date: str
-
-
-class RecentInterview(BaseModel):
-    id: int
-    candidate_name: str
-    candidate_role: Optional[str]
-    interview_time: time
-    interview_date: date
-    interview_mode: Optional[str]
-    client_name: Optional[str]
-    interview_location: Optional[str]
-    created_at: datetime
-
-
 # .......................................NEW INNOVAPATH..............................
 
 
@@ -214,37 +121,40 @@ class TalentSearch(Base):
     availability = Column(String(50))
     skills = Column(Text)
 
+
+class Vendor(Base):
+    __tablename__ = "vendor"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    phone_number = Column(String(50))
+    email = Column(String(255), unique=True)
+    city = Column(String(50))
+    postal_code = Column(String(20))
+    address = Column(Text)
+    country = Column(String(50))
+    type = Column(Enum(
+        'client',
+        'third-party-vendor',
+        'implementation-partner',
+        'sourcer',
+        'IP_REQUEST_DEMO'
+    ))
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
     
 # ------------------------------------------
 
-class UnsubscribeRequest(BaseModel):
-    email: str
 
 
+class UnsubscribeUser(Base):
+    __tablename__ = "massemail"
 
-class VendorBase(BaseModel):
-    id: Optional[int]
-    full_name: Optional[str]
-    phone_number: Optional[str]
-    email: Optional[str]
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    address: Optional[str] = None
-    country: Optional[str] = None
-    type: Optional[str] = None
-    note: Optional[str] = None
-    last_contacted: Optional[date] = None
-class VendorCreate(VendorBase):
-    pass
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False)
+    remove = Column(String(1), default='N') 
 
-class VendorUpdate(VendorBase):
-    pass
 
-class VendorResponse(VendorBase):
-    id: int  # correct usage in Pydantic
-
-    class Config:
-        from_attributes = True  # Use this if using Pydantic v2 instead of `orm_mode = True`
 
 
 # ----------------------------------------Candidate------------------------------------

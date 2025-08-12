@@ -15,7 +15,7 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/api/signup")
+@router.post("/signup")
 async def register_user_api(request: Request, user: UserRegistration, db: Session = Depends(get_db)):
     user.uname = user.uname.lower().strip()
     user.passwd = md5_hash(user.passwd)

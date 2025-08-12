@@ -184,6 +184,23 @@ class TalentSearch(BaseModel):
 
 
 
+
+class VendorCreate(BaseModel):
+    full_name: str
+    phone_number: Optional[str] = None
+    email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+
+
+class VendorResponse(BaseModel):
+    message: str
+
+
+
+
 # ================================================contact====================================
 class ContactForm(BaseModel):
     firstName: str
@@ -193,3 +210,24 @@ class ContactForm(BaseModel):
     message: str
 
 
+# -----------------------------------------------------unsubscribe-------------------------
+class UnsubscribeRequest(BaseModel):
+    email: EmailStr
+                                                #for both unsubscribe_user and unsubscribe_leads
+class UnsubscribeResponse(BaseModel):
+    message: str
+
+
+
+# -----------------------------------user_dashboard--------------------------------
+
+class UserBase(BaseModel):
+    uname: str
+    email: str
+    full_name: Optional[str] = None
+
+class UserOut(UserBase):
+    id: int
+
+    class Config:
+        orm_mode = True

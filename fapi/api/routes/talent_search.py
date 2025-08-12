@@ -14,7 +14,7 @@ def get_db():
     finally:
         db.close()
 
-@router.get("/api/talent_search", response_model=List[TalentSearch])
+@router.get("/talent_search", response_model=List[TalentSearch])
 def get_talent_search(
     role: Optional[str] = None,
     experience: Optional[int] = None,
