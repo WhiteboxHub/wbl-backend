@@ -34,7 +34,12 @@ DATABASE_URL = (
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 
@@ -108,7 +113,7 @@ async def fetch_keyword_presentation(search, course):
             ORDER BY CASE
             WHEN name = 'Software Architecture' THEN 1
             WHEN name = 'SDLC' THEN 2
-            WHEN name = 'JIRA Agile' THEN 3
+            WHEN name = 'JIRA Agile' THEN 
             WHEN name = 'HTTP' THEN 4
             WHEN name = 'Web Services' THEN 5
             WHEN name = 'UNIX - Shell Scripting' THEN 6

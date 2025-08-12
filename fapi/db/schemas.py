@@ -184,13 +184,16 @@ class TalentSearch(BaseModel):
 
 # ================================================contact====================================
 
-#
+
 class ContactForm(BaseModel):
     firstName: str
     lastName: str
     email: EmailStr
     phone: str
     message: str
+
+
+# ===============================Resources==============================
 
 class CourseBase(BaseModel):
     name: str
