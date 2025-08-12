@@ -346,6 +346,9 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
+
+# ===============================Resources==============================
+
 class CourseBase(BaseModel):
     name: str
     alias: str

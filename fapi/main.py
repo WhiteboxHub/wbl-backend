@@ -27,8 +27,14 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
+
+
+
+# from fapi.db.models import VendorResponse
+
+
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,Resources, vendor_contact ,vendor, vendor_activity
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity
 from fastapi import Query, Path
 from fapi.db.database import db_config
 from typing import Dict, Any
@@ -58,10 +64,16 @@ app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
-app.include_router(resources.router, prefix="/api", tags=["Resources"])
-app.include_router(Resources.router, prefix="", tags=["Resources"])
+app.include_router(resources.router, prefix="", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 router = APIRouter()
 

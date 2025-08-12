@@ -9,6 +9,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+import enum
 
 Base = declarative_base()
 
@@ -256,13 +257,9 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
     candidate_id = Column(Integer)
-    # primary_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     primary_instructor_id = Column(Integer)
-    # sec_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     sec_instructor_id = Column(Integer)
-    # marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
     marketing_manager = Column(Integer)
     start_date = Column(Date, nullable=False)
     notes = Column(Text, nullable=True)
@@ -401,7 +398,7 @@ class CourseMaterial(Base):
     
 
 
-# ----------------------Recording--------------------
+# ----------------------Resources--------------------
 
 
 class Course(Base):
@@ -419,7 +416,7 @@ class Subject(Base):
     course_subjects = relationship("CourseSubject", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
-    recordings = relationship("Recording", back_populates="subject")  # ✅ Must match
+    recordings = relationship("Recording", back_populates="subject_rel")  
 
 
 class CourseSubject(Base):
@@ -454,7 +451,7 @@ class Recording(Base):
     lastmoddatetime = Column(DateTime)
     new_subject_id = Column(Integer, ForeignKey("subject.id"))
 
-    subject = relationship("Subject", back_populates="recordings")  # ✅ This is the missing piece!
+    subject_rel = relationship("Subject", back_populates="recordings")  
     recording_batches = relationship("RecordingBatch", back_populates="recording")
 
 

@@ -43,7 +43,12 @@ DATABASE_URL = (
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 async def get_user_by_username(uname: str):
@@ -88,8 +93,6 @@ async def insert_vendor(data: Dict):
     finally:
         cursor.close()
         conn.close()
-
-
 
 
 async def course_content(session: AsyncSession):
