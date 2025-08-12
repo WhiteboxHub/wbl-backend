@@ -1,4 +1,3 @@
-# -----------------------------
 # fapi/utils/vendor_activity_utils.py
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
