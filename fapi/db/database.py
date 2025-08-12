@@ -24,6 +24,7 @@ load_dotenv()
 raw_password = os.getenv('DB_PASSWORD')  
 encoded_password = quote(raw_password)  
 
+
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),

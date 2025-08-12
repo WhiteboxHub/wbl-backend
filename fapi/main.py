@@ -28,9 +28,8 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,Resources
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,Resources, vendor_contact ,vendor, vendor_activity
 from fastapi import Query, Path
-# from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
@@ -51,6 +50,10 @@ app = FastAPI()
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
+app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
+app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
+app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
+
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
@@ -58,7 +61,6 @@ app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(Resources.router, prefix="", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
-
 
 
 router = APIRouter()

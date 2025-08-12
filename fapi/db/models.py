@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
@@ -289,6 +289,74 @@ class CandidatePlacementORM(Base):
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
 
+
+# -------------------- Enums --------------------
+class VendorTypeEnum(str, enum.Enum):
+    client = "client"
+    third_party_vendor = "third-party-vendor"
+    implementation_partner = "implementation-partner"
+    sourcer = "sourcer"
+    ip_request_demo = "IP_REQUEST_DEMO"
+
+# -------------------- ORM: vendor_contact_extracts --------------------
+class VendorContactExtractORM(Base):
+    __tablename__ = "vendor_contact_extracts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(255), nullable=False)
+    source_email = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    linkedin_id = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    extraction_date = Column(Date, nullable=True)
+    moved_to_vendor = Column(Boolean, default=False)
+    created_at = Column(DateTime)
+
+# -------------------- ORM: vendor --------------------
+
+class VendorORM(Base):
+    __tablename__ = "vendor"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    phone_number = Column(String(50))
+    secondary_phone = Column(String(50))
+    email = Column(String(255))
+    type = Column(SQLAEnum(VendorTypeEnum), nullable=True)
+    note = Column(String(500))
+    linkedin_id = Column(String(255))
+    company_name = Column(String(255))
+    location = Column(String(255))
+    city = Column(String(100))
+    postal_code = Column(String(20))
+    address = Column(String(255))
+    country = Column(String(100))
+    vendor_type = Column(SQLAEnum(VendorTypeEnum), nullable=True)
+    linkedin_connected = Column(String(5), default="NO")
+    intro_email_sent = Column(String(5), default="NO")
+    intro_call = Column(String(5), default="NO")
+    status = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# -------------------- ORM: vendor-daily-activity --------------------
+class YesNoEnum(str, enum.Enum):
+    YES = "YES"
+    NO = "NO"
+
+class DailyVendorActivityORM(Base):
+    __tablename__ = "vendor_daily_activity"
+
+    activity_id = Column(Integer, primary_key=True, index=True)
+    vendor_id = Column(Integer, ForeignKey("vendor.id"), nullable=False)
+    application_date = Column(Date, nullable=True)
+    linkedin_connected = Column(SQLAEnum(YesNoEnum), nullable=True)
+    contacted_on_linkedin = Column(SQLAEnum(YesNoEnum), nullable=True)
+    notes = Column(String(1000), nullable=True)
+    employee_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -411,3 +479,4 @@ class RecordingBatch(Base):
 #     subject_id = Column(Integer, ForeignKey("subject.id"))
 
 #     subject = relationship("Subject", back_populates="sessions")
+
