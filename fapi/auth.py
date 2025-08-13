@@ -1,27 +1,23 @@
 # wbl-backend/fapi/auth.py
-from fapi.db.database import get_user_by_username_sync,get_user_by_username
-from jose import jwt, JWTError,ExpiredSignatureError
+from fapi.db.database import get_user_by_username_sync
+from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta
-import os
 from fapi.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
 import hashlib
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi import Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional  
-from datetime import timedelta  
-import asyncio
-
+from typing import Optional
 
 # Simple in-memory cache dictionary
 cache = {}
+cache_clear_seconds = 60 * 180
 
-cache_clear_seconds = 60*180
 
-def cache_set(key, value, ttl_seconds=cache_clear_seconds):  # Default TTL of 1 hour
+def cache_set(key, value, ttl_seconds=cache_clear_seconds):
     expiration_time = datetime.utcnow() + timedelta(seconds=ttl_seconds)
     cache[key] = (value, expiration_time)
+
 
 def cache_get(key):
     if key in cache:
@@ -29,41 +25,22 @@ def cache_get(key):
         if expiration_time > datetime.utcnow():
             return value
         else:
-            del cache[key]  # Remove expired item from cache
+            del cache[key]
     return None
 
-# ----------------------------------------------------------------------- Avatar ---------------------------------------------------------------------------
-# def determine_user_role(userinfo: dict) -> str:
-#     """
-#     Determine role based on email domain or 'team' field.
-#     """
-#     email = userinfo.get('uname', '')
-#     team = (userinfo.get('team') or '').lower()
-#     if "whitebox-learning" in email or "innova-path" in email or "admin" in email or team == "admin":
-#         return "admin"
-#     return "candidate"
 
+def determine_user_role(userinfo) -> str:
+    uname = (getattr(userinfo, "uname", "") or "").lower()
+    return "admin" if uname == "admin" else "candidate"
 
-def determine_user_role(userinfo: dict) -> str:
-    """
-    Determine role based on uname field.
-    Only the user with uname 'admin' gets admin access.
-    """
-    uname = userinfo.get('uname', '').lower()
-    if uname == 'admin':
-        return 'admin'
-    return 'candidate'
-
-# --------------------------------------------------------------------------------------------------------------------------
 
 class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json","/api/auth/callback/google","/api/auth/error"]
+        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json",
+                      "/api/auth/callback/google", "/api/auth/error"]
+
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
-        
-        # if request.url.path in skip_paths:
-        #     return await call_next(request)
 
         apiToken = request.headers.get('Authtoken')
         if not apiToken:
@@ -76,13 +53,12 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
 
             user = cache_get(username)
             if user is None:
-                userinfo = await get_user_by_username(username)
+                userinfo = get_user_by_username_sync(username)
                 if not userinfo:
-                    return JSONResponse(status_code=401, content={"detail": "Unauthorized user"})
+                    return JSONResponse(status_code=401, content={"detail": "User not found"})
                 cache_set(username, userinfo)
                 user = userinfo
 
-            # Attach user and role info to request state
             request.state.user = user
             request.state.role = role
 
@@ -96,55 +72,22 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-
-# def create_access_token(data: dict, expires_delta: timedelta = None):
-#     to_encode = data.copy()
-#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-
-#     # Get user info from DB (to add role into token)
-#     username = data.get("sub")
-#     if username:
-#         userinfo = cache_get(username)
-#         if not userinfo:
-#             userinfo = asyncio.run(get_user_by_username(username))
-#             cache_set(username, userinfo)
-#         role = determine_user_role(userinfo)
-#         to_encode["role"] = role
-
-#     to_encode["exp"] = expire
-#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-
-def verify_token(token: str):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except ExpiredSignatureError:
-        return JSONResponse(status_code=401, content={'detail': 'Login Session Expired'})
-    except JWTError:
-        return JSONResponse(status_code=401, content={'detail': 'Unauthorized - invalid User, please login again'})
-
-
-# Function to create password reset token
 def generate_password_reset_token(email: str):
     expire = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": email, "exp": expire}
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# Function to verify password reset token
+
 def verify_password_reset_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        return email
+        return payload.get("sub")
     except ExpiredSignatureError:
         return None
     except JWTError:
         return None
 
-# Function to hash the new password
+
 def get_password_hash(password: str):
     return hashlib.md5(password.encode()).hexdigest()
 
@@ -156,19 +99,24 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
     username = data.get("sub")
     if username:
         userinfo = cache_get(username)
-        if not userinfo:
-            userinfo = await get_user_by_username(username) 
+        if userinfo is None:
+            userinfo = get_user_by_username_sync(username)
+            if not userinfo:
+                raise ValueError(f"User '{username}' not found while creating Google access token")
             cache_set(username, userinfo)
+
         role = determine_user_role(userinfo)
         to_encode["role"] = role
 
-        if "domain" in userinfo:
-            to_encode["domain"] = userinfo["domain"]
+        # ORM-safe domain handling
+        domain = getattr(userinfo, "domain", None)
+        if domain:
+            to_encode["domain"] = domain
 
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# -------------------------------------------------- Avatar --------------------------------------------------
+
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
@@ -176,153 +124,14 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     username = data.get("sub")
     if username:
         userinfo = cache_get(username)
-        if not userinfo:
-            userinfo = get_user_by_username_sync(username)  # Using sync version
+        if userinfo is None:
+            userinfo = get_user_by_username_sync(username)
+            if not userinfo:
+                raise ValueError(f"User '{username}' not found while creating access token")
             cache_set(username, userinfo)
+
         role = determine_user_role(userinfo)
         to_encode["role"] = role
 
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-
-
-# # fapi/auth.py
-# from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-# from fastapi import Request
-# from starlette.middleware.base import BaseHTTPMiddleware
-# from starlette.responses import JSONResponse
-# from jose import jwt, JWTError, ExpiredSignatureError
-# from datetime import datetime, timedelta
-# from typing import Optional
-# import asyncio
-# import os
-
-# from fapi.db.database import get_user_by_username_sync, get_user_by_username
-# from fapi.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
-# # from fapi.utils import verify_password, hash_password
-
-# # ------------------ In-Memory Cache ------------------
-
-# cache = {}
-# cache_clear_seconds = 60 * 180
-
-# def cache_set(key, value, ttl_seconds=cache_clear_seconds):
-#     expiration_time = datetime.utcnow() + timedelta(seconds=ttl_seconds)
-#     cache[key] = (value, expiration_time)
-
-# def cache_get(key):
-#     if key in cache:
-#         value, expiration_time = cache[key]
-#         if expiration_time > datetime.utcnow():
-#             return value
-#         else:
-#             del cache[key]
-#     return None
-
-# # ------------------ Role Determination ------------------
-
-# def determine_user_role(userinfo: dict) -> str:
-#     uname = userinfo.get('uname', '').lower()
-#     return 'admin' if uname == 'admin' else 'candidate'
-
-# # ------------------ JWT Middleware ------------------
-
-# class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
-#     async def dispatch(self, request: Request, call_next):
-#         skip_paths = [
-#             "/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json",
-#             "/api/auth/callback/google", "/api/auth/error"
-#         ]
-#         if any(request.url.path.startswith(path) for path in skip_paths):
-#             return await call_next(request)
-
-#         token = request.headers.get('Authtoken')
-#         if not token:
-#             return JSONResponse(status_code=401, content={"detail": "Authorization token missing"})
-
-#         try:
-#             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#             username = payload.get('sub')
-#             role = payload.get('role')
-
-#             user = cache_get(username)
-#             if user is None:
-#                 userinfo = await get_user_by_username(username)
-#                 if not userinfo:
-#                     return JSONResponse(status_code=401, content={"detail": "Unauthorized user"})
-#                 cache_set(username, userinfo)
-#                 user = userinfo
-
-#             request.state.user = user
-#             request.state.role = role
-
-#         except ExpiredSignatureError:
-#             return JSONResponse(status_code=401, content={"detail": "Login session expired"})
-#         except JWTError:
-#             return JSONResponse(status_code=401, content={"detail": "Invalid or unauthorized token"})
-#         except Exception as e:
-#             return JSONResponse(status_code=500, content={"detail": str(e)})
-
-#         return await call_next(request)
-
-# # ------------------ Token Handling ------------------
-
-# def verify_token(token: str):
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         return payload
-#     except ExpiredSignatureError:
-#         return JSONResponse(status_code=401, content={'detail': 'Login Session Expired'})
-#     except JWTError:
-#         return JSONResponse(status_code=401, content={'detail': 'Unauthorized - invalid User, please login again'})
-
-# def generate_password_reset_token(email: str):
-#     expire = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
-#     to_encode = {"sub": email, "exp": expire}
-#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# def verify_password_reset_token(token: str):
-#     try:
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         return payload.get("sub")
-#     except (ExpiredSignatureError, JWTError):
-#         return None
-
-# # ------------------ Access Token Creation ------------------
-
-# def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-#     to_encode = data.copy()
-#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-
-#     username = data.get("sub")
-#     if username:
-#         userinfo = cache_get(username)
-#         if not userinfo:
-#             userinfo = get_user_by_username_sync(username)
-#             cache_set(username, userinfo)
-#         role = determine_user_role(userinfo)
-#         to_encode["role"] = role
-
-#     to_encode["exp"] = expire
-#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-# async def create_google_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-#     to_encode = data.copy()
-#     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-
-#     username = data.get("sub")
-#     if username:
-#         userinfo = cache_get(username)
-#         if not userinfo:
-#             userinfo = await get_user_by_username(username)
-#             cache_set(username, userinfo)
-#         role = determine_user_role(userinfo)
-#         to_encode["role"] = role
-
-#         if "domain" in userinfo:
-#             to_encode["domain"] = userinfo["domain"]
-
-#     to_encode["exp"] = expire
-#     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)

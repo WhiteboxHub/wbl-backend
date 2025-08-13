@@ -23,7 +23,7 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/api/contact")
+@router.post("/contact")
 async def contact(user: ContactForm, db: Session = Depends(get_db)):
     # Send email
     send_contact_emails(

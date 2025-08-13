@@ -1,5 +1,3 @@
-# fapi/routes/register.py
-
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
@@ -10,6 +8,7 @@ from fapi.utils.auth_utils import md5_hash
 
 
 router = APIRouter()
+
 def get_db():
     db = SessionLocal()
     try:
@@ -17,12 +16,17 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/api/signup")
+@router.post("/signup")
 async def register_user_api(request: Request, user: UserRegistration, db: Session = Depends(get_db)):
     user.uname = user.uname.lower().strip()
     user.passwd = md5_hash(user.passwd)
 
     create_user_and_lead(db, user)
-    send_email_to_user(user_email=user.uname, user_name=user.firstname + " " + user.lastname, user_phone=user.phone)
+
+    send_email_to_user(
+        user_email=user.uname,
+        user_name=f"{user.firstname or ''} {user.lastname or ''}".strip(),
+        user_phone=user.phone
+    )
 
     return {"message": "User registered successfully. Confirmation email sent to the user and admin."}

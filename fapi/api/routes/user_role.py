@@ -22,7 +22,7 @@ def get_db():
     finally:
         db.close()
 
-@router.get("/api/user_role")
+@router.get("/user_role")
 async def get_user_role(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)

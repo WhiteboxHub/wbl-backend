@@ -1,12 +1,16 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field,validator
 from typing import Optional, List, Literal
 
 
 
+
+
+
 # Base = declarative_base()
+
 
 
 
@@ -19,31 +23,35 @@ class Token(BaseModel):
 class UserRegistration(BaseModel):
     uname: EmailStr
     passwd: str
-    dailypwd: Optional[str] = None
-    team: Optional[str]
-    level: Optional[str]
-    instructor: Optional[str]
-    override: Optional[str]
-    lastlogin: Optional[str]
-    logincount: Optional[int]
-    firstname: Optional[str]
-    lastname: Optional[str]
-    phone: Optional[str]
-    address: Optional[str]
-    city: Optional[str]
-    Zip: Optional[str]
-    country: Optional[str]
-    message: Optional[str]
-    visa_status: Optional[str]  # Maps from workauthorization
-    registereddate: Optional[datetime]
-    level3date: Optional[datetime]
-    experience: Optional[str]
-    education: Optional[str]
-    specialization: Optional[str]
-    referby: Optional[str]
-
-
+    team: Optional[str] = None
+    status: Optional[str] = None
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = None
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    demo: Optional[str] = None
+    enddate: Optional[date] = None
+    googleId: Optional[str] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+    role: Optional[str] = None
+    visa_status: Optional[str] = None
+    experience: Optional[str] = None
+    education: Optional[str] = None
+    referby: Optional[str] = None
+    specialization: Optional[str] = None
+    notes: Optional[str] = None
   
+
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
@@ -57,8 +65,8 @@ class LeadBase(BaseModel):
     closed_date: Optional[date] = None
     notes: Optional[str] = None
     last_modified: Optional[datetime] = None
-    massemail_unsubscribe: Optional[str] = None
-    massemail_email_sent: Optional[str] = None
+    massemail_unsubscribe: Optional[bool] = None
+    massemail_email_sent: Optional[bool] = None
     moved_to_candidate: Optional[bool] = None
 
 
@@ -70,8 +78,9 @@ class LeadSchema(LeadBase):
     class Config:
         from_attributes = True  
 
-
+ 
 # --------------------------------------------------------candidate-------------------------------------------------------
+
 
 class CandidateBase(BaseModel):
     full_name: Optional[str]
@@ -103,18 +112,17 @@ class CandidateCreate(CandidateBase):
 class CandidateUpdate(CandidateBase):
     pass
 
-class Candidate(CandidateBase):
+class CandidateDelete(CandidateBase):
     id: int
 
     class Config:
         from_attributes = True
-
+    
 class PaginatedCandidateResponse(BaseModel):
     page: int
     limit: int
     total: int
-    data: List[Candidate]
-
+    data: List[CandidateBase]
 
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
@@ -138,6 +146,7 @@ class CandidateMarketing(CandidateMarketingBase):
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
+    position: Optional[str] = None
     company: str
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
@@ -166,6 +175,31 @@ class GoogleUserCreate(BaseModel):
     class Config:
         orm_mode = True
 
+
+#----------------------------vendor - tables -----------------
+# -------------------- Enums --------------------
+class VendorTypeEnum(str, Enum):
+    client = "client"
+    third_party_vendor = "third-party-vendor"
+    implementation_partner = "implementation-partner"
+    sourcer = "sourcer"
+    ip_request_demo = "IP_REQUEST_DEMO"
+
+
+# -------------------- VendorContactExtract Schemas --------------------
+class VendorContactExtract(BaseModel):
+    id: int
+    full_name: str
+    source_email: Optional[EmailStr] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    extraction_date: Optional[date] = None
+    moved_to_vendor: Optional[bool] = None
+    created_at: Optional[datetime] = None
+
 # ------------------------------------Innovapath----------------------------
 class TalentSearch(BaseModel):
     id: int
@@ -178,13 +212,150 @@ class TalentSearch(BaseModel):
     availability: Optional[str]
     skills: Optional[str]
 
+
     class Config:
         orm_mode = True
 
 
+class VendorContactExtractCreate(BaseModel):
+    full_name: str
+    source_email: Optional[EmailStr] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+
+
+class VendorContactExtractUpdate(BaseModel):
+    full_name: Optional[str] = None
+    source_email: Optional[EmailStr] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    extraction_date: Optional[date] = None
+    moved_to_vendor: Optional[bool] = None
+
+
+# -------------------- Vendor Schemas --------------------
+class VendorBase(BaseModel):
+    full_name: str
+    phone_number: Optional[str] = None
+    secondary_phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    type: Optional[VendorTypeEnum] = None
+    note: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+    vendor_type: Optional[VendorTypeEnum] = None
+    linkedin_connected: Optional[str] = "NO"
+    intro_email_sent: Optional[str] = "NO"
+    intro_call: Optional[str] = "NO"
+
+    @validator("email", pre=True)
+    def empty_string_to_none(cls, v):
+        return v or None
+
+    @validator("type", "vendor_type", pre=True)
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+
+class VendorCreate(VendorBase):
+    pass
+
+
+class Vendor(VendorBase):
+    id: int
+    status: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+
+class VendorUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    secondary_phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    type: Optional[VendorTypeEnum] = None
+    note: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+    vendor_type: Optional[VendorTypeEnum] = None
+    status: Optional[Literal['active', 'working', 'not_useful', 'do_not_contact', 'inactive', 'prospect']] = None
+    linkedin_connected: Optional[Literal['YES', 'NO']] = None
+    intro_email_sent: Optional[Literal['YES', 'NO']] = None
+    intro_call: Optional[Literal['YES', 'NO']] = None
+
+# ---------------daily-vendor-activity --------------
+
+class YesNoEnum(str, Enum):
+    YES = "YES"
+    NO = "NO"
+
+class DailyVendorActivity(BaseModel):
+    activity_id: int
+    vendor_id: int
+    application_date: Optional[date]
+    linkedin_connected: Optional[YesNoEnum]
+    contacted_on_linkedin: Optional[YesNoEnum]
+    notes: Optional[str]
+    employee_id: Optional[int]
+    created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
+class DailyVendorActivityCreate(BaseModel):
+    vendor_id: int
+    application_date: Optional[date]
+    linkedin_connected: Optional[YesNoEnum]
+    contacted_on_linkedin: Optional[YesNoEnum]
+    notes: Optional[str]
+    employee_id: Optional[int]
+
+class DailyVendorActivityUpdate(BaseModel):
+    vendor_id: Optional[int] = None
+    application_date: Optional[date] = None
+    linkedin_connected: Optional[YesNoEnum] = None
+    contacted_on_linkedin: Optional[YesNoEnum] = None
+    notes: Optional[str] = None
+    employee_id: Optional[int] = None
+
+
+class VendorCreate(BaseModel):
+    full_name: str
+    phone_number: Optional[str] = None
+    email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+
+
+class VendorResponse(BaseModel):
+    message: str
+
+
+
 
 # ================================================contact====================================
-
 
 class ContactForm(BaseModel):
     firstName: str
@@ -192,6 +363,113 @@ class ContactForm(BaseModel):
     email: EmailStr
     phone: str
     message: str
+
+
+# -----------------------------------------------------unsubscribe-------------------------
+class UnsubscribeRequest(BaseModel):
+    email: EmailStr
+                                                #for both unsubscribe_user and unsubscribe_leads
+class UnsubscribeResponse(BaseModel):
+    message: str
+
+
+
+# -----------------------------------user_dashboard--------------------------------
+
+class UserOut(BaseModel):
+    email: EmailStr         # uname is email
+    name: str               # fullname field mapped to name
+    phone: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+# ===============================Resources==============================
+
+class CourseBase(BaseModel):
+    name: str
+    alias: str
+
+class CourseCreate(CourseBase):
+    pass
+
+class Course(CourseBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class SubjectBase(BaseModel):
+    name: str
+
+class SubjectCreate(SubjectBase):
+    pass
+
+class Subject(SubjectBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class CourseSubjectBase(BaseModel):
+    course_id: int
+    subject_id: int
+
+class CourseSubjectCreate(CourseSubjectBase):
+    pass
+
+class CourseSubject(CourseSubjectBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+
+class BatchCreate(BatchBase):
+    pass
+
+class Batch(BatchBase):
+    batchid: int
+
+    class Config:
+        orm_mode = True
+
+class RecordingBase(BaseModel):
+    batchname: str
+    description: Optional[str] = None
+    type: Optional[str] = None
+    classdate: Optional[datetime] = None
+    link: Optional[str] = None
+    videoid: Optional[str] = None
+    subject: Optional[str] = None
+    filename: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
+    new_subject_id: Optional[int] = None
+
+class RecordingCreate(RecordingBase):
+    pass
+
+class Recording(RecordingBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class RecordingBatchBase(BaseModel):
+    recording_id: int
+    batch_id: int
+
+class RecordingBatchCreate(RecordingBatchBase):
+    pass
+
+class RecordingBatch(RecordingBatchBase):
+    id: int
+      
+    class Config:
+        orm_mode = True
 
 
 
@@ -206,12 +484,6 @@ class CourseContentResponse(CourseContentCreate):
 
     class Config:
         orm_mode = True
-
-
-
-
-
-
 
 
     # ===============================
@@ -303,6 +575,7 @@ class RecordingBatch(RecordingBatchBase):
     class Config:
         orm_mode = True
 
+
 class SessionBase(BaseModel):
     title: str
     link: Optional[str] = None
@@ -321,3 +594,4 @@ class Session(SessionBase):
 
     class Config:
         orm_mode = True
+
