@@ -146,6 +146,7 @@ class CandidateMarketing(CandidateMarketingBase):
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
+    position: Optional[str] = None
     company: str
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
@@ -337,6 +338,23 @@ class DailyVendorActivityUpdate(BaseModel):
     notes: Optional[str] = None
     employee_id: Optional[int] = None
 
+
+class VendorCreate(BaseModel):
+    full_name: str
+    phone_number: Optional[str] = None
+    email: Optional[EmailStr] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    address: Optional[str] = None
+    country: Optional[str] = None
+
+
+class VendorResponse(BaseModel):
+    message: str
+
+
+
+
 # ================================================contact====================================
 
 class ContactForm(BaseModel):
@@ -346,6 +364,25 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
+
+# -----------------------------------------------------unsubscribe-------------------------
+class UnsubscribeRequest(BaseModel):
+    email: EmailStr
+                                                #for both unsubscribe_user and unsubscribe_leads
+class UnsubscribeResponse(BaseModel):
+    message: str
+
+
+
+# -----------------------------------user_dashboard--------------------------------
+
+class UserOut(BaseModel):
+    email: EmailStr         # uname is email
+    name: str               # fullname field mapped to name
+    phone: Optional[str]
+
+    class Config:
+        orm_mode = True
 
 # ===============================Resources==============================
 

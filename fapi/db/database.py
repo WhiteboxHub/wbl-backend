@@ -11,6 +11,7 @@ from datetime import date,datetime,time, timedelta
 from sqlalchemy import create_engine 
 from sqlalchemy.orm import sessionmaker , declarative_base
 from sqlalchemy.ext.declarative import declarative_base
+from fapi.db.models import AuthUserORM
 from sqlalchemy.ext.asyncio import AsyncSession ,create_async_engine
 from sqlalchemy.future import select
 # from fapi.db.models import CourseContent
@@ -50,89 +51,12 @@ def get_db():
     finally:
         db.close()
 
-
-async def get_user_by_username(uname: str):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
-        await loop.run_in_executor(None, cursor.execute, query, (uname,))
-        result = cursor.fetchone()
-        return result
-    finally:
-        conn.close()   
-
-
-async def insert_vendor(data: Dict):
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-
-        sql = """
-            INSERT INTO vendor (
-                full_name, phone_number, email, city, postal_code, address, country, type, note
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(sql, (
-            data["full_name"],
-            data["phone_number"],
-            data.get("email"),
-            data.get("city"),
-            data.get("postal_code"),
-            data.get("address"),
-            data.get("country"),
-            data["type"],
-            data.get("note")
-        ))
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print("Internal error:", e)
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    finally:
-        cursor.close()
-        conn.close()
-
-
-async def course_content(session: AsyncSession):
-    result = await session.execute(select(
-        CourseContent.Fundamentals,
-        CourseContent.AIML,
-        CourseContent.UI,
-        CourseContent.QE
-    ))
-    rows = result.all()
-    return [dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3]) for row in rows]
+def get_user_by_username_sync(uname: str):
+    with SessionLocal() as session:
+        return session.query(AuthUserORM).filter(AuthUserORM.uname == uname).first()
 
 
 
-
-
-def unsubscribe_user(email: str) -> (bool, str): # type: ignore
-    conn = mysql.connector.connect(**db_config)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT remove FROM massemail WHERE email = %s", (email,))
-        result = cursor.fetchone()
-
-        if result is None:
-            return False, "User not found"
-
-        if result[0] == 'Y':
-            return True, "Already unsubscribed"
-
-        cursor.execute("UPDATE massemail SET remove = 'Y' WHERE email = %s", (email,))
-        conn.commit()
-
-        return True, "Successfully unsubscribed"
-    except Error as e:
-        # print(f"Error: {e}")
-        return False, "An error occurred"
-    finally:
-        cursor.close()
-        conn.close()
-        
         
 async def update_user_password(uname: str, new_password: str):
     loop = asyncio.get_event_loop()
@@ -167,154 +91,6 @@ async def update_user_password(email: str, new_password: str):
         hashed_password = hash_password(new_password)
         cursor.execute("UPDATE authuser SET passwd = %s WHERE uname = %s", (hashed_password, email))
         conn.commit()
-    finally:
-        cursor.close()
-        conn.close()
-
-
-async def fetch_recent_placements():
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        query = "SELECT id, candidate_name, company, position, placement_date FROM recent_placements;"
-        await loop.run_in_executor(None, cursor.execute, query)
-        result = cursor.fetchall()
-
-        # Convert placement_date to string
-        for placement in result:
-            if placement['placement_date']:
-                placement['placement_date'] = placement['placement_date'].isoformat()
-
-        return result
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def normalize_interview(interview):
-    if interview['interview_date']:
-        interview['interview_date'] = interview['interview_date'].isoformat()
-    if interview['interview_time']:
-        if isinstance(interview['interview_time'], timedelta):
-            total_seconds = int(interview['interview_time'].total_seconds())
-            hours, remainder = divmod(total_seconds, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
-        interview['interview_time'] = interview['interview_time'].isoformat()
-    if interview['created_at']:
-        interview['created_at'] = interview['created_at'].isoformat()
-    return interview
-
-async def run_query(query, params=None, fetch=False):
-    loop = asyncio.get_event_loop()
-    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-    try:
-        cursor = conn.cursor(dictionary=True)
-        await loop.run_in_executor(None, cursor.execute, query, params or ())
-        result = cursor.fetchall() if fetch else None
-        conn.commit()
-        if fetch:
-            result = [normalize_interview(row) for row in result]
-        return result
-    finally:
-        cursor.close()
-        conn.close()
-
-async def fetch_recent_interviews(limit=10, offset=0):
-    query = """
-        SELECT * FROM recent_interviews
-        ORDER BY id DESC
-        LIMIT %s OFFSET %s;
-    """
-    return await run_query(query, params=(limit, offset), fetch=True)
-
-async def fetch_interview_by_id(interview_id: int):
-    query = """
-        SELECT * FROM recent_interviews
-        WHERE id = %s
-        LIMIT 1;
-    """
-    result = await run_query(query, params=(interview_id,), fetch=True)
-    return result[0] if result else None
-
-async def fetch_interviews_by_name(name: str):
-    query = """
-        SELECT * FROM recent_interviews
-        WHERE candidate_name LIKE %s
-        ORDER BY interview_date DESC;
-    """
-    return await run_query(query, params=(f"%{name}%",), fetch=True)
-
-async def insert_interview(data):
-    query = """
-        INSERT INTO recent_interviews (
-            candidate_name, candidate_role, interview_time, interview_date,
-            interview_mode, client_name, interview_location
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s);
-    """
-    params = (
-        data.candidate_name, data.candidate_role, data.interview_time,
-        data.interview_date, data.interview_mode, data.client_name,
-        data.interview_location
-    )
-    await run_query(query, params=params)
-
-async def delete_interview(interview_id: int):
-    query = "DELETE FROM recent_interviews WHERE id = %s;"
-    await run_query(query, params=(interview_id,))
-
-async def update_interview(interview_id: int, data):
-    query = """
-        UPDATE recent_interviews
-        SET candidate_name = %s,
-            candidate_role = %s,
-            interview_time = %s,
-            interview_date = %s,
-            interview_mode = %s,
-            client_name = %s,
-            interview_location = %s
-        WHERE id = %s;
-    """
-    params = (
-        data.candidate_name, data.candidate_role, data.interview_time,
-        data.interview_date, data.interview_mode, data.client_name,
-        data.interview_location, interview_id
-    )
-    return await run_query(query, params=params)
-
-
-def get_user_by_username_sync(username: str):
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM authuser WHERE uname = %s", (username,))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return user
-
-
-# .................................Unsubscribe Leads......................................................
-
-def unsubscribe_lead_user(email: str) -> (bool, str):
-    conn = mysql.connector.connect(**db_config)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT massemail_unsubscribe FROM `lead` WHERE email = %s", (email,))
-        result = cursor.fetchone()
-
-        if result is None:
-            return False, "User not found"
-
-        if result[0] == 1:
-            return True, "Already unsubscribed"
-
-        cursor.execute("UPDATE `lead` SET massemail_unsubscribe = %s WHERE email = %s", (1, email))
-        conn.commit()
-
-        return True, "Successfully unsubscribed"
-    except Error as e:
-        return False, "An error occurred"
     finally:
         cursor.close()
         conn.close()
