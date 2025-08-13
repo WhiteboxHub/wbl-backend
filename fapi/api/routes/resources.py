@@ -4,7 +4,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status , Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from fapi.utils.resources_utils import fetch_session_types_by_team, fetch_sessions_by_type_orm , fetch_keyword_presentation
 from fapi.db.database import SessionLocal
 from fapi.db.schemas import CourseContentResponse
 from sqlalchemy.future import select
@@ -12,10 +11,13 @@ from fapi.db.models import CourseContent
 import anyio
 from fastapi.responses import JSONResponse
 from fapi.core.config import limiter
-
+import logging
+from fapi.utils.resources_utils import fetch_subject_batch_recording,fetch_course_batches,fetch_session_types_by_team,fetch_sessions_by_type_orm , fetch_keyword_presentation
+from sqlalchemy.exc import SQLAlchemyError
 
 
 router = APIRouter()
+
 
 
 def get_db():
@@ -96,4 +98,36 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
+@router.get("/api/recording")
+def get_recordings(course: str, batchid: int, db: Session = Depends(get_db)):
+    try:
+        recordings = fetch_subject_batch_recording(course, batchid, db)
+        if not recordings:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No recordings found for course '{course}' and batch '{batchid}'."
+            )
+        return recordings
+    except Exception as e:
+        # Log the error if you want
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching recordings: {str(e)}"
+        )
 
+@router.get("/api/batches")
+def get_batches(db: Session = Depends(get_db)):
+    try:
+        batches = fetch_course_batches(db)
+        if not batches:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No batches found."
+            )
+        return {"batches": batches}
+    except Exception as e:
+        # Log the error if you want
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching batches: {str(e)}"
+        )

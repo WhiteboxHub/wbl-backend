@@ -4,7 +4,6 @@ from  fapi.db.database import (
      verify_md5_hash,
  update_user_password , update_user_password
 )
-from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from fapi.utils.token_utils import verify_token
 from  fapi.auth import create_access_token,  JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
@@ -35,15 +34,10 @@ from fapi.db.database import Base, engine
 from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe
 from fastapi import Query, Path
 from fapi.db.database import db_config
-from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
-from fapi.core.config import SECRET_KEY, ALGORITHM
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
-from fapi.db.database import course_content as get_course_content_data
+from fapi.utils.resources_utils import course_content as get_course_content_data
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from fapi.api.routes import resources
 from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
 

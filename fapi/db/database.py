@@ -49,6 +49,7 @@ def get_db():
     try:
         yield db
     finally:
+
         db.close()
 
 def get_user_by_username_sync(uname: str):

@@ -12,7 +12,7 @@ import enum
 Base = declarative_base()
 
 
-# Base = declarative_base()
+
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -162,8 +162,6 @@ class UnsubscribeUser(Base):
 
 
 
-
-
 class CandidateORM(Base):
     __tablename__ = "candidate"
 
@@ -172,8 +170,8 @@ class CandidateORM(Base):
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=True)  # No ENUM used
-    workstatus = Column(String(50), nullable=True)  # No ENUM used
+    status = Column(String(20), nullable=True)  
+    workstatus = Column(String(50), nullable=True)  
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
     ssn = Column(String(11), nullable=True)
@@ -296,6 +294,7 @@ class DailyVendorActivityORM(Base):
     employee_id = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -306,33 +305,23 @@ class CourseContent(Base):
     QE = Column(String(255), nullable=True)
 
 
-class Session(Base):
-    __tablename__ = 'session'
-    sessionid = Column(Integer, primary_key=True)
-    subject_id = Column(Integer, ForeignKey('subject.id'))
-    type = Column(String(100))
-    sessiondate = Column(DateTime)
-    title = Column(String(255))
-    link = Column(String(500))
-    
-
-
-class CourseSubject(Base):
-    __tablename__ = 'course_subject'
-    id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey("course.id"))
-    subject_id = Column(Integer, ForeignKey("subject.id"))
-   
-
-
-class Course(Base):
-    __tablename__ = 'course'
-    id = Column(Integer, primary_key=True)
-    alias = Column(String(50))
 
 class CourseMaterial(Base):
     __tablename__ = "course_material"
 
+    id = Column(Integer, primary_key=True, index=True)
+    subjectid = Column(Integer, nullable=False, default=0)
+    courseid = Column(Integer, nullable=False)
+    name = Column(String(250), nullable=False)
+    description = Column(String(500))
+    type = Column(String(1), nullable=False, default='P')
+    link = Column(String(500), nullable=False)
+    sortorder = Column(Integer, nullable=False, default=9999)
+# ========================
+
+
+class Course(Base):
+    __tablename__ = "course"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255))
     type = Column(String(1))
@@ -358,7 +347,9 @@ class Subject(Base):
     course_subjects = relationship("CourseSubject", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
-    recordings = relationship("Recording", back_populates="subject_rel")  
+    recordings = relationship("Recording", back_populates="subject_rel")  # 
+
+
 
 
 class CourseSubject(Base):
@@ -405,17 +396,17 @@ class RecordingBatch(Base):
 
     recording = relationship("Recording", back_populates="recording_batches")
     batch = relationship("Batch", back_populates="recording_batches")
-# class Session(Base):
-#     __tablename__ = "session"
-#     sessionid = Column(Integer, primary_key=True, index=True)
-#     title = Column(String(255))
-#     link = Column(String(1024))
-#     videoid = Column(String(255))
-#     # subject = Column(String(255))
-#     type = Column(String(50))
-#     sessiondate = Column(DateTime)
-#     lastmoddatetime = Column(DateTime)
-#     subject_id = Column(Integer, ForeignKey("subject.id"))
 
-#     subject = relationship("Subject", back_populates="sessions")
+class Session(Base):
+    __tablename__ = "session"
+    sessionid = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255))
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    # subject = Column(String(255))
+    type = Column(String(50))
+    sessiondate = Column(DateTime)
+    lastmoddatetime = Column(DateTime)
+    subject_id = Column(Integer, ForeignKey("subject.id"))
+    subject = relationship("Subject", back_populates="sessions")
 
