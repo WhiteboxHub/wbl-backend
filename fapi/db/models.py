@@ -3,13 +3,16 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
+import enum
 
 
 Base = declarative_base()
 
 
+# Base = declarative_base()
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -83,6 +86,7 @@ class ResetPassword(BaseModel):
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
     __tablename__ = "lead"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     full_name = Column(String(255))
@@ -97,9 +101,10 @@ class LeadORM(Base):
     closed_date = Column(Date)
     notes = Column(String(500))
     last_modified = Column(DateTime)
-    massemail_unsubscribe = Column(String(5))
-    massemail_email_sent = Column(String(5))
-    moved_to_candidate = Column(Boolean)
+    massemail_unsubscribe = Column(Boolean, nullable=True)
+    massemail_email_sent = Column(Boolean, nullable=True)
+    moved_to_candidate = Column(Boolean,server_default='0')
+
 
 # -------------------------------------------------------------------------------
 
@@ -120,6 +125,7 @@ class TalentSearch(Base):
     location = Column(String(100))
     availability = Column(String(50))
     skills = Column(Text)
+
 
 
 class Vendor(Base):
@@ -157,7 +163,7 @@ class UnsubscribeUser(Base):
 
 
 
-# ----------------------------------------Candidate------------------------------------
+
 class CandidateORM(Base):
     __tablename__ = "candidate"
 
@@ -185,8 +191,6 @@ class CandidateORM(Base):
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
 
-
-
 # --------------------------------------Candidate_Marketing-------------------------------
 
 
@@ -194,13 +198,9 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
     candidate_id = Column(Integer)
-    # primary_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     primary_instructor_id = Column(Integer)
-    # sec_instructor_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     sec_instructor_id = Column(Integer)
-    # marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
     marketing_manager = Column(Integer)
     start_date = Column(Date, nullable=False)
     notes = Column(Text, nullable=True)
@@ -226,3 +226,196 @@ class CandidatePlacementORM(Base):
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+
+
+
+# -------------------- Enums --------------------
+class VendorTypeEnum(str, enum.Enum):
+    client = "client"
+    third_party_vendor = "third-party-vendor"
+    implementation_partner = "implementation-partner"
+    sourcer = "sourcer"
+    ip_request_demo = "IP_REQUEST_DEMO"
+
+# -------------------- ORM: vendor_contact_extracts --------------------
+class VendorContactExtractORM(Base):
+    __tablename__ = "vendor_contact_extracts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(255), nullable=False)
+    source_email = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    linkedin_id = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    extraction_date = Column(Date, nullable=True)
+    moved_to_vendor = Column(Boolean, default=False)
+    created_at = Column(DateTime)
+
+# -------------------- ORM: vendor --------------------
+
+class VendorORM(Base):
+    __tablename__ = "vendor"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    phone_number = Column(String(50))
+    secondary_phone = Column(String(50))
+    email = Column(String(255))
+    type = Column(SQLAEnum(VendorTypeEnum), nullable=True)
+    note = Column(String(500))
+    linkedin_id = Column(String(255))
+    company_name = Column(String(255))
+    location = Column(String(255))
+    city = Column(String(100))
+    postal_code = Column(String(20))
+    address = Column(String(255))
+    country = Column(String(100))
+    vendor_type = Column(SQLAEnum(VendorTypeEnum), nullable=True)
+    linkedin_connected = Column(String(5), default="NO")
+    intro_email_sent = Column(String(5), default="NO")
+    intro_call = Column(String(5), default="NO")
+    status = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# -------------------- ORM: vendor-daily-activity --------------------
+class YesNoEnum(str, enum.Enum):
+    YES = "YES"
+    NO = "NO"
+
+class DailyVendorActivityORM(Base):
+    __tablename__ = "vendor_daily_activity"
+
+    activity_id = Column(Integer, primary_key=True, index=True)
+    vendor_id = Column(Integer, ForeignKey("vendor.id"), nullable=False)
+    application_date = Column(Date, nullable=True)
+    linkedin_connected = Column(SQLAEnum(YesNoEnum), nullable=True)
+    contacted_on_linkedin = Column(SQLAEnum(YesNoEnum), nullable=True)
+    notes = Column(String(1000), nullable=True)
+    employee_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class CourseContent(Base):
+    __tablename__ = "course_content"
+
+    id = Column(Integer, primary_key=True, index=True)
+    Fundamentals = Column(String(255), nullable=True)
+    AIML = Column(String(255), nullable=False)
+    UI = Column(String(255), nullable=True)
+    QE = Column(String(255), nullable=True)
+
+
+class Session(Base):
+    __tablename__ = 'session'
+    sessionid = Column(Integer, primary_key=True)
+    subject_id = Column(Integer, ForeignKey('subject.id'))
+    type = Column(String(100))
+    sessiondate = Column(DateTime)
+    title = Column(String(255))
+    link = Column(String(500))
+    
+
+
+class CourseSubject(Base):
+    __tablename__ = 'course_subject'
+    id = Column(Integer, primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"))
+    subject_id = Column(Integer, ForeignKey("subject.id"))
+   
+
+
+class Course(Base):
+    __tablename__ = 'course'
+    id = Column(Integer, primary_key=True)
+    alias = Column(String(50))
+
+class CourseMaterial(Base):
+    __tablename__ = "course_material"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    type = Column(String(1))
+    courseid = Column(Integer)
+    
+
+
+# ----------------------Resources--------------------
+
+
+class Course(Base):
+    __tablename__ = "course"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    alias = Column(String(100), unique=True)
+    subjects = relationship("CourseSubject", back_populates="course")
+    batches = relationship("Batch", back_populates="course")
+
+class Subject(Base):
+    __tablename__ = "subject"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    course_subjects = relationship("CourseSubject", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject")
+    sessions = relationship("Session", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject_rel")  
+
+
+class CourseSubject(Base):
+    __tablename__ = "course_subject"
+    subject_id = Column(Integer, ForeignKey("subject.id"), primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"), primary_key=True)
+    lastmoddatetime = Column(DateTime)
+
+    course = relationship("Course", back_populates="subjects")
+    subject = relationship("Subject", back_populates="course_subjects")
+
+class Batch(Base):
+    __tablename__ = "batch"
+    batchid = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    courseid = Column(Integer, ForeignKey("course.id"))
+
+    course = relationship("Course", back_populates="batches")
+    recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+class Recording(Base):
+    __tablename__ = "recording"
+    id = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    description = Column(Text)
+    type = Column(String(50))
+    classdate = Column(DateTime)
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    subject = Column(String(255))
+    filename = Column(String(255))
+    lastmoddatetime = Column(DateTime)
+    new_subject_id = Column(Integer, ForeignKey("subject.id"))
+
+    subject_rel = relationship("Subject", back_populates="recordings")  
+    recording_batches = relationship("RecordingBatch", back_populates="recording")
+
+
+
+class RecordingBatch(Base):
+    __tablename__ = "recording_batch"
+    recording_id = Column(Integer, ForeignKey("recording.id"), primary_key=True)
+    batch_id = Column(Integer, ForeignKey("batch.batchid"), primary_key=True)
+
+    recording = relationship("Recording", back_populates="recording_batches")
+    batch = relationship("Batch", back_populates="recording_batches")
+# class Session(Base):
+#     __tablename__ = "session"
+#     sessionid = Column(Integer, primary_key=True, index=True)
+#     title = Column(String(255))
+#     link = Column(String(1024))
+#     videoid = Column(String(255))
+#     # subject = Column(String(255))
+#     type = Column(String(50))
+#     sessiondate = Column(DateTime)
+#     lastmoddatetime = Column(DateTime)
+#     subject_id = Column(Integer, ForeignKey("subject.id"))
+
+#     subject = relationship("Subject", back_populates="sessions")
+

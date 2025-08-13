@@ -25,48 +25,58 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
-from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register, request_demo, unsubscribe
-from fastapi import Query, Path
+
+
+
 # from fapi.db.models import VendorResponse
+
+
+from fapi.db.database import Base, engine
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe
+from fastapi import Query, Path
 from fapi.db.database import db_config
 from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
+from fapi.core.config import SECRET_KEY, ALGORITHM
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import Depends
+from fapi.db.database import course_content as get_course_content_data
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from fapi.api.routes import resources
 from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
 
 
-
-
-load_dotenv()
-
-Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
 app.add_middleware(JWTAuthorizationMiddleware)
 
-
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(unsubscribe.router, tags=["Unsubscribe"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
+app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
+app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
+app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
+
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
+app.include_router(resources.router, prefix="", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 
 
 
 def get_db():
-    db.database = SessionLocal()
+    db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
 
 router = APIRouter()
 
@@ -85,38 +95,7 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
-
-
-
 # # -----------------------------------------------------------------------------------------------------
-
-
-# @app.get("/api/placements", response_model=List[RecentPlacement])
-# async def get_recent_placements():
-#     placements = await fetch_recent_placements()
-#     return placements
-
-
-
-
-# Function to get the current user based on the token
-# async def get_current_user(token: str = Depends(oauth2_scheme)):
-#     credentials_exception = HTTPException(
-#         status_code=status.HTTP_401_UNAUTHORIZED,
-#         detail="Could not validate credentials",
-#         headers={"WWW-Authenticate": "Bearer"},
-#     )
-#     try:
-#         payload = verify_token(token)
-#         username: str = payload.get("sub")
-#         if username is None:
-#             raise credentials_exception
-#     except JWTError:
-#         raise credentials_exception
-#     user = await get_user_by_username(username)
-#     if user is None:
-#         raise credentials_exception
-#     return user
 
 
 # Token verification endpoint
@@ -131,12 +110,6 @@ async def verify_token_endpoint(token: Token):
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-# # Fetch user details endpoint
-# @app.get("/api/user_dashboard")
-# async def read_users_me(current_user: dict = Depends(get_current_user)):
-#     return current_user
-
 
 
 

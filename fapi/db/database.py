@@ -8,16 +8,23 @@ from typing import Optional,Dict,List
 import asyncio
 from dotenv import load_dotenv
 from datetime import date,datetime,time, timedelta  
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine 
+from sqlalchemy.orm import sessionmaker , declarative_base
 from sqlalchemy.ext.declarative import declarative_base
 from fapi.db.models import AuthUserORM
-
+from sqlalchemy.ext.asyncio import AsyncSession ,create_async_engine
+from sqlalchemy.future import select
+# from fapi.db.models import CourseContent
 from urllib.parse import quote
+from sqlalchemy.orm import declarative_base
+from fapi.db.base import Base
+
 load_dotenv()
 
-raw_password = os.getenv('DB_PASSWORD')
-encoded_password = quote(raw_password)
+# Read from environment variables
+raw_password = os.getenv('DB_PASSWORD')  
+encoded_password = quote(raw_password)  
+
 
 db_config = {
     'host': os.getenv('DB_HOST'),
@@ -27,34 +34,26 @@ db_config = {
     'port': int(os.getenv('DB_PORT')),
 }
 
+# Async SQLAlchemy URL (uses aiomysql)
 DATABASE_URL = (
     f"mysql+pymysql://{db_config['user']}:{encoded_password}"
     f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 )
 
+# Async Engine and Session
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
-
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 def get_user_by_username_sync(uname: str):
     with SessionLocal() as session:
         return session.query(AuthUserORM).filter(AuthUserORM.uname == uname).first()
-
-
-# async def get_user_by_username(uname: str):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT * FROM whitebox_learning.authuser WHERE uname = %s;"
-#         await loop.run_in_executor(None, cursor.execute, query, (uname,))
-#         result = cursor.fetchone()
-#         return result
-#     finally:
-#         conn.close()   
-
 
 
 
@@ -95,129 +94,3 @@ async def update_user_password(email: str, new_password: str):
     finally:
         cursor.close()
         conn.close()
-
-
-# async def fetch_recent_placements():
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         query = "SELECT id, candidate_name, company, position, placement_date FROM placement;"
-#         await loop.run_in_executor(None, cursor.execute, query)
-#         result = cursor.fetchall()
-
-#         # Convert placement_date to string
-#         for placement in result:
-#             if placement['placement_date']:
-#                 placement['placement_date'] = placement['placement_date'].isoformat()
-
-#         return result
-#     finally:
-#         cursor.close()
-#         conn.close()
-
-
-
-# def normalize_interview(interview):
-#     if interview['interview_date']:
-#         interview['interview_date'] = interview['interview_date'].isoformat()
-#     if interview['interview_time']:
-#         if isinstance(interview['interview_time'], timedelta):
-#             total_seconds = int(interview['interview_time'].total_seconds())
-#             hours, remainder = divmod(total_seconds, 3600)
-#             minutes, seconds = divmod(remainder, 60)
-#             interview['interview_time'] = (datetime.min + timedelta(hours=hours, minutes=minutes, seconds=seconds)).time()
-#         interview['interview_time'] = interview['interview_time'].isoformat()
-#     if interview['created_at']:
-#         interview['created_at'] = interview['created_at'].isoformat()
-#     return interview
-
-# async def run_query(query, params=None, fetch=False):
-#     loop = asyncio.get_event_loop()
-#     conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
-#     try:
-#         cursor = conn.cursor(dictionary=True)
-#         await loop.run_in_executor(None, cursor.execute, query, params or ())
-#         result = cursor.fetchall() if fetch else None
-#         conn.commit()
-#         if fetch:
-#             result = [normalize_interview(row) for row in result]
-#         return result
-#     finally:
-#         cursor.close()
-#         conn.close()
-
-# async def fetch_recent_interviews(limit=10, offset=0):
-#     query = """
-#         SELECT * FROM recent_interviews
-#         ORDER BY id DESC
-#         LIMIT %s OFFSET %s;
-#     """
-#     return await run_query(query, params=(limit, offset), fetch=True)
-
-# async def fetch_interview_by_id(interview_id: int):
-#     query = """
-#         SELECT * FROM recent_interviews
-#         WHERE id = %s
-#         LIMIT 1;
-#     """
-#     result = await run_query(query, params=(interview_id,), fetch=True)
-#     return result[0] if result else None
-
-# async def fetch_interviews_by_name(name: str):
-#     query = """
-#         SELECT * FROM recent_interviews
-#         WHERE candidate_name LIKE %s
-#         ORDER BY interview_date DESC;
-#     """
-#     return await run_query(query, params=(f"%{name}%",), fetch=True)
-
-# async def insert_interview(data):
-#     query = """
-#         INSERT INTO recent_interviews (
-#             candidate_name, candidate_role, interview_time, interview_date,
-#             interview_mode, client_name, interview_location
-#         ) VALUES (%s, %s, %s, %s, %s, %s, %s);
-#     """
-#     params = (
-#         data.candidate_name, data.candidate_role, data.interview_time,
-#         data.interview_date, data.interview_mode, data.client_name,
-#         data.interview_location
-#     )
-#     await run_query(query, params=params)
-
-# async def delete_interview(interview_id: int):
-#     query = "DELETE FROM recent_interviews WHERE id = %s;"
-#     await run_query(query, params=(interview_id,))
-
-# async def update_interview(interview_id: int, data):
-#     query = """
-#         UPDATE recent_interviews
-#         SET candidate_name = %s,
-#             candidate_role = %s,
-#             interview_time = %s,
-#             interview_date = %s,
-#             interview_mode = %s,
-#             client_name = %s,
-#             interview_location = %s
-#         WHERE id = %s;
-#     """
-#     params = (
-#         data.candidate_name, data.candidate_role, data.interview_time,
-#         data.interview_date, data.interview_mode, data.client_name,
-#         data.interview_location, interview_id
-#     )
-#     return await run_query(query, params=params)
-
-
-# def get_user_by_username_sync(username: str):
-#     conn = mysql.connector.connect(**db_config)
-#     cursor = conn.cursor(dictionary=True)
-#     cursor.execute("SELECT * FROM authuser WHERE uname = %s", (username,))
-#     user = cursor.fetchone()
-#     cursor.close()
-#     conn.close()
-#     return user
-
-
-
