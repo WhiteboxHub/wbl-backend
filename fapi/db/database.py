@@ -11,6 +11,7 @@ from datetime import date,datetime,time, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from fapi.db.models import AuthUserORM
 
 from urllib.parse import quote
 load_dotenv()
@@ -36,6 +37,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+
+def get_user_by_username_sync(uname: str):
+    with SessionLocal() as session:
+        return session.query(AuthUserORM).filter(AuthUserORM.uname == uname).first()
 
 
 # async def get_user_by_username(uname: str):
@@ -205,14 +210,14 @@ async def update_user_password(email: str, new_password: str):
 #     return await run_query(query, params=params)
 
 
-def get_user_by_username_sync(username: str):
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM authuser WHERE uname = %s", (username,))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return user
+# def get_user_by_username_sync(username: str):
+#     conn = mysql.connector.connect(**db_config)
+#     cursor = conn.cursor(dictionary=True)
+#     cursor.execute("SELECT * FROM authuser WHERE uname = %s", (username,))
+#     user = cursor.fetchone()
+#     cursor.close()
+#     conn.close()
+#     return user
 
 
 

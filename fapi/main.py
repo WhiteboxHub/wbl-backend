@@ -26,7 +26,7 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register, request_demo, unsubscribe, user_dashboard
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register, request_demo, unsubscribe
 from fastapi import Query, Path
 # from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
@@ -44,6 +44,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
+app.add_middleware(JWTAuthorizationMiddleware)
+
 
 app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
 app.include_router(unsubscribe.router, tags=["Unsubscribe"])
@@ -55,7 +57,6 @@ app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
-app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
 
 
 

@@ -1,7 +1,5 @@
-#wbl-backend/fapi/auth.py
-
+# wbl-backend/fapi/auth.py
 from fapi.db.database import get_user_by_username_sync
-from fapi.utils.user_dashboard_utils import get_user_by_username  # OK: utils no longer imports this module
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta
 from fapi.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
@@ -10,17 +8,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi import Request
 from typing import Optional
-from datetime import timedelta
-import asyncio
 
 # Simple in-memory cache dictionary
 cache = {}
-
 cache_clear_seconds = 60 * 180
+
 
 def cache_set(key, value, ttl_seconds=cache_clear_seconds):
     expiration_time = datetime.utcnow() + timedelta(seconds=ttl_seconds)
     cache[key] = (value, expiration_time)
+
 
 def cache_get(key):
     if key in cache:
@@ -31,16 +28,17 @@ def cache_get(key):
             del cache[key]
     return None
 
-def determine_user_role(userinfo: dict) -> str:
-    uname = userinfo.get('uname', '').lower()
-    if uname == 'admin':
-        return 'admin'
-    return 'candidate'
+
+def determine_user_role(userinfo) -> str:
+    uname = (getattr(userinfo, "uname", "") or "").lower()
+    return "admin" if uname == "admin" else "candidate"
 
 
 class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json","/api/auth/callback/google","/api/auth/error"]
+        skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json",
+                      "/api/auth/callback/google", "/api/auth/error"]
+
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
 
@@ -57,7 +55,7 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
             if user is None:
                 userinfo = get_user_by_username_sync(username)
                 if not userinfo:
-                    return JSONResponse(status_code=401, content={"detail": "Unauthorized user"})
+                    return JSONResponse(status_code=401, content={"detail": "User not found"})
                 cache_set(username, userinfo)
                 user = userinfo
 
@@ -74,22 +72,21 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# Token helpers (create/verify moved / verify_token moved to fapi.utils.token)
 def generate_password_reset_token(email: str):
     expire = datetime.utcnow() + timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": email, "exp": expire}
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def verify_password_reset_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        return email
+        return payload.get("sub")
     except ExpiredSignatureError:
         return None
     except JWTError:
         return None
+
 
 def get_password_hash(password: str):
     return hashlib.md5(password.encode()).hexdigest()
@@ -102,15 +99,19 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
     username = data.get("sub")
     if username:
         userinfo = cache_get(username)
-        if not userinfo:
-            # use the sync db helper to keep consistent with other places
+        if userinfo is None:
             userinfo = get_user_by_username_sync(username)
+            if not userinfo:
+                raise ValueError(f"User '{username}' not found while creating Google access token")
             cache_set(username, userinfo)
+
         role = determine_user_role(userinfo)
         to_encode["role"] = role
 
-        if "domain" in userinfo:
-            to_encode["domain"] = userinfo["domain"]
+        # ORM-safe domain handling
+        domain = getattr(userinfo, "domain", None)
+        if domain:
+            to_encode["domain"] = domain
 
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -123,9 +124,12 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     username = data.get("sub")
     if username:
         userinfo = cache_get(username)
-        if not userinfo:
+        if userinfo is None:
             userinfo = get_user_by_username_sync(username)
+            if not userinfo:
+                raise ValueError(f"User '{username}' not found while creating access token")
             cache_set(username, userinfo)
+
         role = determine_user_role(userinfo)
         to_encode["role"] = role
 

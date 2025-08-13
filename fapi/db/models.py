@@ -216,6 +216,7 @@ class CandidatePlacementORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
     candidate_id = Column(Integer)
+    position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)
     type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)

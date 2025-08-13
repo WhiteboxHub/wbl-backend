@@ -57,7 +57,8 @@ def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
 def delete_marketing_record(record_id: int):
     return candidate_utils.delete_marketing(record_id)
 
-# ------------------- Placements -------------------
+# -------------------Candidate_Placements -------------------
+
 @router.get("/candidate/placements")
 def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return candidate_utils.get_all_placements(page, limit)

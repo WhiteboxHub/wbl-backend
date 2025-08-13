@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM
-from fapi.db.schemas import CandidatePlacementCreate,CandidateMarketingCreate
+from fapi.db.schemas import CandidateMarketingCreate
 from fastapi import HTTPException
 from typing import List, Dict
 
@@ -156,40 +156,65 @@ def delete_marketing(record_id: int) -> Dict:
 
 
 
-# ----------------------------------------------------Placement---------------------------------
+# ----------------------------------------------------Candidate_Placement---------------------------------
+
 
 
 def get_all_placements(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
     try:
         total = db.query(CandidatePlacementORM).count()
+
         results = (
-            db.query(CandidatePlacementORM)
+            db.query(
+                CandidatePlacementORM,
+                CandidateORM.full_name.label("candidate_name")  # fixed here
+            )
+            .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
             .order_by(CandidatePlacementORM.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
         )
-        data = [r.__dict__ for r in results]
-        for item in data:
-            item.pop('_sa_instance_state', None)
+
+        data = []
+        for placement, candidate_name in results:
+            record = placement.__dict__.copy()
+            record["candidate_name"] = candidate_name
+            record.pop('_sa_instance_state', None)
+            data.append(record)
+
         return {"page": page, "limit": limit, "total": total, "data": data}
     finally:
         db.close()
 
+
 def get_placement_by_id(placement_id: int) -> Dict:
     db: Session = SessionLocal()
     try:
-        placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
-        if not placement:
+        result = (
+            db.query(
+                CandidatePlacementORM,
+                CandidateORM.full_name.label("candidate_name")  # fixed here
+            )
+            .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
+            .filter(CandidatePlacementORM.id == placement_id)
+            .first()
+        )
+
+        if not result:
             raise HTTPException(status_code=404, detail="Placement not found")
+
+        placement, candidate_name = result
         data = placement.__dict__.copy()
+        data["candidate_name"] = candidate_name
         data.pop('_sa_instance_state', None)
         return data
     finally:
         db.close()
 
-def create_placement(payload: CandidatePlacementCreate) -> Dict:
+
+def create_placement(payload):
     db: Session = SessionLocal()
     try:
         new_entry = CandidatePlacementORM(**payload.dict())
@@ -200,7 +225,8 @@ def create_placement(payload: CandidatePlacementCreate) -> Dict:
     finally:
         db.close()
 
-def update_placement(placement_id: int, payload: CandidatePlacementCreate) -> Dict:
+
+def update_placement(placement_id: int, payload):
     db: Session = SessionLocal()
     try:
         placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
@@ -214,6 +240,7 @@ def update_placement(placement_id: int, payload: CandidatePlacementCreate) -> Di
     finally:
         db.close()
 
+
 def delete_placement(placement_id: int) -> Dict:
     db: Session = SessionLocal()
     try:
@@ -225,7 +252,5 @@ def delete_placement(placement_id: int) -> Dict:
         return {"message": "Placement deleted successfully"}
     finally:
         db.close()
-
-
 
 

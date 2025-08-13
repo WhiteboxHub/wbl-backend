@@ -139,6 +139,7 @@ class CandidateMarketing(CandidateMarketingBase):
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
+    position: Optional[str] = None
     company: str
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
@@ -221,13 +222,10 @@ class UnsubscribeResponse(BaseModel):
 
 # -----------------------------------user_dashboard--------------------------------
 
-class UserBase(BaseModel):
-    uname: str
-    email: str
-    full_name: Optional[str] = None
-
-class UserOut(UserBase):
-    id: int
+class UserOut(BaseModel):
+    email: EmailStr         # uname is email
+    name: str               # fullname field mapped to name
+    phone: Optional[str]
 
     class Config:
         orm_mode = True
