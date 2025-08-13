@@ -5,10 +5,13 @@ from datetime import time, date, datetime
 from sqlalchemy.sql import func
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import declarative_base 
+from sqlalchemy.orm import declarative_base ,relationship
 from pydantic import BaseModel 
 
+
+
 Base = declarative_base()
+
 class UserCreate(BaseModel):
     uname: str
     passwd: str
@@ -304,7 +307,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-
+# ======================================================Resources===============================
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -315,29 +318,29 @@ class CourseContent(Base):
     QE = Column(String(255), nullable=True)
 
 
-class Session(Base):
-    __tablename__ = 'session'
-    sessionid = Column(Integer, primary_key=True)
-    subject_id = Column(Integer, ForeignKey('subject.id'))
-    type = Column(String(100))
-    sessiondate = Column(DateTime)
-    title = Column(String(255))
-    link = Column(String(500))
+# class Session(Base):
+#     __tablename__ = 'session'
+#     sessionid = Column(Integer, primary_key=True)
+#     subject_id = Column(Integer, ForeignKey('subject.id'))
+#     type = Column(String(100))
+#     sessiondate = Column(DateTime)
+#     title = Column(String(255))
+#     link = Column(String(500))
     
 
 
-class CourseSubject(Base):
-    __tablename__ = 'course_subject'
-    id = Column(Integer, primary_key=True)
-    course_id = Column(Integer, ForeignKey("course.id"))
-    subject_id = Column(Integer, ForeignKey("subject.id"))
+# class CourseSubject(Base):
+#     __tablename__ = 'course_subject'
+#     id = Column(Integer, primary_key=True)
+#     course_id = Column(Integer, ForeignKey("course.id"))
+#     subject_id = Column(Integer, ForeignKey("subject.id"))
    
 
 
-class Course(Base):
-    __tablename__ = 'course'
-    id = Column(Integer, primary_key=True)
-    alias = Column(String(50))
+# class Course(Base):
+#     __tablename__ = 'course'
+#     id = Column(Integer, primary_key=True)
+#     alias = Column(String(50))
 
 
 class CourseMaterial(Base):
@@ -351,3 +354,81 @@ class CourseMaterial(Base):
     type = Column(String(1), nullable=False, default='P')
     link = Column(String(500), nullable=False)
     sortorder = Column(Integer, nullable=False, default=9999)
+# ========================
+
+
+class Course(Base):
+    __tablename__ = "course"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    alias = Column(String(100), unique=True)
+    subjects = relationship("CourseSubject", back_populates="course")
+    batches = relationship("Batch", back_populates="course")
+
+class Subject(Base):
+    __tablename__ = "subject"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255))
+    course_subjects = relationship("CourseSubject", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject")
+    sessions = relationship("Session", back_populates="subject")
+    recordings = relationship("Recording", back_populates="subject_rel")  # 
+
+
+class CourseSubject(Base):
+    __tablename__ = "course_subject"
+    subject_id = Column(Integer, ForeignKey("subject.id"), primary_key=True)
+    course_id = Column(Integer, ForeignKey("course.id"), primary_key=True)
+    lastmoddatetime = Column(DateTime)
+
+    course = relationship("Course", back_populates="subjects")
+    subject = relationship("Subject", back_populates="course_subjects")
+
+class Batch(Base):
+    __tablename__ = "batch"
+    batchid = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    courseid = Column(Integer, ForeignKey("course.id"))
+
+    course = relationship("Course", back_populates="batches")
+    recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+class Recording(Base):
+    __tablename__ = "recording"
+    id = Column(Integer, primary_key=True, index=True)
+    batchname = Column(String(255))
+    description = Column(Text)
+    type = Column(String(50))
+    classdate = Column(DateTime)
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    subject = Column(String(255))
+    filename = Column(String(255))
+    lastmoddatetime = Column(DateTime)
+    new_subject_id = Column(Integer, ForeignKey("subject.id"))
+
+    subject_rel = relationship("Subject", back_populates="recordings")  
+    recording_batches = relationship("RecordingBatch", back_populates="recording")
+
+
+
+class RecordingBatch(Base):
+    __tablename__ = "recording_batch"
+    recording_id = Column(Integer, ForeignKey("recording.id"), primary_key=True)
+    batch_id = Column(Integer, ForeignKey("batch.batchid"), primary_key=True)
+
+    recording = relationship("Recording", back_populates="recording_batches")
+    batch = relationship("Batch", back_populates="recording_batches")
+class Session(Base):
+    __tablename__ = "session"
+    sessionid = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255))
+    link = Column(String(1024))
+    videoid = Column(String(255))
+    # subject = Column(String(255))
+    type = Column(String(50))
+    sessiondate = Column(DateTime)
+    lastmoddatetime = Column(DateTime)
+    subject_id = Column(Integer, ForeignKey("subject.id"))
+
+    subject = relationship("Subject", back_populates="sessions")

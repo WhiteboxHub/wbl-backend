@@ -6,7 +6,6 @@ from  fapi.db.database import (
  fetch_course_batches, fetch_subject_batch_recording, fetch_interview_by_id,
     unsubscribe_user, update_user_password ,get_user_by_username, update_user_password ,insert_vendor ,fetch_recent_placements , fetch_recent_interviews
 )
-from typing import Dict, Any
 from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
 from  fapi.auth import create_access_token, verify_token, JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
 from  fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
@@ -27,20 +26,14 @@ from datetime import date,datetime, timedelta
 import jwt
 from sqlalchemy.orm import Session
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources
 from fastapi import Query, Path
 from fapi.db.models import VendorResponse
 from fapi.db.database import db_config
-from typing import Dict, Any
 from fastapi import FastAPI, Query, Path
-from fapi.core.config import SECRET_KEY, ALGORITHM
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import Depends
-# from fapi.db.database import course_content as get_course_content_data
 from fapi.utils.resources_utils import course_content as get_course_content_data
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from fapi.api.routes import resources
 from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
 
