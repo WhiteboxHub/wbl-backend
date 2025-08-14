@@ -41,6 +41,8 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
 
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
+        # if request.url.path in skip_paths:
+        #     return await call_next(request)
 
         apiToken = request.headers.get('Authtoken')
         if not apiToken:

@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from jose import JWTError, ExpiredSignatureError
 from typing import List, Optional, Dict, Any
 import os
+import asyncio
 from fastapi.responses import JSONResponse
 import smtplib
 from mysql.connector import Error
