@@ -67,7 +67,7 @@ class LeadBase(BaseModel):
     last_modified: Optional[datetime] = None
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
-    moved_to_candidate: Optional[bool] = None
+    # moved_to_candidate: Optional[bool] = None
 
 
 class LeadCreate(LeadBase):
@@ -184,7 +184,7 @@ class VendorTypeEnum(str, Enum):
     third_party_vendor = "third-party-vendor"
     implementation_partner = "implementation-partner"
     sourcer = "sourcer"
-    ip_request_demo = "IP_REQUEST_DEMO"
+    contact_from_ip= "contact-from-ip"
 
 
 # -------------------- VendorContactExtract Schemas --------------------
@@ -265,15 +265,32 @@ class VendorBase(BaseModel):
     def empty_string_to_none(cls, v):
         return v or None
 
-    @validator("type", "vendor_type", pre=True)
+    @validator("type","vendor_type" ,pre=True)
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
             return v.lower()
         return v
 
 
-class VendorCreate(VendorBase):
-    pass
+# class VendorCreate(VendorBase):
+#     full_name: str
+#     phone_number: Optional[str] = None
+#     secondary_phone: Optional[str] = None
+#     email: Optional[EmailStr] = None
+#     type: Optional[VendorTypeEnum] = None
+#     note: Optional[str] = None
+#     linkedin_id: Optional[str] = None
+#     company_name: Optional[str] = None
+#     location: Optional[str] = None
+#     city: Optional[str] = None
+#     postal_code: Optional[str] = None
+#     address: Optional[str] = None
+#     country: Optional[str] = None
+#     vendor_type: Optional[VendorTypeEnum] = None
+#     linkedin_connected: Optional[str] = "NO"
+#     intro_email_sent: Optional[str] = "NO"
+#     intro_call: Optional[str] = "NO"   
+
 
 
 class Vendor(VendorBase):
@@ -351,10 +368,33 @@ class VendorCreate(BaseModel):
     postal_code: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
-
-
+    
 class VendorResponse(BaseModel):
     message: str
+    
+    
+# class VendorCreate(VendorBase):
+#     full_name: str
+#     phone_number: Optional[str] = None
+#     secondary_phone: Optional[str] = None
+#     email: Optional[EmailStr] = None
+#     type: Optional[VendorTypeEnum] = None
+#     note: Optional[str] = None
+#     linkedin_id: Optional[str] = None
+#     company_name: Optional[str] = None
+#     location: Optional[str] = None
+#     city: Optional[str] = None
+#     postal_code: Optional[str] = None
+#     address: Optional[str] = None
+#     country: Optional[str] = None
+#     vendor_type: Optional[VendorTypeEnum] = None
+#     linkedin_connected: Optional[str] = "NO"
+#     intro_email_sent: Optional[str] = "NO"
+#     intro_call: Optional[str] = "NO"
+
+
+# class VendorResponse(BaseModel):
+#     message: str
 
 
 

@@ -129,26 +129,70 @@ class TalentSearch(Base):
 
 
 
-# class Vendor(Base):
-#     __tablename__ = "vendor"
+class VendorTypeEnum(str, enum.Enum):
+    client = "client"
+    third_party_vendor = "third-party-vendor"
+    implementation_partner = "implementation-partner"
+    sourcer = "sourcer"
+    contact_from_ip = "contact-from-ip"
 
-#     id = Column(Integer, primary_key=True, index=True)
-#     full_name = Column(String(255), nullable=False)
-#     phone_number = Column(String(50))
-#     email = Column(String(255), unique=True)
-#     city = Column(String(50))
-#     postal_code = Column(String(20))
-#     address = Column(Text)
-#     country = Column(String(50))
-#     type = Column(Enum(
-#         'client',
-#         'third-party-vendor',
-#         'implementation-partner',
-#         'sourcer',
-#         'IP_REQUEST_DEMO'
-#     ))
-#     created_at = Column(TIMESTAMP, server_default=func.now())
+class Vendor(Base):
+    __tablename__ = "vendor"
 
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=False)
+    phone_number = Column(String(50))
+    secondary_phone = Column(String(50))
+    email = Column(String(255), unique=True, index=True)
+    type = Column(
+        SQLAEnum(
+            VendorTypeEnum,
+            values_callable=lambda x: [e.value for e in x]
+        ),
+        nullable=False,
+        server_default=VendorTypeEnum.client.value
+    )
+    note = Column(Text)
+    linkedin_id = Column(String(255))
+    company_name = Column(String(255))
+    location = Column(String(255))
+    city = Column(String(50))
+    postal_code = Column(String(20))
+    address = Column(Text)
+    country = Column(String(50))
+    # vendor_type = Column(
+    #     SQLAEnum(
+    #         VendorTypeEnum,
+    #         values_callable=lambda x: [e.value for e in x]
+    #     ),
+    #     nullable=True
+    # )
+    status = Column(
+        SQLAEnum(
+            "active",
+            "working",
+            "not_useful",
+            "do_not_contact",
+            "inactive",
+            "prospect",
+            name="vendorstatusenum"
+        ),
+        default="prospect"
+    )
+    linkedin_connected = Column(
+        SQLAEnum("YES", "NO", name="yesnoenum"),
+        default="NO"
+    )
+    intro_email_sent = Column(
+        SQLAEnum("YES", "NO", name="yesnoenum2"),
+        default="NO"
+    )
+    intro_call = Column(
+        SQLAEnum("YES", "NO", name="yesnoenum3"),
+        default="NO"
+    )
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    
     
 # ------------------------------------------
 
@@ -229,55 +273,39 @@ class CandidatePlacementORM(Base):
 
 
 # -------------------- Enums --------------------
-class VendorTypeEnum(str, enum.Enum):
-    client = "client"
-    third_party_vendor = "third-party-vendor"
-    implementation_partner = "implementation-partner"
-    sourcer = "sourcer"
-    ip_request_demo = "IP_REQUEST_DEMO"
+
 
 # -------------------- ORM: vendor_contact_extracts --------------------
-class VendorContactExtractORM(Base):
+# class VendorContactExtractORM(Base):
+#     __tablename__ = "vendor_contact_extracts"
+
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     full_name = Column(String(255), nullable=False)
+#     source_email = Column(String(255), nullable=True)
+#     email = Column(String(255), nullable=True)
+#     phone = Column(String(50), nullable=True)
+#     linkedin_id = Column(String(255), nullable=True)
+#     company_name = Column(String(255), nullable=True)
+#     location = Column(String(255), nullable=True)
+#     extraction_date = Column(Date, nullable=True)
+#     moved_to_vendor = Column(Boolean, default=False)
+#     created_at = Column(DateTime)
+    
+    
+class VendorContactExtractsORM(Base):
     __tablename__ = "vendor_contact_extracts"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    full_name = Column(String(255), nullable=False)
-    source_email = Column(String(255), nullable=True)
-    email = Column(String(255), nullable=True)
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True, unique=False)
     phone = Column(String(50), nullable=True)
     linkedin_id = Column(String(255), nullable=True)
     company_name = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
-    extraction_date = Column(Date, nullable=True)
     moved_to_vendor = Column(Boolean, default=False)
-    created_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.now())
 
-# -------------------- ORM: vendor --------------------
-
-class VendorORM(Base):
-    __tablename__ = "vendor"
-
-    id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(255), nullable=False)
-    phone_number = Column(String(50))
-    secondary_phone = Column(String(50))
-    email = Column(String(255))
-    type = Column(SQLAEnum(VendorTypeEnum), nullable=True)
-    note = Column(String(500))
-    linkedin_id = Column(String(255))
-    company_name = Column(String(255))
-    location = Column(String(255))
-    city = Column(String(100))
-    postal_code = Column(String(20))
-    address = Column(String(255))
-    country = Column(String(100))
-    vendor_type = Column(SQLAEnum(VendorTypeEnum), nullable=True)
-    linkedin_connected = Column(String(5), default="NO")
-    intro_email_sent = Column(String(5), default="NO")
-    intro_call = Column(String(5), default="NO")
-    status = Column(String(50))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+# 
 # -------------------- ORM: vendor-daily-activity --------------------
 class YesNoEnum(str, enum.Enum):
     YES = "YES"
@@ -318,15 +346,6 @@ class CourseMaterial(Base):
     type = Column(String(1), nullable=False, default='P')
     link = Column(String(500), nullable=False)
     sortorder = Column(Integer, nullable=False, default=9999)
-# ========================
-
-
-# class Course(Base):
-#     __tablename__ = "course"
-#     id = Column(Integer, primary_key=True, index=True)
-#     name = Column(String(255))
-#     type = Column(String(1))
-#     courseid = Column(Integer)
     
 
 

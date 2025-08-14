@@ -12,6 +12,7 @@ from  fapi.utils.email_utils import send_reset_password_email ,send_request_demo
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status,Path
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fapi.utils.user_utils import get_user_by_username
 from dotenv import load_dotenv
 from jose import JWTError, ExpiredSignatureError
 from typing import List, Optional, Dict, Any
@@ -31,7 +32,7 @@ from sqlalchemy.orm import Session
 
 
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe, user_dashboard
 from fastapi import Query, Path
 from fapi.db.database import db_config
 from fastapi import FastAPI, Query, Path
@@ -62,6 +63,7 @@ app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
+app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
 
 
 
