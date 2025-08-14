@@ -9,6 +9,7 @@ from sqlalchemy.orm import declarative_base, relationship
 import enum
 
 
+
 Base = declarative_base()
 
 
@@ -128,25 +129,25 @@ class TalentSearch(Base):
 
 
 
-class Vendor(Base):
-    __tablename__ = "vendor"
+# class Vendor(Base):
+#     __tablename__ = "vendor"
 
-    id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(255), nullable=False)
-    phone_number = Column(String(50))
-    email = Column(String(255), unique=True)
-    city = Column(String(50))
-    postal_code = Column(String(20))
-    address = Column(Text)
-    country = Column(String(50))
-    type = Column(Enum(
-        'client',
-        'third-party-vendor',
-        'implementation-partner',
-        'sourcer',
-        'IP_REQUEST_DEMO'
-    ))
-    created_at = Column(TIMESTAMP, server_default=func.now())
+#     id = Column(Integer, primary_key=True, index=True)
+#     full_name = Column(String(255), nullable=False)
+#     phone_number = Column(String(50))
+#     email = Column(String(255), unique=True)
+#     city = Column(String(50))
+#     postal_code = Column(String(20))
+#     address = Column(Text)
+#     country = Column(String(50))
+#     type = Column(Enum(
+#         'client',
+#         'third-party-vendor',
+#         'implementation-partner',
+#         'sourcer',
+#         'IP_REQUEST_DEMO'
+#     ))
+#     created_at = Column(TIMESTAMP, server_default=func.now())
 
     
 # ------------------------------------------
@@ -320,12 +321,12 @@ class CourseMaterial(Base):
 # ========================
 
 
-class Course(Base):
-    __tablename__ = "course"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255))
-    type = Column(String(1))
-    courseid = Column(Integer)
+# class Course(Base):
+#     __tablename__ = "course"
+#     id = Column(Integer, primary_key=True, index=True)
+#     name = Column(String(255))
+#     type = Column(String(1))
+#     courseid = Column(Integer)
     
 
 
@@ -393,7 +394,7 @@ class RecordingBatch(Base):
     __tablename__ = "recording_batch"
     recording_id = Column(Integer, ForeignKey("recording.id"), primary_key=True)
     batch_id = Column(Integer, ForeignKey("batch.batchid"), primary_key=True)
-
+    
     recording = relationship("Recording", back_populates="recording_batches")
     batch = relationship("Batch", back_populates="recording_batches")
 

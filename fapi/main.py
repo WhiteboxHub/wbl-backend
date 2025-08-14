@@ -59,7 +59,7 @@ app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
-app.include_router(resources.router, prefix="", tags=["Resources"])
+app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 

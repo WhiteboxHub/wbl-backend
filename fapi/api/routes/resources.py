@@ -98,24 +98,69 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
-@router.get("/api/recording")
-def get_recordings(course: str, batchid: int, db: Session = Depends(get_db)):
-    try:
-        recordings = fetch_subject_batch_recording(course, batchid, db)
-        if not recordings:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No recordings found for course '{course}' and batch '{batchid}'."
-            )
-        return recordings
-    except Exception as e:
-        # Log the error if you want
+# @router.get("/recording")
+# def get_recordings(course: str, batchid: int, db: Session = Depends(get_db)):
+#     try:
+#         recordings = fetch_subject_batch_recording(course, batchid, db)
+#         if not recordings:
+#             raise HTTPException(
+#                 status_code=status.HTTP_404_NOT_FOUND,
+#                 detail=f"No recordings found for course '{course}' and batch '{batchid}'."
+#             )
+#         return recordings
+#     except Exception as e:
+#         # Log the error if you want
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Error fetching recordings: {str(e)}"
+#         )
+
+# @router.get("/recording")
+# def get_recordings(
+#     course: str,
+#     batchid: int,
+#     search: Optional[str] = None,
+#     db: Session = Depends(get_db)
+# ):
+#     recordings = fetch_subject_batch_recording(course, batchid, db, search)
+#     if not recordings.get("batch_recordings"):
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail=f"No recordings found for course '{course}' and batch '{batchid}' matching '{search or ''}'."
+#         )
+#     return recordings
+
+
+@router.get("/recording")
+def get_recordings(
+    course: str,
+    batchid: Optional[int] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch recordings for a course (and optionally batch).
+    If `search` is provided, filter recordings by description or filename.
+    """
+    recordings = fetch_subject_batch_recording(course, batchid, db, search )
+
+    if not recordings.get("batch_recordings"):
+        if search:
+            print('displaying')
+            msg = f"No recordings found for course '{course}' matching '{search}'."
+        elif batchid:
+            msg = f"No recordings found for course '{course}' and batch '{batchid}'."
+        else:
+            msg = f"No recordings found for course '{course}'."
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching recordings: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=msg
         )
 
-@router.get("/api/batches")
+    return recordings
+
+
+@router.get("/batches")
 def get_batches(db: Session = Depends(get_db)):
     try:
         batches = fetch_course_batches(db)
