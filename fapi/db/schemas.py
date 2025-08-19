@@ -19,6 +19,11 @@ class Token(BaseModel):
     token_type: str
     team: str
 
+class TokenRequest(BaseModel):
+    access_token: str
+    # token_type: str
+
+
 
 class UserRegistration(BaseModel):
     uname: EmailStr
@@ -654,3 +659,10 @@ class Session(SessionBase):
         "from_attributes": True  # Enables ORM mode in Pydantic v2
     }
 
+# --------------------------------------------Password----------------------------
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr   # ensures a valid email is provided
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str

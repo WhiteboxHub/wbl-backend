@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, ExpiredSignatureError, jwt
 from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.utils.auth import determine_user_role
 from fapi.utils.db_queries import get_user_by_username
 from fapi.core.config import SECRET_KEY, ALGORITHM
@@ -12,15 +12,7 @@ import os
 router = APIRouter()
 security = HTTPBearer()
 
-# SECRET_KEY = os.getenv("SECRET_KEY")
-# ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.get("/user_role")
 async def get_user_role(

@@ -48,10 +48,10 @@ class AuthUserORM(Base):
     token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
-    experience = Column(String(100))
-    education = Column(String(255))
-    referby = Column(String(100))
-    specialization = Column(String(255))
+    # experience = Column(String(100))
+    # education = Column(String(255))
+    # referby = Column(String(100))
+    # specialization = Column(String(255))
     notes = Column(Text)
 
 
