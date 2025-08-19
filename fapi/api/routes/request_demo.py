@@ -1,18 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.db.schemas import VendorCreate, VendorResponse
 from fapi.utils.request_demo_utils import insert_vendor
 from fapi.utils.email_utils import send_request_demo_emails
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.post("/request-demo", response_model=VendorResponse)
 async def create_vendor_request_demo(vendor: VendorCreate, db: Session = Depends(get_db)):
