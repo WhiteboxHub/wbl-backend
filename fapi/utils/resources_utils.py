@@ -1,6 +1,3 @@
-
-
-# fapi/utils/resources_utils.py
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
@@ -45,7 +42,6 @@ def fetch_keyword_presentation(search: str, course: str):
             detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
         )
 
-    # Map course alias to courseid
     courseid_mapping = {
         "QA": 1,
         "UI": 2,
@@ -53,7 +49,6 @@ def fetch_keyword_presentation(search: str, course: str):
     }
     selected_courseid = courseid_mapping.get(course.upper())
 
-    # Priority ordering
     priority_order = case(
         (CourseMaterial.name == 'Software Architecture', 1),
         (CourseMaterial.name == 'SDLC', 2),
@@ -174,12 +169,7 @@ def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail="Unexpected server error")
 
 
-        # Convert ORM objects to dictionaries
-        # return [
-        #     {column.name: getattr(row, column.name) for column in row.__table__.columns}
-        #     for row in results
-        # ]
-
+    
     
 async def course_content(session: AsyncSession):
     """
@@ -214,42 +204,52 @@ def get_recordings_and_sessions(db, search='', course=''):
 
 
 
-def fetch_subject_batch_recording(course: str, batchid: int, db: Session, search: Optional[str] = None):
+def fetch_subject_batch_recording(course: str, batchid: Optional[int], db: Session, search: Optional[str] = None):
     
-    try:
+    course_obj = db.execute(
+        select(Course).where(Course.alias == course)
+    ).scalar_one_or_none()
+    if not course_obj:
+        raise HTTPException(status_code=404, detail=f"Course '{course}' not found")
 
-        if search:
-            return {"batch_recordings":get_recordings_and_sessions(db,search,course)}
-        else:
-            query = (
-                db.query(Recording)
-                .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
-                .join(Batch, RecordingBatch.batch_id == Batch.batchid)
-                .filter(Batch.batchid == batchid)
+    query = (
+        select(Recording)
+        .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+        .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+        .join(Subject, Recording.new_subject_id == Subject.id, isouter=True)  
+        .join(CourseSubject, CourseSubject.subject_id == Subject.id, isouter=True)
+        .where(Batch.courseid == course_obj.id)   
+    )
+
+    if batchid:
+        query = query.where(Batch.batchid == batchid)
+
+    
+    query = query.where(
+        or_(
+            CourseSubject.course_id == course_obj.id,  
+            Recording.new_subject_id == None           
+        )
+    )
+
+    if search:
+        like_str = f"%{search}%"
+        query = query.where(
+            or_(
+                Recording.description.ilike(like_str),
+                Recording.filename.ilike(like_str),
+                Recording.subject.ilike(like_str)
             )
-        # if search:
-        #     search_pattern = f"%{search.lower()}%"
-        #     query = query.filter(
-        #         or_(
-        #             Recording.description.ilike(search_pattern),
-        #             Recording.filename.ilike(search_pattern)
-        #         )
-        #     )
-        recordings = query.all()
-        return {"batch_recordings": recordings}
+        )
 
-    except SQLAlchemyError as e:
-        # Log the error if you have a logging system
-        print(f"Database error: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching batch recordings")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Unexpected error occurred")
+    query = query.order_by(Recording.classdate.desc())
+
+    recordings = db.execute(query).scalars().all()
+    return {"batch_recordings": recordings}
 
 
 
-def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
-    course = "ML"  
+def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
     try:
         course_obj = db.execute(
             select(Course).where(Course.alias == course)
@@ -257,22 +257,21 @@ def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
 
         if not course_obj:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail=f"Course '{course}' not found"
             )
 
         stmt = (
             select(Batch.batchname, Batch.batchid)
-            .where(Batch.courseid == course_obj.id)
-            .group_by(Batch.batchname, Batch.batchid)
+            .where(Batch.courseid == course_obj.id)   # strict course filter
             .order_by(Batch.batchname.desc())
         )
-        result = db.execute(stmt)
-        rows = result.all()
+
+        rows = db.execute(stmt).all()
 
         if not rows:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail=f"No batches found for course '{course}'"
             )
 
@@ -281,6 +280,5 @@ def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error fetching batches for course '{course}': {e}")
+        print(f"Error fetching batches for {course}: {e}")
         raise HTTPException(status_code=500, detail="Unexpected server error")
-

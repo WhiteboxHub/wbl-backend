@@ -4,7 +4,7 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field,validator
 from typing import Optional, List, Literal
 from enum import Enum
-
+from pydantic import field_validator
 
 
 
@@ -421,125 +421,26 @@ class UnsubscribeResponse(BaseModel):
 # -----------------------------------user_dashboard--------------------------------
 
 class UserOut(BaseModel):
-    email: EmailStr         # uname is email
-    name: str               # fullname field mapped to name
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 # ===============================Resources==============================
-
-class CourseBase(BaseModel):
-    name: str
-    alias: str
-
-class CourseCreate(CourseBase):
-    pass
-
-class Course(CourseBase):
-    id: int
-
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
-
-class SubjectBase(BaseModel):
-    name: str
-
-class SubjectCreate(SubjectBase):
-    pass
-
-class Subject(SubjectBase):
-    id: int
-
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
-
-class CourseSubjectBase(BaseModel):
-    course_id: int
-    subject_id: int
-
-class CourseSubjectCreate(CourseSubjectBase):
-    pass
-
-class CourseSubject(CourseSubjectBase):
-    id: int
-
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
-
-class BatchBase(BaseModel):
-    batchname: str
-    courseid: int
-
-class BatchCreate(BatchBase):
-    pass
-
-class Batch(BatchBase):
-    batchid: int
-
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
-
-class RecordingBase(BaseModel):
-    batchname: str
-    description: Optional[str] = None
-    type: Optional[str] = None
-    classdate: Optional[datetime] = None
-    link: Optional[str] = None
-    videoid: Optional[str] = None
-    subject: Optional[str] = None
-    filename: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
-    new_subject_id: Optional[int] = None
-
-class RecordingCreate(RecordingBase):
-    pass
-
-class Recording(RecordingBase):
-    id: int
-
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
-
-class RecordingBatchBase(BaseModel):
-    recording_id: int
-    batch_id: int
-
-class RecordingBatchCreate(RecordingBatchBase):
-    pass
-
-class RecordingBatch(RecordingBatchBase):
-    id: int
-      
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
-
-
-
 class CourseContentCreate(BaseModel):
     Fundamentals: Optional[str] = None
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
-
 class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
-
-
-    # ===============================
-
 
 
 class CourseBase(BaseModel):
@@ -553,7 +454,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 class SubjectBase(BaseModel):
@@ -566,7 +467,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -580,7 +481,7 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 class BatchBase(BaseModel):
@@ -594,7 +495,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -616,7 +517,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 class RecordingBatchBase(BaseModel):
@@ -654,3 +555,41 @@ class Session(SessionBase):
         "from_attributes": True  # Enables ORM mode in Pydantic v2
     }
 
+
+
+# =====================================employee========================
+class EmployeeBase(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(EmployeeBase):
+    id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+
+class Employee(EmployeeBase):
+    id: int
+
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_invalid_dates(cls, v):
+        if isinstance(v, str) and v.startswith("0000-00-00"):
+            return None
+        return v
+
+    class Config:
+        from_attributes = True

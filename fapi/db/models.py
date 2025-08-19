@@ -430,3 +430,23 @@ class Session(Base):
     subject_id = Column(Integer, ForeignKey("subject.id"))
     subject = relationship("Subject", back_populates="sessions")
 
+
+
+# ========================Employee===========================
+
+class EmployeeORM(Base):
+    __tablename__ = "employee"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False)
+    phone = Column(String(50))
+    address = Column(String(255))
+    state = Column(String(150))
+    dob = Column(Date)
+    startdate = Column(Date)
+    instructor = Column(Integer)
+    enddate = Column(DateTime)
+    notes = Column(Text)
+    status = Column(Integer)
+    aadhaar = Column(String(50))  # changed to String, Aadhaar isn’t really an int

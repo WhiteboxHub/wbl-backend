@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe, user_dashboard
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity,employee, request_demo, unsubscribe, user_dashboard
 from fastapi import Query, Path
 from fapi.db.database import db_config
 from fastapi import FastAPI, Query, Path
@@ -56,6 +56,7 @@ app.include_router(google_auth.router, prefix="/api", tags=["Google Authenticati
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
 app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
+app.include_router(employee.router, prefix="/api", tags=["Employee"])
 
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
