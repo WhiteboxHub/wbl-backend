@@ -17,7 +17,7 @@ from enum import Enum
 class Token(BaseModel):
     access_token: str
     token_type: str
-    team: str
+    team: Optional[str] = None
 
 class TokenRequest(BaseModel):
     access_token: str
@@ -178,7 +178,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 
@@ -304,7 +304,7 @@ class Vendor(VendorBase):
     created_at: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -345,7 +345,7 @@ class DailyVendorActivity(BaseModel):
     created_at: Optional[datetime]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class DailyVendorActivityCreate(BaseModel):
@@ -426,12 +426,12 @@ class UnsubscribeResponse(BaseModel):
 # -----------------------------------user_dashboard--------------------------------
 
 class UserOut(BaseModel):
-    email: EmailStr         # uname is email
-    name: str               # fullname field mapped to name
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 # ===============================Resources==============================
@@ -447,7 +447,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -460,7 +460,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -474,7 +474,7 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class BatchBase(BaseModel):
@@ -488,7 +488,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -510,7 +510,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBatchBase(BaseModel):
@@ -524,7 +524,7 @@ class RecordingBatch(RecordingBatchBase):
     id: int
       
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -539,7 +539,7 @@ class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -558,7 +558,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -571,7 +571,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -585,7 +585,7 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class BatchBase(BaseModel):
@@ -599,7 +599,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -621,7 +621,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBatchBase(BaseModel):
