@@ -44,12 +44,13 @@ from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
 
 
+
 app = FastAPI()
 
 
 app.add_middleware(JWTAuthorizationMiddleware)
 
-app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
+app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing,Interviews,Placements,Preparation"])
 app.include_router(unsubscribe.router, tags=["Unsubscribe"])
 app.include_router(leads.router, prefix="/api", tags=["Leads"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])

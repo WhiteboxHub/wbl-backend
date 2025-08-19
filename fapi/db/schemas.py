@@ -6,12 +6,7 @@ from typing import Optional, List, Literal
 from enum import Enum
 
 
-
-
-
 # Base = declarative_base()
-
-
 
 
 class Token(BaseModel):
@@ -272,27 +267,6 @@ class VendorBase(BaseModel):
         return v
 
 
-# class VendorCreate(VendorBase):
-#     full_name: str
-#     phone_number: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     email: Optional[EmailStr] = None
-#     type: Optional[VendorTypeEnum] = None
-#     note: Optional[str] = None
-#     linkedin_id: Optional[str] = None
-#     company_name: Optional[str] = None
-#     location: Optional[str] = None
-#     city: Optional[str] = None
-#     postal_code: Optional[str] = None
-#     address: Optional[str] = None
-#     country: Optional[str] = None
-#     vendor_type: Optional[VendorTypeEnum] = None
-#     linkedin_connected: Optional[str] = "NO"
-#     intro_email_sent: Optional[str] = "NO"
-#     intro_call: Optional[str] = "NO"   
-
-
-
 class Vendor(VendorBase):
     id: int
     status: Optional[str] = None
@@ -371,32 +345,6 @@ class VendorCreate(BaseModel):
     
 class VendorResponse(BaseModel):
     message: str
-    
-    
-# class VendorCreate(VendorBase):
-#     full_name: str
-#     phone_number: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     email: Optional[EmailStr] = None
-#     type: Optional[VendorTypeEnum] = None
-#     note: Optional[str] = None
-#     linkedin_id: Optional[str] = None
-#     company_name: Optional[str] = None
-#     location: Optional[str] = None
-#     city: Optional[str] = None
-#     postal_code: Optional[str] = None
-#     address: Optional[str] = None
-#     country: Optional[str] = None
-#     vendor_type: Optional[VendorTypeEnum] = None
-#     linkedin_connected: Optional[str] = "NO"
-#     intro_email_sent: Optional[str] = "NO"
-#     intro_call: Optional[str] = "NO"
-
-
-# class VendorResponse(BaseModel):
-#     message: str
-
-
 
 
 # ================================================contact====================================
@@ -653,4 +601,56 @@ class Session(SessionBase):
     model_config = {
         "from_attributes": True  # Enables ORM mode in Pydantic v2
     }
+
+
+
+class InterviewTypeEnum(str, Enum):
+    phone = "Phone"
+    virtual = "Virtual"
+    in_person = "In Person"
+    assessment = "Assessment"
+
+class StatusEnum(str, Enum):
+    scheduled = "scheduled"
+    cancelled = "cancelled"
+
+class FeedbackEnum(str, Enum):
+    negative = "Negative"
+    positive = "Positive"
+    no_response = "No Response"
+
+
+class CandidateInterviewBase(BaseModel):
+    candidate_new_id: int
+    company: str
+    interviewer_emails: Optional[str] = None
+    interview_phones: Optional[str] = None
+    interview_date: date
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    status: StatusEnum
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+class CandidateInterviewCreate(CandidateInterviewBase):
+    pass
+
+class CandidateInterviewUpdate(BaseModel):
+    candidate_new_id: Optional[int] = None
+    company: Optional[str] = None
+    interviewer_emails: Optional[str] = None
+    interview_phones: Optional[str] = None
+    interview_date: Optional[date] = None
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    status: Optional[StatusEnum] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+class CandidateInterviewOut(CandidateInterviewBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+
+    class Config:
+        from_attributes = True
 
