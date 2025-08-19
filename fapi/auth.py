@@ -1,5 +1,5 @@
 # wbl-backend/fapi/auth.py
-from fapi.db.database import get_user_by_username_sync
+from fapi.utils.db_queries import get_user_by_username_sync
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta
 from fapi.core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, PASSWORD_RESET_TOKEN_EXPIRE_MINUTES

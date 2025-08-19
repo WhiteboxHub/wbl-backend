@@ -2,26 +2,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.schemas import ContactForm
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.utils.contact_utils import save_contact_lead
 from fapi.utils.email_utils import send_contact_emails
 
 router = APIRouter()
 
-# class ContactForm(BaseModel):
-#     firstName: str
-#     lastName: str
-#     email: EmailStr
-#     phone: str
-#     message: str
-
-# Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.post("/contact")
 async def contact(user: ContactForm, db: Session = Depends(get_db)):
