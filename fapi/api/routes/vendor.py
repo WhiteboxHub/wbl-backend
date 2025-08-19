@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.db.schemas import VendorCreate, VendorUpdate, Vendor
 from fapi.utils import vendor_utils
 
@@ -13,13 +13,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ---------- DB Dependency ----------
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # ---------- CRUD: Vendor ----------
