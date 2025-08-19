@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status , Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.db.schemas import CourseContentResponse
 from sqlalchemy.future import select
 from fapi.db.models import CourseContent
@@ -16,13 +16,6 @@ from sqlalchemy.exc import SQLAlchemyError
 router = APIRouter()
 
 
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/course-content", response_model=List[CourseContentResponse])

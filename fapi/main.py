@@ -1,48 +1,18 @@
 # wbl-backend/fapi/main.py
-from fapi.db.models import EmailRequest, UserCreate, Token, ResetPasswordRequest, ResetPassword , LeadORM
-from  fapi.db.database import (
-     verify_md5_hash,
- update_user_password , update_user_password
-)
-from  fapi.utils.auth_utils import md5_hash, verify_md5_hash, create_reset_token, verify_reset_token
-from fapi.utils.token_utils import verify_token
-from  fapi.auth import create_access_token,  JWTAuthorizationMiddleware, generate_password_reset_token, get_password_hash,verify_password_reset_token,determine_user_role
-from  fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
-from  fapi.utils.email_utils import send_reset_password_email ,send_request_demo_emails,send_contact_emails,send_email_to_user
-from fastapi import FastAPI, Depends, HTTPException, Request, status, Query, Body ,APIRouter, status as http_status,Path
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm,HTTPBearer, HTTPAuthorizationCredentials
+
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fapi.utils.user_utils import get_user_by_username
-from dotenv import load_dotenv
-from jose import JWTError, ExpiredSignatureError
-from typing import List, Optional, Dict, Any
-import os
-import asyncio
-from fastapi.responses import JSONResponse
-import smtplib
-from mysql.connector import Error
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from datetime import date,datetime, timedelta
-import jwt
-from sqlalchemy.orm import Session
-
-
-
-# from fapi.db.models import VendorResponse
-
-
-from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity,employee, request_demo, unsubscribe, user_dashboard
-from fastapi import Query, Path
-from fapi.db.database import db_config
-from fastapi import FastAPI, Query, Path
-from fapi.utils.resources_utils import course_content as get_course_content_data
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
+from fastapi.security import OAuth2PasswordBearer
 from fapi.db.database import SessionLocal
+from fapi.auth import JWTAuthorizationMiddleware
 
+from fapi.api.routes import (
+    candidate, leads, google_auth, talent_search, user_role,
+    contact, login, register, resources, vendor_contact,
+    vendor, vendor_activity, request_demo, unsubscribe,
+    user_dashboard, password,employee
+)
+from fapi.core.config import limiter  
 
 app = FastAPI()
 
@@ -60,6 +30,7 @@ app.include_router(employee.router, prefix="/api", tags=["Employee"])
 
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
+app.include_router(password.router, prefix="/api", tags=["password"])
 app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api", tags=["Resources"])
@@ -76,7 +47,7 @@ def get_db():
     finally:
         db.close()
 
-router = APIRouter()
+# router = APIRouter()
 
 # Add CORS middleware
 app.add_middleware(
@@ -91,42 +62,3 @@ app.add_middleware(
 
 # OAuth2PasswordBearer instance
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-
-# # -----------------------------------------------------------------------------------------------------
-
-
-# Token verification endpoint
-@app.post("/api/verify_token")
-async def verify_token_endpoint(token: Token):
-    try:
-        payload = verify_token(token.access_token)
-        return payload
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-
-@app.post("/api/forget-password")
-async def forget_password(request: ResetPasswordRequest):
-    user = await get_user_by_username(request.email)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    token = create_reset_token(user["uname"])
-    await send_reset_password_email(user["uname"], token)
-    return JSONResponse(content={"message": "Password reset link has been sent to your email", "token": token})
-
-
-
-@app.post("/api/reset-password")
-async def reset_password(data: ResetPassword):
-    email = verify_reset_token(data.token)
-    if email is None:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
-    await update_user_password(email, data.new_password)
-    return {"message": "Password updated successfully"}
-

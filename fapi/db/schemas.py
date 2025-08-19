@@ -19,6 +19,11 @@ class Token(BaseModel):
     token_type: str
     team: str
 
+class TokenRequest(BaseModel):
+    access_token: str
+    # token_type: str
+
+
 
 class UserRegistration(BaseModel):
     uname: EmailStr
@@ -556,7 +561,6 @@ class Session(SessionBase):
     }
 
 
-
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
@@ -593,3 +597,12 @@ class Employee(EmployeeBase):
 
     class Config:
         from_attributes = True
+        
+# --------------------------------------------Password----------------------------
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr   # ensures a valid email is provided
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
+
