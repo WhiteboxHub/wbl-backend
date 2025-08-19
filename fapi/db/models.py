@@ -46,7 +46,7 @@ class AuthUserORM(Base):
     googleId = Column(String(255))
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
-    # role = Column(String(100))
+    role = Column(String(100))
     visa_status = Column(String(50))
     # experience = Column(String(100))
     # education = Column(String(255))
