@@ -1,7 +1,14 @@
 # fapi/api/routes/candidate.py
-from fastapi import APIRouter, Query, Path, HTTPException
+from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate 
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate, CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate
+from sqlalchemy.orm import Session
+from fapi.db.database import get_db
+from fapi.db.models import CandidateInterview
+from typing import List
+
+
+
 
 router = APIRouter()
 
@@ -78,3 +85,43 @@ def update_existing_placement(placement_id: int, placement: CandidatePlacementCr
 @router.delete("/candidate/placements/{placement_id}")
 def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
+
+
+# -------------------Candidate_interview -------------------
+
+@router.post("/", response_model=CandidateInterviewOut)
+def create_interview(interview: CandidateInterviewCreate, db: Session = Depends(get_db)):
+    return candidate_utils.create_candidate_interview(db, interview)
+
+
+@router.get("/interviews", response_model=list[CandidateInterviewOut])
+def list_interviews(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, le=1000),
+    db: Session = Depends(get_db),
+):
+    return db.query(CandidateInterview).offset(skip).limit(limit).all()
+
+
+@router.get("/{interview_id}", response_model=CandidateInterviewOut)
+def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
+    db_obj = candidate_utils.get_candidate_interview(db, interview_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return db_obj
+
+
+@router.put("/{interview_id}", response_model=CandidateInterviewOut)
+def update_interview(interview_id: int, updates: CandidateInterviewUpdate, db: Session = Depends(get_db)):
+    db_obj = candidate_utils.update_candidate_interview(db, interview_id, updates)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return db_obj
+
+@router.delete("/{interview_id}")
+def delete_interview(interview_id: int, db: Session = Depends(get_db)):
+    db_obj = candidate_utils.delete_candidate_interview(db, interview_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    return {"detail": "Interview deleted successfully"}
+
