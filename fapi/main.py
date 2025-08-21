@@ -42,6 +42,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from fapi.core.config import SECRET_KEY, ALGORITHM, limiter
 from fapi.db.database import SessionLocal
+from fapi.api.routes import course, subject, course_subject
 
 
 app = FastAPI()
@@ -65,7 +66,9 @@ app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
-
+app.include_router(course.router, prefix="/courses", tags=["courses"])
+app.include_router(subject.router, prefix="/subjects", tags=["subjects"])
+app.include_router(course_subject.router, prefix="/course-subjects", tags=["course-subjects"])
 
 
 def get_db():

@@ -576,8 +576,11 @@ class CourseSubjectBase(BaseModel):
 class CourseSubjectCreate(CourseSubjectBase):
     pass
 
+class CourseSubjectUpdate(BaseModel):
+    lastmoddatetime: Optional[datetime] = None
+
 class CourseSubject(CourseSubjectBase):
-    id: int
+    lastmoddatetime: datetime 
 
     model_config = {
         "from_attributes": True  # Enables ORM mode in Pydantic v2
