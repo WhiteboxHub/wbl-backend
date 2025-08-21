@@ -4,7 +4,7 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field,validator
 from typing import Optional, List, Literal,Dict,Any
 from enum import Enum
-
+from pydantic import field_validator
 
 
 
@@ -17,7 +17,12 @@ from enum import Enum
 class Token(BaseModel):
     access_token: str
     token_type: str
-    team: str
+    team: Optional[str] = None
+
+class TokenRequest(BaseModel):
+    access_token: str
+    # token_type: str
+
 
 
 class UserRegistration(BaseModel):
@@ -173,7 +178,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 
@@ -299,7 +304,7 @@ class Vendor(VendorBase):
     created_at: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -340,7 +345,7 @@ class DailyVendorActivity(BaseModel):
     created_at: Optional[datetime]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class DailyVendorActivityCreate(BaseModel):
@@ -421,15 +426,16 @@ class UnsubscribeResponse(BaseModel):
 # -----------------------------------user_dashboard--------------------------------
 
 class UserOut(BaseModel):
-    email: EmailStr         # uname is email
-    name: str               # fullname field mapped to name
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 # ===============================Resources==============================
+
 
 class CourseBase(BaseModel):
     name: str
@@ -442,7 +448,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -455,7 +461,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -469,7 +475,7 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class BatchBase(BaseModel):
@@ -483,7 +489,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -505,7 +511,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBatchBase(BaseModel):
@@ -519,8 +525,10 @@ class RecordingBatch(RecordingBatchBase):
     id: int
       
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
+
+
 
 
 
@@ -529,17 +537,12 @@ class CourseContentCreate(BaseModel):
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
-
 class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
-
-
-    # ===============================
-
 
 
 class CourseBase(BaseModel):
@@ -553,7 +556,9 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+
+        "from_attributes": True 
+
     }
 
 class SubjectBase(BaseModel):
@@ -566,7 +571,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -580,7 +585,9 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+
+        "from_attributes": True 
+
     }
 
 class BatchBase(BaseModel):
@@ -594,7 +601,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -616,7 +623,9 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+
+        "from_attributes": True 
+
     }
 
 class RecordingBatchBase(BaseModel):
@@ -653,6 +662,7 @@ class Session(SessionBase):
     model_config = {
         "from_attributes": True  # Enables ORM mode in Pydantic v2
     }
+
 
 #-----------------------------Avatar Dashboard schemas----------------------------------------------------
 class BatchMetrics(BaseModel):
@@ -695,3 +705,52 @@ class UpcomingBatch(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+
+# =====================================employee========================
+class EmployeeBase(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(EmployeeBase):
+    id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+
+class Employee(EmployeeBase):
+    id: int
+
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_invalid_dates(cls, v):
+        if isinstance(v, str) and v.startswith("0000-00-00"):
+            return None
+        return v
+
+    class Config:
+        from_attributes = True
+
+# --------------------------------------------Password----------------------------
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr   # ensures a valid email is provided
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
+
+

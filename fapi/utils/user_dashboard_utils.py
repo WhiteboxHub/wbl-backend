@@ -3,17 +3,11 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import ExpiredSignatureError, JWTError
 from fapi.utils.token_utils import verify_token
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.utils.user_utils import get_user_by_username
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def get_current_user(
     db: Session = Depends(get_db), 

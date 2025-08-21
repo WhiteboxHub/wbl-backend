@@ -78,3 +78,4 @@ def update_existing_placement(placement_id: int, placement: CandidatePlacementCr
 @router.delete("/candidate/placements/{placement_id}")
 def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
+
