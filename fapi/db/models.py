@@ -430,3 +430,19 @@ class Session(Base):
     subject_id = Column(Integer, ForeignKey("subject.id"))
     subject = relationship("Subject", back_populates="sessions")
 
+
+class CandidateInterview(Base):
+    __tablename__ = "candidate_interview"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_new_id = Column(Integer, nullable=False)
+    company = Column(String(200), nullable=False)
+    interviewer_emails = Column(Text, nullable=True)
+    interview_phones = Column(Text, nullable=True)
+    interview_date = Column(Date, nullable=False)
+    interview_type = Column(Enum("Phone", "Virtual", "In Person", "Assessment"), nullable=True)
+    recording_link = Column(String(500), nullable=True)
+    status = Column(Enum("scheduled", "cancelled"), nullable=False)
+    feedback = Column(Enum("Negative", "Positive", "No Response"), nullable=True)
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
