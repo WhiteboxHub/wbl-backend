@@ -17,7 +17,7 @@ from pydantic import field_validator
 class Token(BaseModel):
     access_token: str
     token_type: str
-    team: str
+    team: Optional[str] = None
 
 class TokenRequest(BaseModel):
     access_token: str
@@ -178,7 +178,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 
@@ -304,7 +304,7 @@ class Vendor(VendorBase):
     created_at: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -345,7 +345,7 @@ class DailyVendorActivity(BaseModel):
     created_at: Optional[datetime]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class DailyVendorActivityCreate(BaseModel):
@@ -435,17 +435,6 @@ class UserOut(BaseModel):
     }
 
 # ===============================Resources==============================
-class CourseContentCreate(BaseModel):
-    Fundamentals: Optional[str] = None
-    AIML: str
-    UI: Optional[str] = None
-    QE: Optional[str] = None
-class CourseContentResponse(CourseContentCreate):
-    id: int
-
-    model_config = {
-        "from_attributes": True  
-    }
 
 
 class CourseBase(BaseModel):
@@ -459,7 +448,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True 
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -486,7 +475,7 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True 
+        "from_attributes": True  
     }
 
 class BatchBase(BaseModel):
@@ -522,7 +511,121 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
+        "from_attributes": True  
+    }
+
+class RecordingBatchBase(BaseModel):
+    recording_id: int
+    batch_id: int
+
+class RecordingBatchCreate(RecordingBatchBase):
+    pass
+
+class RecordingBatch(RecordingBatchBase):
+    id: int
+      
+    model_config = {
+        "from_attributes": True  
+    }
+
+
+
+
+
+class CourseContentCreate(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+class CourseContentResponse(CourseContentCreate):
+    id: int
+
+    model_config = {
+        "from_attributes": True  
+    }
+
+
+class CourseBase(BaseModel):
+    name: str
+    alias: str
+
+class CourseCreate(CourseBase):
+    pass
+
+class Course(CourseBase):
+    id: int
+
+    model_config = {
+
         "from_attributes": True 
+
+    }
+
+class SubjectBase(BaseModel):
+    name: str
+
+class SubjectCreate(SubjectBase):
+    pass
+
+class Subject(SubjectBase):
+    id: int
+
+    model_config = {
+        "from_attributes": True  
+    }
+
+class CourseSubjectBase(BaseModel):
+    course_id: int
+    subject_id: int
+
+class CourseSubjectCreate(CourseSubjectBase):
+    pass
+
+class CourseSubject(CourseSubjectBase):
+    id: int
+
+    model_config = {
+
+        "from_attributes": True 
+
+    }
+
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+
+class BatchCreate(BatchBase):
+    pass
+
+class Batch(BatchBase):
+    batchid: int
+
+    model_config = {
+        "from_attributes": True  
+    }
+
+class RecordingBase(BaseModel):
+    batchname: str
+    description: Optional[str] = None
+    type: Optional[str] = None
+    classdate: Optional[datetime] = None
+    link: Optional[str] = None
+    videoid: Optional[str] = None
+    subject: Optional[str] = None
+    filename: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
+    new_subject_id: Optional[int] = None
+
+class RecordingCreate(RecordingBase):
+    pass
+
+class Recording(RecordingBase):
+    id: int
+
+    model_config = {
+
+        "from_attributes": True 
+
     }
 
 class RecordingBatchBase(BaseModel):

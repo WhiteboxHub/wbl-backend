@@ -94,13 +94,44 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
     )
     return {"recordings": recordings}
 
+# def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str):
+#     if not course_id or not session_type:
+#         return []
+
+#     allowed_types = [
+#         "Resume Session", "Job Help", "Interview Prep",
+#         "Individual Mock", "Group Mock", "Misc","Internal Sessions"
+#     ]
+
+#     if team not in ["admin", "instructor"] and session_type not in allowed_types:
+#         return []
+
+#     query = (
+#         select(SessionORM)
+#         .join(CourseSubject, SessionORM.subject_id == CourseSubject.subject_id)
+#         .where(
+#             SessionORM.subject_id != 0,
+#             CourseSubject.course_id == course_id,
+#             SessionORM.type == session_type,
+#             or_(
+#                 CourseSubject.course_id != 3,
+#                 SessionORM.sessiondate >= "2024-01-01"
+#             )
+#         )
+#         .order_by(SessionORM.sessiondate.desc())
+#     )
+
+#     result = db.execute(query)
+#     return result.scalars().all()
+
+
 def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str):
     if not course_id or not session_type:
         return []
 
     allowed_types = [
         "Resume Session", "Job Help", "Interview Prep",
-        "Individual Mock", "Group Mock", "Misc"
+        "Individual Mock", "Group Mock", "Misc", "Internal Sessions"
     ]
 
     if team not in ["admin", "instructor"] and session_type not in allowed_types:
@@ -124,20 +155,41 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
     result = db.execute(query)
     return result.scalars().all()
 
+
+
+# def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
+#     if team in ["admin", "instructor"]:
+#         result = db.execute(select(SessionORM.type).distinct().order_by(SessionORM.type))
+#     else:
+#         allowed_types = [
+#             "Resume Session", "Job Help", "Interview Prep",
+#             "Individual Mock", "Group Mock", "Misc","Internal Sessions"
+#         ]
+#         result = db.execute(
+#             select(SessionORM.type).distinct()
+#             .where(SessionORM.type.in_(allowed_types))
+#             .order_by(SessionORM.type)
+#         )
+#     return [row[0] for row in result.fetchall()]
 def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
     if team in ["admin", "instructor"]:
         result = db.execute(select(SessionORM.type).distinct().order_by(SessionORM.type))
     else:
         allowed_types = [
             "Resume Session", "Job Help", "Interview Prep",
-            "Individual Mock", "Group Mock", "Misc"
+            "Individual Mock", "Group Mock", "Misc", "Internal Session"
         ]
         result = db.execute(
             select(SessionORM.type).distinct()
             .where(SessionORM.type.in_(allowed_types))
             .order_by(SessionORM.type)
         )
-    return [row[0] for row in result.fetchall()]
+
+    session_types = [row[0] for row in result.fetchall()]
+
+    # normalize: replace "Internal Session" → "Internal Sessions"
+    return ["Internal Sessions" if t == "Internal Session" else t for t in session_types]
+
 
 def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
     course = "ML"  
