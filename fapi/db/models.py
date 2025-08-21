@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -381,14 +381,32 @@ class CourseSubject(Base):
     course = relationship("Course", back_populates="subjects")
     subject = relationship("Subject", back_populates="course_subjects")
 
+    # --------------------------------------------------------
+
+# class Batch(Base):
+#     __tablename__ = "batch"
+#     batchid = Column(Integer, primary_key=True, index=True)
+#     batchname = Column(String(255))
+#     courseid = Column(Integer, ForeignKey("course.id"))
+#     course = relationship("Course", back_populates="batches")
+#     recording_batches = relationship("RecordingBatch", back_populates="batch")
+
 class Batch(Base):
     __tablename__ = "batch"
-    batchid = Column(Integer, primary_key=True, index=True)
-    batchname = Column(String(255))
-    courseid = Column(Integer, ForeignKey("course.id"))
 
+    batchid = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    batchname = Column(String(100), nullable=False)
+    orientationdate = Column(Date, nullable=True)
+    subject = Column(String(45), nullable=False, default="ML")
+    startdate = Column(Date, nullable=True)
+    enddate = Column(Date, nullable=True)
+    lastmoddatetime = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+
+    courseid = Column(Integer, ForeignKey("course.id"), nullable=True)
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+
 
 class Recording(Base):
     __tablename__ = "recording"

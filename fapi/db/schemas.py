@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, EmailStr, Field,validator
+from pydantic import BaseModel, EmailStr, field_validator, validator
 from typing import Optional, List, Literal
 from enum import Enum
 
@@ -17,7 +17,7 @@ from enum import Enum
 class Token(BaseModel):
     access_token: str
     token_type: str
-    team: str
+    team: Optional[str] = None
 
 class TokenRequest(BaseModel):
     access_token: str
@@ -474,22 +474,61 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
+# ----------------------------------batch-------------
+# class BatchBase(BaseModel):
+#     batchname: str
+#     courseid: int
+
+# class BatchCreate(BatchBase):
+#     pass
+
+# class Batch(BatchBase):
+#     batchid: int
+
+#     model_config = {
+#         "from_attributes": True  
+#     }
+
 
 class BatchBase(BaseModel):
     batchname: str
-    courseid: int
+    orientationdate: Optional[date] = None
+    subject: Optional[str] = "ML"
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    courseid: Optional[int] = None
 
 class BatchCreate(BatchBase):
     pass
 
-class Batch(BatchBase):
-    batchid: int
+class BatchUpdate(BatchBase):
+    pass
 
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
+# class BatchOut(BatchBase):
+#     batchid: int
+#     lastmoddatetime: Optional[datetime]
+
+#     class Config:
+#         orm_mode = True
+
+
+class BatchOut(BatchBase):
+    batchid: int
+    lastmoddatetime: Optional[datetime]
+
+    @field_validator("lastmoddatetime", mode="before")
+    def handle_invalid_datetime(cls, v):
+        if v in (None, "0000-00-00 00:00:00"):
+            return None
+        return v
+
+    class Config:
+        orm_mode = True
+
+        # -----------------------------------------------------------
+
 
 class RecordingBase(BaseModel):
     batchname: str
