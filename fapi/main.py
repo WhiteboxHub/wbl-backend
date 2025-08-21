@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 
 from fapi.db.database import Base, engine
-from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe, user_dashboard
+from fapi.api.routes import candidate, leads, google_auth, talent_search, user_role,  contact, login, register,resources, vendor_contact ,vendor, vendor_activity, request_demo, unsubscribe, user_dashboard,dashboard
 from fastapi import Query, Path
 from fapi.db.database import db_config
 from fastapi import FastAPI, Query, Path
@@ -65,7 +65,7 @@ app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
-
+app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 
 
 def get_db():
@@ -81,7 +81,7 @@ router = APIRouter()
 app.add_middleware(
     CORSMiddleware,
 
-    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000"],  # Adjust this list to include your frontend URL
+    allow_origins=["https://whitebox-learning.com", "https://www.whitebox-learning.com", "http://whitebox-learning.com", "http://www.whitebox-learning.com","http://localhost:3000","http://localhost:8000"],
 
     allow_credentials=True,
     allow_methods=["*"],

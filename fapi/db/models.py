@@ -48,10 +48,10 @@ class AuthUserORM(Base):
     token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
-    experience = Column(String(100))
-    education = Column(String(255))
-    referby = Column(String(100))
-    specialization = Column(String(255))
+    # experience = Column(String(100))
+    # education = Column(String(255))
+    # referby = Column(String(100))
+    # specialization = Column(String(255))
     notes = Column(Text)
 
 
@@ -233,6 +233,11 @@ class CandidateORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
+    interviews = relationship(
+        "CandidateInterview", 
+        back_populates="candidate",
+        foreign_keys="[CandidateInterview.candidate_new_id]"
+    )
 
 # --------------------------------------Candidate_Marketing-------------------------------
 
@@ -242,13 +247,26 @@ class CandidateMarketingORM(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     candidate_id = Column(Integer)
-    primary_instructor_id = Column(Integer)
-    sec_instructor_id = Column(Integer)
+    #primary_instructor_id = Column(Integer)
+    #sec_instructor_id = Column(Integer)
     marketing_manager = Column(Integer)
     start_date = Column(Date, nullable=False)
     notes = Column(Text, nullable=True)
     status = Column(Enum('active', 'break', 'not responding'), nullable=False)
     last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+#--------------------------------Candidate interview--------------------------------
+class CandidateInterview(Base):
+    __tablename__ = "candidate_interview"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_new_id = Column(Integer, ForeignKey("candidate.id"))
+    company = Column(String(200))
+    interview_date = Column(DateTime, nullable=False)
+    feedback = Column(String(50))  # Positive, Negative, No Response
+    notes = Column(Text)
+    
+    candidate = relationship("CandidateORM", back_populates="interviews")
 
 
 # --------------------------------------Candidate_Placement-------------------------------
@@ -257,8 +275,8 @@ class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id = Column(Integer, ForeignKey("candidate.candidateid", ondelete="CASCADE"), nullable=False)
-    candidate_id = Column(Integer)
+    candidate_id = Column(Integer, ForeignKey("candidateid", ondelete="CASCADE"), nullable=False)
+    #candidate_id = Column(Integer)
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)
@@ -386,6 +404,11 @@ class Batch(Base):
     batchid = Column(Integer, primary_key=True, index=True)
     batchname = Column(String(255))
     courseid = Column(Integer, ForeignKey("course.id"))
+    startdate = Column(Date)  
+    enddate = Column(Date)    
+    orientationdate = Column(Date, nullable=True) 
+    subject = Column(String(255), nullable=True)  
+    lastmoddatetime = Column(DateTime, nullable=True)
 
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
