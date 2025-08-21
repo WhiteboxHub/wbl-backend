@@ -9,10 +9,8 @@ from pydantic import field_validator
 
 
 
+
 # Base = declarative_base()
-
-
-
 
 class Token(BaseModel):
     access_token: str
@@ -72,7 +70,8 @@ class LeadBase(BaseModel):
     last_modified: Optional[datetime] = None
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
-    # moved_to_candidate: Optional[bool] = None
+
+    moved_to_candidate: Optional[bool] = None
 
 
 class LeadCreate(LeadBase):
@@ -88,6 +87,7 @@ class LeadSchema(LeadBase):
 
 
 class CandidateBase(BaseModel):
+    id:int
     full_name: Optional[str]
     enrolled_date: Optional[date]
     email: Optional[str]
@@ -660,9 +660,8 @@ class Session(SessionBase):
     sessionid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
-
 
 
 # =====================================employee========================
@@ -701,7 +700,7 @@ class Employee(EmployeeBase):
 
     class Config:
         from_attributes = True
-
+        
 # --------------------------------------------Password----------------------------
 class ResetPasswordRequest(BaseModel):
     email: EmailStr   # ensures a valid email is provided

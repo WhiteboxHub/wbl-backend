@@ -142,7 +142,9 @@ def get_recordings(
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    recordings = fetch_subject_batch_recording(course, batchid, db, search)
+  
+    recordings = fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
+    
 
     if not recordings.get("batch_recordings"):
         msg = f"No recordings found for course '{course}'"
@@ -163,3 +165,5 @@ def get_batches(
     db: Session = Depends(get_db)
 ):
     return fetch_course_batches(course, db)
+
+

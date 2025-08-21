@@ -2,10 +2,10 @@
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.security import OAuth2PasswordBearer
 from fapi.db.database import SessionLocal
 from fapi.auth import JWTAuthorizationMiddleware
-
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
