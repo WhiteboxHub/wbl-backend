@@ -386,7 +386,7 @@ class Batch(Base):
     batchid = Column(Integer, primary_key=True, index=True)
     batchname = Column(String(255))
     courseid = Column(Integer, ForeignKey("course.id"))
-
+    subject = Column(String(255))
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
 

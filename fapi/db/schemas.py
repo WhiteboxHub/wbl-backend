@@ -70,7 +70,8 @@ class LeadBase(BaseModel):
     last_modified: Optional[datetime] = None
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
-    # moved_to_candidate: Optional[bool] = None
+
+    moved_to_candidate: Optional[bool] = None
 
 
 class LeadCreate(LeadBase):
@@ -556,7 +557,7 @@ class Session(SessionBase):
     sessionid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 

@@ -189,83 +189,83 @@ async def course_content(session: AsyncSession):
 
 
 
-def get_recordings_and_sessions(db, search='', course=''):
-    try:
-        search_pattern = f"%{search.lower()}%"
-        query = db.query(Recording).filter(Recording.description.ilike(search_pattern))
-
-        recordings = query.all()
-        recordings = query.order_by(Recording.classdate.desc()).all()
-        
-        return recordings
-
-    except Exception as e:
-        return {"error": str(e)}
 
 
+def fetch_subject_batch_recording(
+    course: str,
+    db: Session,
+    batchid: Optional[int] = None,
+    search: Optional[str] = None
+):
+    """
+    Fetch recordings for a given course, with optional batch filter and search term.
+    """
 
-def fetch_subject_batch_recording(course: str, batchid: Optional[int], db: Session, search: Optional[str] = None):
-    
+  
     course_obj = db.execute(
         select(Course).where(Course.alias == course)
     ).scalar_one_or_none()
+
     if not course_obj:
+        print(f"[DEBUG] Course '{course}' not found in DB")
         raise HTTPException(status_code=404, detail=f"Course '{course}' not found")
 
-    query = (
-        select(Recording)
-        .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
-        .join(Batch, RecordingBatch.batch_id == Batch.batchid)
-        .join(Subject, Recording.new_subject_id == Subject.id, isouter=True)  
-        .join(CourseSubject, CourseSubject.subject_id == Subject.id, isouter=True)
-        .where(Batch.courseid == course_obj.id)   
-    )
 
-    if batchid:
-        query = query.where(Batch.batchid == batchid)
-
-    
-    query = query.where(
-        or_(
-            CourseSubject.course_id == course_obj.id,  
-            Recording.new_subject_id == None           
+    query = (db.query(
+                Recording,
+                Batch.batchname,
+                Course.name.label("course_name")
+            )
+            .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+            .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+            
+            .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
+            .join(Course, Course.id == CourseSubject.course_id)
+            .filter(Course.alias == course)
+            .filter(Batch.batchid == batchid if batchid is not None else True)        
+            .filter(Recording.new_subject_id == CourseSubject.subject_id)
+            .order_by(Recording.classdate.desc())
         )
-    )
 
+
+   
     if search:
         like_str = f"%{search}%"
-        query = query.where(
+        print(f"[DEBUG] Applying search filter: {like_str}")
+        query = (db.query(
+        Recording,
+        Batch.batchname,
+        Course.name.label("course_name")
+        ).join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+        .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+        .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
+        .join(Course, Course.id == CourseSubject.course_id)
+        .filter(Course.alias == course)
+        .filter(Batch.batchid == batchid if batchid is not None else True)
+        .filter(Recording.new_subject_id == CourseSubject.subject_id)
+        .filter(
             or_(
-                Recording.description.ilike(like_str),
-                Recording.filename.ilike(like_str),
-                Recording.subject.ilike(like_str)
-            )
-        )
+                Recording.description.ilike(f"%{search}%")
+            ) if search else True
+        ).order_by(Recording.classdate.desc()))
 
     query = query.order_by(Recording.classdate.desc())
 
     recordings = db.execute(query).scalars().all()
+
     return {"batch_recordings": recordings}
 
 
 
 def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
     try:
-        course_obj = db.execute(
-            select(Course).where(Course.alias == course)
-        ).scalar_one_or_none()
-
-        if not course_obj:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Course '{course}' not found"
-            )
+        
 
         stmt = (
-            select(Batch.batchname, Batch.batchid)
-            .where(Batch.courseid == course_obj.id)   # strict course filter
-            .order_by(Batch.batchname.desc())
-        )
+        select(Batch.batchname, Batch.batchid)
+        .where(Batch.subject == course)  
+        .order_by(Batch.batchname.desc())
+    )
 
         rows = db.execute(stmt).all()
 
