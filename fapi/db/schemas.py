@@ -4,15 +4,12 @@ from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, Field,validator
 from typing import Optional, List, Literal
 from enum import Enum
-from pydantic import field_validator
+
 
 
 
 
 # Base = declarative_base()
-
-
-
 
 class Token(BaseModel):
     access_token: str
@@ -88,6 +85,7 @@ class LeadSchema(LeadBase):
 
 
 class CandidateBase(BaseModel):
+    id:int
     full_name: Optional[str]
     enrolled_date: Optional[date]
     email: Optional[str]
@@ -559,51 +557,4 @@ class Session(SessionBase):
     model_config = {
         "from_attributes": True  # Enables ORM mode in Pydantic v2
     }
-
-
-
-# =====================================employee========================
-class EmployeeBase(BaseModel):
-    name: str
-    email: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    state: Optional[str] = None
-    dob: Optional[date] = None
-    startdate: Optional[date] = None
-    enddate: Optional[datetime] = None
-    notes: Optional[str] = None
-    status: Optional[int] = None
-    instructor: Optional[int] = None
-    aadhaar: Optional[str] = None
-
-class EmployeeCreate(EmployeeBase):
-    pass
-
-class EmployeeUpdate(EmployeeBase):
-    id: int
-    name: Optional[str] = None
-    email: Optional[str] = None
-
-
-
-class Employee(EmployeeBase):
-    id: int
-
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if isinstance(v, str) and v.startswith("0000-00-00"):
-            return None
-        return v
-
-    class Config:
-        from_attributes = True
-
-# --------------------------------------------Password----------------------------
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr   # ensures a valid email is provided
-
-class ResetPassword(BaseModel):
-    token: str
-    new_password: str
 
