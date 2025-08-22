@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,D
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, field_validator, validator
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Union
 from enum import Enum
 
 
@@ -56,6 +56,80 @@ class UserRegistration(BaseModel):
     specialization: Optional[str] = None
     notes: Optional[str] = None
   
+
+class AuthUserBase(BaseModel):
+    uname: Union[EmailStr, str] = None
+    fullname: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+    team: Optional[str] = None
+    role: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    notes: Optional[str] = None
+    visa_status: Optional[str] = None
+    googleId: Optional[str] = None
+
+
+    @validator("uname", pre=True)
+    def validate_uname(cls, v):
+        if not v:
+            return None
+        try:
+            return EmailStr.validate(v)
+        except Exception:
+            return v 
+
+class AuthUserCreate(AuthUserBase):
+    uname: EmailStr
+    passwd: str
+
+class AuthUserUpdate(AuthUserBase):
+    passwd: Optional[str] = None
+
+class AuthUserResponse(AuthUserBase):
+    id: int
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    lastmoddatetime: Optional[datetime] = None
+    demo: Optional[str] = "N"
+    enddate: Optional[date] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+
+
+    @validator(
+        "lastlogin",
+        "registereddate",
+        "level3date",
+        "lastmoddatetime",
+        "enddate",
+        "token_expiry",
+        pre=True,
+    )
+    def fix_invalid_datetime(cls, v):
+        if v in ("0000-00-00 00:00:00", "0000-00-00", None, ""):
+            return None
+        return v
+
+    class Config:
+        orm_mode = True
+
+class PaginatedUsers(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    users: List[AuthUserResponse]
+
+
+
+# ----------------------------------------------------------------------------------------
 
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -178,7 +252,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -220,7 +294,7 @@ class TalentSearch(BaseModel):
 
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -277,25 +351,6 @@ class VendorBase(BaseModel):
         return v
 
 
-# class VendorCreate(VendorBase):
-#     full_name: str
-#     phone_number: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     email: Optional[EmailStr] = None
-#     type: Optional[VendorTypeEnum] = None
-#     note: Optional[str] = None
-#     linkedin_id: Optional[str] = None
-#     company_name: Optional[str] = None
-#     location: Optional[str] = None
-#     city: Optional[str] = None
-#     postal_code: Optional[str] = None
-#     address: Optional[str] = None
-#     country: Optional[str] = None
-#     vendor_type: Optional[VendorTypeEnum] = None
-#     linkedin_connected: Optional[str] = "NO"
-#     intro_email_sent: Optional[str] = "NO"
-#     intro_call: Optional[str] = "NO"   
-
 
 
 class Vendor(VendorBase):
@@ -304,7 +359,7 @@ class Vendor(VendorBase):
     created_at: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -345,7 +400,7 @@ class DailyVendorActivity(BaseModel):
     created_at: Optional[datetime]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class DailyVendorActivityCreate(BaseModel):
@@ -378,28 +433,6 @@ class VendorResponse(BaseModel):
     message: str
     
     
-# class VendorCreate(VendorBase):
-#     full_name: str
-#     phone_number: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     email: Optional[EmailStr] = None
-#     type: Optional[VendorTypeEnum] = None
-#     note: Optional[str] = None
-#     linkedin_id: Optional[str] = None
-#     company_name: Optional[str] = None
-#     location: Optional[str] = None
-#     city: Optional[str] = None
-#     postal_code: Optional[str] = None
-#     address: Optional[str] = None
-#     country: Optional[str] = None
-#     vendor_type: Optional[VendorTypeEnum] = None
-#     linkedin_connected: Optional[str] = "NO"
-#     intro_email_sent: Optional[str] = "NO"
-#     intro_call: Optional[str] = "NO"
-
-
-# class VendorResponse(BaseModel):
-#     message: str
 
 
 
@@ -426,12 +459,12 @@ class UnsubscribeResponse(BaseModel):
 # -----------------------------------user_dashboard--------------------------------
 
 class UserOut(BaseModel):
-    email: EmailStr         # uname is email
-    name: str               # fullname field mapped to name
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 # ===============================Resources==============================
@@ -447,7 +480,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -460,7 +493,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -527,7 +560,7 @@ class BatchOut(BatchBase):
     class Config:
         orm_mode = True
 
-        # -----------------------------------------------------------
+# -----------------------------------------------------------
 
 
 class RecordingBase(BaseModel):
@@ -549,7 +582,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBatchBase(BaseModel):
@@ -563,7 +596,7 @@ class RecordingBatch(RecordingBatchBase):
     id: int
       
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -578,7 +611,7 @@ class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -597,7 +630,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -610,7 +643,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -624,7 +657,7 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class BatchBase(BaseModel):
@@ -638,7 +671,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -660,7 +693,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 class RecordingBatchBase(BaseModel):
@@ -674,7 +707,7 @@ class RecordingBatch(RecordingBatchBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -695,12 +728,12 @@ class Session(SessionBase):
     sessionid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 # --------------------------------------------Password----------------------------
 class ResetPasswordRequest(BaseModel):
-    email: EmailStr   # ensures a valid email is provided
+    email: EmailStr   
 
 class ResetPassword(BaseModel):
     token: str

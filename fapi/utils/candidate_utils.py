@@ -168,7 +168,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
         results = (
             db.query(
                 CandidatePlacementORM,
-                CandidateORM.full_name.label("candidate_name")  # fixed here
+                CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
             .order_by(CandidatePlacementORM.id.desc())

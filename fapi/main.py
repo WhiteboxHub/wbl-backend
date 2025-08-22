@@ -11,7 +11,7 @@ from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
     vendor, vendor_activity, request_demo, unsubscribe,
-    user_dashboard, password,batch,
+    user_dashboard, password,batch,authuser,
 )
 from fapi.core.config import limiter  
 
@@ -38,6 +38,7 @@ app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
 app.include_router(batch.router, prefix="/api", tags=["Batch"])
+app.include_router(authuser.router, prefix="/api", tags=["Authuser"])
 
 
 
