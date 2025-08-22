@@ -1,10 +1,11 @@
 # fapi/api/routes/candidate.py
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate
-from fapi.db.models import CandidateInterview
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut
+from fapi.db.models import CandidateInterview,CandidateStatus
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
+
 router = APIRouter()
 
 
@@ -39,6 +40,7 @@ def delete_candidate(candidate_id: int):
 
 
 # ------------------- Marketing -------------------
+
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
 def read_all_marketing(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return candidate_utils.get_all_marketing_records(page, limit)
@@ -120,3 +122,36 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
     return {"detail": "Interview deleted successfully"}
+
+
+# -------------------Candidate_Preparation -------------------
+
+
+@router.post("/candidate_preparation", response_model=CandidatePreparationOut)
+def create_prep(prep: CandidatePreparationCreate, db: Session = Depends(get_db)):
+    return candidate_utils.create_candidate_preparation(db, prep)
+
+@router.get("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
+def get_prep(prep_id: int, db: Session = Depends(get_db)):
+    prep = candidate_utils.get_candidate_preparation(db, prep_id)
+    if not prep:
+        raise HTTPException(status_code=404, detail="Candidate preparation not found")
+    return prep
+
+@router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
+def list_preps(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return candidate_utils.get_all_preparations(db, skip, limit)
+
+@router.put("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
+def update_prep(prep_id: int, updates: CandidatePreparationUpdate, db: Session = Depends(get_db)):
+    updated = candidate_utils.update_candidate_preparation(db, prep_id, updates)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Candidate preparation not found")
+    return updated
+
+@router.delete("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
+def delete_prep(prep_id: int, db: Session = Depends(get_db)):
+    deleted = candidate_utils.delete_candidate_preparation(db, prep_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Candidate preparation not found")
+    return deleted
