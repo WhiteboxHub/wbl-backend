@@ -205,7 +205,7 @@ class VendorTypeEnum(str, Enum):
 # -------------------- VendorContactExtract Schemas --------------------
 class VendorContactExtract(BaseModel):
     id: int
-    full_name: str
+    full_name: Optional[str] =None
     source_email: Optional[EmailStr] = None
     email: Optional[str] = None
     phone: Optional[str] = None
