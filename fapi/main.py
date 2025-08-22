@@ -2,16 +2,15 @@
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
 
+from fastapi.security import OAuth2PasswordBearer
 from fapi.db.database import SessionLocal
 from fapi.auth import JWTAuthorizationMiddleware
-
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
     vendor, vendor_activity, request_demo, unsubscribe,
-    user_dashboard, password,
+    user_dashboard, password,employee
 )
 from fapi.core.config import limiter  
 
@@ -27,6 +26,7 @@ app.include_router(google_auth.router, prefix="/api", tags=["Google Authenticati
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
 app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
+app.include_router(employee.router, prefix="/api", tags=["Employee"])
 
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
