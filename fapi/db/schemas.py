@@ -508,51 +508,138 @@ class CourseContentResponse(CourseContentCreate):
     }
 
 
-class CourseBase(BaseModel):
+
+    # ===============================
+    
+# Course Schemas 
+class CourseResponse(BaseModel):
+    id: int
     name: str
     alias: str
-
-class CourseCreate(CourseBase):
-    pass
-
-class Course(CourseBase):
-    id: int
+    description: Optional[str] = None
+    syllabus: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
-
-        "from_attributes": True 
-
+        "from_attributes": True
     }
 
-class SubjectBase(BaseModel):
+class CourseCreate(BaseModel):
     name: str
+    alias: str
+    description: Optional[str] = None
+    syllabus: Optional[str] = None
 
-class SubjectCreate(SubjectBase):
-    pass
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    alias: Optional[str] = None
+    description: Optional[str] = None
+    syllabus: Optional[str] = None    
 
-class Subject(SubjectBase):
+# Subject Schemas 
+class SubjectResponse(BaseModel):
     id: int
+    name: str
+    description: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  
+        "from_attributes": True
     }
 
-class CourseSubjectBase(BaseModel):
+class SubjectCreate(BaseModel):
+    name: str
+    description: str
+
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    
+# CourseSubject Schemas 
+class CourseSubjectResponse(BaseModel):
+    subject_id: int
+    course_id: int
+    lastmoddatetime: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+
+    }
+
+class CourseSubjectCreate(BaseModel):
+    subject_id: int
+    course_id: int
+    
+class CourseSubjectUpdate(BaseModel):
     course_id: int
     subject_id: int
+    lastmoddatetime: Optional[datetime] = None
+    
+#coursecontent    
+class CourseContentBase(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
 
-class CourseSubjectCreate(CourseSubjectBase):
+class CourseContentCreate(CourseContentBase):
     pass
 
-class CourseSubject(CourseSubjectBase):
+class CourseContentUpdate(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: Optional[str] = None
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+
+class CourseContentResponse(BaseModel):
     id: int
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
 
     model_config = {
+        "from_attributes": True
 
-        "from_attributes": True 
+
 
     }
+#coursematerial    
+class CourseMaterialBase(BaseModel):
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str = 'P'
+    link: str
+    sortorder: int = Field(default=9999)
 
+class CourseMaterialCreate(CourseMaterialBase):
+    pass
+
+class CourseMaterialUpdate(BaseModel):
+    subjectid: Optional[int] = None
+    courseid: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    type: Optional[str] = None
+    link: Optional[str] = None
+    sortorder: Optional[int] = None
+
+class CourseMaterialResponse(BaseModel):
+    id: int
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str
+    link: str
+    sortorder: int  
+
+    model_config = {
+        "from_attributes": True
+    }
+  
 class BatchBase(BaseModel):
     batchname: str
     courseid: int
