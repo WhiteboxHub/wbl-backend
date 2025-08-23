@@ -29,7 +29,7 @@ def create_course_subject(db: Session, course_subject: schemas.CourseSubjectCrea
     db_course_subject = models.CourseSubject(
         course_id=course_subject.course_id,
         subject_id=course_subject.subject_id,
-        lastmoddatetime=datetime.now()
+
     )
     db.add(db_course_subject)
     db.commit()
@@ -40,7 +40,7 @@ def update_course_subject(
     db: Session, 
     course_id: int, 
     subject_id: int, 
-    course_subject_update: schemas.CourseSubjectUpdate
+    course_subject_update: schemas.CourseSubjectUpdate  
 ) -> models.CourseSubject:
     """
     Update a course-subject relationship's lastmoddatetime.
@@ -80,3 +80,4 @@ def delete_course_subject(db: Session, course_id: int, subject_id: int) -> bool:
     db.delete(course_subject)
     db.commit()
     return True
+

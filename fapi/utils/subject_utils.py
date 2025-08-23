@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db import models
 from fapi.db import schemas
+from datetime import datetime  
 
 def get_all_subjects(db: Session) -> List[models.Subject]:
     """Get all subjects"""
@@ -17,19 +18,19 @@ def create_subject(db: Session, subject: schemas.SubjectCreate) -> models.Subjec
     if existing_subject:
         raise ValueError("Subject with this name already exists")
     
-    db_subject = models.Subject(**subject.model_dump())
+    db_subject = models.Subject(**subject.model_dump())  
     db.add(db_subject)
     db.commit()
     db.refresh(db_subject)
     return db_subject
 
-def update_subject(db: Session, subject_id: int, subject: schemas.SubjectCreate) -> models.Subject:
+def update_subject(db: Session, subject_id: int, subject: schemas.SubjectUpdate) -> models.Subject:
     """Update an existing subject"""
     db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if not db_subject:
         raise ValueError("Subject not found")
     
-    if subject.name != db_subject.name:
+    if subject.name and subject.name != db_subject.name:
         existing_name = db.query(models.Subject).filter(
             models.Subject.name == subject.name,
             models.Subject.id != subject_id
@@ -37,8 +38,10 @@ def update_subject(db: Session, subject_id: int, subject: schemas.SubjectCreate)
         if existing_name:
             raise ValueError("Another subject with this name already exists")
     
-    for field, value in subject.model_dump().items():
-        setattr(db_subject, field, value)
+    
+    for field, value in subject.model_dump(exclude_unset=True).items():
+        if value is not None:  
+            setattr(db_subject, field, value)
     
     db.commit()
     db.refresh(db_subject)

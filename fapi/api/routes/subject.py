@@ -8,19 +8,19 @@ from fapi.utils import subject_utils
 
 router = APIRouter()
 
-@router.get("/", response_model=List[schemas.Subject])
+@router.get("/", response_model=List[schemas.SubjectResponse]) 
 def get_subjects(db: Session = Depends(get_db)):
     subjects = subject_utils.get_all_subjects(db)
     return subjects
 
-@router.get("/{subject_id}", response_model=schemas.Subject)
+@router.get("/{subject_id}", response_model=schemas.SubjectResponse)
 def get_subject(subject_id: int, db: Session = Depends(get_db)):
     subject = subject_utils.get_subject_by_id(db, subject_id)
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
     return subject
 
-@router.post("/", response_model=schemas.Subject)
+@router.post("/", response_model=schemas.SubjectResponse) 
 def create_subject(subject: schemas.SubjectCreate, db: Session = Depends(get_db)):
     try:
         db_subject = subject_utils.create_subject(db, subject)
@@ -28,8 +28,8 @@ def create_subject(subject: schemas.SubjectCreate, db: Session = Depends(get_db)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-@router.put("/{subject_id}", response_model=schemas.Subject)
-def update_subject(subject_id: int, subject: schemas.SubjectCreate, db: Session = Depends(get_db)):
+@router.put("/{subject_id}", response_model=schemas.SubjectResponse)
+def update_subject(subject_id: int, subject: schemas.SubjectUpdate, db: Session = Depends(get_db)):
     try:
         db_subject = subject_utils.update_subject(db, subject_id, subject)
         return db_subject
@@ -42,5 +42,5 @@ def delete_subject(subject_id: int, db: Session = Depends(get_db)):
         subject_utils.delete_subject(db, subject_id)
         return {"status": "success", "message": "Subject deleted successfully"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))    
     
