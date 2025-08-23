@@ -5,14 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.security import OAuth2PasswordBearer
 from fapi.db.database import SessionLocal
+
 from fapi.auth import JWTAuthorizationMiddleware
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
     vendor, vendor_activity, request_demo, unsubscribe,
-    user_dashboard, password,employee
+    user_dashboard, password,employee,course, subject, course_subject, course_content , course_material,
 )
 from fapi.core.config import limiter  
+
 
 app = FastAPI()
 
@@ -37,7 +39,11 @@ app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
-
+app.include_router(course.router, prefix="/courses", tags=["courses"])
+app.include_router(subject.router, prefix="/subjects", tags=["subjects"])
+app.include_router(course_subject.router, prefix="/course-subjects", tags=["course-subjects"])
+app.include_router(course_content.router, prefix="/course-contents", tags=["course-contents"])
+app.include_router(course_material.router, prefix="/course-materials", tags=["course-materials"])
 
 
 def get_db():

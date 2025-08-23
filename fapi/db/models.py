@@ -48,7 +48,6 @@ class AuthUserORM(Base):
     token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
-
     notes = Column(Text)
 
 
@@ -340,20 +339,25 @@ class CourseMaterial(Base):
 
 class Course(Base):
     __tablename__ = "course"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     name = Column(String(255))
     alias = Column(String(100), unique=True)
+    description = Column(Text, nullable=True)  
+    syllabus = Column(Text, nullable=True)     
+    lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now) 
     subjects = relationship("CourseSubject", back_populates="course")
     batches = relationship("Batch", back_populates="course")
 
 class Subject(Base):
     __tablename__ = "subject"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     name = Column(String(255))
+    description = Column(String(300), nullable=False)  
+    lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now)  
     course_subjects = relationship("CourseSubject", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
-    recordings = relationship("Recording", back_populates="subject_rel")  # 
+    recordings = relationship("Recording", back_populates="subject_rel")  
 
 
 
@@ -362,7 +366,7 @@ class CourseSubject(Base):
     __tablename__ = "course_subject"
     subject_id = Column(Integer, ForeignKey("subject.id"), primary_key=True)
     course_id = Column(Integer, ForeignKey("course.id"), primary_key=True)
-    lastmoddatetime = Column(DateTime)
+    lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     course = relationship("Course", back_populates="subjects")
     subject = relationship("Subject", back_populates="course_subjects")
