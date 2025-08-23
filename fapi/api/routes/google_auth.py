@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from fapi.db.schemas import GoogleUserCreate
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
 from fapi.utils.google_auth_utils import get_google_user_by_email, insert_google_user_db
 from fapi.auth import create_google_access_token
@@ -9,14 +9,6 @@ from fapi.core.config import SECRET_KEY, ALGORITHM
 import jwt
 
 router = APIRouter()
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.post("/check_user/")
