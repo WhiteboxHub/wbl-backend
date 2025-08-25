@@ -48,10 +48,6 @@ class AuthUserORM(Base):
     token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
-    # experience = Column(String(100))
-    # education = Column(String(255))
-    # referby = Column(String(100))
-    # specialization = Column(String(255))
     notes = Column(Text)
 
 
@@ -246,15 +242,8 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer)
-    #primary_instructor_id = Column(Integer)
-    #sec_instructor_id = Column(Integer)
-    marketing_manager = Column(Integer)
-    start_date = Column(Date, nullable=False)
-    notes = Column(Text, nullable=True)
-    status = Column(Enum('active', 'break', 'not responding'), nullable=False)
-    last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    candidate_id = Column(Integer)
 #--------------------------------Candidate interview--------------------------------
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
@@ -268,15 +257,31 @@ class CandidateInterview(Base):
     
     candidate = relationship("CandidateORM", back_populates="interviews")
 
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
+    marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    start_date = Column(Date, nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(Enum("active", "break", "not responding"), nullable=False)
+    last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    instructor1_id = Column(Integer, nullable=True)
+    instructor2_id = Column(Integer, nullable=True)
+    instructor3_id = Column(Integer, nullable=True)
+    email = Column(String(100), nullable=True)
+    password = Column(String(100), nullable=True)
+    google_voice_number = Column(String(100), nullable=True)
+    rating = Column(Integer, nullable=True)
+    priority = Column(Integer, nullable=True)
 
+   
 # --------------------------------------Candidate_Placement-------------------------------
 
 class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+
     candidate_id = Column(Integer, ForeignKey("candidateid", ondelete="CASCADE"), nullable=False)
-    #candidate_id = Column(Integer)
+    candidate_id = Column(Integer)
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)
@@ -293,22 +298,6 @@ class CandidatePlacementORM(Base):
 # -------------------- Enums --------------------
 
 
-# -------------------- ORM: vendor_contact_extracts --------------------
-# class VendorContactExtractORM(Base):
-#     __tablename__ = "vendor_contact_extracts"
-
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     full_name = Column(String(255), nullable=False)
-#     source_email = Column(String(255), nullable=True)
-#     email = Column(String(255), nullable=True)
-#     phone = Column(String(50), nullable=True)
-#     linkedin_id = Column(String(255), nullable=True)
-#     company_name = Column(String(255), nullable=True)
-#     location = Column(String(255), nullable=True)
-#     extraction_date = Column(Date, nullable=True)
-#     moved_to_vendor = Column(Boolean, default=False)
-#     created_at = Column(DateTime)
-    
     
 class VendorContactExtractsORM(Base):
     __tablename__ = "vendor_contact_extracts"
@@ -372,20 +361,25 @@ class CourseMaterial(Base):
 
 class Course(Base):
     __tablename__ = "course"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     name = Column(String(255))
     alias = Column(String(100), unique=True)
+    description = Column(Text, nullable=True)  
+    syllabus = Column(Text, nullable=True)     
+    lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now) 
     subjects = relationship("CourseSubject", back_populates="course")
     batches = relationship("Batch", back_populates="course")
 
 class Subject(Base):
     __tablename__ = "subject"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     name = Column(String(255))
+    description = Column(String(300), nullable=False)  
+    lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now)  
     course_subjects = relationship("CourseSubject", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject")
     sessions = relationship("Session", back_populates="subject")
-    recordings = relationship("Recording", back_populates="subject_rel")  # 
+    recordings = relationship("Recording", back_populates="subject_rel")  
 
 
 
@@ -394,7 +388,7 @@ class CourseSubject(Base):
     __tablename__ = "course_subject"
     subject_id = Column(Integer, ForeignKey("subject.id"), primary_key=True)
     course_id = Column(Integer, ForeignKey("course.id"), primary_key=True)
-    lastmoddatetime = Column(DateTime)
+    lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     course = relationship("Course", back_populates="subjects")
     subject = relationship("Subject", back_populates="course_subjects")
@@ -404,11 +398,14 @@ class Batch(Base):
     batchid = Column(Integer, primary_key=True, index=True)
     batchname = Column(String(255))
     courseid = Column(Integer, ForeignKey("course.id"))
+
     startdate = Column(Date)  
     enddate = Column(Date)    
     orientationdate = Column(Date, nullable=True) 
     subject = Column(String(255), nullable=True)  
     lastmoddatetime = Column(DateTime, nullable=True)
+
+    subject = Column(String(255))
 
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
@@ -473,3 +470,63 @@ class EmployeeORM(Base):
     notes = Column(Text)
     status = Column(Integer)
     aadhaar = Column(String(50))  # changed to String, Aadhaar isn’t really an int
+
+
+
+class CandidateInterview(Base):
+    __tablename__ = "candidate_interview"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(Integer, nullable=False)   
+    candidate_name = Column(String(200), nullable=True)
+    company = Column(String(200), nullable=False)
+    interviewer_emails = Column(Text, nullable=True)
+    interviewer_contact = Column(Text, nullable=True)  
+    interview_date = Column(Date, nullable=False)
+
+    interview_type = Column(
+        Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
+        nullable=True
+    )
+
+    recording_link = Column(String(500), nullable=True)
+    status = Column(String(100), nullable=True)   
+
+    feedback = Column(
+        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
+        nullable=True
+    )
+
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class CandidateStatus(str, enum.Enum):
+    active = "active"
+    break_ = "break"
+    not_responding = "not responding"
+    inactive = "inactive"
+
+
+class CandidatePreparation(Base):
+    __tablename__ = "candidate_preparation"
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, nullable=False)
+    batch = Column(String(100), nullable=True)
+    start_date = Column(Date, nullable=True)
+    status = Column(Enum('active','break','not responding','inactive'), nullable=False)
+    instructor1_id = Column(Integer, nullable=True)
+    instructor2_id = Column(Integer, nullable=True)
+    instructor3_id = Column(Integer, nullable=True)
+    rating = Column(String(50), nullable=True)
+    tech_rating = Column(String(50), nullable=True)
+    communication = Column(String(50), nullable=True)
+    years_of_experience = Column(String(50), nullable=True)
+    topics_finished = Column(Text, nullable=True)
+    current_topics = Column(Text, nullable=True)
+    target_date_of_marketing = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(TIMESTAMP, nullable=True)

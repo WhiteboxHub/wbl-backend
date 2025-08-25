@@ -144,7 +144,9 @@ def get_recordings(
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    recordings = fetch_subject_batch_recording(course, batchid, db, search)
+  
+    recordings = fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
+    
 
     if not recordings.get("batch_recordings"):
         msg = f"No recordings found for course '{course}'"
@@ -167,6 +169,8 @@ def get_batches(
     return fetch_course_batches(course, db)
 
 
+
 @router.get("/batches/metrics", response_model=BatchMetrics)
 def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
     return get_batch_metrics(db)
+
