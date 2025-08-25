@@ -664,7 +664,7 @@ class Session(SessionBase):
     }
 
 
-#-----------------------------Avatar Dashboard schemas----------------------------------------------------
+# -----------------------------Avatar Dashboard schemas----------------------------------------------------
 class BatchMetrics(BaseModel):
     current_active_batches: int
     enrolled_candidates_current: int
@@ -673,10 +673,12 @@ class BatchMetrics(BaseModel):
     new_enrollments_month: int
     candidate_status_breakdown: Dict[str, int]
 
+
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
     fee_collected_month: float
     top_batches_fee: List[Dict[str, Any]]
+
 
 class PlacementMetrics(BaseModel):
     total_placements: int
@@ -685,6 +687,7 @@ class PlacementMetrics(BaseModel):
     last_placement: Optional[Dict[str, Any]]
     active_placements: int
 
+
 class InterviewMetrics(BaseModel):
     upcoming_interviews: int
     total_interviews: int
@@ -692,11 +695,13 @@ class InterviewMetrics(BaseModel):
     marketing_candidates: int
     feedback_breakdown: Dict[str, int]
 
+
 class DashboardMetrics(BaseModel):
     batch_metrics: BatchMetrics
     financial_metrics: FinancialMetrics
     placement_metrics: PlacementMetrics
     interview_metrics: InterviewMetrics
+
 
 class UpcomingBatch(BaseModel):
     name: str

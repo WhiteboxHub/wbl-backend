@@ -236,7 +236,7 @@ class CandidateORM(Base):
     interviews = relationship(
         "CandidateInterview", 
         back_populates="candidate",
-        foreign_keys="[CandidateInterview.candidate_new_id]"
+        foreign_keys="[CandidateInterview.candidate_id]"
     )
 
 # --------------------------------------Candidate_Marketing-------------------------------
@@ -260,7 +260,7 @@ class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
     
     id = Column(Integer, primary_key=True, index=True)
-    candidate_new_id = Column(Integer, ForeignKey("candidate.id"))
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))
     company = Column(String(200))
     interview_date = Column(DateTime, nullable=False)
     feedback = Column(String(50))  # Positive, Negative, No Response

@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_, or_, extract
+from sqlalchemy import func, desc, extract
 from datetime import datetime, date, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview
+
 
 def get_batch_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
@@ -53,6 +54,7 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
         "candidate_status_breakdown": status_dict
     }
 
+
 def get_financial_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
     first_day_month = today.replace(day=1)
@@ -95,6 +97,7 @@ def get_financial_metrics(db: Session) -> Dict[str, Any]:
         "fee_collected_month": fee_collected_month,
         "top_batches_fee": top_batches_list
     }
+
 
 def get_placement_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
@@ -162,12 +165,12 @@ def get_placement_metrics(db: Session) -> Dict[str, Any]:
         "active_placements": active_placements
     }
 
+
 def get_interview_metrics(db: Session) -> Dict[str, Any]:
     today = datetime.now().date()
     next_week = today + timedelta(days=7)
-    first_day_month = today.replace(day=1)
     
-    # Upcoming Interviews (Next 7 Days)
+    # Upcoming Interviews 
     upcoming_interviews = db.query(CandidateInterview).filter(
         CandidateInterview.interview_date >= datetime.now(),
         CandidateInterview.interview_date <= datetime.combine(next_week, datetime.max.time())
@@ -208,6 +211,7 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
         "feedback_breakdown": feedback_dict
     }
 
+
 def get_upcoming_batches(db: Session, limit: int = 3) -> List[Dict[str, Any]]:
     today = date.today()
     upcoming_batches = db.query(Batch).filter(
@@ -222,6 +226,7 @@ def get_upcoming_batches(db: Session, limit: int = 3) -> List[Dict[str, Any]]:
         }
         for batch in upcoming_batches
     ]
+
 
 def get_top_batches_revenue(db: Session, limit: int = 5) -> List[Dict[str, Any]]:
     try:

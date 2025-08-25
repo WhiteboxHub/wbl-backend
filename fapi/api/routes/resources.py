@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status , Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal, get_db
-from fapi.db.schemas import CourseContentResponse
+from fapi.db.schemas import CourseContentResponse, BatchMetrics
 from sqlalchemy.future import select
 from fapi.db.models import CourseContent
 import anyio
@@ -12,7 +12,9 @@ import logging
 from fapi.utils.resources_utils import fetch_subject_batch_recording,fetch_course_batches,fetch_session_types_by_team,fetch_sessions_by_type_orm , fetch_keyword_presentation
 from sqlalchemy.exc import SQLAlchemyError
 import traceback
-
+from fapi.utils.avatar_dashboard_utils import (
+    get_batch_metrics,
+)
 router = APIRouter()
 
 
@@ -163,3 +165,8 @@ def get_batches(
     db: Session = Depends(get_db)
 ):
     return fetch_course_batches(course, db)
+
+
+@router.get("/batches/metrics", response_model=BatchMetrics)
+def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
+    return get_batch_metrics(db)

@@ -1,8 +1,13 @@
 # fapi/api/routes/candidate.py
-from fastapi import APIRouter, Query, Path, HTTPException
+from fapi.utils.avatar_dashboard_utils import (
+    get_placement_metrics,
+    get_interview_metrics,
+)
+from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate 
-
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,  PlacementMetrics, InterviewMetrics
+from fapi.db.database import get_db
+from sqlalchemy.orm import Session
 router = APIRouter()
 
 
@@ -63,6 +68,11 @@ def delete_marketing_record(record_id: int):
 def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return candidate_utils.get_all_placements(page, limit)
 
+
+@router.get("/candidate/placements/metrics", response_model=PlacementMetrics)
+def get_placement_metrics_endpoint(db: Session = Depends(get_db)):
+    return get_placement_metrics(db)
+
 @router.get("/candidate/placements/{placement_id}")
 def read_placement(placement_id: int = Path(...)):
     return candidate_utils.get_placement_by_id(placement_id)
@@ -79,3 +89,9 @@ def update_existing_placement(placement_id: int, placement: CandidatePlacementCr
 def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
 
+# -----------candidate interview-------------
+
+
+@router.get("/candidate/interviews/metrics", response_model=InterviewMetrics)
+def get_interview_metrics_endpoint(db: Session = Depends(get_db)):
+    return get_interview_metrics(db)
