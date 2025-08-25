@@ -91,13 +91,22 @@ def create_interview(interview: CandidateInterviewCreate, db: Session = Depends(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
+
 @router.get("/interviews", response_model=list[CandidateInterviewOut])
 def list_interviews(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, le=1000),
     db: Session = Depends(get_db),
 ):
-    return db.query(CandidateInterview).offset(skip).limit(limit).all()
+    # Sort interviews by date descending to get recent interviews first
+    return (
+        db.query(CandidateInterview)
+        .order_by(CandidateInterview.interview_date.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
 
 
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
