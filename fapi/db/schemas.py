@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, EmailStr, field_validator, validator
+from pydantic import BaseModel, EmailStr, field_validator, validator, Field
 from typing import Optional, List, Literal, Union
 from enum import Enum
 
@@ -11,12 +11,10 @@ from enum import Enum
 
 # Base = declarative_base()
 
-
-
-
 class Token(BaseModel):
     access_token: str
     token_type: str
+    team: Optional[str] = None
     team: Optional[str] = None
 
 class TokenRequest(BaseModel):
@@ -146,7 +144,8 @@ class LeadBase(BaseModel):
     last_modified: Optional[datetime] = None
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
-    # moved_to_candidate: Optional[bool] = None
+
+    moved_to_candidate: Optional[bool] = None
 
 
 class LeadCreate(LeadBase):
@@ -162,6 +161,7 @@ class LeadSchema(LeadBase):
 
 
 class CandidateBase(BaseModel):
+    id:int
     full_name: Optional[str]
     enrolled_date: Optional[date]
     email: Optional[str]
@@ -203,17 +203,27 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[CandidateBase]
 
+# -------------------------------------------------
+
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
-    primary_instructor_id: Optional[int] = None
-    sec_instructor_id: Optional[int] = None
     marketing_manager: Optional[int] = None
     start_date: date
     notes: Optional[str] = None
-    status: Literal['active', 'break', 'not responding']
+    status: Literal["active", "break", "not responding"]
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    google_voice_number: Optional[str] = None
+    rating: Optional[int] = None
+    priority: Optional[int] = None
+
 
 class CandidateMarketingCreate(CandidateMarketingBase):
     pass
+
 
 class CandidateMarketing(CandidateMarketingBase):
     id: int
@@ -222,7 +232,7 @@ class CandidateMarketing(CandidateMarketingBase):
     class Config:
         from_attributes = True
 
-
+# --------------------------------------------
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
@@ -269,7 +279,7 @@ class VendorTypeEnum(str, Enum):
 # -------------------- VendorContactExtract Schemas --------------------
 class VendorContactExtract(BaseModel):
     id: int
-    full_name: str
+    full_name: Optional[str] =None
     source_email: Optional[EmailStr] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -461,13 +471,16 @@ class UnsubscribeResponse(BaseModel):
 class UserOut(BaseModel):
     email: EmailStr         
     name: str               
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
-    model_config = {
+    model_config = { 
         "from_attributes": True  
     }
 
 # ===============================Resources==============================
+
 
 class CourseBase(BaseModel):
     name: str
@@ -582,6 +595,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
+ 
         "from_attributes": True  
     }
 
@@ -596,8 +610,11 @@ class RecordingBatch(RecordingBatchBase):
     id: int
       
     model_config = {
+
         "from_attributes": True  
     }
+
+
 
 
 
@@ -606,17 +623,13 @@ class CourseContentCreate(BaseModel):
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
-
 class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
+ 
         "from_attributes": True  
     }
-
-
-    # ===============================
-
 
 
 class CourseBase(BaseModel):
@@ -643,6 +656,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
+ 
         "from_attributes": True  
     }
 
@@ -671,6 +685,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
+
         "from_attributes": True  
     }
 
@@ -738,3 +753,113 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
+
+
+
+class InterviewTypeEnum(str, Enum):
+    phone = "Phone"
+    virtual = "Virtual"
+    in_person = "In Person"
+    assessment = "Assessment"
+
+
+class FeedbackEnum(str, Enum):
+    negative = "Negative"
+    positive = "Positive"
+    no_response = "No Response"
+    cancelled = "Cancelled" 
+
+
+class CandidateInterviewBase(BaseModel):
+    candidate_id: int
+    candidate_name: Optional[str] = None
+    company: str
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interview_date: date
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    status: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+
+class CandidateInterviewCreate(CandidateInterviewBase):
+    pass
+
+
+class CandidateInterviewUpdate(BaseModel):
+    candidate_id: Optional[int] = None
+    candidate_name: Optional[str] = None
+    company: Optional[str] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interview_date: Optional[date] = None
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    status: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+
+class CandidateInterviewOut(CandidateInterviewBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+
+class CandidatePreparationBase(BaseModel):
+    id: int = Field(..., alias="id")
+    candidate_id: int
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: str
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+   
+
+class CandidatePreparationCreate(CandidatePreparationBase):
+    pass
+
+class CandidatePreparationUpdate(BaseModel):
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: Optional[str] = None
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    
+
+
+class CandidatePreparationOut(CandidatePreparationBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+    
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True  
+    }
