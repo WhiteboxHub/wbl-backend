@@ -1,10 +1,10 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, EmailStr, Field,validator
-from typing import Optional, List, Literal
+from pydantic import BaseModel, EmailStr, field_validator, validator, Field
+from typing import Optional, List, Literal, Union,Dict,Any
+
 from enum import Enum
-from pydantic import field_validator
 
 
 
@@ -15,6 +15,7 @@ from pydantic import field_validator
 class Token(BaseModel):
     access_token: str
     token_type: str
+    team: Optional[str] = None
     team: Optional[str] = None
 
 class TokenRequest(BaseModel):
@@ -54,6 +55,80 @@ class UserRegistration(BaseModel):
     specialization: Optional[str] = None
     notes: Optional[str] = None
   
+
+class AuthUserBase(BaseModel):
+    uname: Union[EmailStr, str] = None
+    fullname: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+    team: Optional[str] = None
+    role: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    notes: Optional[str] = None
+    visa_status: Optional[str] = None
+    googleId: Optional[str] = None
+
+
+    @validator("uname", pre=True)
+    def validate_uname(cls, v):
+        if not v:
+            return None
+        try:
+            return EmailStr.validate(v)
+        except Exception:
+            return v 
+
+class AuthUserCreate(AuthUserBase):
+    uname: EmailStr
+    passwd: str
+
+class AuthUserUpdate(AuthUserBase):
+    passwd: Optional[str] = None
+
+class AuthUserResponse(AuthUserBase):
+    id: int
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    lastmoddatetime: Optional[datetime] = None
+    demo: Optional[str] = "N"
+    enddate: Optional[date] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+
+
+    @validator(
+        "lastlogin",
+        "registereddate",
+        "level3date",
+        "lastmoddatetime",
+        "enddate",
+        "token_expiry",
+        pre=True,
+    )
+    def fix_invalid_datetime(cls, v):
+        if v in ("0000-00-00 00:00:00", "0000-00-00", None, ""):
+            return None
+        return v
+
+    class Config:
+        orm_mode = True
+
+class PaginatedUsers(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    users: List[AuthUserResponse]
+
+
+
+# ----------------------------------------------------------------------------------------
 
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
@@ -188,7 +263,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
     model_config = {
-        "from_attributes": True 
+        "from_attributes": True  
     }
 
 
@@ -230,7 +305,7 @@ class TalentSearch(BaseModel):
 
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -285,6 +360,8 @@ class VendorBase(BaseModel):
         if isinstance(v, str):
             return v.lower()
         return v
+
+
 
 
 class Vendor(VendorBase):
@@ -365,6 +442,10 @@ class VendorCreate(BaseModel):
     
 class VendorResponse(BaseModel):
     message: str
+    
+    
+
+
 
 
 # ================================================contact====================================
@@ -391,9 +472,11 @@ class UnsubscribeResponse(BaseModel):
 class UserOut(BaseModel):
     email: EmailStr         
     name: str               
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
-    model_config = {
+    model_config = { 
         "from_attributes": True  
     }
 
@@ -440,20 +523,59 @@ class CourseSubject(CourseSubjectBase):
     model_config = {
         "from_attributes": True  
     }
+# ----------------------------------batch-------------
+# class BatchBase(BaseModel):
+#     batchname: str
+#     courseid: int
+
+# class BatchCreate(BatchBase):
+#     pass
+
+# class Batch(BatchBase):
+#     batchid: int
+
+#     model_config = {
+#         "from_attributes": True  
+#     }
+
 
 class BatchBase(BaseModel):
     batchname: str
-    courseid: int
+    orientationdate: Optional[date] = None
+    subject: Optional[str] = "ML"
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    courseid: Optional[int] = None
 
 class BatchCreate(BatchBase):
     pass
 
-class Batch(BatchBase):
-    batchid: int
+class BatchUpdate(BatchBase):
+    pass
 
-    model_config = {
-        "from_attributes": True  
-    }
+# class BatchOut(BatchBase):
+#     batchid: int
+#     lastmoddatetime: Optional[datetime]
+
+#     class Config:
+#         orm_mode = True
+
+
+class BatchOut(BatchBase):
+    batchid: int
+    lastmoddatetime: Optional[datetime]
+
+    @field_validator("lastmoddatetime", mode="before")
+    def handle_invalid_datetime(cls, v):
+        if v in (None, "0000-00-00 00:00:00"):
+            return None
+        return v
+
+    class Config:
+        orm_mode = True
+
+# -----------------------------------------------------------
+
 
 class RecordingBase(BaseModel):
     batchname: str
@@ -474,6 +596,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
+ 
         "from_attributes": True  
     }
 
@@ -488,6 +611,7 @@ class RecordingBatch(RecordingBatchBase):
     id: int
       
     model_config = {
+
         "from_attributes": True  
     }
 
@@ -504,55 +628,144 @@ class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
+ 
         "from_attributes": True  
     }
 
 
-class CourseBase(BaseModel):
+
+    # ===============================
+    
+# Course Schemas 
+class CourseResponse(BaseModel):
+    id: int
     name: str
     alias: str
-
-class CourseCreate(CourseBase):
-    pass
-
-class Course(CourseBase):
-    id: int
+    description: Optional[str] = None
+    syllabus: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
+        "from_attributes": True
+    }
 
-        "from_attributes": True 
+class CourseCreate(BaseModel):
+    name: str
+    alias: str
+    description: Optional[str] = None
+    syllabus: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True  
+
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    alias: Optional[str] = None
+    description: Optional[str] = None
+    syllabus: Optional[str] = None    
+
+# Subject Schemas 
+class SubjectResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
 
     }
 
-class SubjectBase(BaseModel):
+class SubjectCreate(BaseModel):
     name: str
+    description: str
 
-class SubjectCreate(SubjectBase):
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    
+# CourseSubject Schemas 
+class CourseSubjectResponse(BaseModel):
+    subject_id: int
+    course_id: int
+    lastmoddatetime: Optional[datetime] = None
+
+    model_config = {
+
+        "from_attributes": True  
+    }
+
+class CourseSubjectCreate(BaseModel):
+    subject_id: int
+    course_id: int
+    
+class CourseSubjectUpdate(BaseModel):
+    course_id: int
+    subject_id: int
+    lastmoddatetime: Optional[datetime] = None
+    
+#coursecontent    
+class CourseContentBase(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+
+class CourseContentCreate(CourseContentBase):
     pass
 
-class Subject(SubjectBase):
+class CourseContentUpdate(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: Optional[str] = None
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+
+class CourseContentResponse(BaseModel):
     id: int
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
 
     model_config = {
         "from_attributes": True  
     }
+#coursematerial    
+class CourseMaterialBase(BaseModel):
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str = 'P'
+    link: str
+    sortorder: int = Field(default=9999)
 
-class CourseSubjectBase(BaseModel):
-    course_id: int
-    subject_id: int
-
-class CourseSubjectCreate(CourseSubjectBase):
+class CourseMaterialCreate(CourseMaterialBase):
     pass
 
-class CourseSubject(CourseSubjectBase):
+class CourseMaterialUpdate(BaseModel):
+    subjectid: Optional[int] = None
+    courseid: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    type: Optional[str] = None
+    link: Optional[str] = None
+    sortorder: Optional[int] = None
+
+class CourseMaterialResponse(BaseModel):
     id: int
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str
+    link: str
+    sortorder: int  
 
     model_config = {
-
-        "from_attributes": True 
-
+        "from_attributes": True
     }
-
+  
 class BatchBase(BaseModel):
     batchname: str
     courseid: int
@@ -564,6 +777,7 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
+
         "from_attributes": True  
     }
 
@@ -586,9 +800,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-
         "from_attributes": True 
-
     }
 
 class RecordingBatchBase(BaseModel):
@@ -602,7 +814,7 @@ class RecordingBatch(RecordingBatchBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -623,9 +835,56 @@ class Session(SessionBase):
     sessionid: int
 
     model_config = {
-        "from_attributes": True  
+        "from_attributes": True 
     }
 
+
+# -----------------------------Avatar Dashboard schemas----------------------------------------------------
+class BatchMetrics(BaseModel):
+    current_active_batches: int
+    enrolled_candidates_current: int
+    total_candidates: int
+    candidates_last_batch: int
+    new_enrollments_month: int
+    candidate_status_breakdown: Dict[str, int]
+
+
+class FinancialMetrics(BaseModel):
+    total_fee_current_batch: float
+    fee_collected_month: float
+    top_batches_fee: List[Dict[str, Any]]
+
+
+class PlacementMetrics(BaseModel):
+    total_placements: int
+    placements_year: int
+    placements_last_month: int
+    last_placement: Optional[Dict[str, Any]]
+    active_placements: int
+
+
+class InterviewMetrics(BaseModel):
+    upcoming_interviews: int
+    total_interviews: int
+    interviews_month: int
+    marketing_candidates: int
+    feedback_breakdown: Dict[str, int]
+
+
+class DashboardMetrics(BaseModel):
+    batch_metrics: BatchMetrics
+    financial_metrics: FinancialMetrics
+    placement_metrics: PlacementMetrics
+    interview_metrics: InterviewMetrics
+
+
+class UpcomingBatch(BaseModel):
+    name: str
+    start_date: date
+    end_date: date
+
+    class Config:
+        from_attributes = True
 
 # =====================================employee========================
 class EmployeeBase(BaseModel):
@@ -664,14 +923,14 @@ class Employee(EmployeeBase):
     class Config:
         from_attributes = True
         
+        
 # --------------------------------------------Password----------------------------
 class ResetPasswordRequest(BaseModel):
-    email: EmailStr   # ensures a valid email is provided
+    email: EmailStr   
 
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-
 
 
 class InterviewTypeEnum(str, Enum):
