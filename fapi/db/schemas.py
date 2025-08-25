@@ -2,7 +2,8 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,D
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
 from pydantic import BaseModel, EmailStr, field_validator, validator, Field
-from typing import Optional, List, Literal, Union
+from typing import Optional, List, Literal, Union,Dict,Any
+
 from enum import Enum
 
 
@@ -838,6 +839,53 @@ class Session(SessionBase):
     }
 
 
+# -----------------------------Avatar Dashboard schemas----------------------------------------------------
+class BatchMetrics(BaseModel):
+    current_active_batches: int
+    enrolled_candidates_current: int
+    total_candidates: int
+    candidates_last_batch: int
+    new_enrollments_month: int
+    candidate_status_breakdown: Dict[str, int]
+
+
+class FinancialMetrics(BaseModel):
+    total_fee_current_batch: float
+    fee_collected_month: float
+    top_batches_fee: List[Dict[str, Any]]
+
+
+class PlacementMetrics(BaseModel):
+    total_placements: int
+    placements_year: int
+    placements_last_month: int
+    last_placement: Optional[Dict[str, Any]]
+    active_placements: int
+
+
+class InterviewMetrics(BaseModel):
+    upcoming_interviews: int
+    total_interviews: int
+    interviews_month: int
+    marketing_candidates: int
+    feedback_breakdown: Dict[str, int]
+
+
+class DashboardMetrics(BaseModel):
+    batch_metrics: BatchMetrics
+    financial_metrics: FinancialMetrics
+    placement_metrics: PlacementMetrics
+    interview_metrics: InterviewMetrics
+
+
+class UpcomingBatch(BaseModel):
+    name: str
+    start_date: date
+    end_date: date
+
+    class Config:
+        from_attributes = True
+
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
@@ -883,7 +931,6 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-
 
 
 class InterviewTypeEnum(str, Enum):
