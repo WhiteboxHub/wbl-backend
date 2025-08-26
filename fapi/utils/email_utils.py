@@ -145,8 +145,8 @@ async def send_request_demo_emails(name: str, email: str, phone: str, address: s
     admin_message = MessageSchema(
         subject=f"New Demo Request from {name}",
         recipients=[
-            "abhirohith516@gmail.com",
-            "hkinnovapath@gmail.com",
+            "sampath.velupula@gmail.com",
+            "recruiting@whitebox-learning.com",
             "info@innova-path.com"
         ],
         body=RequestDemo_Admin_HTML_template(name, email, phone, address),

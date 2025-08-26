@@ -1,8 +1,8 @@
 # wbl-backend/fapi/utils/candidate_utils.py
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
-from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM
-from fapi.db.schemas import CandidateMarketingCreate
+from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
+from fapi.db.schemas import CandidateMarketingCreate,CandidateInterviewBase, CandidateInterviewCreate, CandidateInterviewOut, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException
 from typing import List, Dict
 
@@ -93,7 +93,7 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         total = db.query(CandidateMarketingORM).count()
         results = (
             db.query(CandidateMarketingORM)
-            .order_by(CandidateMarketingORM.id.desc())
+            .order_by(CandidateMarketingORM.id.asc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
@@ -168,7 +168,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
         results = (
             db.query(
                 CandidatePlacementORM,
-                CandidateORM.full_name.label("candidate_name")  # fixed here
+                CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
             .order_by(CandidatePlacementORM.id.desc())
@@ -254,3 +254,94 @@ def delete_placement(placement_id: int) -> Dict:
         db.close()
 
 
+# -----------------------------------------------------Candidate_Interviews------------------------------------------------------
+
+def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
+    data = interview.dict()
+
+    # Normalize interviewer_emails to lowercase if provided
+    if data.get("interviewer_emails"):
+        data["interviewer_emails"] = ",".join(
+            [email.strip().lower() for email in data["interviewer_emails"].split(",")]
+        )
+
+    db_obj = CandidateInterview(**data)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+
+def get_candidate_interviews(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(CandidateInterview).offset(skip).limit(limit).all()
+
+
+def get_candidate_interview(db: Session, interview_id: int):
+    return db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+
+
+def update_candidate_interview(db: Session, interview_id: int, updates: CandidateInterviewUpdate):
+    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+    if not db_obj:
+        return None
+
+    update_data = updates.dict(exclude_unset=True)
+
+    # Normalize interviewer_emails to lowercase if provided
+    if update_data.get("interviewer_emails"):
+        update_data["interviewer_emails"] = ",".join(
+            [email.strip().lower() for email in update_data["interviewer_emails"].split(",")]
+        )
+
+    for key, value in update_data.items():
+        setattr(db_obj, key, value)
+
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+
+def delete_candidate_interview(db: Session, interview_id: int):
+    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+    if db_obj:
+        db.delete(db_obj)
+        db.commit()
+    return db_obj
+
+# -------------------Candidate_Preparation-----
+
+def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
+    if prep_data.email:
+        prep_data.email = prep_data.email.lower()
+    db_prep = CandidatePreparation(**prep_data.dict())
+    db.add(db_prep)
+    db.commit()
+    db.refresh(db_prep)
+    return db_prep
+
+def get_candidate_preparation(db: Session, prep_id: int):
+    return db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
+
+def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(CandidatePreparation).offset(skip).limit(limit).all()
+
+def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
+    db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
+    if not db_prep:
+        return None
+    update_data = updates.dict(exclude_unset=True)
+    if "email" in update_data and update_data["email"]:
+        update_data["email"] = update_data["email"].lower()
+    for key, value in update_data.items():
+        setattr(db_prep, key, value)
+    db.commit()
+    db.refresh(db_prep)
+    return db_prep
+
+def delete_candidate_preparation(db: Session, prep_id: int):
+    db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
+    if not db_prep:
+        return None
+    db.delete(db_prep)
+    db.commit()
+    return db_prep

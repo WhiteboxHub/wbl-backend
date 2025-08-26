@@ -1,18 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from typing import Optional, List
 # from fapi.db.database import get_db
 from fapi.utils.talent_utils import get_talent_search_filtered
 from fapi.db.schemas import TalentSearch
 
 router = APIRouter()
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
 
 @router.get("/talent_search", response_model=List[TalentSearch])
 def get_talent_search(

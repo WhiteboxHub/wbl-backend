@@ -1,8 +1,9 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, EmailStr, Field,validator
-from typing import Optional, List, Literal
+from pydantic import BaseModel, EmailStr, field_validator, validator, Field
+from typing import Optional, List, Literal, Union,Dict,Any
+
 from enum import Enum
 
 
@@ -11,13 +12,16 @@ from enum import Enum
 
 # Base = declarative_base()
 
-
-
-
 class Token(BaseModel):
     access_token: str
     token_type: str
-    team: str
+    team: Optional[str] = None
+    team: Optional[str] = None
+
+class TokenRequest(BaseModel):
+    access_token: str
+    # token_type: str
+
 
 
 class UserRegistration(BaseModel):
@@ -52,6 +56,80 @@ class UserRegistration(BaseModel):
     notes: Optional[str] = None
   
 
+class AuthUserBase(BaseModel):
+    uname: Union[EmailStr, str] = None
+    fullname: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+    team: Optional[str] = None
+    role: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    message: Optional[str] = None
+    notes: Optional[str] = None
+    visa_status: Optional[str] = None
+    googleId: Optional[str] = None
+
+
+    @validator("uname", pre=True)
+    def validate_uname(cls, v):
+        if not v:
+            return None
+        try:
+            return EmailStr.validate(v)
+        except Exception:
+            return v 
+
+class AuthUserCreate(AuthUserBase):
+    uname: EmailStr
+    passwd: str
+
+class AuthUserUpdate(AuthUserBase):
+    passwd: Optional[str] = None
+
+class AuthUserResponse(AuthUserBase):
+    id: int
+    lastlogin: Optional[datetime] = None
+    logincount: Optional[int] = None
+    registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    lastmoddatetime: Optional[datetime] = None
+    demo: Optional[str] = "N"
+    enddate: Optional[date] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+
+
+    @validator(
+        "lastlogin",
+        "registereddate",
+        "level3date",
+        "lastmoddatetime",
+        "enddate",
+        "token_expiry",
+        pre=True,
+    )
+    def fix_invalid_datetime(cls, v):
+        if v in ("0000-00-00 00:00:00", "0000-00-00", None, ""):
+            return None
+        return v
+
+    class Config:
+        orm_mode = True
+
+class PaginatedUsers(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    users: List[AuthUserResponse]
+
+
+
+# ----------------------------------------------------------------------------------------
+
 class LeadBase(BaseModel):
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
@@ -67,7 +145,8 @@ class LeadBase(BaseModel):
     last_modified: Optional[datetime] = None
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
-    # moved_to_candidate: Optional[bool] = None
+
+    moved_to_candidate: Optional[bool] = None
 
 
 class LeadCreate(LeadBase):
@@ -83,6 +162,7 @@ class LeadSchema(LeadBase):
 
 
 class CandidateBase(BaseModel):
+    id:int
     full_name: Optional[str]
     enrolled_date: Optional[date]
     email: Optional[str]
@@ -124,17 +204,27 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[CandidateBase]
 
+# -------------------------------------------------
+
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
-    primary_instructor_id: Optional[int] = None
-    sec_instructor_id: Optional[int] = None
     marketing_manager: Optional[int] = None
     start_date: date
     notes: Optional[str] = None
-    status: Literal['active', 'break', 'not responding']
+    status: Literal["active", "break", "not responding"]
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    google_voice_number: Optional[str] = None
+    rating: Optional[int] = None
+    priority: Optional[int] = None
+
 
 class CandidateMarketingCreate(CandidateMarketingBase):
     pass
+
 
 class CandidateMarketing(CandidateMarketingBase):
     id: int
@@ -143,7 +233,7 @@ class CandidateMarketing(CandidateMarketingBase):
     class Config:
         from_attributes = True
 
-
+# --------------------------------------------
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
@@ -173,7 +263,7 @@ class GoogleUserCreate(BaseModel):
     google_id: str
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -190,7 +280,7 @@ class VendorTypeEnum(str, Enum):
 # -------------------- VendorContactExtract Schemas --------------------
 class VendorContactExtract(BaseModel):
     id: int
-    full_name: Optional[str] =None 
+    full_name: Optional[str] =None
     source_email: Optional[EmailStr] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -215,7 +305,7 @@ class TalentSearch(BaseModel):
 
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -272,25 +362,6 @@ class VendorBase(BaseModel):
         return v
 
 
-# class VendorCreate(VendorBase):
-#     full_name: str
-#     phone_number: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     email: Optional[EmailStr] = None
-#     type: Optional[VendorTypeEnum] = None
-#     note: Optional[str] = None
-#     linkedin_id: Optional[str] = None
-#     company_name: Optional[str] = None
-#     location: Optional[str] = None
-#     city: Optional[str] = None
-#     postal_code: Optional[str] = None
-#     address: Optional[str] = None
-#     country: Optional[str] = None
-#     vendor_type: Optional[VendorTypeEnum] = None
-#     linkedin_connected: Optional[str] = "NO"
-#     intro_email_sent: Optional[str] = "NO"
-#     intro_call: Optional[str] = "NO"   
-
 
 
 class Vendor(VendorBase):
@@ -299,7 +370,7 @@ class Vendor(VendorBase):
     created_at: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -340,7 +411,7 @@ class DailyVendorActivity(BaseModel):
     created_at: Optional[datetime]
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class DailyVendorActivityCreate(BaseModel):
@@ -373,28 +444,6 @@ class VendorResponse(BaseModel):
     message: str
     
     
-# class VendorCreate(VendorBase):
-#     full_name: str
-#     phone_number: Optional[str] = None
-#     secondary_phone: Optional[str] = None
-#     email: Optional[EmailStr] = None
-#     type: Optional[VendorTypeEnum] = None
-#     note: Optional[str] = None
-#     linkedin_id: Optional[str] = None
-#     company_name: Optional[str] = None
-#     location: Optional[str] = None
-#     city: Optional[str] = None
-#     postal_code: Optional[str] = None
-#     address: Optional[str] = None
-#     country: Optional[str] = None
-#     vendor_type: Optional[VendorTypeEnum] = None
-#     linkedin_connected: Optional[str] = "NO"
-#     intro_email_sent: Optional[str] = "NO"
-#     intro_call: Optional[str] = "NO"
-
-
-# class VendorResponse(BaseModel):
-#     message: str
 
 
 
@@ -421,15 +470,18 @@ class UnsubscribeResponse(BaseModel):
 # -----------------------------------user_dashboard--------------------------------
 
 class UserOut(BaseModel):
-    email: EmailStr         # uname is email
-    name: str               # fullname field mapped to name
+    email: EmailStr         
+    name: str               
+    email: EmailStr         
+    name: str               
     phone: Optional[str]
 
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+    model_config = { 
+        "from_attributes": True  
     }
 
 # ===============================Resources==============================
+
 
 class CourseBase(BaseModel):
     name: str
@@ -442,7 +494,7 @@ class Course(CourseBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class SubjectBase(BaseModel):
@@ -455,7 +507,7 @@ class Subject(SubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 class CourseSubjectBase(BaseModel):
@@ -469,22 +521,61 @@ class CourseSubject(CourseSubjectBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
+# ----------------------------------batch-------------
+# class BatchBase(BaseModel):
+#     batchname: str
+#     courseid: int
+
+# class BatchCreate(BatchBase):
+#     pass
+
+# class Batch(BatchBase):
+#     batchid: int
+
+#     model_config = {
+#         "from_attributes": True  
+#     }
+
 
 class BatchBase(BaseModel):
     batchname: str
-    courseid: int
+    orientationdate: Optional[date] = None
+    subject: Optional[str] = "ML"
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    courseid: Optional[int] = None
 
 class BatchCreate(BatchBase):
     pass
 
-class Batch(BatchBase):
-    batchid: int
+class BatchUpdate(BatchBase):
+    pass
 
-    model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
-    }
+# class BatchOut(BatchBase):
+#     batchid: int
+#     lastmoddatetime: Optional[datetime]
+
+#     class Config:
+#         orm_mode = True
+
+
+class BatchOut(BatchBase):
+    batchid: int
+    lastmoddatetime: Optional[datetime]
+
+    @field_validator("lastmoddatetime", mode="before")
+    def handle_invalid_datetime(cls, v):
+        if v in (None, "0000-00-00 00:00:00"):
+            return None
+        return v
+
+    class Config:
+        orm_mode = True
+
+# -----------------------------------------------------------
+
 
 class RecordingBase(BaseModel):
     batchname: str
@@ -505,7 +596,8 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+ 
+        "from_attributes": True  
     }
 
 class RecordingBatchBase(BaseModel):
@@ -519,8 +611,11 @@ class RecordingBatch(RecordingBatchBase):
     id: int
       
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+
+        "from_attributes": True  
     }
+
+
 
 
 
@@ -529,60 +624,148 @@ class CourseContentCreate(BaseModel):
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
-
 class CourseContentResponse(CourseContentCreate):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+ 
+        "from_attributes": True  
     }
+
 
 
     # ===============================
-
-
-
-class CourseBase(BaseModel):
+    
+# Course Schemas 
+class CourseResponse(BaseModel):
+    id: int
     name: str
     alias: str
-
-class CourseCreate(CourseBase):
-    pass
-
-class Course(CourseBase):
-    id: int
+    description: Optional[str] = None
+    syllabus: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True
     }
 
-class SubjectBase(BaseModel):
+class CourseCreate(BaseModel):
     name: str
-
-class SubjectCreate(SubjectBase):
-    pass
-
-class Subject(SubjectBase):
-    id: int
+    alias: str
+    description: Optional[str] = None
+    syllabus: Optional[str] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
+    }
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    alias: Optional[str] = None
+    description: Optional[str] = None
+    syllabus: Optional[str] = None    
+
+# Subject Schemas 
+class SubjectResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+
     }
 
-class CourseSubjectBase(BaseModel):
+class SubjectCreate(BaseModel):
+    name: str
+    description: str
+
+class SubjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    
+# CourseSubject Schemas 
+class CourseSubjectResponse(BaseModel):
+    subject_id: int
+    course_id: int
+    lastmoddatetime: Optional[datetime] = None
+
+    model_config = {
+
+        "from_attributes": True  
+    }
+
+class CourseSubjectCreate(BaseModel):
+    subject_id: int
+    course_id: int
+    
+class CourseSubjectUpdate(BaseModel):
     course_id: int
     subject_id: int
+    lastmoddatetime: Optional[datetime] = None
+    
+#coursecontent    
+class CourseContentBase(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
 
-class CourseSubjectCreate(CourseSubjectBase):
+class CourseContentCreate(CourseContentBase):
     pass
 
-class CourseSubject(CourseSubjectBase):
+class CourseContentUpdate(BaseModel):
+    Fundamentals: Optional[str] = None
+    AIML: Optional[str] = None
+    UI: Optional[str] = None
+    QE: Optional[str] = None
+
+class CourseContentResponse(BaseModel):
     id: int
+    Fundamentals: Optional[str] = None
+    AIML: str
+    UI: Optional[str] = None
+    QE: Optional[str] = None
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
+#coursematerial    
+class CourseMaterialBase(BaseModel):
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str = 'P'
+    link: str
+    sortorder: int = Field(default=9999)
 
+class CourseMaterialCreate(CourseMaterialBase):
+    pass
+
+class CourseMaterialUpdate(BaseModel):
+    subjectid: Optional[int] = None
+    courseid: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    type: Optional[str] = None
+    link: Optional[str] = None
+    sortorder: Optional[int] = None
+
+class CourseMaterialResponse(BaseModel):
+    id: int
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str
+    link: str
+    sortorder: int  
+
+    model_config = {
+        "from_attributes": True
+    }
+  
 class BatchBase(BaseModel):
     batchname: str
     courseid: int
@@ -594,7 +777,8 @@ class Batch(BatchBase):
     batchid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+
+        "from_attributes": True  
     }
 
 class RecordingBase(BaseModel):
@@ -616,7 +800,7 @@ class Recording(RecordingBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
 class RecordingBatchBase(BaseModel):
@@ -630,7 +814,7 @@ class RecordingBatch(RecordingBatchBase):
     id: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True  
     }
 
 
@@ -651,6 +835,208 @@ class Session(SessionBase):
     sessionid: int
 
     model_config = {
-        "from_attributes": True  # Enables ORM mode in Pydantic v2
+        "from_attributes": True 
     }
 
+
+# -----------------------------Avatar Dashboard schemas----------------------------------------------------
+class BatchMetrics(BaseModel):
+    current_active_batches: int
+    enrolled_candidates_current: int
+    total_candidates: int
+    candidates_last_batch: int
+    new_enrollments_month: int
+    candidate_status_breakdown: Dict[str, int]
+
+
+class FinancialMetrics(BaseModel):
+    total_fee_current_batch: float
+    fee_collected_month: float
+    top_batches_fee: List[Dict[str, Any]]
+
+
+class PlacementMetrics(BaseModel):
+    total_placements: int
+    placements_year: int
+    placements_last_month: int
+    last_placement: Optional[Dict[str, Any]]
+    active_placements: int
+
+
+class InterviewMetrics(BaseModel):
+    upcoming_interviews: int
+    total_interviews: int
+    interviews_month: int
+    marketing_candidates: int
+    feedback_breakdown: Dict[str, int]
+
+
+class DashboardMetrics(BaseModel):
+    batch_metrics: BatchMetrics
+    financial_metrics: FinancialMetrics
+    placement_metrics: PlacementMetrics
+    interview_metrics: InterviewMetrics
+
+
+class UpcomingBatch(BaseModel):
+    name: str
+    start_date: date
+    end_date: date
+
+    class Config:
+        from_attributes = True
+
+# =====================================employee========================
+class EmployeeBase(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(EmployeeBase):
+    id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+
+class Employee(EmployeeBase):
+    id: int
+
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_invalid_dates(cls, v):
+        if isinstance(v, str) and v.startswith("0000-00-00"):
+            return None
+        return v
+
+    class Config:
+        from_attributes = True
+        
+        
+# --------------------------------------------Password----------------------------
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr   
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
+
+
+class InterviewTypeEnum(str, Enum):
+    phone = "Phone"
+    virtual = "Virtual"
+    in_person = "In Person"
+    assessment = "Assessment"
+
+
+class FeedbackEnum(str, Enum):
+    negative = "Negative"
+    positive = "Positive"
+    no_response = "No Response"
+    cancelled = "Cancelled" 
+
+
+class CandidateInterviewBase(BaseModel):
+    candidate_id: int
+    candidate_name: Optional[str] = None
+    company: str
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interview_date: date
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    status: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+
+class CandidateInterviewCreate(CandidateInterviewBase):
+    pass
+
+
+class CandidateInterviewUpdate(BaseModel):
+    candidate_id: Optional[int] = None
+    candidate_name: Optional[str] = None
+    company: Optional[str] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interview_date: Optional[date] = None
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    status: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+
+class CandidateInterviewOut(CandidateInterviewBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+
+class CandidatePreparationBase(BaseModel):
+    id: int = Field(..., alias="id")
+    candidate_id: int
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: str
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+   
+
+class CandidatePreparationCreate(CandidatePreparationBase):
+    pass
+
+class CandidatePreparationUpdate(BaseModel):
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: Optional[str] = None
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    
+
+
+class CandidatePreparationOut(CandidatePreparationBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+    
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True  
+    }
