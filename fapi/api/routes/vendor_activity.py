@@ -1,18 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from typing import List
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.db.schemas import DailyVendorActivity, DailyVendorActivityCreate, DailyVendorActivityUpdate
 from fapi.utils import vendor_activity_utils
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
 
 @router.get("/daily_vendor_activities", response_model=List[DailyVendorActivity])
 def read_all_activities(db: Session = Depends(get_db)):

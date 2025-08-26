@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.utils.auth import authenticate_user
 from fapi.auth import create_access_token
 from fapi.db.schemas import Token
@@ -10,12 +10,7 @@ from fapi.core.config import limiter
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
 
 @router.post("/login", response_model=Token)
 @limiter.limit("15/minute")

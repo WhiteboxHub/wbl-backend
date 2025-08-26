@@ -2,17 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.schemas import UnsubscribeRequest, UnsubscribeResponse
 from fapi.utils.unsubscribe_utils import unsubscribe_lead_user, unsubscribe_user
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.put("/api/leads/unsubscribe", response_model=UnsubscribeResponse)
 def unsubscribe(request: UnsubscribeRequest, db: Session = Depends(get_db)):

@@ -1,10 +1,7 @@
-
-# fapi/api/routes/resources.py
-
 from fastapi import APIRouter, Depends, HTTPException, status , Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, get_db
 from fapi.db.schemas import CourseContentResponse
 from sqlalchemy.future import select
 from fapi.db.models import CourseContent
@@ -14,18 +11,11 @@ from fapi.core.config import limiter
 import logging
 from fapi.utils.resources_utils import fetch_subject_batch_recording,fetch_course_batches,fetch_session_types_by_team,fetch_sessions_by_type_orm , fetch_keyword_presentation
 from sqlalchemy.exc import SQLAlchemyError
-
+import traceback
 
 router = APIRouter()
 
 
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
@@ -47,6 +37,38 @@ async def get_session_types(team: str = "null", db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# @router.get("/sessions")
+# async def get_sessions(
+#     course_name: Optional[str] = None,
+#     session_type: Optional[str] = None,
+#     team: str = "admin",
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         course_name_to_id = {
+#             "QA": 1,
+#             "UI": 2,
+#             "ML": 3,
+#         }
+
+#         if course_name:
+#             course_id = course_name_to_id.get(course_name.upper())
+#             if not course_id:
+#                 raise HTTPException(
+#                     status_code=status.HTTP_400_BAD_REQUEST,
+#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
+#                 )
+#         else:
+#             course_id = None
+
+#         sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
+#         if not sessions:
+#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
+#         return {"sessions": sessions}
+#     except Exception as e:
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+# import traceback
 
 @router.get("/sessions")
 async def get_sessions(
@@ -72,12 +94,26 @@ async def get_sessions(
         else:
             course_id = None
 
+        # sessions = await anyio.to_thread.run_sync(
+        #     lambda: fetch_sessions_by_type_orm(db, course_id, session_type, team)
+        # )
         sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
+
+
         if not sessions:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Sessions not found"
+            )
+
         return {"sessions": sessions}
+
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        traceback.print_exc()   # 👈 print full error in server logs
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error: {str(e)}"
+        )
 
 
 @router.get("/materials")
@@ -98,38 +134,6 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
-# @router.get("/recording")
-# def get_recordings(course: str, batchid: int, db: Session = Depends(get_db)):
-#     try:
-#         recordings = fetch_subject_batch_recording(course, batchid, db)
-#         if not recordings:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail=f"No recordings found for course '{course}' and batch '{batchid}'."
-#             )
-#         return recordings
-#     except Exception as e:
-#         # Log the error if you want
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=f"Error fetching recordings: {str(e)}"
-#         )
-
-# @router.get("/recording")
-# def get_recordings(
-#     course: str,
-#     batchid: int,
-#     search: Optional[str] = None,
-#     db: Session = Depends(get_db)
-# ):
-#     recordings = fetch_subject_batch_recording(course, batchid, db, search)
-#     if not recordings.get("batch_recordings"):
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"No recordings found for course '{course}' and batch '{batchid}' matching '{search or ''}'."
-#         )
-#     return recordings
-
 
 @router.get("/recording")
 def get_recordings(
@@ -138,41 +142,28 @@ def get_recordings(
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """
-    Fetch recordings for a course (and optionally batch).
-    If `search` is provided, filter recordings by description or filename.
-    """
-    recordings = fetch_subject_batch_recording(course, batchid, db, search )
+  
+    recordings = fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
+    
 
     if not recordings.get("batch_recordings"):
+        msg = f"No recordings found for course '{course}'"
+        if batchid:
+            msg += f" and batch '{batchid}'"
         if search:
-            print('displaying')
-            msg = f"No recordings found for course '{course}' matching '{search}'."
-        elif batchid:
-            msg = f"No recordings found for course '{course}' and batch '{batchid}'."
-        else:
-            msg = f"No recordings found for course '{course}'."
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=msg
-        )
+            msg += f" matching '{search}'"
+        raise HTTPException(status_code=404, detail=msg)
 
     return recordings
 
 
+
+
 @router.get("/batches")
-def get_batches(db: Session = Depends(get_db)):
-    try:
-        batches = fetch_course_batches(db)
-        if not batches:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No batches found."
-            )
-        return {"batches": batches}
-    except Exception as e:
-        # Log the error if you want
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching batches: {str(e)}"
-        )
+def get_batches(
+    course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
+    db: Session = Depends(get_db)
+):
+    return fetch_course_batches(course, db)
+
+

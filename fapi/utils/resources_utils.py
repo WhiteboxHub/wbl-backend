@@ -1,6 +1,3 @@
-
-
-# fapi/utils/resources_utils.py
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
@@ -45,7 +42,6 @@ def fetch_keyword_presentation(search: str, course: str):
             detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters"
         )
 
-    # Map course alias to courseid
     courseid_mapping = {
         "QA": 1,
         "UI": 2,
@@ -53,7 +49,6 @@ def fetch_keyword_presentation(search: str, course: str):
     }
     selected_courseid = courseid_mapping.get(course.upper())
 
-    # Priority ordering
     priority_order = case(
         (CourseMaterial.name == 'Software Architecture', 1),
         (CourseMaterial.name == 'SDLC', 2),
@@ -99,13 +94,44 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
     )
     return {"recordings": recordings}
 
+# def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str):
+#     if not course_id or not session_type:
+#         return []
+
+#     allowed_types = [
+#         "Resume Session", "Job Help", "Interview Prep",
+#         "Individual Mock", "Group Mock", "Misc","Internal Sessions"
+#     ]
+
+#     if team not in ["admin", "instructor"] and session_type not in allowed_types:
+#         return []
+
+#     query = (
+#         select(SessionORM)
+#         .join(CourseSubject, SessionORM.subject_id == CourseSubject.subject_id)
+#         .where(
+#             SessionORM.subject_id != 0,
+#             CourseSubject.course_id == course_id,
+#             SessionORM.type == session_type,
+#             or_(
+#                 CourseSubject.course_id != 3,
+#                 SessionORM.sessiondate >= "2024-01-01"
+#             )
+#         )
+#         .order_by(SessionORM.sessiondate.desc())
+#     )
+
+#     result = db.execute(query)
+#     return result.scalars().all()
+
+
 def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str):
     if not course_id or not session_type:
         return []
 
     allowed_types = [
         "Resume Session", "Job Help", "Interview Prep",
-        "Individual Mock", "Group Mock", "Misc"
+        "Individual Mock", "Group Mock", "Misc", "Internal Sessions"
     ]
 
     if team not in ["admin", "instructor"] and session_type not in allowed_types:
@@ -129,20 +155,41 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
     result = db.execute(query)
     return result.scalars().all()
 
+
+
+# def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
+#     if team in ["admin", "instructor"]:
+#         result = db.execute(select(SessionORM.type).distinct().order_by(SessionORM.type))
+#     else:
+#         allowed_types = [
+#             "Resume Session", "Job Help", "Interview Prep",
+#             "Individual Mock", "Group Mock", "Misc","Internal Sessions"
+#         ]
+#         result = db.execute(
+#             select(SessionORM.type).distinct()
+#             .where(SessionORM.type.in_(allowed_types))
+#             .order_by(SessionORM.type)
+#         )
+#     return [row[0] for row in result.fetchall()]
 def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
     if team in ["admin", "instructor"]:
         result = db.execute(select(SessionORM.type).distinct().order_by(SessionORM.type))
     else:
         allowed_types = [
             "Resume Session", "Job Help", "Interview Prep",
-            "Individual Mock", "Group Mock", "Misc"
+            "Individual Mock", "Group Mock", "Misc", "Internal Session"
         ]
         result = db.execute(
             select(SessionORM.type).distinct()
             .where(SessionORM.type.in_(allowed_types))
             .order_by(SessionORM.type)
         )
-    return [row[0] for row in result.fetchall()]
+
+    session_types = [row[0] for row in result.fetchall()]
+
+    # normalize: replace "Internal Session" → "Internal Sessions"
+    return ["Internal Sessions" if t == "Internal Session" else t for t in session_types]
+
 
 def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
     course = "ML"  
@@ -174,12 +221,7 @@ def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail="Unexpected server error")
 
 
-        # Convert ORM objects to dictionaries
-        # return [
-        #     {column.name: getattr(row, column.name) for column in row.__table__.columns}
-        #     for row in results
-        # ]
-
+    
     
 async def course_content(session: AsyncSession):
     """
@@ -199,80 +241,89 @@ async def course_content(session: AsyncSession):
 
 
 
-def get_recordings_and_sessions(db, search='', course=''):
-    try:
-        search_pattern = f"%{search.lower()}%"
-        query = db.query(Recording).filter(Recording.description.ilike(search_pattern))
 
-        recordings = query.all()
-        recordings = query.order_by(Recording.classdate.desc()).all()
+
+def fetch_subject_batch_recording(
+    course: str,
+    db: Session,
+    batchid: Optional[int] = None,
+    search: Optional[str] = None
+):
+    """
+    Fetch recordings for a given course, with optional batch filter and search term.
+    """
+
+  
+    course_obj = db.execute(
+        select(Course).where(Course.alias == course)
+    ).scalar_one_or_none()
+
+    if not course_obj:
+        print(f"[DEBUG] Course '{course}' not found in DB")
+        raise HTTPException(status_code=404, detail=f"Course '{course}' not found")
+
+
+    query = (db.query(
+                Recording,
+                Batch.batchname,
+                Course.name.label("course_name")
+            )
+            .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+            .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+            
+            .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
+            .join(Course, Course.id == CourseSubject.course_id)
+            .filter(Course.alias == course)
+            .filter(Batch.batchid == batchid if batchid is not None else True)        
+            .filter(Recording.new_subject_id == CourseSubject.subject_id)
+            .order_by(Recording.classdate.desc())
+        )
+
+
+   
+    if search:
+        like_str = f"%{search}%"
+        print(f"[DEBUG] Applying search filter: {like_str}")
+        query = (db.query(
+        Recording,
+        Batch.batchname,
+        Course.name.label("course_name")
+        ).join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+        .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+        .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
+        .join(Course, Course.id == CourseSubject.course_id)
+        .filter(Course.alias == course)
+        .filter(Batch.batchid == batchid if batchid is not None else True)
+        .filter(Recording.new_subject_id == CourseSubject.subject_id)
+        .filter(
+            or_(
+                Recording.description.ilike(f"%{search}%")
+            ) if search else True
+        ).order_by(Recording.classdate.desc()))
+
+    query = query.order_by(Recording.classdate.desc())
+
+    recordings = db.execute(query).scalars().all()
+
+    return {"batch_recordings": recordings}
+
+
+
+def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
+    try:
         
-        return recordings
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
-
-def fetch_subject_batch_recording(course: str, batchid: int, db: Session, search: Optional[str] = None):
-    
-    try:
-
-        if search:
-            return {"batch_recordings":get_recordings_and_sessions(db,search,course)}
-        else:
-            query = (
-                db.query(Recording)
-                .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
-                .join(Batch, RecordingBatch.batch_id == Batch.batchid)
-                .filter(Batch.batchid == batchid)
-            )
-        # if search:
-        #     search_pattern = f"%{search.lower()}%"
-        #     query = query.filter(
-        #         or_(
-        #             Recording.description.ilike(search_pattern),
-        #             Recording.filename.ilike(search_pattern)
-        #         )
-        #     )
-        recordings = query.all()
-        return {"batch_recordings": recordings}
-
-    except SQLAlchemyError as e:
-        # Log the error if you have a logging system
-        print(f"Database error: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching batch recordings")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Unexpected error occurred")
-
-
-
-def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
-    course = "ML"  
-    try:
-        course_obj = db.execute(
-            select(Course).where(Course.alias == course)
-        ).scalar_one_or_none()
-
-        if not course_obj:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Course '{course}' not found"
-            )
 
         stmt = (
-            select(Batch.batchname, Batch.batchid)
-            .where(Batch.courseid == course_obj.id)
-            .group_by(Batch.batchname, Batch.batchid)
-            .order_by(Batch.batchname.desc())
-        )
-        result = db.execute(stmt)
-        rows = result.all()
+        select(Batch.batchname, Batch.batchid)
+        .where(Batch.subject == course)  
+        .order_by(Batch.batchname.desc())
+    )
+
+        rows = db.execute(stmt).all()
 
         if not rows:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=404,
                 detail=f"No batches found for course '{course}'"
             )
 
@@ -281,6 +332,5 @@ def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Error fetching batches for course '{course}': {e}")
+        print(f"Error fetching batches for {course}: {e}")
         raise HTTPException(status_code=500, detail="Unexpected server error")
-
