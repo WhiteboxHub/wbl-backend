@@ -114,9 +114,14 @@ def list_interviews(
     limit: int = Query(100, le=1000),
     db: Session = Depends(get_db),
 ):
-    return db.query(CandidateInterview).offset(skip).limit(limit).all()
-
-
+    # Sort interviews by date descending to get recent interviews first
+    return (
+        db.query(CandidateInterview)
+        .order_by(CandidateInterview.interview_date.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
     db_obj = candidate_utils.get_candidate_interview(db, interview_id)

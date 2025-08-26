@@ -657,7 +657,7 @@ class CourseCreate(BaseModel):
 
     model_config = {
         "from_attributes": True  
-
+    }
 class CourseUpdate(BaseModel):
     name: Optional[str] = None
     alias: Optional[str] = None
