@@ -242,35 +242,13 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-
-    candidate_id = Column(Integer)
-#--------------------------------Candidate interview--------------------------------
-# class CandidateInterview(Base):
-#     __tablename__ = "candidate_interview"
-    
-#     id = Column(Integer, primary_key=True, index=True)
-#     candidate_id = Column(Integer, ForeignKey("candidate.id"))
-#     company = Column(String(200))
-#     interview_date = Column(DateTime, nullable=False)
-#     feedback = Column(String(50))  # Positive, Negative, No Response
-#     notes = Column(Text)
-    
-#     candidate = relationship("CandidateORM", back_populates="interviews")
-
-#     candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
-#     marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
-#     start_date = Column(Date, nullable=False)
-#     notes = Column(Text, nullable=True)
-#     status = Column(Enum("active", "break", "not responding"), nullable=False)
-#     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-#     instructor1_id = Column(Integer, nullable=True)
-#     instructor2_id = Column(Integer, nullable=True)
-#     instructor3_id = Column(Integer, nullable=True)
-#     email = Column(String(100), nullable=True)
-#     password = Column(String(100), nullable=True)
-#     google_voice_number = Column(String(100), nullable=True)
-#     rating = Column(Integer, nullable=True)
-#     priority = Column(Integer, nullable=True)
+    candidate_id =Column(Integer)
+    marketing_manager = Column(Integer)
+    start_date = Column(Date,nullable=False)
+    notes=Column(Text,nullable=True)
+    status=Column(Enum('active','break','not responding'), nullable=False)
+    last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # candidate_id = Column(Integer)
 
    
 # --------------------------------------Candidate_Placement-------------------------------
@@ -453,13 +431,32 @@ class Session(Base):
     sessionid = Column(Integer, primary_key=True, index=True)
     title = Column(String(255))
     link = Column(String(1024))
+    # status = Column(String(45), nullable=False)
     videoid = Column(String(255))
     # subject = Column(String(255))
     type = Column(String(50))
     sessiondate = Column(DateTime)
-    lastmoddatetime = Column(DateTime)
+    # lastmoddatetime = Column(DateTime)
+    notes = Column(Text, nullable=True)
     subject_id = Column(Integer, ForeignKey("subject.id"))
+
     subject = relationship("Subject", back_populates="sessions")
+
+
+# class Session(Base):
+#     __tablename__ = "session"
+
+#     sessionid = Column(Integer, primary_key=True, index=True, autoincrement=True)
+#     title = Column(String(500), nullable=True)
+#     status = Column(String(45), nullable=False)
+#     sessiondate = Column(Date, nullable=False)
+#     type = Column(String(45), nullable=False)
+#     subject = Column(String(45), nullable=True)
+#     link = Column(String(150), nullable=True)
+#     videoid = Column(String(150), nullable=True)
+#     notes = Column(Text, nullable=True)
+#     lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+#     subject_id = Column(Integer, nullable=False, default=0)
 
 
 
@@ -486,9 +483,21 @@ class EmployeeORM(Base):
 
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
+    
+# class CandidateInterview(Base):
+#     __tablename__ = "candidate_interview"
+    
+    # id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))
+    # company = Column(String(200))
+    # interview_date = Column(DateTime, nullable=False)
+    # feedback = Column(String(50))  # Positive, Negative, No Response
+    # notes = Column(Text)
+    
+    candidate = relationship("CandidateORM", back_populates="interviews")
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(Integer, nullable=False)   
+    # candidate_id = Column(Integer, nullable=False)   
     candidate_name = Column(String(200), nullable=True)
     company = Column(String(200), nullable=False)
     interviewer_emails = Column(Text, nullable=True)

@@ -124,8 +124,6 @@ def list_interviews(
         .all()
     )
 
-
-
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
     db_obj = candidate_utils.get_candidate_interview(db, interview_id)

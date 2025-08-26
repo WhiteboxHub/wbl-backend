@@ -1,16 +1,22 @@
 # wbl-backend/fapi/api/routes/batch.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,Query
 from sqlalchemy.orm import Session
 from fapi.db import schemas
+from typing import Optional
 from fapi.db.database import get_db
 from fapi.utils import batch_utils
 
 
 router = APIRouter()
 
-@router.get("/batch", response_model=list[schemas.BatchOut])
-def read_batches(db: Session = Depends(get_db)):
-    return batch_utils.get_batches(db)
+@router.get("/batch", response_model=schemas.PaginatedBatches)
+def read_batches(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search by batch name"),
+    db: Session = Depends(get_db),
+):
+    return batch_utils.get_batches_paginated(db, page=page, per_page=per_page, search=search)
 
 @router.get("/batch/{batch_id}", response_model=schemas.BatchOut)
 def read_batch(batch_id: int, db: Session = Depends(get_db)):

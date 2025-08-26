@@ -500,6 +500,14 @@ class Course(CourseBase):
 class SubjectBase(BaseModel):
     name: str
 
+
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True
+
 class SubjectCreate(SubjectBase):
     pass
 
@@ -781,6 +789,16 @@ class Batch(BatchBase):
         "from_attributes": True  
     }
 
+class PaginatedBatches(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    batches: List[BatchOut]
+
+
+
+
+    
 class RecordingBase(BaseModel):
     batchname: str
     description: Optional[str] = None
@@ -818,6 +836,8 @@ class RecordingBatch(RecordingBatchBase):
     }
 
 
+# -----------------------------------------------------Session------------------------------------
+
 class SessionBase(BaseModel):
     title: str
     link: Optional[str] = None
@@ -825,10 +845,16 @@ class SessionBase(BaseModel):
     subject: Optional[str] = None
     type: Optional[str] = None
     sessiondate: Optional[datetime] = None
-    lastmoddatetime: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
     subject_id: int
+    notes: Optional[str] = None
+    # status: Optional[str] = None 
+
 
 class SessionCreate(SessionBase):
+    pass
+
+class SessionUpdate(SessionBase):
     pass
 
 class Session(SessionBase):
@@ -837,6 +863,30 @@ class Session(SessionBase):
     model_config = {
         "from_attributes": True 
     }
+
+
+
+
+class SessionOut(SessionBase):
+    sessionid: int
+    # lastmoddatetime: Optional[datetime]
+    subject: Optional[SubjectOut]
+
+    class Config:
+        orm_mode = True
+
+
+class PaginatedSession(BaseModel):
+    data: list[SessionOut]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+   
+
+    class Config:
+        orm_mode = True
+
 
 
 # -----------------------------Avatar Dashboard schemas----------------------------------------------------
