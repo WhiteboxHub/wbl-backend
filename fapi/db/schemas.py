@@ -781,6 +781,16 @@ class Batch(BatchBase):
         "from_attributes": True  
     }
 
+class PaginatedBatches(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    batches: List[BatchOut]
+
+
+
+
+    
 class RecordingBase(BaseModel):
     batchname: str
     description: Optional[str] = None

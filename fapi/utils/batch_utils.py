@@ -1,9 +1,40 @@
 # wbl-backend/fapi/utils/batch_utils.py
 from sqlalchemy.orm import Session
 from fapi.db import models, schemas
+from typing import Optional
 
-def get_batches(db: Session):
-    return db.query(models.Batch).all()
+def get_batches_paginated(
+    db: Session,
+    page: int = 1,
+    per_page: int = 50,
+    search: Optional[str] = None
+):
+    query = db.query(models.Batch)
+
+    if search:
+        # Try numeric search for batchid
+        if search.isdigit():
+            query = query.filter(models.Batch.batchid == int(search))
+        else:
+            # Search by batchname (case-insensitive)
+            query = query.filter(models.Batch.batchname.ilike(f"%{search}%"))
+
+    total = query.count()
+    offset = (page - 1) * per_page
+
+    batches = (
+        query.order_by(models.Batch.batchid.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "batches": batches,
+    }
 
 def get_batch_by_id(db: Session, batch_id: int):
     return db.query(models.Batch).filter(models.Batch.batchid == batch_id).first()
