@@ -66,11 +66,11 @@ app.include_router(resources.router, prefix="/api", tags=["Resources"])
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
 app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
-app.include_router(course.router, prefix="/courses", tags=["courses"])
-app.include_router(subject.router, prefix="/subjects", tags=["subjects"])
-app.include_router(course_subject.router, prefix="/course-subjects", tags=["course-subjects"])
-app.include_router(course_content.router, prefix="/course-contents", tags=["course-contents"])
-app.include_router(course_material.router, prefix="/course-materials", tags=["course-materials"])
+app.include_router(course.router, prefix="/api", tags=["courses"])
+app.include_router(subject.router, prefix="/api", tags=["subjects"])
+app.include_router(course_subject.router, prefix="/api", tags=["course-subjects"])
+app.include_router(course_content.router, prefix="/api", tags=["course-contents"])
+app.include_router(course_material.router, prefix="/api", tags=["course-materials"])
 
 
 def get_db():
