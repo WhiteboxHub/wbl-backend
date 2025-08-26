@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func
+from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -229,6 +229,11 @@ class CandidateORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
+    interviews = relationship(
+        "CandidateInterview", 
+        back_populates="candidate",
+        foreign_keys="[CandidateInterview.candidate_id]"
+    )
 
 # --------------------------------------Candidate_Marketing-------------------------------
 
@@ -237,20 +242,35 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
-    marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    start_date = Column(Date, nullable=False)
-    notes = Column(Text, nullable=True)
-    status = Column(Enum("active", "break", "not responding"), nullable=False)
-    last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-    instructor1_id = Column(Integer, nullable=True)
-    instructor2_id = Column(Integer, nullable=True)
-    instructor3_id = Column(Integer, nullable=True)
-    email = Column(String(100), nullable=True)
-    password = Column(String(100), nullable=True)
-    google_voice_number = Column(String(100), nullable=True)
-    rating = Column(Integer, nullable=True)
-    priority = Column(Integer, nullable=True)
+
+    candidate_id = Column(Integer)
+#--------------------------------Candidate interview--------------------------------
+# class CandidateInterview(Base):
+#     __tablename__ = "candidate_interview"
+    
+#     id = Column(Integer, primary_key=True, index=True)
+#     candidate_id = Column(Integer, ForeignKey("candidate.id"))
+#     company = Column(String(200))
+#     interview_date = Column(DateTime, nullable=False)
+#     feedback = Column(String(50))  # Positive, Negative, No Response
+#     notes = Column(Text)
+    
+#     candidate = relationship("CandidateORM", back_populates="interviews")
+
+#     candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
+#     marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
+#     start_date = Column(Date, nullable=False)
+#     notes = Column(Text, nullable=True)
+#     status = Column(Enum("active", "break", "not responding"), nullable=False)
+#     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+#     instructor1_id = Column(Integer, nullable=True)
+#     instructor2_id = Column(Integer, nullable=True)
+#     instructor3_id = Column(Integer, nullable=True)
+#     email = Column(String(100), nullable=True)
+#     password = Column(String(100), nullable=True)
+#     google_voice_number = Column(String(100), nullable=True)
+#     rating = Column(Integer, nullable=True)
+#     priority = Column(Integer, nullable=True)
 
    
 # --------------------------------------Candidate_Placement-------------------------------
@@ -259,6 +279,8 @@ class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+
+    candidate_id = Column(Integer, ForeignKey("candidateid", ondelete="CASCADE"), nullable=False)
     candidate_id = Column(Integer)
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
@@ -371,14 +393,33 @@ class CourseSubject(Base):
     course = relationship("Course", back_populates="subjects")
     subject = relationship("Subject", back_populates="course_subjects")
 
+    # --------------------------------------------------------
+
+# class Batch(Base):
+#     __tablename__ = "batch"
+#     batchid = Column(Integer, primary_key=True, index=True)
+#     batchname = Column(String(255))
+#     courseid = Column(Integer, ForeignKey("course.id"))
+#     course = relationship("Course", back_populates="batches")
+#     recording_batches = relationship("RecordingBatch", back_populates="batch")
+
 class Batch(Base):
     __tablename__ = "batch"
-    batchid = Column(Integer, primary_key=True, index=True)
-    batchname = Column(String(255))
-    courseid = Column(Integer, ForeignKey("course.id"))
-    subject = Column(String(255))
+
+
+    batchid = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    batchname = Column(String(100), nullable=False)
+    orientationdate = Column(Date, nullable=True)
+    subject = Column(String(45), nullable=False, default="ML")
+    startdate = Column(Date, nullable=True)
+    enddate = Column(Date, nullable=True)
+    lastmoddatetime = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+    courseid = Column(Integer, ForeignKey("course.id"), nullable=True)
+
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+
 
 class Recording(Base):
     __tablename__ = "recording"
