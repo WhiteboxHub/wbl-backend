@@ -249,8 +249,6 @@ class CandidateMarketingORM(Base):
     status=Column(Enum('active','break','not responding'), nullable=False)
     last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     # candidate_id = Column(Integer)
-#--------------------------------Candidate interview--------------------------------
-
 
    
 # --------------------------------------Candidate_Placement-------------------------------
@@ -433,13 +431,32 @@ class Session(Base):
     sessionid = Column(Integer, primary_key=True, index=True)
     title = Column(String(255))
     link = Column(String(1024))
+    # status = Column(String(45), nullable=False)
     videoid = Column(String(255))
     # subject = Column(String(255))
     type = Column(String(50))
     sessiondate = Column(DateTime)
-    lastmoddatetime = Column(DateTime)
+    # lastmoddatetime = Column(DateTime)
+    notes = Column(Text, nullable=True)
     subject_id = Column(Integer, ForeignKey("subject.id"))
+
     subject = relationship("Subject", back_populates="sessions")
+
+
+# class Session(Base):
+#     __tablename__ = "session"
+
+#     sessionid = Column(Integer, primary_key=True, index=True, autoincrement=True)
+#     title = Column(String(500), nullable=True)
+#     status = Column(String(45), nullable=False)
+#     sessiondate = Column(Date, nullable=False)
+#     type = Column(String(45), nullable=False)
+#     subject = Column(String(45), nullable=True)
+#     link = Column(String(150), nullable=True)
+#     videoid = Column(String(150), nullable=True)
+#     notes = Column(Text, nullable=True)
+#     lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+#     subject_id = Column(Integer, nullable=False, default=0)
 
 
 

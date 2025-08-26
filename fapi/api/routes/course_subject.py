@@ -8,12 +8,12 @@ from fapi.utils import course_subject_utils
 
 router = APIRouter()
 
-@router.get("/", response_model=List[schemas.CourseSubjectResponse])
+@router.get("/course-subjects", response_model=List[schemas.CourseSubjectResponse])
 def get_course_subjects(db: Session = Depends(get_db)):
     course_subjects = course_subject_utils.get_all_course_subjects(db)
     return course_subjects
 
-@router.post("/", response_model=schemas.CourseSubjectResponse)
+@router.post("/course-subjects", response_model=schemas.CourseSubjectResponse)
 def create_course_subject(course_subject: schemas.CourseSubjectCreate, db: Session = Depends(get_db)):
     try:
         db_course_subject = course_subject_utils.create_course_subject(db, course_subject)
@@ -21,7 +21,7 @@ def create_course_subject(course_subject: schemas.CourseSubjectCreate, db: Sessi
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-@router.put("/", response_model=schemas.CourseSubjectResponse)
+@router.put("/course-subjects", response_model=schemas.CourseSubjectResponse)
 def update_course_subject(
     course_subject_update: schemas.CourseSubjectUpdate,  # Only request body
     db: Session = Depends(get_db)
@@ -42,7 +42,7 @@ def update_course_subject(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))  
     
 
-@router.delete("/")
+@router.delete("/course-subjects")
 def delete_course_subject(course_id: int, subject_id: int, db: Session = Depends(get_db)):
     try:
         course_subject_utils.delete_course_subject(db, course_id, subject_id)

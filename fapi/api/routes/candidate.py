@@ -108,6 +108,7 @@ def create_interview(interview: CandidateInterviewCreate, db: Session = Depends(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
+
 @router.get("/interviews", response_model=list[CandidateInterviewOut])
 def list_interviews(
     skip: int = Query(0, ge=0),
@@ -122,6 +123,7 @@ def list_interviews(
         .limit(limit)
         .all()
     )
+
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
     db_obj = candidate_utils.get_candidate_interview(db, interview_id)
