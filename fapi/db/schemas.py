@@ -190,7 +190,7 @@ class VendorTypeEnum(str, Enum):
 # -------------------- VendorContactExtract Schemas --------------------
 class VendorContactExtract(BaseModel):
     id: int
-    full_name: str
+    full_name: Optional[str] =None 
     source_email: Optional[EmailStr] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -243,7 +243,7 @@ class VendorContactExtractUpdate(BaseModel):
 
 # -------------------- Vendor Schemas --------------------
 class VendorBase(BaseModel):
-    full_name: str
+    full_name: Optional[str] =None
     phone_number: Optional[str] = None
     secondary_phone: Optional[str] = None
     email: Optional[EmailStr] = None

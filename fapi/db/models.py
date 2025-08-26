@@ -48,10 +48,10 @@ class AuthUserORM(Base):
     token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
-    experience = Column(String(100))
-    education = Column(String(255))
-    referby = Column(String(100))
-    specialization = Column(String(255))
+    # experience = Column(String(100))
+    # education = Column(String(255))
+    # referby = Column(String(100))
+    # specialization = Column(String(255))
     notes = Column(Text)
 
 
@@ -140,7 +140,7 @@ class Vendor(Base):
     __tablename__ = "vendor"
 
     id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
     phone_number = Column(String(50))
     secondary_phone = Column(String(50))
     email = Column(String(255), unique=True, index=True)
