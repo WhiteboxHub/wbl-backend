@@ -10,15 +10,6 @@ from fapi.utils import authuser_utils
 router = APIRouter()
 
 
-# @router.get("/user", response_model=schemas.PaginatedUsers)
-# def read_users(
-#     page: int = Query(1, ge=1, description="Page number"),
-#     per_page: int = Query(100, ge=1, le=100, description="Users per page"),
-#     db: Session = Depends(get_db),
-# ):
-#     return authuser_utils.get_users_paginated(db, page=page, per_page=per_page)
-
-
 @router.get("/user", response_model=schemas.PaginatedUsers)
 def read_users(
     page: int = Query(1, ge=1, description="Page number"),
