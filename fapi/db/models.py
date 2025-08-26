@@ -249,8 +249,6 @@ class CandidateMarketingORM(Base):
     status=Column(Enum('active','break','not responding'), nullable=False)
     last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     # candidate_id = Column(Integer)
-#--------------------------------Candidate interview--------------------------------
-
 
    
 # --------------------------------------Candidate_Placement-------------------------------
