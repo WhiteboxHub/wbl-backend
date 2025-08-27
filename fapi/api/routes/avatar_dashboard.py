@@ -11,7 +11,7 @@ from fapi.utils.avatar_dashboard_utils import (
     get_upcoming_batches,
 )
 
-router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["Avatar Dashboard"])
 
 
 @router.get("/metrics/financial", response_model=FinancialMetrics)

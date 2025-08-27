@@ -841,7 +841,8 @@ class Session(SessionBase):
 
 # -----------------------------Avatar Dashboard schemas----------------------------------------------------
 class BatchMetrics(BaseModel):
-    current_active_batches: int
+    current_active_batches: str
+    current_active_batches_count: int 
     enrolled_candidates_current: int
     total_candidates: int
     candidates_last_batch: int
@@ -922,7 +923,16 @@ class Employee(EmployeeBase):
 
     class Config:
         from_attributes = True
-        
+
+class EmployeeBirthdayOut(BaseModel):
+    id: int
+    name: str
+    dob: date
+    wish: str | None = None     
+
+    class Config:
+        orm_mode = True
+
         
 # --------------------------------------------Password----------------------------
 class ResetPasswordRequest(BaseModel):

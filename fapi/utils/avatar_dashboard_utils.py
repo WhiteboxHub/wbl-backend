@@ -2,17 +2,27 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM
 
 
 def get_batch_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
-    #Current active bacthes
     current_active_batches = db.query(Batch).filter(
         Batch.startdate <= today,
         Batch.enddate >= today
-    ).count()
+    ).all()
+    
+    if current_active_batches:
+        batch_names = [batch.batchname for batch in current_active_batches]
+        current_active_batches_str = batch_names[0]  # First batch name
+        if len(batch_names) > 1:
+            current_active_batches_str += f" (+{len(batch_names) - 1} more)"
+    else:
+        current_active_batches_str = "No active batches"
+    
+    # If multiple batches, show count and first batch name
+    current_active_batches_count = len(current_active_batches)
+
     #Enrolled candidates
     enrolled_candidates_current = db.query(CandidateORM).join(
         Batch, 
@@ -46,7 +56,8 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
     status_dict = {status: count for status, count in status_breakdown}
     
     return {
-        "current_active_batches": current_active_batches,
+        "current_active_batches": current_active_batches_str,
+        "current_active_batches_count": current_active_batches_count,
         "enrolled_candidates_current": enrolled_candidates_current,
         "total_candidates": total_candidates,
         "candidates_last_batch": candidates_last_batch,
@@ -255,3 +266,33 @@ def get_top_batches_revenue(db: Session, limit: int = 5) -> List[Dict[str, Any]]
     except Exception as e:
         print(f"Error in get_top_batches_revenue: {e}")
         return []
+    
+def get_employee_birthdays(db: Session):
+    today = date.today()
+
+    # Employees with birthday today
+    todays_birthdays = db.query(EmployeeORM).filter(
+        EmployeeORM.dob.isnot(None),
+        db.extract('month', EmployeeORM.dob) == today.month,
+        db.extract('day', EmployeeORM.dob) == today.day
+    ).all()
+
+    if todays_birthdays:
+        return {
+            "today": [{"id": emp.id, "name": emp.name, "dob": emp.dob,
+                       "wish": f"Happy Birthday {emp.name}! 🎉🥳"} 
+                      for emp in todays_birthdays],
+            "upcoming": []
+        }
+
+    # If no birthdays today → get upcoming within same month
+    upcoming = db.query(EmployeeORM).filter(
+        EmployeeORM.dob.isnot(None),
+        db.extract('month', EmployeeORM.dob) == today.month,
+        db.extract('day', EmployeeORM.dob) > today.day
+    ).order_by(EmployeeORM.dob).limit(5).all()
+
+    return {
+        "today": [],
+        "upcoming": [{"id": emp.id, "name": emp.name, "dob": emp.dob} for emp in upcoming]
+    }

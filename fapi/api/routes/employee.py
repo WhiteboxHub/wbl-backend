@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, status,APIRouter
+from fastapi import FastAPI, HTTPException, status,APIRouter, Depends
 from sqlalchemy.orm import Session
 from fapi.db.models import EmployeeORM
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal,get_db
 from fapi.db.schemas import Employee, EmployeeCreate, EmployeeUpdate
 from fapi.utils.employee_utils import get_all_employees,create_employee_db,update_employee_db,delete_employee_db,clean_invalid_values
+from fapi.utils.avatar_dashboard_utils import get_employee_birthdays
+
 app = FastAPI()
 router = APIRouter()
 
@@ -15,6 +17,10 @@ def get_employees():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/employee-birthdays")
+def employee_birthdays(db: Session = Depends(get_db)):
+    birthdays = utils.get_employee_birthdays(db)
+    return birthdays
 
 @router.post("/employees", response_model=Employee, status_code=status.HTTP_201_CREATED)
 def create_employee(employee_data: EmployeeCreate):
