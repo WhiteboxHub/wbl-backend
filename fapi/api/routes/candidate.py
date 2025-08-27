@@ -178,3 +178,149 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return deleted
 
+##--------------------------------search----------------------------------
+# Add this simple test route to candidate.py to check if route is working
+# Add these two routes to routes/candidate.py
+
+from fapi.db.models import CandidateORM, AuthUserORM, EmployeeORM, CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
+
+@router.get("/candidates/search-names/{search_term}")
+def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
+    """Get candidate name suggestions for dropdown"""
+    if not search_term or len(search_term.strip()) < 2:
+        return []
+    
+    try:
+        candidates = (
+            db.query(CandidateORM.id, CandidateORM.full_name, CandidateORM.email)
+            .filter(CandidateORM.full_name.ilike(f"%{search_term}%"))
+            .limit(10)
+            .all()
+        )
+        
+        return [
+            {
+                "id": candidate.id,
+                "name": candidate.full_name,
+                "email": candidate.email or "No email"
+            }
+            for candidate in candidates
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+@router.get("/candidates/details/{candidate_id}")
+def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
+    """Get full candidate details for accordion"""
+    try:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            return {"error": "Candidate not found"}
+        
+        # Get batch name
+        batch_name = f"Batch ID: {candidate.batchid}"
+        try:
+            batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
+            if batch:
+                batch_name = batch.batchname
+        except:
+            pass
+        
+        # Get preparation records
+        preparation_records = []
+        try:
+            prep_data = db.query(CandidatePreparation).filter(CandidatePreparation.candidate_id == candidate.id).all()
+            for prep in prep_data:
+                preparation_records.append({
+                    "start_date": prep.start_date.isoformat() if prep.start_date else None,
+                    "status": prep.status or "Unknown",
+                    "rating": prep.rating,
+                    "tech_rating": prep.tech_rating,
+                    "communication": prep.communication,
+                    "notes": prep.notes
+                })
+        except:
+            pass
+        
+        # Get marketing records
+        marketing_records = []
+        try:
+            marketing_data = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate.id).all()
+            for marketing in marketing_data:
+                marketing_records.append({
+                    "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
+                    "status": marketing.status or "Unknown",
+                    "notes": marketing.notes
+                })
+        except:
+            pass
+        
+        # Get interview records
+        interview_records = []
+        try:
+            interview_data = db.query(CandidateInterview).filter(CandidateInterview.candidate_id == candidate.id).all()
+            for interview in interview_data:
+                interview_records.append({
+                    "company": interview.company,
+                    "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
+                    "interview_type": interview.interview_type,
+                    "status": interview.status,
+                    "feedback": interview.feedback,
+                    "notes": interview.notes
+                })
+        except:
+            pass
+        
+        # Get placement records
+        placement_records = []
+        try:
+            placement_data = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.candidate_id == candidate.id).all()
+            for placement in placement_data:
+                placement_records.append({
+                    "position": placement.position,
+                    "company": placement.company,
+                    "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
+                    "status": placement.status,
+                    "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                    "notes": placement.notes
+                })
+        except:
+            pass
+        
+        return {
+            "candidate_id": candidate.id,
+            "basic_info": {
+                "full_name": candidate.full_name,
+                "email": candidate.email,
+                "phone": candidate.phone,
+                "status": candidate.status,
+                "workstatus": candidate.workstatus,
+                "education": candidate.education,
+                "workexperience": candidate.workexperience,
+                "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
+                "batch_name": batch_name,
+                "agreement": candidate.agreement
+            },
+            "emergency_contact": {
+                "emergcontactname": candidate.emergcontactname,
+                "emergcontactphone": candidate.emergcontactphone,
+                "emergcontactemail": candidate.emergcontactemail
+            },
+            "fee_financials": {
+                "fee_paid": candidate.fee_paid,
+                "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending"
+            },
+            "preparation_records": preparation_records,
+            "marketing_records": marketing_records,
+            "interview_records": interview_records,
+            "placement_records": placement_records,
+            "login_access": {
+                "status": "No login data available"
+            },
+            "miscellaneous": {
+                "notes": candidate.notes
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+    
