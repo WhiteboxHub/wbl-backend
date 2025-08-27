@@ -156,8 +156,6 @@ class LeadSchema(LeadBase):
     id: int
     class Config:
         from_attributes = True  
-
- 
 # --------------------------------------------------------candidate-------------------------------------------------------
 
 
@@ -254,6 +252,124 @@ class CandidatePlacement(CandidatePlacementBase):
     last_mod_datetime: Optional[datetime]
     class Config:
         from_attributes = True
+# ----------------------------------------------------
+
+class CandidatePreparationBase(BaseModel):
+    id: int = Field(..., alias="id")
+    candidate_id: int
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: str
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+   
+
+class CandidatePreparationCreate(CandidatePreparationBase):
+    pass
+
+class CandidatePreparationUpdate(BaseModel):
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: Optional[str] = None
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    
+
+
+class CandidatePreparationOut(CandidatePreparationBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+    
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True  
+    }
+
+# --------------------------------------------------
+class InterviewTypeEnum(str, Enum):
+    phone = "Phone"
+    virtual = "Virtual"
+    in_person = "In Person"
+    assessment = "Assessment"
+
+
+class FeedbackEnum(str, Enum):
+    negative = "Negative"
+    positive = "Positive"
+    no_response = "No Response"
+    cancelled = "Cancelled" 
+
+
+class CandidateInterviewBase(BaseModel):
+    candidate_id: int
+    candidate_name: Optional[str] = None
+    company: str
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interview_date: date
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    status: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+
+class CandidateInterviewCreate(CandidateInterviewBase):
+    pass
+
+
+class CandidateInterviewUpdate(BaseModel):
+    candidate_id: Optional[int] = None
+    candidate_name: Optional[str] = None
+    company: Optional[str] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interview_date: Optional[date] = None
+    interview_type: Optional[InterviewTypeEnum] = None
+    recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    status: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+
+class CandidateInterviewOut(CandidateInterviewBase):
+    id: int
+    last_mod_datetime: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+
+
+
+
+
+
 
 # -----------------------------------------------------------------------------------
 
@@ -531,7 +647,9 @@ class CourseSubject(CourseSubjectBase):
     model_config = {
         "from_attributes": True  
     }
+
 # ----------------------------------batch-------------
+
 
 
 class BatchBase(BaseModel):
@@ -547,6 +665,7 @@ class BatchCreate(BatchBase):
 
 class BatchUpdate(BatchBase):
     pass
+
 
 class BatchOut(BatchBase):
     batchid: int
@@ -640,7 +759,7 @@ class CourseContentResponse(CourseContentCreate):
 
 
 
-    # ===============================
+# -------------------------
     
 # Course Schemas 
 class CourseResponse(BaseModel):
@@ -892,7 +1011,8 @@ class PaginatedSession(BaseModel):
 
 # -----------------------------Avatar Dashboard schemas----------------------------------------------------
 class BatchMetrics(BaseModel):
-    current_active_batches: int
+    current_active_batches: str
+    current_active_batches_count: int 
     enrolled_candidates_current: int
     total_candidates: int
     candidates_last_batch: int
@@ -902,7 +1022,7 @@ class BatchMetrics(BaseModel):
 
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
-    fee_collected_month: float
+    fee_collected_last_batch: float
     top_batches_fee: List[Dict[str, Any]]
 
 
@@ -930,12 +1050,28 @@ class DashboardMetrics(BaseModel):
 
 
 class UpcomingBatch(BaseModel):
-    name: str
-    start_date: date
-    end_date: date
+    batchname: str
+    startdate: date
+    enddate: date
 
     class Config:
         from_attributes = True
+
+class LeadMetrics(BaseModel):
+    total_leads: int
+    leads_this_month: int
+    latest_lead: Optional[Dict[str, Any]] = None
+
+class LeadMetricsResponse(BaseModel):
+    success: bool
+    data: LeadMetrics
+    message: str
+
+class LeadsPaginatedResponse(BaseModel):
+    success: bool
+    data: Dict[str, Any]
+    message: str
+
 
 # =====================================employee========================
 class EmployeeBase(BaseModel):
@@ -973,7 +1109,16 @@ class Employee(EmployeeBase):
 
     class Config:
         from_attributes = True
-        
+
+class EmployeeBirthdayOut(BaseModel):
+    id: int
+    name: str
+    dob: date
+    wish: str | None = None     
+
+    class Config:
+        orm_mode = True
+
         
 # --------------------------------------------Password----------------------------
 class ResetPasswordRequest(BaseModel):
@@ -984,110 +1129,5 @@ class ResetPassword(BaseModel):
     new_password: str
 
 
-class InterviewTypeEnum(str, Enum):
-    phone = "Phone"
-    virtual = "Virtual"
-    in_person = "In Person"
-    assessment = "Assessment"
 
 
-class FeedbackEnum(str, Enum):
-    negative = "Negative"
-    positive = "Positive"
-    no_response = "No Response"
-    cancelled = "Cancelled" 
-
-
-class CandidateInterviewBase(BaseModel):
-    candidate_id: int
-    candidate_name: Optional[str] = None
-    company: str
-    interviewer_emails: Optional[str] = None
-    interviewer_contact: Optional[str] = None
-    interview_date: date
-    interview_type: Optional[InterviewTypeEnum] = None
-    recording_link: Optional[str] = None
-    status: Optional[str] = None
-    feedback: Optional[FeedbackEnum] = None
-    notes: Optional[str] = None
-
-
-class CandidateInterviewCreate(CandidateInterviewBase):
-    pass
-
-
-class CandidateInterviewUpdate(BaseModel):
-    candidate_id: Optional[int] = None
-    candidate_name: Optional[str] = None
-    company: Optional[str] = None
-    interviewer_emails: Optional[str] = None
-    interviewer_contact: Optional[str] = None
-    interview_date: Optional[date] = None
-    interview_type: Optional[InterviewTypeEnum] = None
-    recording_link: Optional[str] = None
-    status: Optional[str] = None
-    feedback: Optional[FeedbackEnum] = None
-    notes: Optional[str] = None
-
-
-class CandidateInterviewOut(CandidateInterviewBase):
-    id: int
-    last_mod_datetime: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-
-
-class CandidatePreparationBase(BaseModel):
-    id: int = Field(..., alias="id")
-    candidate_id: int
-    batch: Optional[str] = None
-    start_date: Optional[date] = None
-    status: str
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-    rating: Optional[str] = None
-    tech_rating: Optional[str] = None
-    communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
-    notes: Optional[str] = None
-   
-
-class CandidatePreparationCreate(CandidatePreparationBase):
-    pass
-
-class CandidatePreparationUpdate(BaseModel):
-    batch: Optional[str] = None
-    start_date: Optional[date] = None
-    status: Optional[str] = None
-    instructor1_id: Optional[int] = None
-    instructor2_id: Optional[int] = None
-    instructor3_id: Optional[int] = None
-    rating: Optional[str] = None
-    tech_rating: Optional[str] = None
-    communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
-    notes: Optional[str] = None
-    
-
-
-class CandidatePreparationOut(CandidatePreparationBase):
-    id: int
-    last_mod_datetime: Optional[datetime]
-    
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-
-    model_config = {
-        "from_attributes": True,
-        "populate_by_name": True  
-    }

@@ -8,19 +8,19 @@ from fapi.utils import course_utils
 
 router = APIRouter()
 
-@router.get("/", response_model=List[schemas.CourseResponse])
+@router.get("/courses", response_model=List[schemas.CourseResponse])
 def get_courses(db: Session = Depends(get_db)):
     courses = course_utils.get_all_courses(db)
     return courses
 
-@router.get("/{course_id}", response_model=schemas.CourseResponse)  
+@router.get("/courses/{course_id}", response_model=schemas.CourseResponse)  
 def get_course(course_id: int, db: Session = Depends(get_db)):
     course = course_utils.get_course_by_id(db, course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     return course
 
-@router.post("/", response_model=schemas.CourseResponse)
+@router.post("/courses", response_model=schemas.CourseResponse)
 def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
     try:
         db_course = course_utils.create_course(db, course)
@@ -28,7 +28,7 @@ def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-@router.put("/{course_id}", response_model=schemas.CourseResponse) 
+@router.put("/courses/{course_id}", response_model=schemas.CourseResponse) 
 def update_course(course_id: int, course: schemas.CourseUpdate, db: Session = Depends(get_db)):
     try:
         db_course = course_utils.update_course(db, course_id, course)
@@ -36,7 +36,7 @@ def update_course(course_id: int, course: schemas.CourseUpdate, db: Session = De
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-@router.delete("/{course_id}")
+@router.delete("/courses/{course_id}")
 def delete_course(course_id: int, db: Session = Depends(get_db)):
     try:
         course_utils.delete_course(db, course_id)

@@ -40,38 +40,6 @@ async def get_session_types(team: str = "null", db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# @router.get("/sessions")
-# async def get_sessions(
-#     course_name: Optional[str] = None,
-#     session_type: Optional[str] = None,
-#     team: str = "admin",
-#     db: Session = Depends(get_db)
-# ):
-#     try:
-#         course_name_to_id = {
-#             "QA": 1,
-#             "UI": 2,
-#             "ML": 3,
-#         }
-
-#         if course_name:
-#             course_id = course_name_to_id.get(course_name.upper())
-#             if not course_id:
-#                 raise HTTPException(
-#                     status_code=status.HTTP_400_BAD_REQUEST,
-#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
-#                 )
-#         else:
-#             course_id = None
-
-#         sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
-#         if not sessions:
-#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
-#         return {"sessions": sessions}
-#     except Exception as e:
-#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-# import traceback
-
 @router.get("/sessions")
 async def get_sessions(
     course_name: Optional[str] = None,
@@ -96,9 +64,6 @@ async def get_sessions(
         else:
             course_id = None
 
-        # sessions = await anyio.to_thread.run_sync(
-        #     lambda: fetch_sessions_by_type_orm(db, course_id, session_type, team)
-        # )
         sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
 
 
@@ -111,7 +76,7 @@ async def get_sessions(
         return {"sessions": sessions}
 
     except Exception as e:
-        traceback.print_exc()   # 👈 print full error in server logs
+        traceback.print_exc()   # print full error in server logs
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error: {str(e)}"

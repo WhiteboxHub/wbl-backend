@@ -156,13 +156,7 @@ class Vendor(Base):
     postal_code = Column(String(20))
     address = Column(Text)
     country = Column(String(50))
-    # vendor_type = Column(
-    #     SQLAEnum(
-    #         VendorTypeEnum,
-    #         values_callable=lambda x: [e.value for e in x]
-    #     ),
-    #     nullable=True
-    # )
+    
     status = Column(
         SQLAEnum(
             "active",
@@ -248,8 +242,48 @@ class CandidateMarketingORM(Base):
     notes=Column(Text,nullable=True)
     status=Column(Enum('active','break','not responding'), nullable=False)
     last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-    # candidate_id = Column(Integer)
+    instructor1_id = Column(Integer, nullable=True)
+    instructor2_id = Column(Integer, nullable=True)
+    instructor3_id = Column(Integer, nullable=True)
+    email = Column(String, nullable=True)
+    password = Column(String, nullable=True)
+    google_voice_number = Column(String, nullable=True)
+    rating = Column(Integer, nullable=True)
+    priority = Column(Integer, nullable=True)
+    
 #--------------------------------Candidate interview--------------------------------
+
+class CandidateInterview(Base):
+    __tablename__ = "candidate_interview"
+    
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))
+    candidate = relationship("CandidateORM", back_populates="interviews")
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  
+    candidate_name = Column(String(200), nullable=True)
+    company = Column(String(200), nullable=False)
+    interviewer_emails = Column(Text, nullable=True)
+    interviewer_contact = Column(Text, nullable=True)  
+    interview_date = Column(Date, nullable=False)
+
+    interview_type = Column(
+        Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
+        nullable=True
+    )
+
+    recording_link = Column(String(500), nullable=True)
+    backup_url = Column(String(500), nullable=True)
+    status = Column(String(100), nullable=True)   
+
+    feedback = Column(
+        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
+        nullable=True
+    )
+
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    )
+
 
 
    
@@ -272,6 +306,37 @@ class CandidatePlacementORM(Base):
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+
+
+# --------------------------------------Candidate_Preparation-------------------------------
+
+class CandidateStatus(str, enum.Enum):
+    active = "active"
+    break_ = "break"
+    not_responding = "not responding"
+    inactive = "inactive"
+
+
+class CandidatePreparation(Base):
+    __tablename__ = "candidate_preparation"
+
+    id = Column(Integer, primary_key=True, index=True)
+    candidate_id = Column(Integer, nullable=False)
+    batch = Column(String(100), nullable=True)
+    start_date = Column(Date, nullable=True)
+    status = Column(Enum('active','break','not responding','inactive'), nullable=False)
+    instructor1_id = Column(Integer, nullable=True)
+    instructor2_id = Column(Integer, nullable=True)
+    instructor3_id = Column(Integer, nullable=True)
+    rating = Column(String(50), nullable=True)
+    tech_rating = Column(String(50), nullable=True)
+    communication = Column(String(50), nullable=True)
+    years_of_experience = Column(String(50), nullable=True)
+    topics_finished = Column(Text, nullable=True)
+    current_topics = Column(Text, nullable=True)
+    target_date_of_marketing = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(TIMESTAMP, nullable=True)
 
 
 
@@ -375,14 +440,6 @@ class CourseSubject(Base):
 
     # --------------------------------------------------------
 
-# class Batch(Base):
-#     __tablename__ = "batch"
-#     batchid = Column(Integer, primary_key=True, index=True)
-#     batchname = Column(String(255))
-#     courseid = Column(Integer, ForeignKey("course.id"))
-#     course = relationship("Course", back_populates="batches")
-#     recording_batches = relationship("RecordingBatch", back_populates="batch")
-
 class Batch(Base):
     __tablename__ = "batch"
 
@@ -428,6 +485,8 @@ class RecordingBatch(Base):
     recording = relationship("Recording", back_populates="recording_batches")
     batch = relationship("Batch", back_populates="recording_batches")
 
+
+# ----------------Sessions ---------------------
 class Session(Base):
     __tablename__ = "session"
     sessionid = Column(Integer, primary_key=True, index=True)
@@ -435,7 +494,7 @@ class Session(Base):
     link = Column(String(1024))
     # status = Column(String(45), nullable=False)
     videoid = Column(String(255))
-    # subject = Column(String(255))
+
     type = Column(String(50))
     sessiondate = Column(DateTime)
     # lastmoddatetime = Column(DateTime)
@@ -481,74 +540,3 @@ class EmployeeORM(Base):
     status = Column(Integer)
     aadhaar = Column(String(50))  # changed to String, Aadhaar isn’t really an int
 
-
-
-class CandidateInterview(Base):
-    __tablename__ = "candidate_interview"
-    
-# class CandidateInterview(Base):
-#     __tablename__ = "candidate_interview"
-    
-    # id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"))
-    # company = Column(String(200))
-    # interview_date = Column(DateTime, nullable=False)
-    # feedback = Column(String(50))  # Positive, Negative, No Response
-    # notes = Column(Text)
-    
-    candidate = relationship("CandidateORM", back_populates="interviews")
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    # candidate_id = Column(Integer, nullable=False)   
-    candidate_name = Column(String(200), nullable=True)
-    company = Column(String(200), nullable=False)
-    interviewer_emails = Column(Text, nullable=True)
-    interviewer_contact = Column(Text, nullable=True)  
-    interview_date = Column(Date, nullable=False)
-
-    interview_type = Column(
-        Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
-        nullable=True
-    )
-
-    recording_link = Column(String(500), nullable=True)
-    status = Column(String(100), nullable=True)   
-
-    feedback = Column(
-        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
-        nullable=True
-    )
-
-    notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(
-        TIMESTAMP, server_default=func.now(), onupdate=func.now()
-    )
-
-
-class CandidateStatus(str, enum.Enum):
-    active = "active"
-    break_ = "break"
-    not_responding = "not responding"
-    inactive = "inactive"
-
-
-class CandidatePreparation(Base):
-    __tablename__ = "candidate_preparation"
-
-    id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(Integer, nullable=False)
-    batch = Column(String(100), nullable=True)
-    start_date = Column(Date, nullable=True)
-    status = Column(Enum('active','break','not responding','inactive'), nullable=False)
-    instructor1_id = Column(Integer, nullable=True)
-    instructor2_id = Column(Integer, nullable=True)
-    instructor3_id = Column(Integer, nullable=True)
-    rating = Column(String(50), nullable=True)
-    tech_rating = Column(String(50), nullable=True)
-    communication = Column(String(50), nullable=True)
-    years_of_experience = Column(String(50), nullable=True)
-    topics_finished = Column(Text, nullable=True)
-    current_topics = Column(Text, nullable=True)
-    target_date_of_marketing = Column(Date, nullable=True)
-    notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(TIMESTAMP, nullable=True)
