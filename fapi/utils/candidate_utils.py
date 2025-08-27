@@ -308,7 +308,7 @@ def delete_candidate_interview(db: Session, interview_id: int):
         db.commit()
     return db_obj
 
-# -------------------Candidate_Preparation-----
+# -------------------Candidate_Preparation-------------
 
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
     if prep_data.email:
