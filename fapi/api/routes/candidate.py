@@ -1,7 +1,11 @@
 # fapi/api/routes/candidate.py
+from fapi.utils.avatar_dashboard_utils import (
+    get_placement_metrics,
+    get_interview_metrics,
+)
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
 from fapi.db.models import CandidateInterview,CandidateStatus
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
@@ -67,6 +71,11 @@ def delete_marketing_record(record_id: int):
 def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return candidate_utils.get_all_placements(page, limit)
 
+
+@router.get("/candidate/placements/metrics", response_model=PlacementMetrics)
+def get_placement_metrics_endpoint(db: Session = Depends(get_db)):
+    return get_placement_metrics(db)
+
 @router.get("/candidate/placements/{placement_id}")
 def read_placement(placement_id: int = Path(...)):
     return candidate_utils.get_placement_by_id(placement_id)
@@ -82,6 +91,14 @@ def update_existing_placement(placement_id: int, placement: CandidatePlacementCr
 @router.delete("/candidate/placements/{placement_id}")
 def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
+
+
+# -----------candidate interview metrics-------------
+
+
+@router.get("/candidate/interviews/metrics", response_model=InterviewMetrics)
+def get_interview_metrics_endpoint(db: Session = Depends(get_db)):
+    return get_interview_metrics(db)
 
 
 # -------------------Candidate_interview -------------------
@@ -106,9 +123,6 @@ def list_interviews(
         .limit(limit)
         .all()
     )
-
-
-
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
     db_obj = candidate_utils.get_candidate_interview(db, interview_id)
@@ -164,3 +178,4 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
     if not deleted:
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return deleted
+

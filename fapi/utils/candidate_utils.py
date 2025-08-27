@@ -168,7 +168,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
         results = (
             db.query(
                 CandidatePlacementORM,
-                CandidateORM.full_name.label("candidate_name")  # fixed here
+                CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
             .order_by(CandidatePlacementORM.id.desc())
@@ -308,7 +308,7 @@ def delete_candidate_interview(db: Session, interview_id: int):
         db.commit()
     return db_obj
 
-# -------------------Candidate_Preparation-----
+# -------------------Candidate_Preparation-------------
 
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
     if prep_data.email:
