@@ -92,24 +92,24 @@ class AuthUserUpdate(AuthUserBase):
 
 class AuthUserResponse(AuthUserBase):
     id: int
-    lastlogin: Optional[datetime] = None
+    # lastlogin: Optional[datetime] = None
     logincount: Optional[int] = None
     registereddate: Optional[datetime] = None
-    level3date: Optional[datetime] = None
-    lastmoddatetime: Optional[datetime] = None
-    demo: Optional[str] = "N"
+    # level3date: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
+    # demo: Optional[str] = "N"
     enddate: Optional[date] = None
-    reset_token: Optional[str] = None
-    token_expiry: Optional[datetime] = None
+    # reset_token: Optional[str] = None
+    # token_expiry: Optional[datetime] = None
 
 
     @validator(
-        "lastlogin",
+        # "lastlogin",
         "registereddate",
-        "level3date",
-        "lastmoddatetime",
+        # "level3date",
+        # "lastmoddatetime",
         "enddate",
-        "token_expiry",
+        # "token_expiry",
         pre=True,
     )
     def fix_invalid_datetime(cls, v):
@@ -571,13 +571,13 @@ class BatchUpdate(BatchBase):
 
 class BatchOut(BatchBase):
     batchid: int
-    lastmoddatetime: Optional[datetime]
+    # lastmoddatetime: Optional[datetime]
 
-    @field_validator("lastmoddatetime", mode="before")
-    def handle_invalid_datetime(cls, v):
-        if v in (None, "0000-00-00 00:00:00"):
-            return None
-        return v
+    # @field_validator("lastmoddatetime", mode="before")
+    # def handle_invalid_datetime(cls, v):
+    #     if v in (None, "0000-00-00 00:00:00"):
+    #         return None
+    #     return v
 
     class Config:
         orm_mode = True
@@ -777,6 +777,9 @@ class CourseMaterialResponse(BaseModel):
 class BatchBase(BaseModel):
     batchname: str
     courseid: int
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
 
 class BatchCreate(BatchBase):
     pass
