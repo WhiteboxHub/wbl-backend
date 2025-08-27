@@ -19,10 +19,34 @@ def clean_dates(user):
     return user
 
 
-def get_users_paginated(db: Session, page: int = 1, per_page: int = 100):
-    total = db.query(AuthUserORM).count()
+# def get_users_paginated(db: Session, page: int = 1, per_page: int = 100):
+#     total = db.query(AuthUserORM).count()
+#     offset = (page - 1) * per_page
+#     users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).offset(offset).limit(per_page).all()
+#     return {
+#         "total": total,
+#         "page": page,
+#         "per_page": per_page,
+#         "users": [clean_dates(u) for u in users],
+#     }
+
+def get_users_paginated(db: Session, page: int = 1, per_page: int = 100, search_id: int = None, search_name: str = None):
+    query = db.query(AuthUserORM)
+    
+    if search_id is not None:
+        query = query.filter(AuthUserORM.id == search_id)
+    
+    if search_name:
+        search_pattern = f"%{search_name}%"
+        query = query.filter(
+            (AuthUserORM.uname.ilike(search_pattern)) |
+            (AuthUserORM.fullname.ilike(search_pattern))
+        )
+    
+    total = query.count()
     offset = (page - 1) * per_page
-    users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).offset(offset).limit(per_page).all()
+    users = query.order_by(AuthUserORM.id.desc()).offset(offset).limit(per_page).all()
+    
     return {
         "total": total,
         "page": page,
