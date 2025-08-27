@@ -136,13 +136,14 @@ class LeadBase(BaseModel):
     phone: Optional[str] = None
     email: EmailStr
     workstatus: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[str] = "open"
     secondary_email: Optional[str] = None
     secondary_phone: Optional[str] = None
     address: Optional[str] = None
     closed_date: Optional[date] = None
     notes: Optional[str] = None
-    last_modified: Optional[datetime] = None
+    last_modified: Optional[date] = None
+
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
 
