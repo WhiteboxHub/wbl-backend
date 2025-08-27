@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status , Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal, get_db
-from fapi.db.schemas import CourseContentResponse
+from fapi.db.schemas import CourseContentResponse, BatchMetrics
 from sqlalchemy.future import select
 from fapi.db.models import CourseContent
 import anyio
@@ -11,8 +11,10 @@ from fapi.core.config import limiter
 import logging
 from fapi.utils.resources_utils import fetch_subject_batch_recording,fetch_course_batches,fetch_session_types_by_team,fetch_sessions_by_type_orm , fetch_keyword_presentation
 from sqlalchemy.exc import SQLAlchemyError
-
-
+import traceback
+from fapi.utils.avatar_dashboard_utils import (
+    get_batch_metrics,
+)
 router = APIRouter()
 
 
@@ -38,6 +40,38 @@ async def get_session_types(team: str = "null", db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# @router.get("/sessions")
+# async def get_sessions(
+#     course_name: Optional[str] = None,
+#     session_type: Optional[str] = None,
+#     team: str = "admin",
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         course_name_to_id = {
+#             "QA": 1,
+#             "UI": 2,
+#             "ML": 3,
+#         }
+
+#         if course_name:
+#             course_id = course_name_to_id.get(course_name.upper())
+#             if not course_id:
+#                 raise HTTPException(
+#                     status_code=status.HTTP_400_BAD_REQUEST,
+#                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
+#                 )
+#         else:
+#             course_id = None
+
+#         sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
+#         if not sessions:
+#             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
+#         return {"sessions": sessions}
+#     except Exception as e:
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+# import traceback
+
 @router.get("/sessions")
 async def get_sessions(
     course_name: Optional[str] = None,
@@ -62,12 +96,26 @@ async def get_sessions(
         else:
             course_id = None
 
+        # sessions = await anyio.to_thread.run_sync(
+        #     lambda: fetch_sessions_by_type_orm(db, course_id, session_type, team)
+        # )
         sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
+
+
         if not sessions:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sessions not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="Sessions not found"
+            )
+
         return {"sessions": sessions}
+
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        traceback.print_exc()   # 👈 print full error in server logs
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error: {str(e)}"
+        )
 
 
 @router.get("/materials")
@@ -120,4 +168,9 @@ def get_batches(
 ):
     return fetch_course_batches(course, db)
 
+
+
+@router.get("/batches/metrics", response_model=BatchMetrics)
+def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
+    return get_batch_metrics(db)
 
