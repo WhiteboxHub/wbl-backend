@@ -156,8 +156,6 @@ class LeadSchema(LeadBase):
     id: int
     class Config:
         from_attributes = True  
-
- 
 # --------------------------------------------------------candidate-------------------------------------------------------
 
 
@@ -852,7 +850,7 @@ class BatchMetrics(BaseModel):
 
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
-    fee_collected_month: float
+    fee_collected_last_batch: float
     top_batches_fee: List[Dict[str, Any]]
 
 
@@ -880,12 +878,28 @@ class DashboardMetrics(BaseModel):
 
 
 class UpcomingBatch(BaseModel):
-    name: str
-    start_date: date
-    end_date: date
+    batchname: str
+    startdate: date
+    enddate: date
 
     class Config:
         from_attributes = True
+
+class LeadMetrics(BaseModel):
+    total_leads: int
+    leads_this_month: int
+    latest_lead: Optional[Dict[str, Any]] = None
+
+class LeadMetricsResponse(BaseModel):
+    success: bool
+    data: LeadMetrics
+    message: str
+
+class LeadsPaginatedResponse(BaseModel):
+    success: bool
+    data: Dict[str, Any]
+    message: str
+
 
 # =====================================employee========================
 class EmployeeBase(BaseModel):

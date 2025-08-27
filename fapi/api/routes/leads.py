@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Query, Path,HTTPException,FastAPI
+from fastapi import APIRouter, Query, Path,HTTPException,FastAPI,Depends
 from typing import Dict, Any
-from fapi.db.schemas import LeadSchema, LeadCreate
+from fapi.db.schemas import LeadSchema, LeadCreate,LeadMetricsResponse
 from fapi.utils.lead_utils import fetch_all_leads_paginated, get_lead_by_id, create_lead, update_lead, delete_lead,check_and_reset_moved_to_candidate
 import logging
-
+from fapi.db.database import get_db
+from sqlalchemy.orm import Session
+from fapi.utils.avatar_dashboard_utils import (
+    get_lead_metrics,
+    fetch_all_leads_paginated,
+)
 from fapi.utils.lead_utils import delete_lead,delete_candidate_by_email_and_phone,create_candidate_from_lead,get_lead_info_mark_move_to_candidate_true
 logger=logging.getLogger(__name__)
 
@@ -19,6 +24,14 @@ async def get_all_leads(
 ) -> Dict[str, Any]:
     return fetch_all_leads_paginated(page, limit)
 
+@router.get("/leads/metrics", response_model=LeadMetricsResponse)
+def get_lead_metrics_endpoint(db: Session = Depends(get_db)):
+    metrics_data = get_lead_metrics(db)
+    return {
+        "success": True,
+        "data": metrics_data,
+        "message": "Lead metrics retrieved successfully"
+    }
 
 @router.get("/leads/{lead_id}")
 def read_lead(lead_id: int = Path(...)) -> Dict[str, Any]:

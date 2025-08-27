@@ -19,7 +19,7 @@ def get_employees():
 
 @router.get("/employee-birthdays")
 def employee_birthdays(db: Session = Depends(get_db)):
-    birthdays = utils.get_employee_birthdays(db)
+    birthdays = get_employee_birthdays(db)
     return birthdays
 
 @router.post("/employees", response_model=Employee, status_code=status.HTTP_201_CREATED)
