@@ -152,7 +152,7 @@ class Vendor(Base):
         nullable=False,
         server_default=VendorTypeEnum.client.value
     )
-    note = Column(Text)
+    notes = Column(Text)
     linkedin_id = Column(String(255))
     company_name = Column(String(255))
     location = Column(String(255))
@@ -192,8 +192,8 @@ class Vendor(Base):
         default="NO"
     )
     created_at = Column(TIMESTAMP, server_default=func.now())
-    
-    
+    linkedin_internal_id = Column(String(255))
+
 # ------------------------------------------
 
 

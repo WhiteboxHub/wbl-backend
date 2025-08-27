@@ -338,7 +338,7 @@ class VendorBase(BaseModel):
     secondary_phone: Optional[str] = None
     email: Optional[EmailStr] = None
     type: Optional[VendorTypeEnum] = None
-    note: Optional[str] = None
+    notes: Optional[str] = None
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
@@ -349,7 +349,8 @@ class VendorBase(BaseModel):
     vendor_type: Optional[VendorTypeEnum] = None
     linkedin_connected: Optional[str] = "NO"
     intro_email_sent: Optional[str] = "NO"
-    intro_call: Optional[str] = "NO"
+    intro_call: Optional[str] ="No"
+    linkedin_internal_id: Optional[str] = None
 
     @validator("email", pre=True)
     def empty_string_to_none(cls, v):
@@ -393,6 +394,7 @@ class VendorUpdate(BaseModel):
     linkedin_connected: Optional[Literal['YES', 'NO']] = None
     intro_email_sent: Optional[Literal['YES', 'NO']] = None
     intro_call: Optional[Literal['YES', 'NO']] = None
+    linkedin_internal_id: Optional[str] = None
 
 # ---------------daily-vendor-activity --------------
 
