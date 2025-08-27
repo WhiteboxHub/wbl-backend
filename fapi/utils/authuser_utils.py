@@ -8,6 +8,7 @@ from datetime import datetime
 
 
 
+
 def clean_dates(user):
     if not user:
         return None
@@ -18,17 +19,6 @@ def clean_dates(user):
             setattr(user, field, None)
     return user
 
-
-# def get_users_paginated(db: Session, page: int = 1, per_page: int = 100):
-#     total = db.query(AuthUserORM).count()
-#     offset = (page - 1) * per_page
-#     users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).offset(offset).limit(per_page).all()
-#     return {
-#         "total": total,
-#         "page": page,
-#         "per_page": per_page,
-#         "users": [clean_dates(u) for u in users],
-#     }
 
 def get_users_paginated(db: Session, page: int = 1, per_page: int = 100, search_id: int = None, search_name: str = None):
     query = db.query(AuthUserORM)

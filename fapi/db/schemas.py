@@ -532,19 +532,6 @@ class CourseSubject(CourseSubjectBase):
         "from_attributes": True  
     }
 # ----------------------------------batch-------------
-# class BatchBase(BaseModel):
-#     batchname: str
-#     courseid: int
-
-# class BatchCreate(BatchBase):
-#     pass
-
-# class Batch(BatchBase):
-#     batchid: int
-
-#     model_config = {
-#         "from_attributes": True  
-#     }
 
 
 class BatchBase(BaseModel):
@@ -561,14 +548,6 @@ class BatchCreate(BatchBase):
 class BatchUpdate(BatchBase):
     pass
 
-# class BatchOut(BatchBase):
-#     batchid: int
-#     lastmoddatetime: Optional[datetime]
-
-#     class Config:
-#         orm_mode = True
-
-
 class BatchOut(BatchBase):
     batchid: int
     # lastmoddatetime: Optional[datetime]
@@ -584,21 +563,33 @@ class BatchOut(BatchBase):
 
 # -----------------------------------------------------------
 
+# -----------------------------------------------------Recordings------------------------------------
 
 class RecordingBase(BaseModel):
     batchname: str
     description: Optional[str] = None
-    type: Optional[str] = None
+    type: Optional[str] = "class"
     classdate: Optional[datetime] = None
     link: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
 
 class RecordingCreate(RecordingBase):
     pass
+
+class RecordingUpdate(RecordingBase):
+    pass
+
+class RecordingOut(RecordingBase):
+    id: int
+    # lastmoddatetime: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
 
 class Recording(RecordingBase):
     id: int
@@ -607,6 +598,14 @@ class Recording(RecordingBase):
  
         "from_attributes": True  
     }
+
+class PaginatedRecordingOut(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    recordings: List[RecordingOut]
+# -----------------------------------------------------------------------------
+
 
 class RecordingBatchBase(BaseModel):
     recording_id: int
@@ -625,13 +624,12 @@ class RecordingBatch(RecordingBatchBase):
 
 
 
-
-
 class CourseContentCreate(BaseModel):
     Fundamentals: Optional[str] = None
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
+
 class CourseContentResponse(CourseContentCreate):
     id: int
 
