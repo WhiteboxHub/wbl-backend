@@ -92,24 +92,24 @@ class AuthUserUpdate(AuthUserBase):
 
 class AuthUserResponse(AuthUserBase):
     id: int
-    lastlogin: Optional[datetime] = None
+    # lastlogin: Optional[datetime] = None
     logincount: Optional[int] = None
     registereddate: Optional[datetime] = None
-    level3date: Optional[datetime] = None
-    lastmoddatetime: Optional[datetime] = None
-    demo: Optional[str] = "N"
+    # level3date: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
+    # demo: Optional[str] = "N"
     enddate: Optional[date] = None
-    reset_token: Optional[str] = None
-    token_expiry: Optional[datetime] = None
+    # reset_token: Optional[str] = None
+    # token_expiry: Optional[datetime] = None
 
 
     @validator(
-        "lastlogin",
+        # "lastlogin",
         "registereddate",
-        "level3date",
-        "lastmoddatetime",
+        # "level3date",
+        # "lastmoddatetime",
         "enddate",
-        "token_expiry",
+        # "token_expiry",
         pre=True,
     )
     def fix_invalid_datetime(cls, v):
@@ -648,6 +648,9 @@ class CourseSubject(CourseSubjectBase):
         "from_attributes": True  
     }
 
+# ----------------------------------batch-------------
+
+
 
 class BatchBase(BaseModel):
     batchname: str
@@ -664,37 +667,48 @@ class BatchUpdate(BatchBase):
     pass
 
 
-
 class BatchOut(BatchBase):
     batchid: int
-    lastmoddatetime: Optional[datetime]
+    # lastmoddatetime: Optional[datetime]
 
-    @field_validator("lastmoddatetime", mode="before")
-    def handle_invalid_datetime(cls, v):
-        if v in (None, "0000-00-00 00:00:00"):
-            return None
-        return v
+    # @field_validator("lastmoddatetime", mode="before")
+    # def handle_invalid_datetime(cls, v):
+    #     if v in (None, "0000-00-00 00:00:00"):
+    #         return None
+    #     return v
 
     class Config:
         orm_mode = True
 
 # -----------------------------------------------------------
 
+# -----------------------------------------------------Recordings------------------------------------
 
 class RecordingBase(BaseModel):
     batchname: str
     description: Optional[str] = None
-    type: Optional[str] = None
+    type: Optional[str] = "class"
     classdate: Optional[datetime] = None
     link: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
 
 class RecordingCreate(RecordingBase):
     pass
+
+class RecordingUpdate(RecordingBase):
+    pass
+
+class RecordingOut(RecordingBase):
+    id: int
+    # lastmoddatetime: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
 
 class Recording(RecordingBase):
     id: int
@@ -703,6 +717,14 @@ class Recording(RecordingBase):
  
         "from_attributes": True  
     }
+
+class PaginatedRecordingOut(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    recordings: List[RecordingOut]
+# -----------------------------------------------------------------------------
+
 
 class RecordingBatchBase(BaseModel):
     recording_id: int
@@ -721,13 +743,12 @@ class RecordingBatch(RecordingBatchBase):
 
 
 
-
-
 class CourseContentCreate(BaseModel):
     Fundamentals: Optional[str] = None
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
+
 class CourseContentResponse(CourseContentCreate):
     id: int
 
@@ -873,6 +894,9 @@ class CourseMaterialResponse(BaseModel):
 class BatchBase(BaseModel):
     batchname: str
     courseid: int
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
 
 class BatchCreate(BatchBase):
     pass
