@@ -14,8 +14,7 @@ from fapi.utils.lead_utils import (
     get_lead_info_mark_move_to_candidate_true,
 )
 from fapi.utils.avatar_dashboard_utils import (
-    get_lead_metrics,
-    fetch_all_leads_paginated,
+    get_lead_metrics
 )
 
 router = APIRouter()
