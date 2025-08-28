@@ -130,62 +130,6 @@ def get_lead_info_mark_move_to_candidate_true(lead_id: int) -> Dict[str, Any]:
         session.close()
 
 
-# def create_candidate_from_lead(lead: LeadORM) -> Any:
-#     session = SessionLocal()
-#     try:
-#         normalized_email = lead["email"].strip().lower()
-#         # Check if a candidate with the same email already exists
-#         existing_candidate = session.query(CandidateORM).filter(CandidateORM.email == normalized_email).first()
-#         print(f"found existing as {existing_candidate}")
-#         if existing_candidate:
-#             raise HTTPException(status_code=400, detail="Candidate with this email already exists")
-
-#         # Create CandidateORM object from lead data
-#         candidate = CandidateORM(
-#             full_name=lead['full_name'],
-#             enrolled_date=lead['entry_date'],  # Mapping entry_date from lead to enrolled_date in candidate
-#             email=normalized_email,
-#             phone=lead['phone'],
-#             status='active',
-#             workstatus=lead['workstatus'],
-#             education=None,                # Not present in lead, set to None or default
-#             workexperience=None,          # Not present in lead
-#             ssn=None,
-#             agreement=None,
-#             secondaryemail=lead['secondary_email'],
-#             secondaryphone=lead['secondary_phone'],
-#             address=lead['address'],
-#             linkedin_id=None,
-#             dob=None,
-#             emergcontactname=None,
-#             emergcontactemail=None,
-#             emergcontactphone=None,
-#             emergcontactaddrs=None,
-#             fee_paid=None,
-#             notes=lead['notes'],
-#             batchid=99
-#         )
-
-#         # Add to session and commit
-#         session.add(candidate)
-#         session.commit()
-#         session.refresh(candidate)
-
-#         return {
-#             "message": "Success! Lead moved to candidate ",
-#             "candidate_id": candidate.id,
-#             "success":True
-#         }
-
-#     except IntegrityError as e:
-#         print(e)
-#         session.rollback()
-#         raise HTTPException(status_code=400, detail="Email must be unique. A candidate with this email already exists.")
-#     except Exception as e:
-#         session.rollback()
-#         raise HTTPException(status_code=500, detail=f"Error creating candidate: {str(e)}")
-#     finally:
-#         session.close()
 VALID_WORKSTATUS = ['Citizen', 'Visa', 'Permanent resident', 'EAD', 'Waiting for Status']
 
 def create_candidate_from_lead(lead: Dict[str, Any]) -> Dict[str, Any]:
