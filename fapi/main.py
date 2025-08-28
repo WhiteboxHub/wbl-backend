@@ -10,11 +10,10 @@ from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
     vendor, vendor_activity, request_demo, unsubscribe,
-    user_dashboard, password,employee,course, subject, course_subject, course_content , course_material,batch,authuser,avatar_dashboard,session,
-
+    user_dashboard, password,employee,course, subject, course_subject, course_content , course_material,batch,authuser,avatar_dashboard,referrals,
 
 )
-from fapi.core.config import limiter 
+from fapi.core.config import limiter  
 
 
 app = FastAPI()
@@ -43,12 +42,12 @@ app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"]
 app.include_router(avatar_dashboard.router, prefix="/api", tags=["Avatar Dashboard"])
 app.include_router(batch.router, prefix="/api", tags=["Batch"])
 app.include_router(authuser.router, prefix="/api", tags=["Authuser"])
-app.include_router(session.router, prefix="/api", tags=["Sessions"])
-app.include_router(course.router, prefix="/api", tags=["courses"])
-app.include_router(subject.router, prefix="/api", tags=["subjects"])
-app.include_router(course_subject.router, prefix="/api", tags=["course-subjects"])
-app.include_router(course_content.router, prefix="/api", tags=["course-contents"])
-app.include_router(course_material.router, prefix="/api", tags=["course-materials"])
+app.include_router(course.router, prefix="/courses", tags=["courses"])
+app.include_router(subject.router, prefix="/subjects", tags=["subjects"])
+app.include_router(course_subject.router, prefix="/course-subjects", tags=["course-subjects"])
+app.include_router(course_content.router, prefix="/course-contents", tags=["course-contents"])
+app.include_router(course_material.router, prefix="/course-materials", tags=["course-materials"])
+app.include_router(referrals.router, prefix="/api", tags=["Referrals"])
 
 
 
