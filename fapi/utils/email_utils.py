@@ -184,7 +184,7 @@ async def send_referral_emails(
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <h2 style="color: #4A6CF7; border-bottom: 2px solid #4A6CF7; padding-bottom: 10px;">
-                🎯 New Referral Submission - AIML Training Program
+                 New Referral Submission - AIML Training Program
             </h2>
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">

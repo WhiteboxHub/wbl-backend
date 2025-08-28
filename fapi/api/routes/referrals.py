@@ -15,6 +15,34 @@ class ReferralCreate(LeadCreate):
     """Schema for referral submissions - extends LeadCreate"""
     pass
 
+async def send_referral_emails_background(
+    referrer_name: str,
+    referrer_email: str, 
+    referrer_phone: str,
+    candidate_name: str,
+    candidate_email: str,
+    candidate_phone: str,
+    candidate_workstatus: str,
+    candidate_address: str,
+    additional_notes: str
+):
+    """Background task to send referral emails without blocking the response"""
+    try:
+        await send_referral_emails(
+            referrer_name=referrer_name,
+            referrer_email=referrer_email,
+            referrer_phone=referrer_phone,
+            candidate_name=candidate_name,
+            candidate_email=candidate_email,
+            candidate_phone=candidate_phone,
+            candidate_workstatus=candidate_workstatus,
+            candidate_address=candidate_address,
+            additional_notes=additional_notes
+        )
+        logger.info(f"Background email sent successfully for referral: {candidate_name}")
+    except Exception as email_error:
+        logger.error(f"Background email failed for referral {candidate_name}: {str(email_error)}")
+
 @router.post("/referrals")
 async def create_referral(
     referral: ReferralCreate,
@@ -52,37 +80,28 @@ async def create_referral(
         db.commit()
         db.refresh(new_lead)
         
-        # Send email notifications
-        try:
-            # Debug logging
-            logger.info(f"Sending referral email with data:")
-            logger.info(f"Referrer: {referrer.fullname or referrer.uname} ({referrer.uname})")
-            logger.info(f"Candidate: {referral.full_name} ({referral.email})")
-            logger.info(f"Phone: {referral.phone}")
-            logger.info(f"Work Status: {referral.workstatus}")
-            logger.info(f"Address: {referral.address}")
-            logger.info(f"Notes: {referral.notes}")
-            
-            await send_referral_emails(
-                referrer_name=referrer.fullname or referrer.uname,
-                referrer_email=referrer.uname,
-                referrer_phone=referrer.phone or "Not provided",
-                candidate_name=referral.full_name,
-                candidate_email=referral.email,
-                candidate_phone=referral.phone or "Not provided",
-                candidate_workstatus=referral.workstatus or "Not provided",
-                candidate_address=referral.address or "Not provided",
-                additional_notes=referral.notes or "None"
-            )
-        except Exception as email_error:
-            logger.error(f"Failed to send referral emails: {str(email_error)}")
-            # Don't fail the API call if email fails, just log it
-        
-        return {
+        # Return success immediately, send emails in background
+        response = {
             "message": "Referral submitted successfully",
             "referral_id": new_lead.id,
             "referrer": referrer.fullname or referrer.uname
         }
+        
+        # Send email notifications in background (don't await)
+        import asyncio
+        asyncio.create_task(send_referral_emails_background(
+            referrer_name=referrer.fullname or referrer.uname,
+            referrer_email=referrer.uname,
+            referrer_phone=referrer.phone or "Not provided",
+            candidate_name=referral.full_name,
+            candidate_email=referral.email,
+            candidate_phone=referral.phone or "Not provided",
+            candidate_workstatus=referral.workstatus or "Not provided",
+            candidate_address=referral.address or "Not provided",
+            additional_notes=referral.notes or "None"
+        ))
+        
+        return response
         
     except Exception as e:
         logger.error(f"Error creating referral: {str(e)}")
