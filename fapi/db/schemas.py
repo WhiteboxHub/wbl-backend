@@ -806,7 +806,7 @@ class CourseResponse(BaseModel):
     alias: str
     description: Optional[str] = None
     syllabus: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    #lastmoddatetime: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True
@@ -832,7 +832,7 @@ class SubjectResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    #lastmoddatetime: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True
@@ -851,7 +851,7 @@ class SubjectUpdate(BaseModel):
 class CourseSubjectResponse(BaseModel):
     subject_id: int
     course_id: int
-    lastmoddatetime: Optional[datetime] = None
+    #lastmoddatetime: Optional[datetime] = None
 
     model_config = {
 
