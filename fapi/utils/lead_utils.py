@@ -63,7 +63,6 @@ def check_and_reset_moved_to_candidate(db: Session, lead_id: int):
 
 
 def delete_candidate_by_email_and_phone(db: Session, email: str, phone: str):
-    # Implement candidate deletion logic when candidate table is defined
     pass
 
 

@@ -1118,7 +1118,8 @@ class EmployeeBirthdayOut(BaseModel):
     id: int
     name: str
     dob: date
-    wish: str | None = None     
+    # wish: str | None = None     
+    wish: Optional[str] = None  
 
     class Config:
         orm_mode = True
