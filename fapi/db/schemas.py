@@ -92,24 +92,24 @@ class AuthUserUpdate(AuthUserBase):
 
 class AuthUserResponse(AuthUserBase):
     id: int
-    lastlogin: Optional[datetime] = None
+    # lastlogin: Optional[datetime] = None
     logincount: Optional[int] = None
     registereddate: Optional[datetime] = None
-    level3date: Optional[datetime] = None
-    lastmoddatetime: Optional[datetime] = None
-    demo: Optional[str] = "N"
+    # level3date: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
+    # demo: Optional[str] = "N"
     enddate: Optional[date] = None
-    reset_token: Optional[str] = None
-    token_expiry: Optional[datetime] = None
+    # reset_token: Optional[str] = None
+    # token_expiry: Optional[datetime] = None
 
 
     @validator(
-        "lastlogin",
+        # "lastlogin",
         "registereddate",
-        "level3date",
-        "lastmoddatetime",
+        # "level3date",
+        # "lastmoddatetime",
         "enddate",
-        "token_expiry",
+        # "token_expiry",
         pre=True,
     )
     def fix_invalid_datetime(cls, v):
@@ -136,13 +136,14 @@ class LeadBase(BaseModel):
     phone: Optional[str] = None
     email: EmailStr
     workstatus: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[str] = "open"
     secondary_email: Optional[str] = None
     secondary_phone: Optional[str] = None
     address: Optional[str] = None
     closed_date: Optional[date] = None
     notes: Optional[str] = None
-    last_modified: Optional[datetime] = None
+    last_modified: Optional[date] = None
+
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
 
@@ -151,13 +152,12 @@ class LeadBase(BaseModel):
 
 class LeadCreate(LeadBase):
     pass
-
+class LeadUpdate(LeadBase):
+    pass
 class LeadSchema(LeadBase):
     id: int
     class Config:
         from_attributes = True  
-
- 
 # --------------------------------------------------------candidate-------------------------------------------------------
 
 
@@ -485,12 +485,12 @@ class VendorContactExtractUpdate(BaseModel):
 
 # -------------------- Vendor Schemas --------------------
 class VendorBase(BaseModel):
-    full_name: str
+    full_name: Optional[str] =None
     phone_number: Optional[str] = None
     secondary_phone: Optional[str] = None
     email: Optional[EmailStr] = None
     type: Optional[VendorTypeEnum] = None
-    note: Optional[str] = None
+    notes: Optional[str] = None
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
@@ -501,7 +501,8 @@ class VendorBase(BaseModel):
     vendor_type: Optional[VendorTypeEnum] = None
     linkedin_connected: Optional[str] = "NO"
     intro_email_sent: Optional[str] = "NO"
-    intro_call: Optional[str] = "NO"
+    intro_call: Optional[str] ="No"
+    linkedin_internal_id: Optional[str] = None
 
     @validator("email", pre=True)
     def empty_string_to_none(cls, v):
@@ -545,6 +546,7 @@ class VendorUpdate(BaseModel):
     linkedin_connected: Optional[Literal['YES', 'NO']] = None
     intro_email_sent: Optional[Literal['YES', 'NO']] = None
     intro_call: Optional[Literal['YES', 'NO']] = None
+    linkedin_internal_id: Optional[str] = None
 
 # ---------------daily-vendor-activity --------------
 
@@ -684,6 +686,9 @@ class CourseSubject(CourseSubjectBase):
         "from_attributes": True  
     }
 
+# ----------------------------------batch-------------
+
+
 
 class BatchBase(BaseModel):
     batchname: str
@@ -700,37 +705,48 @@ class BatchUpdate(BatchBase):
     pass
 
 
-
 class BatchOut(BatchBase):
     batchid: int
-    lastmoddatetime: Optional[datetime]
+    # lastmoddatetime: Optional[datetime]
 
-    @field_validator("lastmoddatetime", mode="before")
-    def handle_invalid_datetime(cls, v):
-        if v in (None, "0000-00-00 00:00:00"):
-            return None
-        return v
+    # @field_validator("lastmoddatetime", mode="before")
+    # def handle_invalid_datetime(cls, v):
+    #     if v in (None, "0000-00-00 00:00:00"):
+    #         return None
+    #     return v
 
     class Config:
         orm_mode = True
 
 # -----------------------------------------------------------
 
+# -----------------------------------------------------Recordings------------------------------------
 
 class RecordingBase(BaseModel):
     batchname: str
     description: Optional[str] = None
-    type: Optional[str] = None
+    type: Optional[str] = "class"
     classdate: Optional[datetime] = None
     link: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
 
 class RecordingCreate(RecordingBase):
     pass
+
+class RecordingUpdate(RecordingBase):
+    pass
+
+class RecordingOut(RecordingBase):
+    id: int
+    # lastmoddatetime: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
 
 class Recording(RecordingBase):
     id: int
@@ -739,6 +755,14 @@ class Recording(RecordingBase):
  
         "from_attributes": True  
     }
+
+class PaginatedRecordingOut(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    recordings: List[RecordingOut]
+# -----------------------------------------------------------------------------
+
 
 class RecordingBatchBase(BaseModel):
     recording_id: int
@@ -757,13 +781,12 @@ class RecordingBatch(RecordingBatchBase):
 
 
 
-
-
 class CourseContentCreate(BaseModel):
     Fundamentals: Optional[str] = None
     AIML: str
     UI: Optional[str] = None
     QE: Optional[str] = None
+
 class CourseContentResponse(CourseContentCreate):
     id: int
 
@@ -909,6 +932,9 @@ class CourseMaterialResponse(BaseModel):
 class BatchBase(BaseModel):
     batchname: str
     courseid: int
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
 
 class BatchCreate(BatchBase):
     pass
@@ -1023,7 +1049,8 @@ class PaginatedSession(BaseModel):
 
 # -----------------------------Avatar Dashboard schemas----------------------------------------------------
 class BatchMetrics(BaseModel):
-    current_active_batches: int
+    current_active_batches: str
+    current_active_batches_count: int 
     enrolled_candidates_current: int
     total_candidates: int
     candidates_last_batch: int
@@ -1033,7 +1060,7 @@ class BatchMetrics(BaseModel):
 
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
-    fee_collected_month: float
+    fee_collected_last_batch: float
     top_batches_fee: List[Dict[str, Any]]
 
 
@@ -1061,12 +1088,28 @@ class DashboardMetrics(BaseModel):
 
 
 class UpcomingBatch(BaseModel):
-    name: str
-    start_date: date
-    end_date: date
+    batchname: str
+    startdate: date
+    enddate: date
 
     class Config:
         from_attributes = True
+
+class LeadMetrics(BaseModel):
+    total_leads: int
+    leads_this_month: int
+    latest_lead: Optional[Dict[str, Any]] = None
+
+class LeadMetricsResponse(BaseModel):
+    success: bool
+    data: LeadMetrics
+    message: str
+
+class LeadsPaginatedResponse(BaseModel):
+    success: bool
+    data: Dict[str, Any]
+    message: str
+
 
 # =====================================employee========================
 class EmployeeBase(BaseModel):
@@ -1104,7 +1147,16 @@ class Employee(EmployeeBase):
 
     class Config:
         from_attributes = True
-        
+
+class EmployeeBirthdayOut(BaseModel):
+    id: int
+    name: str
+    dob: date
+    wish: str | None = None     
+
+    class Config:
+        orm_mode = True
+
         
 # --------------------------------------------Password----------------------------
 class ResetPasswordRequest(BaseModel):

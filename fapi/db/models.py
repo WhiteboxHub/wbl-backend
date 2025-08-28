@@ -29,7 +29,7 @@ class AuthUserORM(Base):
     passwd = Column(String(32), nullable=False)
     team = Column(String(255))
     status = Column(String(255), default="inactive")
-    lastlogin = Column(DateTime)
+    # lastlogin = Column(DateTime)
     logincount = Column(Integer)
     fullname = Column(String(50))
     address = Column(String(50))
@@ -40,15 +40,19 @@ class AuthUserORM(Base):
     country = Column(String(45))
     message = Column(Text)
     registereddate = Column(DateTime)
-    level3date = Column(DateTime)
-    lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-    demo = Column(String(1), default="N")
+    # level3date = Column(DateTime)
+    # lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    # demo = Column(String(1), default="N")
     enddate = Column(Date, default="1990-01-01")
     googleId = Column(String(255))
-    reset_token = Column(String(255))
-    token_expiry = Column(DateTime)
+    # reset_token = Column(String(255))
+    # token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
+    # experience = Column(String(100))
+    # education = Column(String(255))
+    # referby = Column(String(100))
+    # specialization = Column(String(255))
     notes = Column(Text)
 
 
@@ -92,13 +96,13 @@ class LeadORM(Base):
     phone = Column(String(20))
     email = Column(String(255), nullable=False)
     workstatus = Column(String(50))
-    status = Column(String(50))
+    status = Column(String(45), nullable=False, server_default="Open")
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
     address = Column(String(255))
     closed_date = Column(Date)
     notes = Column(String(500))
-    last_modified = Column(DateTime)
+    last_modified = Column(Date)
     massemail_unsubscribe = Column(Boolean, nullable=True)
     massemail_email_sent = Column(Boolean, nullable=True)
     moved_to_candidate = Column(Boolean,server_default='0')
@@ -137,7 +141,7 @@ class Vendor(Base):
     __tablename__ = "vendor"
 
     id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
     phone_number = Column(String(50))
     secondary_phone = Column(String(50))
     email = Column(String(255), unique=True, index=True)
@@ -149,7 +153,7 @@ class Vendor(Base):
         nullable=False,
         server_default=VendorTypeEnum.client.value
     )
-    note = Column(Text)
+    notes = Column(Text)
     linkedin_id = Column(String(255))
     company_name = Column(String(255))
     location = Column(String(255))
@@ -183,8 +187,8 @@ class Vendor(Base):
         default="NO"
     )
     created_at = Column(TIMESTAMP, server_default=func.now())
-    
-    
+    linkedin_internal_id = Column(String(255))
+
 # ------------------------------------------
 
 
@@ -454,7 +458,7 @@ class Batch(Base):
     subject = Column(String(45), nullable=False, default="ML")
     startdate = Column(Date, nullable=True)
     enddate = Column(Date, nullable=True)
-    lastmoddatetime = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+    # lastmoddatetime = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
     courseid = Column(Integer, ForeignKey("course.id"), nullable=True)
 
     course = relationship("Course", back_populates="batches")
@@ -468,12 +472,12 @@ class Recording(Base):
     batchname = Column(String(255))
     description = Column(Text)
     type = Column(String(50))
-    classdate = Column(DateTime)
+    classdate = Column(DateTime, nullable=True)
     link = Column(String(1024))
     videoid = Column(String(255))
     subject = Column(String(255))
     filename = Column(String(255))
-    lastmoddatetime = Column(DateTime)
+    # lastmoddatetime = Column(DateTime)
     new_subject_id = Column(Integer, ForeignKey("subject.id"))
 
     subject_rel = relationship("Subject", back_populates="recordings")  
