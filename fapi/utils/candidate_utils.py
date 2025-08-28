@@ -361,3 +361,227 @@ def delete_candidate_preparation(db: Session, prep_id: int):
     db.delete(db_prep)
     db.commit()
     return db_prep
+
+##-------------------------------------------------search---------------------------------------------------------------
+
+def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]:
+    """
+    Search candidates by name and return comprehensive information for accordion display
+    """
+    try:
+        # Search candidates by name (case-insensitive, partial match)
+        candidates = (
+            db.query(CandidateORM)
+            .filter(CandidateORM.full_name.ilike(f"%{search_term}%"))
+            .all()
+        )
+        
+        if not candidates:
+            return []
+        
+        results = []
+        
+        for candidate in candidates:
+            # Get batch name - Fix the import and query
+            try:
+                from fapi.db.models import Batch
+                batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
+                batch_name = batch.batchname if batch else "Unknown Batch"
+            except:
+                batch_name = f"Batch ID: {candidate.batchid}"
+            
+            # Get authuser info (join by email)
+            authuser = None
+            try:
+                from fapi.db.models import AuthUserORM
+                if candidate.email:
+                    authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
+            except:
+                pass
+            
+            # Get preparation records with error handling
+            preparation_records = []
+            try:
+                prep_data = db.query(CandidatePreparation).filter(CandidatePreparation.candidate_id == candidate.id).all()
+                for prep in prep_data:
+                    # Get instructor names safely
+                    try:
+                        from fapi.db.models import EmployeeORM
+                        inst1_name = None
+                        inst2_name = None
+                        inst3_name = None
+                        
+                        if prep.instructor1_id:
+                            inst1 = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor1_id).first()
+                            inst1_name = inst1.name if inst1 else None
+                        
+                        if prep.instructor2_id:
+                            inst2 = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor2_id).first()
+                            inst2_name = inst2.name if inst2 else None
+                            
+                        if prep.instructor3_id:
+                            inst3 = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor3_id).first()
+                            inst3_name = inst3.name if inst3 else None
+                        
+                        prep_record = {
+                            "start_date": prep.start_date.isoformat() if prep.start_date else None,
+                            "status": prep.status,
+                            "instructor1_name": inst1_name,
+                            "instructor2_name": inst2_name, 
+                            "instructor3_name": inst3_name,
+                            "rating": prep.rating,
+                            "tech_rating": prep.tech_rating,
+                            "communication": prep.communication,
+                            "years_of_experience": prep.years_of_experience,
+                            "topics_finished": prep.topics_finished,
+                            "current_topics": prep.current_topics,
+                            "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
+                            "notes": prep.notes
+                        }
+                        preparation_records.append(prep_record)
+                    except Exception as e:
+                        # Add record with error info
+                        preparation_records.append({"error": f"Error loading prep record: {str(e)}"})
+            except:
+                pass
+            
+            # Get marketing records with error handling
+            marketing_records = []
+            try:
+                marketing_data = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate.id).all()
+                for marketing in marketing_data:
+                    try:
+                        from fapi.db.models import EmployeeORM
+                        manager_name = None
+                        if marketing.marketing_manager:
+                            manager = db.query(EmployeeORM).filter(EmployeeORM.id == marketing.marketing_manager).first()
+                            manager_name = manager.name if manager else None
+                        
+                        marketing_record = {
+                            "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
+                            "status": marketing.status,
+                            "marketing_manager_name": manager_name,
+                            "notes": marketing.notes
+                        }
+                        marketing_records.append(marketing_record)
+                    except Exception as e:
+                        marketing_records.append({"error": f"Error loading marketing record: {str(e)}"})
+            except:
+                pass
+            
+            # Get interview records with error handling
+            interview_records = []
+            try:
+                interview_data = db.query(CandidateInterview).filter(CandidateInterview.candidate_id == candidate.id).all()
+                for interview in interview_data:
+                    try:
+                        interview_record = {
+                            "company": interview.company,
+                            "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
+                            "interview_type": interview.interview_type,
+                            "status": interview.status,
+                            "feedback": interview.feedback,
+                            "recording_link": interview.recording_link,
+                            "interviewer_emails": interview.interviewer_emails,
+                            "notes": interview.notes
+                        }
+                        interview_records.append(interview_record)
+                    except Exception as e:
+                        interview_records.append({"error": f"Error loading interview record: {str(e)}"})
+            except:
+                pass
+            
+            # Get placement records with error handling  
+            placement_records = []
+            try:
+                placement_data = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.candidate_id == candidate.id).all()
+                for placement in placement_data:
+                    try:
+                        placement_record = {
+                            "position": placement.position,
+                            "company": placement.company,
+                            "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
+                            "status": placement.status,
+                            "type": placement.type,
+                            "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                            "benefits": placement.benefits,
+                            "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
+                            "notes": placement.notes
+                        }
+                        placement_records.append(placement_record)
+                    except Exception as e:
+                        placement_records.append({"error": f"Error loading placement record: {str(e)}"})
+            except:
+                pass
+            
+            # Compile comprehensive candidate data with safe date conversions
+            candidate_data = {
+                "candidate_id": candidate.id,
+                
+                # Section 1: Basic Information
+                "basic_info": {
+                    "full_name": candidate.full_name,
+                    "email": candidate.email,
+                    "phone": candidate.phone,
+                    "secondaryemail": candidate.secondaryemail,
+                    "secondaryphone": candidate.secondaryphone,
+                    "linkedin_id": candidate.linkedin_id,
+                    "status": candidate.status,
+                    "workstatus": candidate.workstatus,
+                    "education": candidate.education,
+                    "workexperience": candidate.workexperience,
+                    "ssn": "***-**-" + candidate.ssn[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+                    "dob": candidate.dob.isoformat() if candidate.dob else None,
+                    "address": candidate.address,
+                    "agreement": candidate.agreement,
+                    "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
+                    "batch_name": batch_name,
+                    "candidate_folder": candidate.candidate_folder
+                },
+                
+                # Section 2: Emergency Contact
+                "emergency_contact": {
+                    "emergcontactname": candidate.emergcontactname,
+                    "emergcontactphone": candidate.emergcontactphone,
+                    "emergcontactemail": candidate.emergcontactemail,
+                    "emergcontactaddrs": candidate.emergcontactaddrs
+                },
+                
+                # Section 3: Fee & Financials
+                "fee_financials": {
+                    "fee_paid": candidate.fee_paid,
+                    "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
+                    "notes": candidate.notes
+                },
+                
+                # Section 4-7: Tables (1-to-many)
+                "preparation_records": preparation_records,
+                "marketing_records": marketing_records,
+                "interview_records": interview_records,
+                "placement_records": placement_records,
+                
+                # Section 8: Login & Access Info
+                "login_access": {
+                    "logincount": authuser.logincount if authuser else 0,
+                    "lastlogin": authuser.lastlogin.isoformat() if authuser and authuser.lastlogin else None,
+                    "registereddate": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
+                    "status": authuser.status if authuser else "No Account",
+                    "reset_token": "Set" if authuser and authuser.reset_token else "Not Set",
+                    "googleId": authuser.googleId if authuser else None
+                },
+                
+                # Section 9: Miscellaneous
+                "miscellaneous": {
+                    "notes": candidate.notes,
+                    "preparation_active": len(preparation_records) > 0,
+                    "marketing_active": len(marketing_records) > 0,
+                    "placement_active": len(placement_records) > 0
+                }
+            }
+            
+            results.append(candidate_data)
+        
+        return results
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
