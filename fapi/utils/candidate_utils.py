@@ -1,5 +1,5 @@
 # wbl-backend/fapi/utils/candidate_utils.py
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import SessionLocal
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
 from fapi.db.schemas import CandidateMarketingCreate,CandidateInterviewBase, CandidateInterviewCreate, CandidateInterviewOut, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
@@ -93,6 +93,7 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         total = db.query(CandidateMarketingORM).count()
         results = (
             db.query(CandidateMarketingORM)
+            .options(joinedload(CandidateMarketingORM.candidate))  # LOAD candidate
             .order_by(CandidateMarketingORM.id.asc())
             .offset((page - 1) * limit)
             .limit(limit)
@@ -101,19 +102,34 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         data = [r.__dict__ for r in results]
         for item in data:
             item.pop('_sa_instance_state', None)
-        return {"page": page, "limit": limit, "total": total, "data": data}
+        return {"page": page, "limit": limit, "total": total, "data": results}
     finally:
         db.close()
 
-def get_marketing_by_id(record_id: int) -> Dict:
+# def get_marketing_by_id(record_id: int) -> Dict:
+#     db: Session = SessionLocal()
+#     try:
+#         record = db.query(CandidateMarketingORM).options(joinedload(CandidateMarketingORM.candidate))  # LOAD candidate .filter(CandidateMarketingORM.id == record_id).first()
+#         if not record:
+#             raise HTTPException(status_code=404, detail="Marketing record not found")
+#         data = record.__dict__.copy()
+#         data.pop('_sa_instance_state', None)
+#         return data
+#     finally:
+#         db.close()
+
+def get_marketing_by_id(record_id: int):
     db: Session = SessionLocal()
     try:
-        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
+        record = (
+            db.query(CandidateMarketingORM)
+            .options(joinedload(CandidateMarketingORM.candidate))  # Load candidate
+            .filter(CandidateMarketingORM.id == record_id)        # Apply filter
+            .first()
+        )
         if not record:
             raise HTTPException(status_code=404, detail="Marketing record not found")
-        data = record.__dict__.copy()
-        data.pop('_sa_instance_state', None)
-        return data
+        return record  # Return ORM object directly; FastAPI + Pydantic will serialize it
     finally:
         db.close()
 
@@ -320,10 +336,10 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     return db_prep
 
 def get_candidate_preparation(db: Session, prep_id: int):
-    return db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
+    return db.query(CandidatePreparation).options(joinedload(CandidatePreparation.candidate))  # LOAD candidate  # ADDED: join to fetch candidate.filter(CandidatePreparation.id == prep_id).first()
 
 def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(CandidatePreparation).offset(skip).limit(limit).all()
+    return db.query(CandidatePreparation).options(joinedload(CandidatePreparation.candidate))  # LOAD candidate  # ADDED: join to fetch candidate.offset(skip).limit(limit).all()
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
