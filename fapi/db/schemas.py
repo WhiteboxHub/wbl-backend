@@ -163,7 +163,8 @@ class LeadSchema(LeadBase):
 
 class CandidateBase(BaseModel):
     id:int
-    full_name: Optional[str]
+    # full_name: Optional[str]
+    name: Optional[str] = Field(None, alias="full_name")
     enrolled_date: Optional[date]
     email: Optional[str]
     phone: Optional[str]
@@ -186,6 +187,9 @@ class CandidateBase(BaseModel):
     notes: Optional[str]
     batchid: int
 
+    class Config:
+        orm_mode = True
+        allow_population_by_field_name = True
 class CandidateCreate(CandidateBase):
     pass
 
@@ -204,6 +208,12 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[CandidateBase]
 
+# class CandidateBase(BaseModel):
+#     name: str
+
+    class Config:
+        orm_mode = True
+
 # -------------------------------------------------
 
 class CandidateMarketingBase(BaseModel):
@@ -220,6 +230,7 @@ class CandidateMarketingBase(BaseModel):
     google_voice_number: Optional[str] = None
     rating: Optional[int] = None
     priority: Optional[int] = None
+    candidate: Optional[CandidateBase]  # added line
 
 
 class CandidateMarketingCreate(CandidateMarketingBase):
@@ -273,10 +284,28 @@ class CandidatePreparationBase(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
+    candidate: Optional[CandidateBase]  # added line
+    
    
 
 class CandidatePreparationCreate(CandidatePreparationBase):
-    pass
+    id: int = Field(..., alias="id")
+    candidate_id: int
+    batch: Optional[str] = None
+    start_date: Optional[date] = None
+    status: str
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    candidate: Optional[CandidateBase]  # added line
 
 class CandidatePreparationUpdate(BaseModel):
     batch: Optional[str] = None
@@ -293,6 +322,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
+    candidate: Optional[CandidateBase]  # added line
     
 
 
@@ -304,10 +334,13 @@ class CandidatePreparationOut(CandidatePreparationBase):
     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
 
+    candidate: Optional[CandidateBase] 
     model_config = {
         "from_attributes": True,
         "populate_by_name": True  
     }
+
+
 
 # --------------------------------------------------
 class InterviewTypeEnum(str, Enum):
@@ -322,6 +355,7 @@ class FeedbackEnum(str, Enum):
     positive = "Positive"
     no_response = "No Response"
     cancelled = "Cancelled" 
+    
 
 
 class CandidateInterviewBase(BaseModel):
@@ -618,6 +652,14 @@ class Course(CourseBase):
 class SubjectBase(BaseModel):
     name: str
 
+
+class SubjectOut(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True
+
 class SubjectCreate(SubjectBase):
     pass
 
@@ -879,6 +921,16 @@ class Batch(BatchBase):
         "from_attributes": True  
     }
 
+class PaginatedBatches(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    batches: List[BatchOut]
+
+
+
+
+    
 class RecordingBase(BaseModel):
     batchname: str
     description: Optional[str] = None
@@ -916,6 +968,8 @@ class RecordingBatch(RecordingBatchBase):
     }
 
 
+# -----------------------------------------------------Session------------------------------------
+
 class SessionBase(BaseModel):
     title: str
     link: Optional[str] = None
@@ -923,10 +977,16 @@ class SessionBase(BaseModel):
     subject: Optional[str] = None
     type: Optional[str] = None
     sessiondate: Optional[datetime] = None
-    lastmoddatetime: Optional[datetime] = None
+    # lastmoddatetime: Optional[datetime] = None
     subject_id: int
+    notes: Optional[str] = None
+    # status: Optional[str] = None 
+
 
 class SessionCreate(SessionBase):
+    pass
+
+class SessionUpdate(SessionBase):
     pass
 
 class Session(SessionBase):
@@ -935,6 +995,30 @@ class Session(SessionBase):
     model_config = {
         "from_attributes": True 
     }
+
+
+
+
+class SessionOut(SessionBase):
+    sessionid: int
+    # lastmoddatetime: Optional[datetime]
+    subject: Optional[SubjectOut]
+
+    class Config:
+        orm_mode = True
+
+
+class PaginatedSession(BaseModel):
+    data: list[SessionOut]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+   
+
+    class Config:
+        orm_mode = True
+
 
 
 # -----------------------------Avatar Dashboard schemas----------------------------------------------------

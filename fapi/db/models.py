@@ -7,7 +7,8 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,D
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-
+from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey
 
 
 Base = declarative_base()
@@ -236,7 +237,9 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id =Column(Integer)
+    # candidate_id =Column(Integer)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))  # modified line: added ForeignKey
+    candidate = relationship("CandidateORM")  # added line: relationship to candidate
     marketing_manager = Column(Integer)
     start_date = Column(Date,nullable=False)
     notes=Column(Text,nullable=True)
@@ -320,7 +323,9 @@ class CandidatePreparation(Base):
     __tablename__ = "candidate_preparation"
 
     id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(Integer, nullable=False)
+    # candidate_id = Column(Integer, nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)  # modified line: added ForeignKey
+    candidate = relationship("CandidateORM")  # added line: relationship to candidate       
     batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum('active','break','not responding','inactive'), nullable=False)

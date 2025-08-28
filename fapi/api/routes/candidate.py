@@ -49,6 +49,7 @@ def delete_candidate(candidate_id: int):
 def read_all_marketing(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return candidate_utils.get_all_marketing_records(page, limit)
 
+
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
 def read_marketing_record(record_id: int = Path(...)):
     return candidate_utils.get_marketing_by_id(record_id)
@@ -123,6 +124,7 @@ def list_interviews(
         .limit(limit)
         .all()
     )
+
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
     db_obj = candidate_utils.get_candidate_interview(db, interview_id)
