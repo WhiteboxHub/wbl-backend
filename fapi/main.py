@@ -11,7 +11,7 @@ from fapi.api.routes import (
     contact, login, register, resources, vendor_contact,
     vendor, vendor_activity, request_demo, unsubscribe,
     user_dashboard, password,employee,course, subject, course_subject, course_content , course_material,batch,authuser,avatar_dashboard,session,
-    recording, referrals
+    referrals
 
 
 )
@@ -54,7 +54,6 @@ app.include_router(course_material.router, prefix="/course-materials", tags=["co
 
 app.include_router(referrals.router, prefix="/api", tags=["Referrals"])
 
-app.include_router(recording.router, prefix="/api", tags=["Recordings"])
 
 app.include_router(course.router, prefix="/api", tags=["courses"])
 app.include_router(subject.router, prefix="/api", tags=["subjects"])
