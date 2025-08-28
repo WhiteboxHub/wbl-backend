@@ -152,7 +152,8 @@ class LeadBase(BaseModel):
 
 class LeadCreate(LeadBase):
     pass
-
+class LeadUpdate(LeadBase):
+    pass
 class LeadSchema(LeadBase):
     id: int
     class Config:
