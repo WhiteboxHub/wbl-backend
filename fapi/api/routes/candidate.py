@@ -6,9 +6,11 @@ from fapi.utils.avatar_dashboard_utils import (
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
-from fapi.db.models import CandidateInterview,CandidateStatus
+from fapi.db.models import CandidateInterview,CandidateStatus, CandidateORM, AuthUserORM, EmployeeORM, CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
+
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
+from sqlalchemy.orm import joinedload 
 
 router = APIRouter()
 
@@ -120,6 +122,7 @@ def list_interviews(
     return (
         db.query(CandidateInterview)
         .order_by(CandidateInterview.interview_date.desc())
+        .options(joinedload(CandidateInterview.candidate)) 
         .offset(skip)
         .limit(limit)
         .all()
@@ -182,10 +185,8 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
     return deleted
 
 ##--------------------------------search----------------------------------
-# Add this simple test route to candidate.py to check if route is working
-# Add these two routes to routes/candidate.py
 
-from fapi.db.models import CandidateORM, AuthUserORM, EmployeeORM, CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
+
 
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
