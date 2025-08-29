@@ -102,7 +102,7 @@ class LeadORM(Base):
     address = Column(String(255))
     closed_date = Column(Date)
     notes = Column(String(500))
-    last_modified = Column(Date)
+    # last_modified = Column(Date)
     massemail_unsubscribe = Column(Boolean, nullable=True)
     massemail_email_sent = Column(Boolean, nullable=True)
     moved_to_candidate = Column(Boolean,server_default='0')
@@ -327,6 +327,7 @@ class CandidateORM(Base):
         back_populates="candidate",
         cascade="all, delete-orphan"
     )
+    candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate") 
 
     interviews = relationship("CandidateInterview", back_populates="candidate")
     

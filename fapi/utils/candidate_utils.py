@@ -85,6 +85,8 @@ def delete_candidate(candidate_id: int):
         db.close()
 
 
+
+
 # -----------------------------------------------Marketing----------------------------
 
 

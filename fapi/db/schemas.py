@@ -185,7 +185,7 @@ class LeadBase(BaseModel):
     address: Optional[str] = None
     closed_date: Optional[date] = None
     notes: Optional[str] = None
-    last_modified: Optional[date] = None
+    # last_modified: Optional[date] = None
 
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
@@ -230,6 +230,8 @@ class CandidateBase(BaseModel):
     fee_paid: Optional[int]
     notes: Optional[str]
     batchid: int
+    candidate_folder: Optional[str] = None   
+
 
     class Config:
         orm_mode = True
