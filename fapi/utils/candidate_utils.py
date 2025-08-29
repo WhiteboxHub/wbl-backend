@@ -85,6 +85,8 @@ def delete_candidate(candidate_id: int):
         db.close()
 
 
+
+
 # -----------------------------------------------Marketing----------------------------
 
 def get_all_marketing_records(page: int, limit: int) -> Dict:

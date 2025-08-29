@@ -10,7 +10,8 @@ from fapi.db.models import CandidateInterview,CandidateStatus, CandidateORM, Aut
 
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
-
+from fapi.db.database import SessionLocal
+from typing import Dict
 router = APIRouter()
 
 
@@ -42,6 +43,26 @@ def update_candidate(candidate_id: int, candidate: CandidateUpdate):
 def delete_candidate(candidate_id: int):
     candidate_utils.delete_candidate(candidate_id)
     return {"message": "Candidate deleted successfully"}
+@router.get("/candidates/search", response_model=Dict)
+def search_candidates(term: str):
+    db: Session = SessionLocal()
+    try:
+        
+        results = (
+            db.query(CandidateORM)
+            .filter(
+                CandidateORM.full_name.ilike(f"%{term}%") |
+                CandidateORM.email.ilike(f"%{term}%") |
+                (CandidateORM.id == int(term)) if term.isdigit() else False
+            )
+            .all()
+        )
+        data = [r.__dict__ for r in results]
+        for item in data:
+            item.pop('_sa_instance_state', None)
+        return {"data": data}
+    finally:
+        db.close()
 
 
 # ------------------- Marketing -------------------
