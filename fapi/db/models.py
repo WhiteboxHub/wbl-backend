@@ -10,8 +10,11 @@ import enum
 from sqlalchemy.orm import relationship
 from sqlalchemy import ForeignKey
 
+from sqlalchemy import Column, Integer, String, Date, DateTime, Text
+from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
+
 
 
 
@@ -202,6 +205,90 @@ class UnsubscribeUser(Base):
 
 
 
+
+
+class CandidateMarketingORM(Base):
+    __tablename__ = "candidate_marketing"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # candidate_id =Column(Integer)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))  # modified line: added ForeignKey
+    candidate = relationship("CandidateORM")  # added line: relationship to candidate
+    marketing_manager = Column(Integer)
+    start_date = Column(Date,nullable=False)
+    notes=Column(Text,nullable=True)
+    status=Column(Enum('active','break','not responding'), nullable=False)
+    last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    instructor1_id = Column(Integer, nullable=True)
+    instructor2_id = Column(Integer, nullable=True)
+    instructor3_id = Column(Integer, nullable=True)
+    email = Column(String, nullable=True)
+    password = Column(String, nullable=True)
+    google_voice_number = Column(String, nullable=True)
+    rating = Column(Integer, nullable=True)
+    priority = Column(Integer, nullable=True)
+    
+#--------------------------------Candidate interview--------------------------------
+
+
+class CandidateInterviewNew(Base):
+    __tablename__ = "candidate_interview_new"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+    
+    # Relationship to CandidateORM
+    candidate = relationship("CandidateORM", back_populates="interviews")
+
+    company = Column(String(200), nullable=False)
+    interviewer_emails = Column(Text, nullable=True)
+    interviewer_contact = Column(Text, nullable=True)
+    interview_date = Column(Date, nullable=False)
+
+    interview_type = Column(
+        Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
+        nullable=True
+    )
+
+    recording_link = Column(String(500), nullable=True)
+    backup_url = Column(String(500), nullable=True)
+    status = Column(String(100), nullable=True)
+
+    feedback = Column(
+        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
+        nullable=True
+    )
+
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    )
+
+   
+
+
+# --------------------------------------Candidate_Placement-------------------------------
+
+class CandidatePlacementORM(Base):
+    __tablename__ = "candidate_placement"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    candidate_id = Column(Integer, ForeignKey("candidateid", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(Integer)
+    position = Column(String(255), nullable=True)
+    company = Column(String(200), nullable=False)
+    placement_date = Column(Date, nullable=False)
+    type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
+    status = Column(Enum('scheduled', 'cancelled'), nullable=False)
+    base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
+    benefits = Column(Text, nullable=True)
+    fee_paid = Column(DECIMAL(10, 2), nullable=True)
+    notes = Column(Text, nullable=True)
+    last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+
+
+
 class CandidateORM(Base):
     __tablename__ = "candidate"
 
@@ -228,93 +315,35 @@ class CandidateORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
-    interviews = relationship(
-        "CandidateInterview", 
+
+    # Add back_populates for preparations
+    preparations = relationship(
+        "CandidatePreparation",
         back_populates="candidate",
-        foreign_keys="[CandidateInterview.candidate_id]"
+        cascade="all, delete-orphan"
     )
 
-# --------------------------------------Candidate_Marketing-------------------------------
-
-
-class CandidateMarketingORM(Base):
-    __tablename__ = "candidate_marketing"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id =Column(Integer)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"))  # modified line: added ForeignKey
-    candidate = relationship("CandidateORM")  # added line: relationship to candidate
-    marketing_manager = Column(Integer)
-    start_date = Column(Date,nullable=False)
-    notes=Column(Text,nullable=True)
-    status=Column(Enum('active','break','not responding'), nullable=False)
-    last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-    instructor1_id = Column(Integer, nullable=True)
-    instructor2_id = Column(Integer, nullable=True)
-    instructor3_id = Column(Integer, nullable=True)
-    email = Column(String, nullable=True)
-    password = Column(String, nullable=True)
-    google_voice_number = Column(String, nullable=True)
-    rating = Column(Integer, nullable=True)
-    priority = Column(Integer, nullable=True)
+    interviews = relationship("CandidateInterviewNew", back_populates="candidate")
     
-#--------------------------------Candidate interview--------------------------------
 
-class CandidateInterview(Base):
-    __tablename__ = "candidate_interview"
-    
-    candidate_id = Column(Integer, ForeignKey("candidate.id"))
-    candidate = relationship("CandidateORM", back_populates="interviews")
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  
-    candidate_name = Column(String(200), nullable=True)
-    company = Column(String(200), nullable=False)
-    interviewer_emails = Column(Text, nullable=True)
-    interviewer_contact = Column(Text, nullable=True)  
-    interview_date = Column(Date, nullable=False)
 
-    interview_type = Column(
-        Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
-        nullable=True
-    )
+class EmployeeORM(Base):
+    __tablename__ = "employee"
 
-    recording_link = Column(String(500), nullable=True)
-    backup_url = Column(String(500), nullable=True)
-    status = Column(String(100), nullable=True)   
-
-    feedback = Column(
-        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
-        nullable=True
-    )
-
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(150), nullable=True)
+    email = Column(String(150), nullable=True, unique=True)
+    phone = Column(String(150), nullable=True)
+    address = Column(String(250), nullable=True)
+    state = Column(String(150), nullable=True)
+    dob = Column(Date, nullable=True)
+    startdate = Column(Date, nullable=True)
+    instructor = Column(Integer, nullable=True)
+    enddate = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(
-        TIMESTAMP, server_default=func.now(), onupdate=func.now()
-    )
+    status = Column(Integer, nullable=True)
+    aadhaar = Column(String(20), nullable=True, unique=True)
 
-
-   
-# --------------------------------------Candidate_Placement-------------------------------
-
-class CandidatePlacementORM(Base):
-    __tablename__ = "candidate_placement"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-
-    candidate_id = Column(Integer, ForeignKey("candidateid", ondelete="CASCADE"), nullable=False)
-    candidate_id = Column(Integer)
-    position = Column(String(255), nullable=True)
-    company = Column(String(200), nullable=False)
-    placement_date = Column(Date, nullable=False)
-    type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
-    status = Column(Enum('scheduled', 'cancelled'), nullable=False)
-    base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
-    benefits = Column(Text, nullable=True)
-    fee_paid = Column(DECIMAL(10, 2), nullable=True)
-    notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
-
-
-# --------------------------------------Candidate_Preparation-------------------------------
 
 class CandidateStatus(str, enum.Enum):
     active = "active"
@@ -327,15 +356,20 @@ class CandidatePreparation(Base):
     __tablename__ = "candidate_preparation"
 
     id = Column(Integer, primary_key=True, index=True)
-    # candidate_id = Column(Integer, nullable=False)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)  # modified line: added ForeignKey
-    candidate = relationship("CandidateORM")  # added line: relationship to candidate       
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+    candidate = relationship("CandidateORM", back_populates="preparations")
+
+    instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+
+    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
+    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
+    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+
     batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum('active','break','not responding','inactive'), nullable=False)
-    instructor1_id = Column(Integer, nullable=True)
-    instructor2_id = Column(Integer, nullable=True)
-    instructor3_id = Column(Integer, nullable=True)
     rating = Column(String(50), nullable=True)
     tech_rating = Column(String(50), nullable=True)
     communication = Column(String(50), nullable=True)
@@ -345,6 +379,7 @@ class CandidatePreparation(Base):
     target_date_of_marketing = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
+
 
 
 
@@ -507,25 +542,4 @@ class Session(Base):
     lastmoddatetime = Column(DateTime)
     subject_id = Column(Integer, ForeignKey("subject.id"))
     subject = relationship("Subject", back_populates="sessions")
-
-
-
-# ========================Employee===========================
-
-class EmployeeORM(Base):
-    __tablename__ = "employee"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=False)
-    phone = Column(String(50))
-    address = Column(String(255))
-    state = Column(String(150))
-    dob = Column(Date)
-    startdate = Column(Date)
-    instructor = Column(Integer)
-    enddate = Column(DateTime)
-    notes = Column(Text)
-    status = Column(Integer)
-    aadhaar = Column(String(50))  # changed to String, Aadhaar isn’t really an int
 

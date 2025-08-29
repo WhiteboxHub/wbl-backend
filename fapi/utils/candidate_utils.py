@@ -1,7 +1,7 @@
 # wbl-backend/fapi/utils/candidate_utils.py
-from sqlalchemy.orm import Session,joinedload
+from sqlalchemy.orm import Session,joinedload,contains_eager
 from fapi.db.database import SessionLocal
-from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
+from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterviewNew,CandidatePreparation
 from fapi.db.schemas import CandidateMarketingCreate,CandidateInterviewBase, CandidateInterviewCreate, CandidateInterviewOut, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException
 from typing import List, Dict
@@ -106,17 +106,6 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
     finally:
         db.close()
 
-# def get_marketing_by_id(record_id: int) -> Dict:
-#     db: Session = SessionLocal()
-#     try:
-#         record = db.query(CandidateMarketingORM).options(joinedload(CandidateMarketingORM.candidate))  # LOAD candidate .filter(CandidateMarketingORM.id == record_id).first()
-#         if not record:
-#             raise HTTPException(status_code=404, detail="Marketing record not found")
-#         data = record.__dict__.copy()
-#         data.pop('_sa_instance_state', None)
-#         return data
-#     finally:
-#         db.close()
 
 def get_marketing_by_id(record_id: int):
     db: Session = SessionLocal()
@@ -281,7 +270,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
 
-    db_obj = CandidateInterview(**data)
+    db_obj = CandidateInterviewNew(**data)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -289,15 +278,15 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
 
 
 def get_candidate_interviews(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(CandidateInterview).offset(skip).limit(limit).all()
+    return db.query(CandidateInterviewNew).options(contains_eager(CandidateInterviewNew.candidate)) .join(CandidateORM, CandidateInterviewNew.candidate_id == CandidateORM.id).offset(skip).limit(limit).all()
 
 
 def get_candidate_interview(db: Session, interview_id: int):
-    return db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+    return db.query(CandidateInterviewNew).options(joinedload(CandidateInterviewNew.candidate)).filter(CandidateInterviewNew.id == interview_id).first()
 
 
 def update_candidate_interview(db: Session, interview_id: int, updates: CandidateInterviewUpdate):
-    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+    db_obj = db.query(CandidateInterviewNew).options(joinedload(CandidateInterviewNew.candidate)) .join(CandidateORM, CandidateInterviewNew.candidate_id == CandidateORM.id).filter(CandidateInterviewNew.id == interview_id).first()
     if not db_obj:
         return None
 
@@ -318,7 +307,7 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
 
 
 def delete_candidate_interview(db: Session, interview_id: int):
-    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+    db_obj = db.query(CandidateInterviewNew).filter(CandidateInterviewNew.id == interview_id).first()
     if db_obj:
         db.delete(db_obj)
         db.commit()
@@ -335,11 +324,39 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     db.refresh(db_prep)
     return db_prep
 
+# def get_candidate_preparation(db: Session, prep_id: int):
+#     return db.query(CandidatePreparation).options(joinedload(CandidatePreparation.candidate))  # LOAD candidate  # ADDED: join to fetch candidate.filter(CandidatePreparation.id == prep_id).first()
+
+# def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
+#     return db.query(CandidatePreparation).options(joinedload(CandidatePreparation.candidate))  # LOAD candidate  # ADDED: join to fetch candidate.offset(skip).limit(limit).all()
+
+
 def get_candidate_preparation(db: Session, prep_id: int):
-    return db.query(CandidatePreparation).options(joinedload(CandidatePreparation.candidate))  # LOAD candidate  # ADDED: join to fetch candidate.filter(CandidatePreparation.id == prep_id).first()
+    return (
+        db.query(CandidatePreparation)
+        .options(
+            joinedload(CandidatePreparation.candidate),
+            joinedload(CandidatePreparation.instructor1),  # ADD
+            joinedload(CandidatePreparation.instructor2),  # ADD
+            joinedload(CandidatePreparation.instructor3),  # ADD
+        )
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
+    )
 
 def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(CandidatePreparation).options(joinedload(CandidatePreparation.candidate))  # LOAD candidate  # ADDED: join to fetch candidate.offset(skip).limit(limit).all()
+    return (
+        db.query(CandidatePreparation)
+        .options(
+            joinedload(CandidatePreparation.candidate),
+            joinedload(CandidatePreparation.instructor1),  # ADD
+            joinedload(CandidatePreparation.instructor2),  # ADD
+            joinedload(CandidatePreparation.instructor3),  # ADD
+        )
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
