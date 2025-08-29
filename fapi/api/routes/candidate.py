@@ -8,10 +8,14 @@ from fapi.utils import candidate_utils
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
 from fapi.db.models import CandidateInterview,CandidateStatus, CandidateORM, AuthUserORM, EmployeeORM, CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
 
-from sqlalchemy.orm import Session
-from fapi.db.database import get_db
-from fapi.db.database import SessionLocal
+from sqlalchemy.orm import Session,joinedload
+from fapi.db.database import get_db,SessionLocal
+
+
 from typing import Dict
+
+
+
 router = APIRouter()
 
 
@@ -142,6 +146,7 @@ def list_interviews(
     return (
         db.query(CandidateInterview)
         .order_by(CandidateInterview.interview_date.desc())
+        .options(joinedload(CandidateInterview.candidate)) 
         .offset(skip)
         .limit(limit)
         .all()
