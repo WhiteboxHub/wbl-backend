@@ -7,7 +7,8 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,D
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-
+from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey
 
 
 Base = declarative_base()
@@ -240,7 +241,9 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id =Column(Integer)
+    # candidate_id =Column(Integer)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))  # modified line: added ForeignKey
+    candidate = relationship("CandidateORM")  # added line: relationship to candidate
     marketing_manager = Column(Integer)
     start_date = Column(Date,nullable=False)
     notes=Column(Text,nullable=True)
@@ -289,7 +292,6 @@ class CandidateInterview(Base):
     )
 
 
-
    
 # --------------------------------------Candidate_Placement-------------------------------
 
@@ -325,7 +327,9 @@ class CandidatePreparation(Base):
     __tablename__ = "candidate_preparation"
 
     id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(Integer, nullable=False)
+    # candidate_id = Column(Integer, nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)  # modified line: added ForeignKey
+    candidate = relationship("CandidateORM")  # added line: relationship to candidate       
     batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum('active','break','not responding','inactive'), nullable=False)
@@ -496,32 +500,13 @@ class Session(Base):
     sessionid = Column(Integer, primary_key=True, index=True)
     title = Column(String(255))
     link = Column(String(1024))
-    # status = Column(String(45), nullable=False)
     videoid = Column(String(255))
 
     type = Column(String(50))
     sessiondate = Column(DateTime)
-    # lastmoddatetime = Column(DateTime)
-    notes = Column(Text, nullable=True)
+    lastmoddatetime = Column(DateTime)
     subject_id = Column(Integer, ForeignKey("subject.id"))
-
     subject = relationship("Subject", back_populates="sessions")
-
-
-# class Session(Base):
-#     __tablename__ = "session"
-
-#     sessionid = Column(Integer, primary_key=True, index=True, autoincrement=True)
-#     title = Column(String(500), nullable=True)
-#     status = Column(String(45), nullable=False)
-#     sessiondate = Column(Date, nullable=False)
-#     type = Column(String(45), nullable=False)
-#     subject = Column(String(45), nullable=True)
-#     link = Column(String(150), nullable=True)
-#     videoid = Column(String(150), nullable=True)
-#     notes = Column(Text, nullable=True)
-#     lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-#     subject_id = Column(Integer, nullable=False, default=0)
 
 
 

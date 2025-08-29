@@ -282,7 +282,7 @@ def get_employee_birthdays(db: Session):
     }
 
 # Fetching Leads
-def fetch_all_leads_paginated(page: int, limit: int, db: Session) -> dict[str, any]:
+def fetch_all_leads_paginated_dashboard(page: int, limit: int, db: Session) -> dict[str, any]:
     skip = (page - 1) * limit
     # Get total count
     total_leads = db.query(func.count(LeadORM.id)).scalar() or 0

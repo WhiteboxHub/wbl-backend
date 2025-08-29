@@ -156,3 +156,83 @@ async def send_request_demo_emails(name: str, email: str, phone: str, address: s
     fm = FastMail(fastmail_config)
     await fm.send_message(user_message)
     await fm.send_message(admin_message)
+
+async def send_referral_emails(
+    referrer_name: str,
+    referrer_email: str, 
+    referrer_phone: str,
+    candidate_name: str,
+    candidate_email: str,
+    candidate_phone: str,
+    candidate_workstatus: str,
+    candidate_address: str,
+    additional_notes: str
+):
+    """Send referral notification emails to admin recipients"""
+    
+    # Debug logging to see what data we're receiving
+    print(f"DEBUG - Email function received:")
+    print(f"  Referrer: {referrer_name} ({referrer_email}) - {referrer_phone}")
+    print(f"  Candidate: {candidate_name} ({candidate_email}) - {candidate_phone}")
+    print(f"  Work Status: {candidate_workstatus}")
+    print(f"  Address: {candidate_address}")
+    print(f"  Notes: {additional_notes}")
+    
+    # Create HTML email content for referral notification
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #4A6CF7; border-bottom: 2px solid #4A6CF7; padding-bottom: 10px;">
+                 New Referral Submission - AIML Training Program
+            </h2>
+            
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #2c3e50; margin-top: 0;">Referrer Information</h3>
+                <p><strong>Name:</strong> {referrer_name}</p>
+                <p><strong>Email:</strong> {referrer_email}</p>
+                <p><strong>Phone:</strong> {referrer_phone}</p>
+            </div>
+            
+            <div style="background-color: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #2c3e50; margin-top: 0;">Referred Candidate Information</h3>
+                <p><strong>Name:</strong> {candidate_name}</p>
+                <p><strong>Email:</strong> {candidate_email}</p>
+                <p><strong>Phone:</strong> {candidate_phone}</p>
+                <p><strong>Work Status:</strong> {candidate_workstatus}</p>
+                <p><strong>Address:</strong> {candidate_address}</p>
+            </div>
+            
+            <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #2c3e50; margin-top: 0;">Additional Notes</h3>
+                <p>{additional_notes}</p>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 20px; background-color: #d4edda; border-radius: 8px;">
+                <p style="margin: 0; font-weight: bold; color: #155724;">
+                    📞 Next Steps: Please reach out to the referred candidate to discuss the AIML training program and enrollment process.
+                </p>
+            </div>
+            
+            <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+            <p style="font-size: 12px; color: #666; text-align: center;">
+                This referral was submitted through the Whitebox Learning Refer and Earn program.
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Send email to specified recipients
+    admin_message = MessageSchema(
+        subject=f"🎁 New AIML Program Referral from {referrer_name}",
+        recipients=[
+            "sampath.velupula@gmail.com",
+            "recruiting@whitebox-learning.com"
+        ],
+        body=html_content,
+        subtype="html"
+    )
+    
+    fm = FastMail(fastmail_config)
+    await fm.send_message(admin_message)

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
-from fapi.db.schemas import LeadCreate, LeadUpdate
+from fapi.db.schemas import LeadCreate, LeadUpdate, LeadMetricsResponse
 from fapi.utils.lead_utils import (
     fetch_all_leads_paginated,
     get_lead_by_id,
@@ -13,7 +13,9 @@ from fapi.utils.lead_utils import (
     create_candidate_from_lead,
     get_lead_info_mark_move_to_candidate_true,
 )
-from fapi.utils.avatar_dashboard_utils import get_lead_metrics
+from fapi.utils.avatar_dashboard_utils import (
+    get_lead_metrics
+)
 
 router = APIRouter()
 
@@ -21,6 +23,15 @@ router = APIRouter()
 @router.get("/leads")
 def get_all_leads(page: int = 1, limit: int = 10):
     return fetch_all_leads_paginated(page, limit)
+
+@router.get("/leads/metrics", response_model=LeadMetricsResponse)
+def get_lead_metrics_endpoint(db: Session = Depends(get_db)):
+    metrics_data = get_lead_metrics(db)
+    return {
+        "success": True,
+        "data": metrics_data,
+        "message": "Lead metrics retrieved successfully"
+    }
 
 
 @router.get("/leads/{lead_id}")
@@ -46,13 +57,10 @@ def delete_existing_lead(lead_id: int, db: Session = Depends(get_db)):
     return delete_lead(db, lead_id)
 
 
-@router.get("/leads/metrics")
-def get_lead_metrics_endpoint(db: Session = Depends(get_db)):
-    return get_lead_metrics(db)
 
 
 @router.post("/leads/movetocandidate/{lead_id}")
-@router.post("/leads/{lead_id}/move-to-candidate")  # alias
+@router.post("/leads/{lead_id}/move-to-candidate")  
 def move_lead_to_candidate(lead_id: int, db: Session = Depends(get_db)):
     return create_candidate_from_lead(db, lead_id)
 
