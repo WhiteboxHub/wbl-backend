@@ -408,6 +408,8 @@ class VendorContactExtract(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
+    linkedin_internal_id : Optional[str] = None 
+
 
 # ------------------------------------Innovapath----------------------------
 class TalentSearch(BaseModel):
@@ -447,6 +449,8 @@ class VendorContactExtractUpdate(BaseModel):
     location: Optional[str] = None
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
+    linkedin_internal_id : Optional[str] = None 
+
 
 
 # -------------------- Vendor Schemas --------------------

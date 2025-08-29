@@ -360,8 +360,8 @@ class VendorContactExtractsORM(Base):
     location = Column(String(255), nullable=True)
     moved_to_vendor = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
+    linkedin_internal_id = Column(String(255))
 
-# 
 # -------------------- ORM: vendor-daily-activity --------------------
 class YesNoEnum(str, enum.Enum):
     YES = "YES"
