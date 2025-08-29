@@ -20,9 +20,22 @@ from fapi.utils.avatar_dashboard_utils import (
 router = APIRouter()
 
 
+# @router.get("/leads")
+# def get_all_leads(page: int = 1, limit: int = 10):
+#     return fetch_all_leads_paginated(page, limit)
+
+# @router.get("/leads")
+# def get_all_leads(page: int = 1, limit: int = 100, db: Session = Depends(get_db)):
+#     return fetch_all_leads_paginated(db, page, limit)
+
 @router.get("/leads")
-def get_all_leads(page: int = 1, limit: int = 10):
-    return fetch_all_leads_paginated(page, limit)
+def get_all_leads(
+    page: int = 1,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    return fetch_all_leads_paginated(db, page, limit)
+
 
 @router.get("/leads/metrics", response_model=LeadMetricsResponse)
 def get_lead_metrics_endpoint(db: Session = Depends(get_db)):
@@ -59,7 +72,8 @@ def delete_existing_lead(lead_id: int, db: Session = Depends(get_db)):
 
 
 
-@router.post("/leads/movetocandidate/{lead_id}")
+# @router.post("/leads/movetocandidate/{lead_id}")
+
 @router.post("/leads/{lead_id}/move-to-candidate")  
 def move_lead_to_candidate(lead_id: int, db: Session = Depends(get_db)):
     return create_candidate_from_lead(db, lead_id)

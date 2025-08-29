@@ -10,8 +10,13 @@ from fapi.utils import candidate_utils
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
 
+from sqlalchemy.orm import Session,joinedload
+from fapi.db.database import get_db,SessionLocal
 
-from fapi.db.database import get_db
+
+from typing import Dict
+
+
 
 router = APIRouter()
 
@@ -44,6 +49,26 @@ def update_candidate(candidate_id: int, candidate: CandidateUpdate):
 def delete_candidate(candidate_id: int):
     candidate_utils.delete_candidate(candidate_id)
     return {"message": "Candidate deleted successfully"}
+@router.get("/candidates/search", response_model=Dict)
+def search_candidates(term: str):
+    db: Session = SessionLocal()
+    try:
+        
+        results = (
+            db.query(CandidateORM)
+            .filter(
+                CandidateORM.full_name.ilike(f"%{term}%") |
+                CandidateORM.email.ilike(f"%{term}%") |
+                (CandidateORM.id == int(term)) if term.isdigit() else False
+            )
+            .all()
+        )
+        data = [r.__dict__ for r in results]
+        for item in data:
+            item.pop('_sa_instance_state', None)
+        return {"data": data}
+    finally:
+        db.close()
 
 
 # ------------------- Marketing -------------------
@@ -123,6 +148,7 @@ def list_interviews(
     return (
         db.query(CandidateInterview)
         .order_by(CandidateInterview.interview_date.desc())
+        .options(joinedload(CandidateInterview.candidate)) 
         .offset(skip)
         .limit(limit)
         .all()
