@@ -7,11 +7,8 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,D
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from sqlalchemy.orm import relationship
-from sqlalchemy import ForeignKey
 
-from sqlalchemy import Column, Integer, String, Date, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
+
 
 Base = declarative_base()
 
@@ -194,7 +191,7 @@ class Vendor(Base):
 
 # ------------------------------------------
 
-
+# ---------------------candiate Marketing-----------------
 
 class UnsubscribeUser(Base):
     __tablename__ = "massemail"
@@ -204,35 +201,43 @@ class UnsubscribeUser(Base):
     remove = Column(String(1), default='N') 
 
 
-
-
-
 class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # candidate_id =Column(Integer)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"))  # modified line: added ForeignKey
-    candidate = relationship("CandidateORM")  # added line: relationship to candidate
-    marketing_manager = Column(Integer)
-    start_date = Column(Date,nullable=False)
-    notes=Column(Text,nullable=True)
-    status=Column(Enum('active','break','not responding'), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"))
+    candidate = relationship("CandidateORM")
+
+    marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    marketing_manager_obj = relationship("EmployeeORM", foreign_keys=[marketing_manager])
+
+    instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
+
+    instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
+
+    instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+
+    start_date = Column(Date, nullable=False)
+    notes = Column(Text, nullable=True)
+    status = Column(Enum('active','break','not responding'), nullable=False)
     last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-    instructor1_id = Column(Integer, nullable=True)
-    instructor2_id = Column(Integer, nullable=True)
-    instructor3_id = Column(Integer, nullable=True)
+
     email = Column(String, nullable=True)
     password = Column(String, nullable=True)
     google_voice_number = Column(String, nullable=True)
     rating = Column(Integer, nullable=True)
     priority = Column(Integer, nullable=True)
+
+
     
 #--------------------------------Candidate interview--------------------------------
 
 
-class CandidateInterviewNew(Base):
-    __tablename__ = "candidate_interview_new"
+class CandidateInterview(Base):
+    __tablename__ = "candidate_interview"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
@@ -287,7 +292,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-
+# -------------------------------------candidate--------------------
 
 class CandidateORM(Base):
     __tablename__ = "candidate"
@@ -323,7 +328,7 @@ class CandidateORM(Base):
         cascade="all, delete-orphan"
     )
 
-    interviews = relationship("CandidateInterviewNew", back_populates="candidate")
+    interviews = relationship("CandidateInterview", back_populates="candidate")
     
 
 

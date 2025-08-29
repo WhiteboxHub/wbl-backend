@@ -8,7 +8,50 @@ from enum import Enum
 
 
 
+class EmployeeBase(BaseModel):
+    name: str
+    email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[datetime] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
 
+class EmployeeCreate(EmployeeBase):
+    pass
+
+class EmployeeUpdate(EmployeeBase):
+    id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+
+class Employee(EmployeeBase):
+    id: int
+
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_invalid_dates(cls, v):
+        if isinstance(v, str) and v.startswith("0000-00-00"):
+            return None
+        return v
+
+    class Config:
+        from_attributes = True
+
+class EmployeeBirthdayOut(BaseModel):
+    id: int
+    name: str
+    dob: date
+    wish: str | None = None     
+
+    class Config:
+        orm_mode = True
 
 # Base = declarative_base()
 
@@ -162,6 +205,7 @@ class LeadSchema(LeadBase):
 
 
 class CandidateBase(BaseModel):
+
     id:int
     # full_name: Optional[str]
     name: Optional[str] = Field(None, alias="full_name")
@@ -216,6 +260,9 @@ class PaginatedCandidateResponse(BaseModel):
 
 # -------------------------------------------------
 
+
+
+
 class CandidateMarketingBase(BaseModel):
     candidate_id: int
     marketing_manager: Optional[int] = None
@@ -230,7 +277,13 @@ class CandidateMarketingBase(BaseModel):
     google_voice_number: Optional[str] = None
     rating: Optional[int] = None
     priority: Optional[int] = None
-    candidate: Optional[CandidateBase]  # added line
+    candidate: Optional[CandidateBase]
+
+    # extra fields for name display in UI
+    instructor1: Optional[EmployeeBase] = None
+    instructor2: Optional[EmployeeBase] = None
+    instructor3: Optional[EmployeeBase] = None
+    marketing_manager_obj: Optional[EmployeeBase] = None
 
 
 class CandidateMarketingCreate(CandidateMarketingBase):
@@ -243,6 +296,15 @@ class CandidateMarketing(CandidateMarketingBase):
 
     class Config:
         from_attributes = True
+
+
+
+
+
+
+
+
+
 
 # --------------------------------------------
 class CandidatePlacementBase(BaseModel):
@@ -276,72 +338,11 @@ class InstructorOut(BaseModel):
 
 
 # =====================================employee  --hkd ========================
-class EmployeeBase(BaseModel):
-    name: str
-    email: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    state: Optional[str] = None
-    dob: Optional[date] = None
-    startdate: Optional[date] = None
-    enddate: Optional[datetime] = None
-    notes: Optional[str] = None
-    status: Optional[int] = None
-    instructor: Optional[int] = None
-    aadhaar: Optional[str] = None
 
-class EmployeeCreate(EmployeeBase):
-    pass
-
-class EmployeeUpdate(EmployeeBase):
-    id: int
-    name: Optional[str] = None
-    email: Optional[str] = None
-
-
-
-class Employee(EmployeeBase):
-    id: int
-
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if isinstance(v, str) and v.startswith("0000-00-00"):
-            return None
-        return v
-
-    class Config:
-        from_attributes = True
-
-class EmployeeBirthdayOut(BaseModel):
-    id: int
-    name: str
-    dob: date
-    wish: str | None = None     
-
-    class Config:
-        orm_mode = True
 
 # ------------------hkd-------------------------
 
-# class CandidatePreparationBase(BaseModel):
-#     id: int = Field(..., alias="id")
-#     candidate_id: int
-#     batch: Optional[str] = None
-#     start_date: Optional[date] = None
-#     status: str
-#     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-#     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-#     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-#     rating: Optional[str] = None
-#     tech_rating: Optional[str] = None
-#     communication: Optional[str] = None
-#     years_of_experience: Optional[str] = None
-#     topics_finished: Optional[str] = None
-#     current_topics: Optional[str] = None
-#     target_date_of_marketing: Optional[date] = None
-#     notes: Optional[str] = None
-#     candidate: Optional[CandidateBase]  # added line
-#     employee: Optional[EmployeeBase]  # added line
+
  
 class CandidatePreparationBase(BaseModel):
     id: int = Field(..., alias="id")
@@ -924,7 +925,7 @@ class CourseResponse(BaseModel):
     alias: str
     description: Optional[str] = None
     syllabus: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    #lastmoddatetime: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True
@@ -950,7 +951,7 @@ class SubjectResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
+    #lastmoddatetime: Optional[datetime] = None
 
     model_config = {
         "from_attributes": True
@@ -969,7 +970,7 @@ class SubjectUpdate(BaseModel):
 class CourseSubjectResponse(BaseModel):
     subject_id: int
     course_id: int
-    lastmoddatetime: Optional[datetime] = None
+    #lastmoddatetime: Optional[datetime] = None
 
     model_config = {
 
