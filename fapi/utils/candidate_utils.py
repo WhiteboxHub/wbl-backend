@@ -1,10 +1,13 @@
 # wbl-backend/fapi/utils/candidate_utils.py
-from sqlalchemy.orm import Session,joinedload,contains_eager
+
+from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
+from sqlalchemy import or_
 from fapi.db.database import SessionLocal
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
-from fapi.db.schemas import CandidateMarketingCreate,CandidateInterviewBase, CandidateInterviewCreate, CandidateInterviewOut, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException
 from typing import List, Dict
+
 
 
 
