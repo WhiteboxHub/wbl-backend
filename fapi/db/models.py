@@ -191,7 +191,7 @@ class Vendor(Base):
 
 # ------------------------------------------
 
-# ---------------------candiate Marketing-----------------
+
 
 class UnsubscribeUser(Base):
     __tablename__ = "massemail"
@@ -199,22 +199,20 @@ class UnsubscribeUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False)
     remove = Column(String(1), default='N') 
+    
 
 
-class CandidateMarketingORM(Base):
-    __tablename__ = "candidate_marketing"
+# ------------------------------------- Candidate --------------------
+class CandidateORM(Base):
+    __tablename__ = "candidate"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"))
-    candidate = relationship("CandidateORM")
-
-#     id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String(100), nullable=True)
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=True)  
-    workstatus = Column(String(50), nullable=True)  
+    status = Column(String(20), nullable=True)
+    workstatus = Column(String(50), nullable=True)
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
     ssn = Column(String(11), nullable=True)
@@ -231,61 +229,69 @@ class CandidateMarketingORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
-    interviews = relationship(
-        "CandidateInterview", 
-        back_populates="candidate",
-        foreign_keys="[CandidateInterview.candidate_id]"
-    )
+    candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
+
+    # Relationships
+    interviews = relationship("CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
+    preparations = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
+    placements = relationship("CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
+    marketing_records = relationship("CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
+    
     preparation_records = relationship("CandidatePreparation", back_populates="candidate")
-    marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
+    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
     interview_records = relationship("CandidateInterview", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
-# --------------------------------------Candidate_Marketing-------------------------------
-    marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    marketing_manager_obj = relationship("EmployeeORM", foreign_keys=[marketing_manager])
+
+
+# --------------------- Candidate Marketing -----------------
+class CandidateMarketingORM(Base):
+    __tablename__ = "candidate_marketing"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+
+    # Matches table columns
+    start_date = Column(Date, nullable=False)
+    status = Column(Enum("active", "break", "not responding"), nullable=False)
+    last_mod_datetime = Column(
+        TIMESTAMP,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
 
     instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
-
-
     instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
-
     instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+    marketing_manager = Column(Integer, ForeignKey("employee.id"), nullable=True)
 
-
-    
-    # candidate_id =Column(Integer)
-     # added line: relationship to candidate
-    marketing_manager = Column(Integer)
-    start_date = Column(Date, nullable=False)
-    notes = Column(Text, nullable=True)
-    status = Column(Enum('active','break','not responding'), nullable=False)
-    last_mod_datetime = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    email = Column(String, nullable=True)
-    password = Column(String, nullable=True)
-    google_voice_number = Column(String, nullable=True)
+    email = Column(String(100), nullable=True)
+    password = Column(String(100), nullable=True)
+    google_voice_number = Column(String(100), nullable=True)
     rating = Column(Integer, nullable=True)
     priority = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
 
-    marketing_manager_employee = relationship("EmployeeORM", foreign_keys=[marketing_manager])
+    # Relationships
+    candidate = relationship("CandidateORM", back_populates="marketing_records")
 
-#--------------------------------Candidate interview--------------------------------
-
-
+    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
+    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
+    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+    marketing_manager_obj = relationship("EmployeeORM", foreign_keys=[marketing_manager])
+    marketing_manager_employee = relationship(
+        "EmployeeORM", foreign_keys=[marketing_manager], overlaps="marketing_manager_obj"
+    )
+# -------------------------------------- Candidate Interview -------------------------------
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-    
+
     # Relationship to CandidateORM
     candidate = relationship("CandidateORM", back_populates="interviews")
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  
-    # candidate_name = Column(String(200), nullable=True)
+
     company = Column(String(200), nullable=False)
     interviewer_emails = Column(Text, nullable=True)
     interviewer_contact = Column(Text, nullable=True)
@@ -306,22 +312,16 @@ class CandidateInterview(Base):
     )
 
     notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(
-        TIMESTAMP, server_default=func.now(), onupdate=func.now()
-    )
-
-   
+    last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
 
-# --------------------------------------Candidate_Placement-------------------------------
-
+# -------------------------------------- Candidate Placement -------------------------------
 class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-
     candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
-    # candidate_id = Column(Integer)
+
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)
@@ -332,48 +332,45 @@ class CandidatePlacementORM(Base):
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
-    candidate = relationship("CandidateORM", back_populates="placement_records")
+
+    candidate = relationship("CandidateORM", back_populates="placements")
 
 
-# -------------------------------------candidate--------------------
+# -------------------------------------- Candidate Preparation -------------------------------
+class CandidatePreparation(Base):
+    __tablename__ = "candidate_preparation"
 
-class CandidateORM(Base):
-    __tablename__ = "candidate"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+    candidate = relationship("CandidateORM", back_populates="preparations")
 
-    id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(100), nullable=True)
-    enrolled_date = Column(Date, nullable=True)
-    email = Column(String(100), nullable=True)
-    phone = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=True)  
-    workstatus = Column(String(50), nullable=True)  
-    education = Column(String(200), nullable=True)
-    workexperience = Column(String(200), nullable=True)
-    ssn = Column(String(11), nullable=True)
-    agreement = Column(String(1), default="N", nullable=True)
-    secondaryemail = Column(String(100), nullable=True)
-    secondaryphone = Column(String(45), nullable=True)
-    address = Column(String(300), nullable=True)
-    linkedin_id = Column(String(100), nullable=True)
-    dob = Column(Date, nullable=True)
-    emergcontactname = Column(String(100), nullable=True)
-    emergcontactemail = Column(String(100), nullable=True)
-    emergcontactphone = Column(String(100), nullable=True)
-    emergcontactaddrs = Column(String(300), nullable=True)
-    fee_paid = Column(Integer, nullable=True)
+    instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+
+    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
+    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
+    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+
+    batch = Column(String(100), nullable=True)
+    start_date = Column(Date, nullable=True)
+    status = Column(Enum('active', 'break', 'not responding', 'inactive'), nullable=False)
+
+    rating = Column(String(50), nullable=True)
+    tech_rating = Column(String(50), nullable=True)
+    communication = Column(String(50), nullable=True)
+    years_of_experience = Column(String(50), nullable=True)
+    topics_finished = Column(Text, nullable=True)
+    current_topics = Column(Text, nullable=True)
+    target_date_of_marketing = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    batchid = Column(Integer, nullable=False)
+    last_mod_datetime = Column(TIMESTAMP, nullable=True)
 
-    # Add back_populates for preparations
-    preparations = relationship(
-        "CandidatePreparation",
-        back_populates="candidate",
-        cascade="all, delete-orphan"
-    )
-    candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate") 
-
-    interviews = relationship("CandidateInterview", back_populates="candidate")
+    instructor1_employee = relationship("EmployeeORM", foreign_keys=[instructor1_id])
+    instructor2_employee = relationship("EmployeeORM", foreign_keys=[instructor2_id])
+    instructor3_employee = relationship("EmployeeORM", foreign_keys=[instructor3_id])
     
+    candidate = relationship("CandidateORM", back_populates="preparation_records")
 
 
 class EmployeeORM(Base):
@@ -399,39 +396,6 @@ class CandidateStatus(str, enum.Enum):
     break_ = "break"
     not_responding = "not responding"
     inactive = "inactive"
-
-
-class CandidatePreparation(Base):
-    __tablename__ = "candidate_preparation"
-
-    id = Column(Integer, primary_key=True, index=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-    candidate = relationship("CandidateORM", back_populates="preparations")
-
-    instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-
-    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
-    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
-    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
-
-    batch = Column(String(100), nullable=True)
-    start_date = Column(Date, nullable=True)
-    status = Column(Enum('active','break','not responding','inactive'), nullable=False)
-
-    rating = Column(String(50), nullable=True)
-    tech_rating = Column(String(50), nullable=True)
-    communication = Column(String(50), nullable=True)
-    years_of_experience = Column(String(50), nullable=True)
-    topics_finished = Column(Text, nullable=True)
-    current_topics = Column(Text, nullable=True)
-    target_date_of_marketing = Column(Date, nullable=True)
-    notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(TIMESTAMP, nullable=True)
-    instructor1_employee = relationship("EmployeeORM", foreign_keys=[instructor1_id])
-    instructor2_employee = relationship("EmployeeORM", foreign_keys=[instructor2_id])
-    instructor3_employee = relationship("EmployeeORM", foreign_keys=[instructor3_id])
 
 
 

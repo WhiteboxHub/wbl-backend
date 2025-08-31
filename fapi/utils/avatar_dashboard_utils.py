@@ -184,9 +184,15 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
         extract('year', CandidateInterview.interview_date) == today.year
     ).count()
     # Candidates in Marketing Phase
-    marketing_candidates = db.query(CandidateMarketingORM).filter(
+    # marketing_candidates = db.query(CandidateMarketingORM).filter(
+    #     CandidateMarketingORM.status == "active"
+    # ).count()
+    marketing_candidates = db.query(CandidateORM.full_name).join(
+    CandidateMarketingORM,
+    CandidateMarketingORM.candidate_id == CandidateORM.id
+    ).filter(
         CandidateMarketingORM.status == "active"
-    ).count()
+    ).all()
     # Interview Feedback Breakdown
     feedback_breakdown = db.query(
         CandidateInterview.feedback,
@@ -202,7 +208,7 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
         "upcoming_interviews": upcoming_interviews,
         "total_interviews": total_interviews,
         "interviews_month": interviews_month,
-        "marketing_candidates": marketing_candidates,
+        "marketing_candidates":  len(marketing_candidates),
         "feedback_breakdown": feedback_dict
     }
 
