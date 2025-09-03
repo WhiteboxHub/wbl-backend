@@ -30,13 +30,23 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
         Batch.enddate >= today
     ).count()
     total_candidates = db.query(CandidateORM).count()
-    # Candidates in Last Batch
-    last_batch = db.query(Batch).order_by(desc(Batch.startdate)).first()
+    # Candidates enrolled in Last Batch only for batches that have started
+    last_batch = (
+        db.query(Batch)
+        .filter(Batch.startdate <= date.today()) 
+        .order_by(desc(Batch.startdate))
+        .first()
+    )
+
     candidates_last_batch = 0
     if last_batch:
-        candidates_last_batch = db.query(CandidateORM).filter(
-            CandidateORM.batchid == last_batch.batchid
-        ).count()
+        candidates_last_batch = (
+            db.query(CandidateORM)
+            .filter(CandidateORM.batchid == last_batch.batchid)
+            .count()
+        )
+
+
     # New Enrollments in this Month
     first_day_month = today.replace(day=1)
     new_enrollments_month = db.query(CandidateORM).filter(
@@ -184,9 +194,12 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
         extract('year', CandidateInterview.interview_date) == today.year
     ).count()
     # Candidates in Marketing Phase
-    marketing_candidates = db.query(CandidateMarketingORM).filter(
-        CandidateMarketingORM.status == "active"
-    ).count()
+    marketing_candidates = db.query(CandidateORM.full_name).join( 
+    CandidateMarketingORM, 
+    CandidateMarketingORM.candidate_id == CandidateORM.id 
+    ).filter( 
+        CandidateMarketingORM.status == "active" 
+    ).all() 
     # Interview Feedback Breakdown
     feedback_breakdown = db.query(
         CandidateInterview.feedback,
@@ -202,7 +215,7 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
         "upcoming_interviews": upcoming_interviews,
         "total_interviews": total_interviews,
         "interviews_month": interviews_month,
-        "marketing_candidates": marketing_candidates,
+        "marketing_candidates":  len(marketing_candidates),
         "feedback_breakdown": feedback_dict
     }
 
@@ -252,16 +265,16 @@ def get_top_batches_revenue(db: Session, limit: int = 5) -> List[Dict[str, Any]]
 # Employee birthdays
 def get_employee_birthdays(db: Session):
     today = date.today()
-    # Today's birthdays - only for active employees (status = 1)
+    next_week = today + timedelta(days=7)
+
     todays_birthdays = db.query(EmployeeORM).filter(
-        EmployeeORM.status == 1,  # Only active employees
+        EmployeeORM.status == 1,
         func.extract('month', EmployeeORM.dob) == today.month,
         func.extract('day', EmployeeORM.dob) == today.day
     ).all()
-    # Upcoming birthdays (next 7 days) - only for active employees (status = 1)
-    next_week = today + timedelta(days=7)
+
     upcoming_birthdays = db.query(EmployeeORM).filter(
-        EmployeeORM.status == 1, 
+        EmployeeORM.status == 1,
         or_(
             and_(
                 func.extract('month', EmployeeORM.dob) == today.month,
@@ -276,10 +289,12 @@ def get_employee_birthdays(db: Session):
         func.extract('month', EmployeeORM.dob),
         func.extract('day', EmployeeORM.dob)
     ).limit(10).all()
+
     return {
-        "today": [{"name": emp.name, "date_of_birth": emp.dob} for emp in todays_birthdays],
-        "upcoming": [{"name": emp.name, "date_of_birth": emp.dob} for emp in upcoming_birthdays]
+        "today": [{"name": emp.name, "dob": emp.dob.isoformat() if emp.dob else None} for emp in todays_birthdays],
+        "upcoming": [{"name": emp.name, "dob": emp.dob.isoformat() if emp.dob else None} for emp in upcoming_birthdays]
     }
+
 
 # Fetching Leads
 def fetch_all_leads_paginated_dashboard(page: int, limit: int, db: Session) -> dict[str, any]:

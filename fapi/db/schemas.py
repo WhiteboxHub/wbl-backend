@@ -633,7 +633,7 @@ class VendorBase(BaseModel):
     def empty_string_to_none(cls, v):
         return v or None
 
-    @validator("type","vendor_type" ,pre=True)
+    @validator("type","vendor_type" ,pre=True)  
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
             return v.lower()
