@@ -2,33 +2,82 @@
 
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal,get_db
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
-from fastapi import HTTPException
+from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict
+router = APIRouter()
 
 
 
+# def get_all_candidates_paginated(page: int = 1, limit: int = 100) -> Dict:
+#     db: Session = SessionLocal()
+#     try:
+#         total = db.query(CandidateORM).count()
+#         results = (
+#             db.query(CandidateORM)
+#             .order_by(CandidateORM.id.desc())
+#             .offset((page - 1) * limit)
+#             .limit(limit)
+#             .all()
+#         )
+#         data = [r.__dict__ for r in results]
+#         for item in data:
+#             item.pop('_sa_instance_state', None)
+#         return {"page": page, "limit": limit, "total": total, "data": data}
+#     finally:
+#         db.close()
 
-def get_all_candidates_paginated(page: int = 1, limit: int = 100) -> Dict:
+
+def get_all_candidates_paginated(page: int = 1, limit: int = 100):
     db: Session = SessionLocal()
     try:
+        query = db.query(CandidateORM)
+        total = query.count()
+
+        candidates = (
+            query
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+
+        # Clean ORM objects for JSON response
+        data = []
+        for candidate in candidates:
+            item = candidate.__dict__.copy()
+            item.pop('_sa_instance_state', None)
+            data.append(item)
+
+        return {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "data": data,
+        }
+    finally:
+        db.close()
+        
+@router.get("/candidates", response_model=Dict)
+def list_candidates(page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
+    try:
         total = db.query(CandidateORM).count()
-        results = (
+        candidates = (
             db.query(CandidateORM)
             .order_by(CandidateORM.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
         )
-        data = [r.__dict__ for r in results]
-        for item in data:
-            item.pop('_sa_instance_state', None)
-        return {"page": page, "limit": limit, "total": total, "data": data}
-    finally:
-        db.close()
-
+        data = []
+        for candidate in candidates:
+            candidate_data = candidate.__dict__.copy()
+            candidate_data.pop('_sa_instance_state', None)
+            data.append(candidate_data)
+        return {"data": data, "total": total, "page": page, "limit": limit}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 def get_candidate_by_id(candidate_id: int) -> Dict:
     db: Session = SessionLocal()
@@ -41,6 +90,7 @@ def get_candidate_by_id(candidate_id: int) -> Dict:
         return data
     finally:
         db.close()
+        
 
 
 def create_candidate(candidate_data: dict) -> int:
@@ -86,6 +136,7 @@ def delete_candidate(candidate_id: int):
         db.commit()
     finally:
         db.close()
+
 
 
 
