@@ -6,7 +6,13 @@ from fapi.utils.avatar_dashboard_utils import (
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
-from fapi.db.models import CandidateInterview, CandidateORM, AuthUserORM, EmployeeORM, CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
+
+from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM, EmployeeORM,
+
+from sqlalchemy.orm import Session,joinedload
+from fapi.db.database import get_db,SessionLocal
+
+
 
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
