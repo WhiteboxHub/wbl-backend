@@ -48,12 +48,12 @@ class EmployeeBirthdayOut(BaseModel):
     id: int
     name: str
     dob: date
-    wish: str | None = None     
+    # wish: str | None = None 
+    wish: Optional[str] = None     
 
     class Config:
         orm_mode = True
 
-# Base = declarative_base()
 
 class Token(BaseModel):
     access_token: str
@@ -1130,7 +1130,7 @@ class SessionBase(BaseModel):
     sessiondate: Optional[datetime] = None
     # lastmoddatetime: Optional[datetime] = None
     subject_id: int
-    notes: Optional[str] = None
+    # notes: Optional[str] = None
     # status: Optional[str] = None 
 
 
