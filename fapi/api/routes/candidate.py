@@ -8,10 +8,11 @@ from fapi.utils.avatar_dashboard_utils import (
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
-from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch
+from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch,AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
+from fapi.db import schemas
 
 
 from typing import Dict
@@ -138,21 +139,46 @@ def create_interview(interview: CandidateInterviewCreate, db: Session = Depends(
 
 
 
-@router.get("/interviews", response_model=list[CandidateInterviewOut])
+# @router.get("/interviews", response_model=list[CandidateInterviewOut])
+# def list_interviews(
+#     skip: int = Query(0, ge=0),
+#     limit: int = Query(100, le=1000),
+#     db: Session = Depends(get_db),
+# ):
+#     # Sort interviews by date descending to get recent interviews first
+#     return (
+#         db.query(CandidateInterview)
+#         .order_by(CandidateInterview.interview_date.desc())
+#         .options(joinedload(CandidateInterview.candidate)) 
+#         .offset(skip)
+#         .limit(limit)
+#         .all()
+#     )
+
+
+@router.get("/interviews", response_model=schemas.PaginatedInterviews)
 def list_interviews(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, le=1000),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, le=100),
     db: Session = Depends(get_db),
 ):
-    # Sort interviews by date descending to get recent interviews first
-    return (
-        db.query(CandidateInterview)
-        .order_by(CandidateInterview.interview_date.desc())
-        .options(joinedload(CandidateInterview.candidate)) 
-        .offset(skip)
-        .limit(limit)
+    query = db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate))
+
+    total = query.count()
+
+    interviews = (
+        query.order_by(CandidateInterview.interview_date.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
         .all()
     )
+
+    return {
+        "items": interviews,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
