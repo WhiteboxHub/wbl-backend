@@ -9,18 +9,9 @@ from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateRe
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
-
-
-
-from sqlalchemy.orm import Session
-from fapi.db.database import get_db
-from fapi.db.database import SessionLocal
-from typing import Dict
 from typing import Dict, Any, List
-from sqlalchemy import or_
 from sqlalchemy import or_, func
 import re
-
 router = APIRouter()
 
 
@@ -40,8 +31,7 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
             CandidateORM.email.ilike(f"%{term}%"),
         ]
 
-        # --- Phone handling ---
-        # Remove non-digits from search term
+
         normalized_term = re.sub(r"\D", "", term)
         if normalized_term:
             # Also strip non-digits in DB phone
