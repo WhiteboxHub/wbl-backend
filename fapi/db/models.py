@@ -211,7 +211,7 @@ class CandidateORM(Base):
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(String(20), nullable=True)
+    status = Column(Enum('active', 'discontinued', 'break', 'closed', name='status_enum'), nullable=True)
     workstatus = Column(String(50), nullable=True)
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)

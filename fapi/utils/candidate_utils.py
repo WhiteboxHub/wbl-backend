@@ -9,27 +9,6 @@ from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict
 router = APIRouter()
 
-
-
-# def get_all_candidates_paginated(page: int = 1, limit: int = 100) -> Dict:
-#     db: Session = SessionLocal()
-#     try:
-#         total = db.query(CandidateORM).count()
-#         results = (
-#             db.query(CandidateORM)
-#             .order_by(CandidateORM.id.desc())
-#             .offset((page - 1) * limit)
-#             .limit(limit)
-#             .all()
-#         )
-#         data = [r.__dict__ for r in results]
-#         for item in data:
-#             item.pop('_sa_instance_state', None)
-#         return {"page": page, "limit": limit, "total": total, "data": data}
-#     finally:
-#         db.close()
-
-
 def get_all_candidates_paginated(page: int = 1, limit: int = 100):
     db: Session = SessionLocal()
     try:
@@ -43,7 +22,7 @@ def get_all_candidates_paginated(page: int = 1, limit: int = 100):
             .all()
         )
 
-        # Clean ORM objects for JSON response
+       
         data = []
         for candidate in candidates:
             item = candidate.__dict__.copy()
@@ -92,7 +71,6 @@ def get_candidate_by_id(candidate_id: int) -> Dict:
         db.close()
         
 
-
 def create_candidate(candidate_data: dict) -> int:
     db: Session = SessionLocal()
     try:
@@ -111,20 +89,17 @@ def create_candidate(candidate_data: dict) -> int:
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
-        if "email" in candidate_data and candidate_data["email"]:
-            candidate_data["email"] = candidate_data["email"].lower()
-
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
-
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
-
-        db.commit()
+        db.commit()  
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()
-
+        db.close()  
 
 def delete_candidate(candidate_id: int):
     db: Session = SessionLocal()
@@ -133,10 +108,12 @@ def delete_candidate(candidate_id: int):
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
         db.delete(candidate)
-        db.commit()
+        db.commit()  
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()
-
+        db.close() 
 
 
 

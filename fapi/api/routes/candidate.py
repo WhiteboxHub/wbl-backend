@@ -13,7 +13,6 @@ from fapi.db import schemas
 from typing import Dict, Any, List
 from sqlalchemy import or_, func
 import re
-
 router = APIRouter()
 
 
@@ -33,8 +32,7 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
             CandidateORM.email.ilike(f"%{term}%"),
         ]
 
-        # --- Phone handling ---
-        # Remove non-digits from search term
+
         normalized_term = re.sub(r"\D", "", term)
         if normalized_term:
             # Also strip non-digits in DB phone
