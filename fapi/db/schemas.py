@@ -300,14 +300,6 @@ class CandidateMarketing(CandidateMarketingBase):
         from_attributes = True
 
 
-
-
-
-
-
-
-
-
 # --------------------------------------------
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
@@ -411,22 +403,6 @@ class CandidatePreparationUpdate(BaseModel):
     candidate: Optional[CandidateBase]  # added line
     
 
-
-# class CandidatePreparationOut(CandidatePreparationBase):
-#     id: int
-#     last_mod_datetime: Optional[datetime]
-    
-#     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-#     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-#     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-
-#     candidate: Optional[CandidateBase] 
-#     model_config = {
-#         "from_attributes": True,
-#         "populate_by_name": True  
-#     }
-
-
 class CandidatePreparationOut(BaseModel):
     id: int
     batch: Optional[str] = None
@@ -457,6 +433,8 @@ class CandidatePreparationOut(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
+        
+        
 
 
 # --------------------------------------------------
@@ -522,7 +500,11 @@ class CandidateInterviewOut(CandidateInterviewBase):
 
 
 
-
+class PaginatedInterviews(BaseModel):
+    items: List[CandidateInterviewOut]
+    total: int
+    page: int
+    per_page: int
 
 
 

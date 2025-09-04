@@ -6,18 +6,11 @@ from fapi.utils.avatar_dashboard_utils import (
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
-from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM, EmployeeORM,
+from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
-
-
-
-from sqlalchemy.orm import Session
-from fapi.db.database import get_db
-from fapi.db.database import SessionLocal
-from typing import Dict
+from fapi.db import schemas
 from typing import Dict, Any, List
-from sqlalchemy import or_
 from sqlalchemy import or_, func
 import re
 
@@ -30,57 +23,6 @@ router = APIRouter()
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(page: int = 1, limit: int = 100):
     return candidate_utils.get_all_candidates_paginated(page, limit)
-
-
-
-# @router.get("/candidates/search", response_model=Dict)
-# def search_candidates(term: str):
-#     db: Session = SessionLocal()
-#     try:
-#         # Search by full_name, email, or id
-#         results = (
-#             db.query(CandidateORM)
-#             .filter(
-#                 CandidateORM.full_name.ilike(f"%{term}%") |
-#                 CandidateORM.email.ilike(f"%{term}%") |
-#                 (CandidateORM.id == int(term)) if term.isdigit() else False
-#             )
-#             .all()
-#         )
-#         data = [r.__dict__ for r in results]
-#         for item in data:
-#             item.pop('_sa_instance_state', None)
-#         return {"data": data}
-#     finally:
-#         db.close()
-# @router.get("/candidates/search", response_model=Dict)
-# def search_candidates(term: str):
-#     if not term or len(term) < 2:
-#         return {"data": []}
-
-#     db: Session = SessionLocal()
-#     try:
-#         results = (
-#             db.query(CandidateORM)
-#             .filter(
-#                 CandidateORM.full_name.ilike(f"%{term}%") |
-#                 CandidateORM.email.ilike(f"%{term}%")
-#             )
-#             .limit(100)  # Limit results for performance
-#             .all()
-#         )
-#         data = []
-#         for candidate in results:
-#             candidate_data = candidate.__dict__.copy()
-#             candidate_data.pop('_sa_instance_state', None)
-#             data.append(candidate_data)
-#         return {"data": data}
-#     except Exception as e:
-#         print(f"Search error: {e}")
-#         return {"data": []}
-#     finally:
-#         db.close()
-
 
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
@@ -133,27 +75,6 @@ def update_candidate(candidate_id: int, candidate: CandidateUpdate):
 def delete_candidate(candidate_id: int):
     candidate_utils.delete_candidate(candidate_id)
     return {"message": "Candidate deleted successfully"}
-# @router.get("/candidates/search", response_model=Dict)
-# def search_candidates(term: str):
-#     db: Session = SessionLocal()
-#     try:
-#         # Search by full_name, email, or id
-#         results = (
-#             db.query(CandidateORM)
-#             .filter(
-#                 CandidateORM.full_name.ilike(f"%{term}%") |
-#                 CandidateORM.email.ilike(f"%{term}%") |
-#                 (CandidateORM.id == int(term)) if term.isdigit() else False
-#             )
-#             .all()
-#         )
-#         data = [r.__dict__ for r in results]
-#         for item in data:
-#             item.pop('_sa_instance_state', None)
-#         return {"data": data}
-#     finally:
-#         db.close()
-
 
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
@@ -248,21 +169,29 @@ def create_interview(interview: CandidateInterviewCreate, db: Session = Depends(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
-
-@router.get("/interviews", response_model=list[CandidateInterviewOut])
+@router.get("/interviews", response_model=schemas.PaginatedInterviews)
 def list_interviews(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, le=1000),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, le=100),
     db: Session = Depends(get_db),
 ):
-    # Sort interviews by date descending to get recent interviews first
-    return (
-        db.query(CandidateInterview)
-        .order_by(CandidateInterview.interview_date.desc())
-        .offset(skip)
-        .limit(limit)
+    query = db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate))
+
+    total = query.count()
+
+    interviews = (
+        query.order_by(CandidateInterview.interview_date.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
         .all()
     )
+
+    return {
+        "items": interviews,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
 
 @router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
