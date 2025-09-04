@@ -72,7 +72,7 @@ class UserRegistration(BaseModel):
     passwd: str
     team: Optional[str] = None
     status: Optional[str] = None
-    lastlogin: Optional[datetime] = None
+    # lastlogin: Optional[datetime] = None
     logincount: Optional[int] = None
     firstname: Optional[str] = None
     lastname: Optional[str] = None
