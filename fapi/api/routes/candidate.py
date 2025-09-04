@@ -6,7 +6,7 @@ from fapi.utils.avatar_dashboard_utils import (
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
-from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM, EmployeeORM,
+from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
 
@@ -30,57 +30,6 @@ router = APIRouter()
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(page: int = 1, limit: int = 100):
     return candidate_utils.get_all_candidates_paginated(page, limit)
-
-
-
-# @router.get("/candidates/search", response_model=Dict)
-# def search_candidates(term: str):
-#     db: Session = SessionLocal()
-#     try:
-#         # Search by full_name, email, or id
-#         results = (
-#             db.query(CandidateORM)
-#             .filter(
-#                 CandidateORM.full_name.ilike(f"%{term}%") |
-#                 CandidateORM.email.ilike(f"%{term}%") |
-#                 (CandidateORM.id == int(term)) if term.isdigit() else False
-#             )
-#             .all()
-#         )
-#         data = [r.__dict__ for r in results]
-#         for item in data:
-#             item.pop('_sa_instance_state', None)
-#         return {"data": data}
-#     finally:
-#         db.close()
-# @router.get("/candidates/search", response_model=Dict)
-# def search_candidates(term: str):
-#     if not term or len(term) < 2:
-#         return {"data": []}
-
-#     db: Session = SessionLocal()
-#     try:
-#         results = (
-#             db.query(CandidateORM)
-#             .filter(
-#                 CandidateORM.full_name.ilike(f"%{term}%") |
-#                 CandidateORM.email.ilike(f"%{term}%")
-#             )
-#             .limit(100)  # Limit results for performance
-#             .all()
-#         )
-#         data = []
-#         for candidate in results:
-#             candidate_data = candidate.__dict__.copy()
-#             candidate_data.pop('_sa_instance_state', None)
-#             data.append(candidate_data)
-#         return {"data": data}
-#     except Exception as e:
-#         print(f"Search error: {e}")
-#         return {"data": []}
-#     finally:
-#         db.close()
-
 
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
@@ -133,27 +82,6 @@ def update_candidate(candidate_id: int, candidate: CandidateUpdate):
 def delete_candidate(candidate_id: int):
     candidate_utils.delete_candidate(candidate_id)
     return {"message": "Candidate deleted successfully"}
-# @router.get("/candidates/search", response_model=Dict)
-# def search_candidates(term: str):
-#     db: Session = SessionLocal()
-#     try:
-#         # Search by full_name, email, or id
-#         results = (
-#             db.query(CandidateORM)
-#             .filter(
-#                 CandidateORM.full_name.ilike(f"%{term}%") |
-#                 CandidateORM.email.ilike(f"%{term}%") |
-#                 (CandidateORM.id == int(term)) if term.isdigit() else False
-#             )
-#             .all()
-#         )
-#         data = [r.__dict__ for r in results]
-#         for item in data:
-#             item.pop('_sa_instance_state', None)
-#         return {"data": data}
-#     finally:
-#         db.close()
-
 
 
 @router.get("/candidates/search", response_model=Dict[str, Any])

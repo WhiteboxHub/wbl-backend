@@ -29,7 +29,7 @@ class AuthUserORM(Base):
     passwd = Column(String(32), nullable=False)
     team = Column(String(255))
     status = Column(String(255), default="inactive")
-    #lastlogin = Column(DateTime)
+    # lastlogin = Column(DateTime)
     logincount = Column(Integer)
     fullname = Column(String(50))
     address = Column(String(50))
@@ -202,7 +202,6 @@ class UnsubscribeUser(Base):
     
 
 
-
 # ------------------------------------- Candidate --------------------
 class CandidateORM(Base):
     __tablename__ = "candidate"
@@ -286,23 +285,32 @@ class CandidateMarketingORM(Base):
 # -------------------------------------- Candidate Interview -------------------------------
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
+
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
 
-
     # Relationship to CandidateORM
     candidate = relationship("CandidateORM", back_populates="interviews")
-
 
     company = Column(String(200), nullable=False)
     interviewer_emails = Column(Text, nullable=True)
     interviewer_contact = Column(Text, nullable=True)
     interview_date = Column(Date, nullable=False)
-    interview_type = Column(Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"), nullable=True)
+
+    interview_type = Column(
+        Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
+        nullable=True
+    )
+
     recording_link = Column(String(500), nullable=True)
     backup_url = Column(String(500), nullable=True)
     status = Column(String(100), nullable=True)
-    feedback = Column(Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"), nullable=True)
+
+    feedback = Column(
+        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
+        nullable=True
+    )
+
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
@@ -310,6 +318,7 @@ class CandidateInterview(Base):
 # -------------------------------------- Candidate Placement -------------------------------
 class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
 
@@ -334,14 +343,15 @@ class CandidatePreparation(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
     candidate = relationship("CandidateORM", back_populates="preparations")
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id"), nullable=True)
-    candidate_marketing = relationship("CandidateMarketingORM", back_populates="preparation_records")
+
     instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+
     instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
     instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
     instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+
     batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum('active', 'break', 'not responding', 'inactive'), nullable=False)
@@ -386,6 +396,9 @@ class CandidateStatus(str, enum.Enum):
     break_ = "break"
     not_responding = "not responding"
     inactive = "inactive"
+
+
+
 
 # -------------------- Enums --------------------
 
@@ -546,4 +559,3 @@ class Session(Base):
     lastmoddatetime = Column(DateTime)
     subject_id = Column(Integer, ForeignKey("subject.id"))
     subject = relationship("Subject", back_populates="sessions")
-
