@@ -9,6 +9,16 @@ from fapi.utils.avatar_dashboard_utils import get_employee_birthdays
 app = FastAPI()
 router = APIRouter()
 
+# @router.get("/employees", response_model=list[Employee])
+# def get_employees():
+#     try:
+#         rows = get_all_employees()
+#         return [Employee(**row) for row in rows]
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
+
 @router.get("/employees", response_model=list[Employee])
 def get_employees():
     try:
@@ -17,30 +27,44 @@ def get_employees():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/employee-birthdays")
 def employee_birthdays(db: Session = Depends(get_db)):
     birthdays = get_employee_birthdays(db)
     return birthdays
 
-@router.post("/employees", response_model=Employee, status_code=status.HTTP_201_CREATED)
-def create_employee(employee_data: EmployeeCreate):
+
+@router.post("/employees", response_model=Employee)
+def create_employee(employee_data: EmployeeCreate, db: Session = Depends(get_db)):
     try:
-        new_employee = create_employee_db(employee_data.dict())
-        return Employee(**new_employee)
+ 
+        if not employee_data.name or not employee_data.email:
+            raise HTTPException(status_code=400, detail="Name and email are required")
+
+        db_employee = EmployeeORM(**employee_data.model_dump())
+        db.add(db_employee)
+        db.commit()
+        db.refresh(db_employee)
+        return db_employee
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create employee: {str(e)}")
 
+
 @router.put("/employees/{employee_id}", response_model=Employee)
-async def update_employee(employee_id: int, update_data: EmployeeUpdate):
-    fields = update_data.dict(exclude_unset=True)
-    if not fields:
-        raise HTTPException(status_code=400, detail="No data to update")
+def update_employee(
+    employee_id: int,
+    employee_data: EmployeeUpdate,  
+    db: Session = Depends(get_db)
+):
     try:
-        fields.pop("id", None)
-        update_employee_db(employee_id, fields)
-        return Employee(**fields, id=employee_id)
+        updated_employee = update_employee_db(employee_id, employee_data.model_dump(exclude_unset=True))
+        return updated_employee
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update employee: {str(e)}")
+    
 
 @router.delete("/employees/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_employee(employee_id: int):

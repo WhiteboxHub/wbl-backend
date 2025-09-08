@@ -1,69 +1,45 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import Dict,Any
 from fapi.db.database import SessionLocal
 from fapi.db.models import LeadORM
 from fapi.db.schemas import LeadCreate, LeadUpdate
 from fastapi import HTTPException
+from sqlalchemy import or_, cast, String,func
 
-
-# def fetch_all_leads_paginated(page: int, limit: int) -> Dict[str, any]:
-#     db: Session = SessionLocal()
-#     offset = (page - 1) * limit
-#     total = db.query(func.count(LeadORM.id)).scalar()
-#     leads = db.query(LeadORM).offset(offset).limit(limit).all()
-#     db.close()
-
-#     return {
-#         "total": total,
-#         "page": page,
-#         "limit": limit,
-#         "data": leads,  
-#     }
-
-
-from typing import Dict, Any
-from sqlalchemy.orm import Session
-
-def fetch_all_leads_paginated(
-    db: Session,
-    page: int = 1,
-    limit: int = 100,
-    search_id: int = None,
-    search_name: str = None
-) -> Dict[str, Any]:
+def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, search_by: str, sort: str):
     query = db.query(LeadORM)
 
-    if search_id is not None:
-        query = query.filter(LeadORM.id == search_id)
+    if search:
+        if search_by == "id":
+            if search.isdigit():
+                query = query.filter(LeadORM.id == int(search))
+            else:
+                query = query.filter(False)  # No results for invalid ID
+        elif search_by == "full_name":
+            query = query.filter(LeadORM.full_name.ilike(f"%{search}%"))
+        elif search_by == "email":
+            query = query.filter(LeadORM.email.ilike(f"%{search}%"))
+        elif search_by == "phone":
+            query = query.filter(cast(LeadORM.phone, String).ilike(f"%{search}%"))
+        else:  # search_by == "all"
+            query = query.filter(
+                or_(
+                    LeadORM.full_name.ilike(f"%{search}%"),
+                    LeadORM.email.ilike(f"%{search}%"),
+                    cast(LeadORM.phone, String).ilike(f"%{search}%"),
+                )
+            )
 
-    if search_name:
-        search_pattern = f"%{search_name}%"
-        query = query.filter(
-            (LeadORM.full_name.ilike(search_pattern)) |
-            (LeadORM.company_name.ilike(search_pattern))
-        )
+    if sort:
+        sort_fields = sort.split(",")
+        for field in sort_fields:
+            col, direction = field.split(":")
+            column = getattr(LeadORM, col)
+            query = query.order_by(column.desc() if direction == "desc" else column.asc())
 
     total = query.count()
-    offset = (page - 1) * limit
-
-    leads = (
-        query.order_by(LeadORM.id.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-
-    return {
-        "total": total,
-        "page": page,
-        "limit": limit,
-        "data": leads,
-    }
-
-
-
-
+    leads = query.offset((page - 1) * limit).limit(limit).all()
+    return {"data": leads, "total": total, "page": page, "limit": limit}
 
 def get_lead_by_id(db: Session, lead_id: int):
     return db.query(LeadORM).filter(LeadORM.id == lead_id).first()
@@ -127,3 +103,4 @@ def get_lead_info_mark_move_to_candidate_true(db: Session, lead_id: int):
     lead.moved_to_candidate = True
     db.commit()
     return lead
+

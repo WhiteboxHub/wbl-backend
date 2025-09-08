@@ -1,36 +1,98 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, EmailStr, field_validator, validator, Field
+from pydantic import BaseModel,ConfigDict, EmailStr, field_validator, validator, Field
 from typing import Optional, List, Literal, Union,Dict,Any
 
 from enum import Enum
 
 
 
+# class EmployeeBase(BaseModel):
+#     name: Optional[str] =None
+#     email: Optional[str] =None
+#     phone: Optional[str] = None
+#     address: Optional[str] = None
+#     state: Optional[str] = None
+#     dob: Optional[date] = None
+#     startdate: Optional[date] = None
+#     enddate: Optional[datetime] = None
+#     notes: Optional[str] = None
+#     status: Optional[int] = None
+#     instructor: Optional[int] = None
+#     aadhaar: Optional[str] = None
+
+# class EmployeeCreate(EmployeeBase):
+#     pass
+
+# # class EmployeeUpdate(EmployeeBase):
+# #     id: int
+
+# #     @field_validator("dob", "startdate", "enddate", mode="before")
+# #     def handle_invalid_dates(cls, v):
+# #         if isinstance(v, str) and v.startswith("0000-00-00"):
+# #             return None
+# #         return v
+
+# #     model_config = ConfigDict(from_attributes=True)
+
+
+# class EmployeeUpdate(BaseModel):
+#     id: int
+#     name: Optional[str] = None
+#     email: Optional[str] = None
+#     phone: Optional[str] = None
+#     address: Optional[str] = None
+#     state: Optional[str] = None
+#     dob: Optional[date] = None
+#     startdate: Optional[date] = None
+#     enddate: Optional[date] = None
+#     notes: Optional[str] = None
+#     status: Optional[int] = None
+#     instructor: Optional[int] = None
+#     aadhaar: Optional[str] = None
+
+#     @field_validator("dob", "startdate", "enddate", mode="before")
+#     def handle_invalid_dates(cls, v):
+#         if v == "":
+#             return None
+#         return v
+
+#     model_config = ConfigDict(from_attributes=True)
+from pydantic import BaseModel, field_validator, ConfigDict
+from typing import Optional
+from datetime import date
+
 class EmployeeBase(BaseModel):
-    name: str
-    email: str
+    name: Optional[str] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     state: Optional[str] = None
     dob: Optional[date] = None
     startdate: Optional[date] = None
-    enddate: Optional[datetime] = None
+    enddate: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[int] = None
     instructor: Optional[int] = None
     aadhaar: Optional[str] = None
 
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_empty_dates(cls, v):
+        if v == "":
+            return None
+        return v
+
 class EmployeeCreate(EmployeeBase):
-    pass
+    name: str
+    email: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 class EmployeeUpdate(EmployeeBase):
     id: int
-    name: Optional[str] = None
-    email: Optional[str] = None
 
-
+    model_config = ConfigDict(from_attributes=True)
 
 class Employee(EmployeeBase):
     id: int
@@ -207,12 +269,12 @@ class LeadSchema(LeadBase):
 class CandidateBase(BaseModel):
 
     id:int
-    # full_name: Optional[str]
+    full_name: Optional[str]
     name: Optional[str] = Field(None, alias="full_name")
     enrolled_date: Optional[date]
     email: Optional[str]
     phone: Optional[str]
-    status: Optional[str]
+    status: Optional[Literal['active', 'discontinued', 'break', 'closed']] = None   
     workstatus: Optional[str]
     education: Optional[str]
     workexperience: Optional[str]
@@ -237,7 +299,13 @@ class CandidateBase(BaseModel):
         orm_mode = True
         allow_population_by_field_name = True
 class CandidateCreate(CandidateBase):
-    pass
+    pass 
+
+class StatusEnum(str, Enum):
+    active = 'active'
+    discontinued = 'discontinued'
+    break_ = 'break'
+    closed = 'closed'
 
 class CandidateUpdate(CandidateBase):
     pass
@@ -298,14 +366,6 @@ class CandidateMarketing(CandidateMarketingBase):
 
     class Config:
         from_attributes = True
-
-
-
-
-
-
-
-
 
 
 # --------------------------------------------
@@ -411,22 +471,6 @@ class CandidatePreparationUpdate(BaseModel):
     candidate: Optional[CandidateBase]  # added line
     
 
-
-# class CandidatePreparationOut(CandidatePreparationBase):
-#     id: int
-#     last_mod_datetime: Optional[datetime]
-    
-#     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-#     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-#     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-
-#     candidate: Optional[CandidateBase] 
-#     model_config = {
-#         "from_attributes": True,
-#         "populate_by_name": True  
-#     }
-
-
 class CandidatePreparationOut(BaseModel):
     id: int
     batch: Optional[str] = None
@@ -457,6 +501,8 @@ class CandidatePreparationOut(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
+        
+        
 
 
 # --------------------------------------------------
@@ -522,7 +568,11 @@ class CandidateInterviewOut(CandidateInterviewBase):
 
 
 
-
+class PaginatedInterviews(BaseModel):
+    items: List[CandidateInterviewOut]
+    total: int
+    page: int
+    per_page: int
 
 
 

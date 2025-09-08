@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter,Query, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import LeadCreate, LeadUpdate, LeadMetricsResponse
@@ -18,23 +18,16 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 
 router = APIRouter()
-
-
-# @router.get("/leads")
-# def get_all_leads(page: int = 1, limit: int = 10):
-#     return fetch_all_leads_paginated(page, limit)
-
-# @router.get("/leads")
-# def get_all_leads(page: int = 1, limit: int = 100, db: Session = Depends(get_db)):
-#     return fetch_all_leads_paginated(db, page, limit)
-
 @router.get("/leads")
 def get_all_leads(
     page: int = 1,
     limit: int = 100,
+    search: str = None,
+    search_by: str = "name",
+    sort: str = Query("entry_date:desc"),  
     db: Session = Depends(get_db)
 ):
-    return fetch_all_leads_paginated(db, page, limit)
+    return fetch_all_leads_paginated(db, page, limit, search, search_by, sort)
 
 
 @router.get("/leads/metrics", response_model=LeadMetricsResponse)
@@ -70,10 +63,6 @@ def delete_existing_lead(lead_id: int, db: Session = Depends(get_db)):
     return delete_lead(db, lead_id)
 
 
-
-
-# @router.post("/leads/movetocandidate/{lead_id}")
-
 @router.post("/leads/{lead_id}/move-to-candidate")  
 def move_lead_to_candidate(lead_id: int, db: Session = Depends(get_db)):
     return create_candidate_from_lead(db, lead_id)
@@ -87,3 +76,5 @@ def remove_lead_from_candidate(lead_id: int, db: Session = Depends(get_db)):
     lead.moved_to_candidate = False
     db.commit()
     return {"detail": f"Lead {lead_id} removed from candidate"}
+
+
