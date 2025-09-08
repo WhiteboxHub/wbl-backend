@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter,Query, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import LeadCreate, LeadUpdate, LeadMetricsResponse
@@ -18,17 +18,16 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 
 router = APIRouter()
-
-
 @router.get("/leads")
 def get_all_leads(
     page: int = 1,
     limit: int = 100,
     search: str = None,
-    search_by ="name",
+    search_by: str = "name",
+    sort: str = Query("entry_date:desc"),  
     db: Session = Depends(get_db)
 ):
-    return fetch_all_leads_paginated(db, page, limit,search,search_by)
+    return fetch_all_leads_paginated(db, page, limit, search, search_by, sort)
 
 
 @router.get("/leads/metrics", response_model=LeadMetricsResponse)
