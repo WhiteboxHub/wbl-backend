@@ -1203,7 +1203,7 @@ class Session(SessionBase):
 class SessionOut(SessionBase):
     sessionid: int
     # lastmoddatetime: Optional[datetime]
-    subject: Optional[SubjectOut]
+    # subject: Optional[SubjectOut]
 
     class Config:
         orm_mode = True
