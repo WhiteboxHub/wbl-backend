@@ -9,20 +9,36 @@ from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateRe
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
+from fapi.utils.candidate_utils import get_all_candidates_paginated
+
 from fapi.db import schemas
+
 from typing import Dict, Any, List
 from sqlalchemy import or_, func
 import re
-
 router = APIRouter()
 
 
 
 # ------------------------Candidate------------------------------------
 
+# @router.get("/candidates", response_model=PaginatedCandidateResponse)
+# def list_candidates(page: int = 1, limit: int = 100):
+#     return candidate_utils.get_all_candidates_paginated(page, limit)
+
+# @router.get("/candidates", response_model=Dict[str, Any])
+
+
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
-def list_candidates(page: int = 1, limit: int = 100):
-    return candidate_utils.get_all_candidates_paginated(page, limit)
+def list_candidates(
+    page: int = 1,
+    limit: int = 100,
+    search: str = None,
+    search_by: str = "all",
+    sort: str = Query("enrolled_date:desc", description="Sort by field:direction (e.g., 'enrolled_date:desc')"),
+    db: Session = Depends(get_db)
+):
+    return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
@@ -33,14 +49,12 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
             CandidateORM.email.ilike(f"%{term}%"),
         ]
 
-        # --- Phone handling ---
-        # Remove non-digits from search term
+
         normalized_term = re.sub(r"\D", "", term)
         if normalized_term:
-            # Also strip non-digits in DB phone
+           
             filters.append(func.replace(func.replace(CandidateORM.phone, "-", ""), " ", "").ilike(f"%{normalized_term}%"))
 
-        # --- ID handling ---
         if term.isdigit():
             filters.append(CandidateORM.id == int(term))
 

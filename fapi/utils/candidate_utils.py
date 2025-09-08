@@ -6,78 +6,65 @@ from fapi.db.database import SessionLocal,get_db
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException,APIRouter,Depends
-from typing import List, Dict
+from typing import List, Dict,Any
+from datetime import date
+
 router = APIRouter()
+      
+def get_all_candidates_paginated(
+    db: Session,
+    page: int = 1,
+    limit: int = 100,
+    search: str = None,
+    search_by: str = "all",
+    sort: str = "enrolled_date:desc"  
+) -> Dict[str, Any]:
+    query = db.query(CandidateORM)
 
+    if search:
+        if search_by == "id":
+            try:
+                query = query.filter(CandidateORM.id == int(search))
+            except ValueError:
+                query = query.filter(CandidateORM.id == -1)
+        elif search_by == "full_name":
+            query = query.filter(CandidateORM.full_name.ilike(f"%{search}%"))
+        elif search_by == "email":
+            query = query.filter(CandidateORM.email.ilike(f"%{search}%"))
+        elif search_by == "phone":
+            query = query.filter(CandidateORM.phone.ilike(f"%{search}%"))
+        else:  # search_by == "all"
+            query = query.filter(
+                or_(
+                    CandidateORM.full_name.ilike(f"%{search}%"),
+                    CandidateORM.email.ilike(f"%{search}%"),
+                    CandidateORM.phone.ilike(f"%{search}%"),
+                )
+            )
 
+    
+    if sort:
+        sort_fields = sort.split(",")
+        for field in sort_fields:
+            col, direction = field.split(":")
+            if not hasattr(CandidateORM, col):
+                raise HTTPException(status_code=400, detail=f"Cannot sort by field: {col}")
+            column = getattr(CandidateORM, col)
+            if direction == "desc":
+                query = query.order_by(column.desc())
+            else:
+                query = query.order_by(column.asc())
 
-# def get_all_candidates_paginated(page: int = 1, limit: int = 100) -> Dict:
-#     db: Session = SessionLocal()
-#     try:
-#         total = db.query(CandidateORM).count()
-#         results = (
-#             db.query(CandidateORM)
-#             .order_by(CandidateORM.id.desc())
-#             .offset((page - 1) * limit)
-#             .limit(limit)
-#             .all()
-#         )
-#         data = [r.__dict__ for r in results]
-#         for item in data:
-#             item.pop('_sa_instance_state', None)
-#         return {"page": page, "limit": limit, "total": total, "data": data}
-#     finally:
-#         db.close()
+    total = query.count()
+    candidates = query.offset((page - 1) * limit).limit(limit).all()
 
+    data = []
+    for candidate in candidates:
+        item = candidate.__dict__.copy()
+        item.pop('_sa_instance_state', None)
+        data.append(item)
 
-def get_all_candidates_paginated(page: int = 1, limit: int = 100):
-    db: Session = SessionLocal()
-    try:
-        query = db.query(CandidateORM)
-        total = query.count()
-
-        candidates = (
-            query
-            .offset((page - 1) * limit)
-            .limit(limit)
-            .all()
-        )
-
-        # Clean ORM objects for JSON response
-        data = []
-        for candidate in candidates:
-            item = candidate.__dict__.copy()
-            item.pop('_sa_instance_state', None)
-            data.append(item)
-
-        return {
-            "total": total,
-            "page": page,
-            "limit": limit,
-            "data": data,
-        }
-    finally:
-        db.close()
-        
-@router.get("/candidates", response_model=Dict)
-def list_candidates(page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
-    try:
-        total = db.query(CandidateORM).count()
-        candidates = (
-            db.query(CandidateORM)
-            .order_by(CandidateORM.id.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-            .all()
-        )
-        data = []
-        for candidate in candidates:
-            candidate_data = candidate.__dict__.copy()
-            candidate_data.pop('_sa_instance_state', None)
-            data.append(candidate_data)
-        return {"data": data, "total": total, "page": page, "limit": limit}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"data": data, "total": total, "page": page, "limit": limit}
 
 def get_candidate_by_id(candidate_id: int) -> Dict:
     db: Session = SessionLocal()
@@ -90,12 +77,14 @@ def get_candidate_by_id(candidate_id: int) -> Dict:
         return data
     finally:
         db.close()
-        
+
 
 
 def create_candidate(candidate_data: dict) -> int:
     db: Session = SessionLocal()
     try:
+        candidate_data.setdefault("enrolled_date", date.today())
+
         if "email" in candidate_data and candidate_data["email"]:
             candidate_data["email"] = candidate_data["email"].lower()
 
@@ -106,25 +95,20 @@ def create_candidate(candidate_data: dict) -> int:
         return new_candidate.id
     finally:
         db.close()
-
-
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
-        if "email" in candidate_data and candidate_data["email"]:
-            candidate_data["email"] = candidate_data["email"].lower()
-
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
-
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
-
-        db.commit()
+        db.commit()  
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()
-
+        db.close()  
 
 def delete_candidate(candidate_id: int):
     db: Session = SessionLocal()
@@ -133,10 +117,12 @@ def delete_candidate(candidate_id: int):
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
         db.delete(candidate)
-        db.commit()
+        db.commit()  
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()
-
+        db.close() 
 
 
 
