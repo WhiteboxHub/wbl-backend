@@ -483,7 +483,7 @@ class Subject(Base):
     lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now)  
     course_subjects = relationship("CourseSubject", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject")
-    sessions = relationship("Session", back_populates="subject")
+    # sessions = relationship("Session", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject_rel")  
 
 
@@ -557,5 +557,9 @@ class Session(Base):
     type = Column(String(50))
     sessiondate = Column(DateTime)
     lastmoddatetime = Column(DateTime)
-    subject_id = Column(Integer, ForeignKey("subject.id"))
-    subject = relationship("Subject", back_populates="sessions")
+
+    # subject_id = Column(Integer, ForeignKey("subject.id"))
+    subject_id = Column(Integer, nullable=False, default=0)
+    # subject = relationship("Subject", back_populates="sessions")
+    subject = Column(String(45))
+
