@@ -319,6 +319,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
+    priority: Optional[int] = 99  # <-- add priority
     class Config:
         from_attributes = True
 # ----------------------------------------------------

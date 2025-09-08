@@ -247,7 +247,8 @@ def get_all_placements(page: int, limit: int) -> Dict:
                 CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            .order_by(CandidatePlacementORM.id.desc())
+            # .order_by(CandidatePlacementORM.id.desc())
+            .order_by(CandidatePlacementORM.priority.desc())  # ORDER BY priority
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
