@@ -5,16 +5,24 @@ from fapi.db.models import EmployeeORM
 def clean_invalid_values(row: dict) -> dict:
     return {k: (None if v is None else v) for k, v in row.items() if k != "_sa_instance_state"}
 
+
 def get_all_employees() -> list[dict]:
     with SessionLocal() as session:
-        employees = session.query(EmployeeORM).order_by(EmployeeORM.id.desc()).all()
+        query = session.query(EmployeeORM).order_by(EmployeeORM.startdate.desc())
+        print(f"Generated SQL: {query}")  
+        employees = query.all()
+        for emp in employees:
+            print(f"Employee ID: {emp.id}, Name: {emp.name}, Start Date: {emp.startdate}")  # Debug print
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
+
+
 
 def create_employee_db(employee_data: dict) -> None:
     with SessionLocal() as session:
         employee = EmployeeORM(**employee_data)
         session.add(employee)
         session.commit()
+
 
 def delete_employee_db(employee_id: int) -> None:
     with SessionLocal() as session:
