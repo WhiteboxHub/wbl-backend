@@ -410,18 +410,22 @@ def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
         .all()
     )
 
+
+
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
     if not db_prep:
         return None
     update_data = updates.dict(exclude_unset=True)
-    if "email" in update_data and update_data["email"]:
-        update_data["email"] = update_data["email"].lower()
+
     for key, value in update_data.items():
-        setattr(db_prep, key, value)
+        if hasattr(db_prep, key):
+            setattr(db_prep, key, value)
+
     db.commit()
     db.refresh(db_prep)
     return db_prep
+
 
 def delete_candidate_preparation(db: Session, prep_id: int):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()

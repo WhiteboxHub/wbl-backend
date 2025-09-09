@@ -178,8 +178,11 @@ def get_interview_metrics_endpoint(db: Session = Depends(get_db)):
 
 # -------------------Candidate_interview -------------------
 
-@router.post("/", response_model=CandidateInterviewOut)
-def create_interview(interview: CandidateInterviewCreate, db: Session = Depends(get_db)):
+@router.post("/interviews", response_model=CandidateInterviewOut)
+def create_interview(
+    interview: CandidateInterviewCreate,
+    db: Session = Depends(get_db),
+):
     return candidate_utils.create_candidate_interview(db, interview)
 
 
@@ -207,28 +210,37 @@ def list_interviews(
         "per_page": per_page,
     }
 
-@router.get("/interview/{interview_id}", response_model=CandidateInterviewOut)
-def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
+
+@router.get("/interviews/{interview_id}", response_model=CandidateInterviewOut)
+def read_candidate_interview(
+    interview_id: int,
+    db: Session = Depends(get_db),
+):
     db_obj = candidate_utils.get_candidate_interview(db, interview_id)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
     return db_obj
 
 
-
-@router.put("/{interview_id}", response_model=CandidateInterviewOut)
-def update_interview(interview_id: int, updates: CandidateInterviewUpdate, db: Session = Depends(get_db)):
+@router.put("/interviews/{interview_id}", response_model=CandidateInterviewOut)
+def update_interview(
+    interview_id: int,
+    updates: CandidateInterviewUpdate,
+    db: Session = Depends(get_db),
+):
     db_obj = candidate_utils.update_candidate_interview(db, interview_id, updates)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
     return db_obj
 
-@router.delete("/{interview_id}")
+
+@router.delete("/interviews/{interview_id}")
 def delete_interview(interview_id: int, db: Session = Depends(get_db)):
     db_obj = candidate_utils.delete_candidate_interview(db, interview_id)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
     return {"detail": "Interview deleted successfully"}
+
 
 
 # -------------------Candidate_Preparation -------------------

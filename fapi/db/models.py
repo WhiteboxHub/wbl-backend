@@ -373,7 +373,7 @@ class CandidatePreparation(Base):
     
     candidate = relationship("CandidateORM", back_populates="preparation_records")
 
-
+# ---------------------------------------------------------------
 class EmployeeORM(Base):
     __tablename__ = "employee"
 
