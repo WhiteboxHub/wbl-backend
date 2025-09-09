@@ -2,10 +2,11 @@
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
     get_interview_metrics,
+    candidate_interview_performance,
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils 
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
@@ -159,6 +160,14 @@ def delete_existing_placement(placement_id: int):
 def get_interview_metrics_endpoint(db: Session = Depends(get_db)):
     return get_interview_metrics(db)
 
+@router.get("/interview/performance", response_model=CandidateInterviewPerformanceResponse)
+def get_candidate_interview_performance(db: Session = Depends(get_db)):   
+    data = candidate_interview_performance(db)
+    return {
+        "success": True,
+        "data": data,
+        "message": "Candidate interview performance fetched successfully"
+    }
 
 # -------------------Candidate_interview -------------------
 
