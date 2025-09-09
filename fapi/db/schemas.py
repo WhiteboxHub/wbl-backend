@@ -3,65 +3,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
 from pydantic import BaseModel,ConfigDict, EmailStr, field_validator, validator, Field
 from typing import Optional, List, Literal, Union,Dict,Any
-
 from enum import Enum
 
 
-
-# class EmployeeBase(BaseModel):
-#     name: Optional[str] =None
-#     email: Optional[str] =None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     state: Optional[str] = None
-#     dob: Optional[date] = None
-#     startdate: Optional[date] = None
-#     enddate: Optional[datetime] = None
-#     notes: Optional[str] = None
-#     status: Optional[int] = None
-#     instructor: Optional[int] = None
-#     aadhaar: Optional[str] = None
-
-# class EmployeeCreate(EmployeeBase):
-#     pass
-
-# # class EmployeeUpdate(EmployeeBase):
-# #     id: int
-
-# #     @field_validator("dob", "startdate", "enddate", mode="before")
-# #     def handle_invalid_dates(cls, v):
-# #         if isinstance(v, str) and v.startswith("0000-00-00"):
-# #             return None
-# #         return v
-
-# #     model_config = ConfigDict(from_attributes=True)
-
-
-# class EmployeeUpdate(BaseModel):
-#     id: int
-#     name: Optional[str] = None
-#     email: Optional[str] = None
-#     phone: Optional[str] = None
-#     address: Optional[str] = None
-#     state: Optional[str] = None
-#     dob: Optional[date] = None
-#     startdate: Optional[date] = None
-#     enddate: Optional[date] = None
-#     notes: Optional[str] = None
-#     status: Optional[int] = None
-#     instructor: Optional[int] = None
-#     aadhaar: Optional[str] = None
-
-#     @field_validator("dob", "startdate", "enddate", mode="before")
-#     def handle_invalid_dates(cls, v):
-#         if v == "":
-#             return None
-#         return v
-
-#     model_config = ConfigDict(from_attributes=True)
-from pydantic import BaseModel, field_validator, ConfigDict
-from typing import Optional
-from datetime import date
 
 class EmployeeBase(BaseModel):
     name: Optional[str] = None
@@ -268,9 +212,9 @@ class LeadSchema(LeadBase):
 
 class CandidateBase(BaseModel):
 
-    id:int
+    id:Optional[int]=None
     full_name: Optional[str]
-    name: Optional[str] = Field(None, alias="full_name")
+    # name: Optional[str] = Field(None)
     enrolled_date: Optional[date]
     email: Optional[str]
     phone: Optional[str]
@@ -298,6 +242,14 @@ class CandidateBase(BaseModel):
     class Config:
         orm_mode = True
         allow_population_by_field_name = True
+
+    @field_validator("agreement", mode="before")
+    def normalize_agreement(cls, v):
+        if v is True:
+            return "Y"
+        if v is False:
+            return "N"
+        return v
 class CandidateCreate(CandidateBase):
     pass 
 
@@ -387,6 +339,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
+    priority: Optional[int] = 99  # <-- add priority
     class Config:
         from_attributes = True
 # ----------------------------------------------------
@@ -468,7 +421,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
-    candidate: Optional[CandidateBase]  # added line
+    # candidate: Optional[CandidateBase]  # added line
     
 
 class CandidatePreparationOut(BaseModel):
@@ -554,7 +507,7 @@ class CandidateInterviewUpdate(BaseModel):
     status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
-    candidate: Optional[CandidateBase]  # added line
+    # candidate: Optional[CandidateBase]  # added line
 
 
 class CandidateInterviewOut(CandidateInterviewBase):
@@ -1285,7 +1238,16 @@ class LeadsPaginatedResponse(BaseModel):
     data: Dict[str, Any]
     message: str
 
+class CandidateInterviewPerformance(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    total_interviews: int
+    success_count: int
 
+class CandidateInterviewPerformanceResponse(BaseModel):
+    success: bool
+    data: List[CandidateInterviewPerformance]
+    message: str
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str

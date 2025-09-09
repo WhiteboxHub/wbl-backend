@@ -9,15 +9,6 @@ from fapi.utils.avatar_dashboard_utils import get_employee_birthdays
 app = FastAPI()
 router = APIRouter()
 
-# @router.get("/employees", response_model=list[Employee])
-# def get_employees():
-#     try:
-#         rows = get_all_employees()
-#         return [Employee(**row) for row in rows]
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 @router.get("/employees", response_model=list[Employee])
 def get_employees():

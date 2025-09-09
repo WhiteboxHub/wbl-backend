@@ -102,7 +102,6 @@ class LeadORM(Base):
     address = Column(String(255))
     closed_date = Column(Date)
     notes = Column(String(500))
-    last_modified = Column(Date)
     massemail_unsubscribe = Column(Boolean, nullable=True)
     massemail_email_sent = Column(Boolean, nullable=True)
     moved_to_candidate = Column(Boolean,server_default='0')
@@ -333,6 +332,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
+    priority = Column(Integer, default=99)  # <-- add this column
     candidate = relationship("CandidateORM", back_populates="placements")
 
 
@@ -372,7 +372,7 @@ class CandidatePreparation(Base):
     
     candidate = relationship("CandidateORM", back_populates="preparation_records")
 
-
+# ---------------------------------------------------------------
 class EmployeeORM(Base):
     __tablename__ = "employee"
 
@@ -557,9 +557,7 @@ class Session(Base):
     type = Column(String(50))
     sessiondate = Column(DateTime)
     lastmoddatetime = Column(DateTime)
-
     # subject_id = Column(Integer, ForeignKey("subject.id"))
     subject_id = Column(Integer, nullable=False, default=0)
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
-

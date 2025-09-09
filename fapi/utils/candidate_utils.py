@@ -14,7 +14,7 @@ router = APIRouter()
 def get_all_candidates_paginated(
     db: Session,
     page: int = 1,
-    limit: int = 100,
+    limit: int = 0,
     search: str = None,
     search_by: str = "all",
     sort: str = "enrolled_date:desc"  
@@ -84,7 +84,6 @@ def create_candidate(candidate_data: dict) -> int:
     db: Session = SessionLocal()
     try:
         candidate_data.setdefault("enrolled_date", date.today())
-
         if "email" in candidate_data and candidate_data["email"]:
             candidate_data["email"] = candidate_data["email"].lower()
 
@@ -93,8 +92,13 @@ def create_candidate(candidate_data: dict) -> int:
         db.commit()
         db.refresh(new_candidate)
         return new_candidate.id
+    except Exception as e:
+        db.rollback()
+        print("Error creating candidate:", e)  
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
+
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
@@ -233,7 +237,8 @@ def get_all_placements(page: int, limit: int) -> Dict:
                 CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            .order_by(CandidatePlacementORM.id.desc())
+            # .order_by(CandidatePlacementORM.id.desc())
+            .order_by(CandidatePlacementORM.priority.desc())  # ORDER BY priority
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
@@ -409,18 +414,22 @@ def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
         .all()
     )
 
+
+
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
     if not db_prep:
         return None
     update_data = updates.dict(exclude_unset=True)
-    if "email" in update_data and update_data["email"]:
-        update_data["email"] = update_data["email"].lower()
+
     for key, value in update_data.items():
-        setattr(db_prep, key, value)
+        if hasattr(db_prep, key):
+            setattr(db_prep, key, value)
+
     db.commit()
     db.refresh(db_prep)
     return db_prep
+
 
 def delete_candidate_preparation(db: Session, prep_id: int):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
