@@ -1,3 +1,4 @@
+
 # fapi/api/routes/candidate.py
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
@@ -5,9 +6,9 @@ from fapi.utils.avatar_dashboard_utils import (
     candidate_interview_performance,
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
-from fapi.utils import candidate_utils 
-                                            
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+from fapi.utils import candidate_utils                                         
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload
@@ -25,12 +26,6 @@ router = APIRouter()
 
 # ------------------------Candidate------------------------------------
 
-# @router.get("/candidates", response_model=PaginatedCandidateResponse)
-# def list_candidates(page: int = 1, limit: int = 100):
-#     return candidate_utils.get_all_candidates_paginated(page, limit)
-
-# @router.get("/candidates", response_model=Dict[str, Any])
-
 
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(
@@ -43,6 +38,12 @@ def list_candidates(
 ):
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
+
+@router.get("/batches", response_model=dict)
+def list_batches(db: Session = Depends(get_db)):
+    batches = db.query(Batch).all()
+    batch_data = [{ "batchid": b.batchid, "batchname": b.batchname } for b in batches]
+    return {"data": batch_data}
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
 def search_candidates(term: str, db: Session = Depends(get_db)):
@@ -72,6 +73,7 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(candidate_id: int):
     candidate = candidate_utils.get_candidate_by_id(candidate_id)
@@ -79,8 +81,9 @@ def get_candidate(candidate_id: int):
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
 
+
 @router.post("/candidates", response_model=int)
-def create_candidate(candidate: CandidateBase):
+def create_candidate(candidate: CandidateCreate):
     return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
 
 @router.put("/candidates/{candidate_id}")

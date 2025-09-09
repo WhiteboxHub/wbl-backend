@@ -102,7 +102,6 @@ class LeadORM(Base):
     address = Column(String(255))
     closed_date = Column(Date)
     notes = Column(String(500))
-    last_modified = Column(Date)
     massemail_unsubscribe = Column(Boolean, nullable=True)
     massemail_email_sent = Column(Boolean, nullable=True)
     moved_to_candidate = Column(Boolean,server_default='0')
