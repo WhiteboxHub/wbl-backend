@@ -387,6 +387,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
+    priority: Optional[int] = 99  # <-- add priority
     class Config:
         from_attributes = True
 # ----------------------------------------------------
@@ -468,7 +469,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
-    candidate: Optional[CandidateBase]  # added line
+    # candidate: Optional[CandidateBase]  # added line
     
 
 class CandidatePreparationOut(BaseModel):
@@ -554,7 +555,7 @@ class CandidateInterviewUpdate(BaseModel):
     status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
-    candidate: Optional[CandidateBase]  # added line
+    # candidate: Optional[CandidateBase]  # added line
 
 
 class CandidateInterviewOut(CandidateInterviewBase):
