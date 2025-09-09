@@ -330,6 +330,7 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                     "current_topics": prep.current_topics,
                     "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
                     "notes": prep.notes
+
                 }
                 for prep in candidate.preparation_records
             ],
