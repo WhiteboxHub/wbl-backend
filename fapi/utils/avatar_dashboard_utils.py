@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, extract, or_, and_
+from sqlalchemy import func, desc, extract, or_, and_, case
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM
@@ -363,3 +363,35 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
         "leads_this_month": leads_this_month,
         "latest_lead": latest_lead_data
     }
+
+
+
+
+def candidate_interview_performance(db: Session):
+    results = (
+        db.query(
+            CandidateORM.id.label("candidate_id"),
+            CandidateORM.full_name.label("candidate_name"),
+            func.count(CandidateInterview.id).label("total_interviews"),
+            func.coalesce(
+                func.sum(
+                    case((CandidateInterview.feedback == "Positive", 1), else_=0)
+                ), 0
+            ).label("success_count")
+        )
+        .join(CandidateMarketingORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+        .outerjoin(CandidateInterview, CandidateInterview.candidate_id == CandidateORM.id)
+        .group_by(CandidateORM.id, CandidateORM.full_name)
+        .all()
+    )
+
+    return [
+        {
+            "candidate_id": row.candidate_id,
+            "candidate_name": row.candidate_name,
+            "total_interviews": row.total_interviews,
+            "success_count": row.success_count
+        }
+        for row in results
+    ]
+
