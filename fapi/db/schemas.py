@@ -1285,7 +1285,16 @@ class LeadsPaginatedResponse(BaseModel):
     data: Dict[str, Any]
     message: str
 
+class CandidateInterviewPerformance(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    total_interviews: int
+    success_count: int
 
+class CandidateInterviewPerformanceResponse(BaseModel):
+    success: bool
+    data: List[CandidateInterviewPerformance]
+    message: str
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
