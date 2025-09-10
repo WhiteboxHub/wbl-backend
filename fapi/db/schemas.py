@@ -191,7 +191,7 @@ class LeadBase(BaseModel):
     address: Optional[str] = None
     closed_date: Optional[date] = None
     notes: Optional[str] = None
-    # last_modified: Optional[date] = None
+    last_modified: Optional[date] = None
 
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
@@ -214,7 +214,7 @@ class CandidateBase(BaseModel):
 
     id:Optional[int]=None
     full_name: Optional[str]
-    # name: Optional[str] = Field(None)
+    name: Optional[str] = Field(None)
     enrolled_date: Optional[date]
     email: Optional[str]
     phone: Optional[str]

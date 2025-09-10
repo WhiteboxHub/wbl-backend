@@ -105,7 +105,11 @@ class LeadORM(Base):
     massemail_unsubscribe = Column(Boolean, nullable=True)
     massemail_email_sent = Column(Boolean, nullable=True)
     moved_to_candidate = Column(Boolean,server_default='0')
-
+    last_modified = Column(
+        DateTime,
+        default=func.now(),       # set automatically on insert
+        onupdate=func.now()       # update automatically when record changes
+    )
 
 # -------------------------------------------------------------------------------
 
