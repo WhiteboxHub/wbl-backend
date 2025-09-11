@@ -271,6 +271,7 @@ class CandidateMarketingORM(Base):
     rating = Column(Integer, nullable=True)
     priority = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
+    candidate_resume = Column(String(255), nullable=True)
 
     # Relationships
     candidate = relationship("CandidateORM", back_populates="marketing_records")

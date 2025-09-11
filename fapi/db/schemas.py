@@ -347,6 +347,7 @@ class CandidateMarketingBase(BaseModel):
     google_voice_number: Optional[str] = None
     rating: Optional[int] = None
     priority: Optional[int] = None
+    candidate_resume: Optional[str] = None
     candidate: Optional[CandidateBase]
 
     # extra fields for name display in UI
