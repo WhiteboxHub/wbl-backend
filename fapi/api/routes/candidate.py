@@ -1,12 +1,16 @@
+
 # fapi/api/routes/candidate.py
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
     get_interview_metrics,
+    candidate_interview_performance,
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
-from fapi.utils import candidate_utils 
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics
+from fapi.utils import candidate_utils                                         
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
+
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
 from fapi.utils.candidate_utils import get_all_candidates_paginated
@@ -22,12 +26,6 @@ router = APIRouter()
 
 # ------------------------Candidate------------------------------------
 
-# @router.get("/candidates", response_model=PaginatedCandidateResponse)
-# def list_candidates(page: int = 1, limit: int = 100):
-#     return candidate_utils.get_all_candidates_paginated(page, limit)
-
-# @router.get("/candidates", response_model=Dict[str, Any])
-
 
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(
@@ -40,6 +38,12 @@ def list_candidates(
 ):
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
+
+# @router.get("/batches", response_model=dict)
+# def list_batches(db: Session = Depends(get_db)):
+#     # batches = db.query(Batch).all()
+#     batch_data = [{ "batchid": b.batchid, "batchname": b.batchname } for b in batches]
+#     return {"data": batch_data}
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
 def search_candidates(term: str, db: Session = Depends(get_db)):
@@ -69,6 +73,7 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(candidate_id: int):
     candidate = candidate_utils.get_candidate_by_id(candidate_id)
@@ -76,8 +81,9 @@ def get_candidate(candidate_id: int):
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
 
+
 @router.post("/candidates", response_model=int)
-def create_candidate(candidate: CandidateBase):
+def create_candidate(candidate: CandidateCreate):
     return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
 
 @router.put("/candidates/{candidate_id}")
@@ -175,6 +181,14 @@ def delete_existing_placement(placement_id: int):
 def get_interview_metrics_endpoint(db: Session = Depends(get_db)):
     return get_interview_metrics(db)
 
+@router.get("/interview/performance", response_model=CandidateInterviewPerformanceResponse)
+def get_candidate_interview_performance(db: Session = Depends(get_db)):   
+    data = candidate_interview_performance(db)
+    return {
+        "success": True,
+        "data": data,
+        "message": "Candidate interview performance fetched successfully"
+    }
 
 # -------------------Candidate_interview -------------------
 
@@ -404,10 +418,62 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                 "fee_paid": candidate.fee_paid,
                 "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending"
             },
-            "preparation_records": preparation_records,
-            "marketing_records": marketing_records,
-            "interview_records": interview_records,
-            "placement_records": placement_records,
+            "preparation_records": [
+                {
+                    "start_date": prep.start_date.isoformat() if prep.start_date else None,
+                    "status": prep.status,
+                    "instructor1_name": prep.instructor1_employee.name if prep.instructor1_employee else None,
+                    "instructor2_name": prep.instructor2_employee.name if prep.instructor2_employee else None,
+                    "instructor3_name": prep.instructor3_employee.name if prep.instructor3_employee else None,
+                    "rating": prep.rating,
+                    "tech_rating": prep.tech_rating,
+                    "communication": prep.communication,
+                    "years_of_experience": prep.years_of_experience,
+                    "topics_finished": prep.topics_finished,
+                    "current_topics": prep.current_topics,
+                    "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
+                    "notes": prep.notes
+
+                }
+                for prep in candidate.preparation_records
+            ],
+            "marketing_records": [
+                {
+                    "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
+                    "status": marketing.status,
+                    "marketing_manager_name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
+                    "notes": marketing.notes
+                }
+                for marketing in candidate.marketing_records
+            ],
+            "interview_records": [
+                {
+                    "company": interview.company,
+                    "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
+                    "interview_type": interview.interview_type,
+                    "status": interview.status,
+                    "feedback": interview.feedback,
+                    "recording_link": interview.recording_link,
+                    "interviewer_emails": interview.interviewer_emails,
+                    "notes": interview.notes
+                }
+                for interview in candidate.interview_records
+            ],
+            "placement_records": [
+                {
+                    "position": placement.position,
+                    "company": placement.company,
+                    "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
+                    "status": placement.status,
+                    "type": placement.type,
+                    "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                    "benefits": placement.benefits,
+                    "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
+                    "notes": placement.notes
+                }
+                for placement in candidate.placement_records
+            ],
+
             "login_access": {
                 "status": "No login data available"
             },

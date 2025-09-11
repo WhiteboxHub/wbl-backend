@@ -102,11 +102,14 @@ class LeadORM(Base):
     address = Column(String(255))
     closed_date = Column(Date)
     notes = Column(String(500))
-    last_modified = Column(Date)
     massemail_unsubscribe = Column(Boolean, nullable=True)
     massemail_email_sent = Column(Boolean, nullable=True)
     moved_to_candidate = Column(Boolean,server_default='0')
-
+    last_modified = Column(
+        DateTime,
+        default=func.now(),       # set automatically on insert
+        onupdate=func.now()       # update automatically when record changes
+    )
 
 # -------------------------------------------------------------------------------
 
@@ -559,9 +562,7 @@ class Session(Base):
     type = Column(String(50))
     sessiondate = Column(DateTime)
     lastmoddatetime = Column(DateTime)
-
     # subject_id = Column(Integer, ForeignKey("subject.id"))
     subject_id = Column(Integer, nullable=False, default=0)
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
-
