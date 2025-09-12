@@ -1026,7 +1026,9 @@ class SubjectUpdate(BaseModel):
 class CourseSubjectResponse(BaseModel):
     subject_id: int
     course_id: int
-    #lastmoddatetime: Optional[datetime] = None
+    course_name: str
+    subject_name: str
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
 
