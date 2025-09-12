@@ -29,7 +29,7 @@ class AuthUserORM(Base):
     passwd = Column(String(32), nullable=False)
     team = Column(String(255))
     status = Column(String(255), default="inactive")
-    # lastlogin = Column(DateTime)
+    lastlogin = Column(DateTime)
     logincount = Column(Integer)
     fullname = Column(String(50))
     address = Column(String(50))

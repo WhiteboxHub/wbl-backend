@@ -348,6 +348,7 @@ class CandidatePlacementBase(BaseModel):
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
+    last_mod_datetime: Optional[datetime] = None
     notes: Optional[str] = None
 
 class CandidatePlacementCreate(CandidatePlacementBase):
