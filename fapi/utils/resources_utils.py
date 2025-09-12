@@ -243,6 +243,100 @@ async def course_content(session: AsyncSession):
 
 
 
+# def fetch_subject_batch_recording(
+#     course: str,
+#     db: Session,
+#     batchid: Optional[int] = None,
+#     search: Optional[str] = None
+# ):
+#     """
+#     Fetch recordings for a given course, with optional batch filter and search term.
+#     """
+
+  
+#     course_obj = db.execute(
+#         select(Course).where(Course.alias == course)
+#     ).scalar_one_or_none()
+
+#     if not course_obj:
+#         print(f"[DEBUG] Course '{course}' not found in DB")
+#         raise HTTPException(status_code=404, detail=f"Course '{course}' not found")
+
+
+#     query = (db.query(
+#                 Recording,
+#                 Batch.batchname,
+#                 Course.name.label("course_name")
+#             )
+#             .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+#             .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+            
+#             .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
+#             .join(Course, Course.id == CourseSubject.course_id)
+#             .filter(Course.alias == course)
+#             .filter(Batch.batchid == batchid if batchid is not None else True)        
+#             .filter(Recording.new_subject_id == CourseSubject.subject_id)
+#             .order_by(Recording.classdate.desc())
+#         )
+
+
+   
+#     if search:
+#         like_str = f"%{search}%"
+#         print(f"[DEBUG] Applying search filter: {like_str}")
+#         query = (db.query(
+#         Recording,
+#         Batch.batchname,
+#         Course.name.label("course_name")
+#         ).join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
+#         .join(Batch, RecordingBatch.batch_id == Batch.batchid)
+#         .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
+#         .join(Course, Course.id == CourseSubject.course_id)
+#         .filter(Course.alias == course)
+#         .filter(Batch.batchid == batchid if batchid is not None else True)
+#         .filter(Recording.new_subject_id == CourseSubject.subject_id)
+#         .filter(
+#             or_(
+#                 Recording.description.ilike(f"%{search}%")
+#             ) if search else True
+#         ).order_by(Recording.classdate.desc()))
+
+#     query = query.order_by(Recording.classdate.desc())
+
+#     recordings = db.execute(query).scalars().all()
+
+#     return {"batch_recordings": recordings}
+
+
+
+# def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
+#     try:
+        
+
+#         stmt = (
+#         select(Batch.batchname, Batch.batchid)
+#         .where(Batch.subject == course)  
+#         .order_by(Batch.batchname.desc())
+#     )
+
+#         rows = db.execute(stmt).all()
+
+#         if not rows:
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail=f"No batches found for course '{course}'"
+#             )
+
+#         return [{"batchname": row.batchname, "batchid": row.batchid} for row in rows]
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         print(f"Error fetching batches for {course}: {e}")
+#         raise HTTPException(status_code=500, detail="Unexpected server error")
+
+
+
 def fetch_subject_batch_recording(
     course: str,
     db: Session,
