@@ -7,10 +7,8 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
-
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,CandidateMarketingUpdate, CandidateMarketing,CandidatePlacementCreate,CandidatePlacementUpdate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
-
 from sqlalchemy.orm import Session,joinedload
 from fapi.db.database import get_db,SessionLocal
 from fapi.utils.candidate_utils import get_all_candidates_paginated
@@ -138,9 +136,11 @@ def read_marketing_record(record_id: int = Path(...)):
 def create_marketing_record(record: CandidateMarketingCreate):
     return candidate_utils.create_marketing(record)
 
+
 @router.put("/candidate/marketing/{record_id}", response_model=CandidateMarketing)
-def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
+def update_marketing_record(record_id: int, record: CandidateMarketingUpdate):
     return candidate_utils.update_marketing(record_id, record)
+
 
 @router.delete("/candidate/marketing/{record_id}")
 def delete_marketing_record(record_id: int):
@@ -157,17 +157,21 @@ def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1
 def get_placement_metrics_endpoint(db: Session = Depends(get_db)):
     return get_placement_metrics(db)
 
-@router.get("/candidate/placements/{placement_id}")
-def read_placement(placement_id: int = Path(...)):
-    return candidate_utils.get_placement_by_id(placement_id)
+
+@router.get("/candidate/{candidate_id}/placements")
+def get_placements_by_candidate(candidate_id: int = Path(...)):
+    return candidate_utils.get_placements_by_candidate(candidate_id)
+
 
 @router.post("/candidate/placements", response_model=CandidatePlacement)
 def create_new_placement(placement: CandidatePlacementCreate):
     return candidate_utils.create_placement(placement)
 
-@router.put("/candidate/placements/{placement_id}", response_model=CandidatePlacement)
-def update_existing_placement(placement_id: int, placement: CandidatePlacementCreate):
-    return candidate_utils.update_placement(placement_id, placement)
+
+@router.put("/candidate/{candidate_id}/placements")
+def update_placement_for_candidate(candidate_id: int, placement: CandidatePlacementUpdate):
+    return candidate_utils.update_placement_by_candidate(candidate_id, placement)
+
 
 @router.delete("/candidate/placements/{placement_id}")
 def delete_existing_placement(placement_id: int):
@@ -264,12 +268,11 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
 def create_prep(prep: CandidatePreparationCreate, db: Session = Depends(get_db)):
     return candidate_utils.create_candidate_preparation(db, prep)
 
-@router.get("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
-def get_prep(prep_id: int, db: Session = Depends(get_db)):
-    prep = candidate_utils.get_candidate_preparation(db, prep_id)
-    if not prep:
-        raise HTTPException(status_code=404, detail="Candidate preparation not found")
-    return prep
+
+@router.get("/candidate/{candidate_id}/preparations", response_model=list[CandidatePreparationOut])
+def get_preparations_by_candidate(candidate_id: int, db: Session = Depends(get_db)):
+    return candidate_utils.get_preparations_by_candidate(db, candidate_id)
+
 
 @router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
 def list_preps(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
