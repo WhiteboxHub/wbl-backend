@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any
 from datetime import date
@@ -156,10 +156,12 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
     finally:
         db.close()
 
-def get_marketing_by_id(record_id: int):
+
+# Get marketing by candidate ID
+def get_marketing_by_candidate_id(candidate_id: int):
     db: Session = SessionLocal()
     try:
-        record = (
+        records = (
             db.query(CandidateMarketingORM)
             .options(
                 joinedload(CandidateMarketingORM.candidate),
@@ -168,17 +170,14 @@ def get_marketing_by_id(record_id: int):
                 joinedload(CandidateMarketingORM.instructor3),
                 joinedload(CandidateMarketingORM.marketing_manager_obj),
             )
-            .filter(CandidateMarketingORM.id == record_id)
-            .first()
+            .filter(CandidateMarketingORM.candidate_id == candidate_id)
+            .all()
         )
-        if not record:
-            raise HTTPException(status_code=404, detail="Marketing record not found")
-        return record
+        if not records:
+            raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
+        return {"candidate_id": candidate_id, "data": records}
     finally:
         db.close()
-
-
-
 
 
 
@@ -194,19 +193,28 @@ def create_marketing(payload: CandidateMarketingCreate) -> Dict:
     finally:
         db.close()
 
-def update_marketing(record_id: int, payload: CandidateMarketingCreate) -> Dict:
+
+def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
     db: Session = SessionLocal()
     try:
-        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
+        #  Use candidate_id for lookup instead of id
+        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == record_id).first()
         if not record:
             raise HTTPException(status_code=404, detail="Marketing record not found")
-        for key, value in payload.dict(exclude_unset=True).items():
-            setattr(record, key, value)
+
+        # Only update fields provided in payload
+        update_data = payload.dict(exclude_unset=True)
+        for key, value in update_data.items():
+            if hasattr(record, key):
+                setattr(record, key, value)
+
         db.commit()
         db.refresh(record)
         return record.__dict__
     finally:
         db.close()
+
+
 
 def delete_marketing(record_id: int) -> Dict:
     db: Session = SessionLocal()
@@ -256,26 +264,25 @@ def get_all_placements(page: int, limit: int) -> Dict:
         db.close()
 
 
-def get_placement_by_id(placement_id: int) -> Dict:
+
+def get_placements_by_candidate(candidate_id: int) -> list:
     db: Session = SessionLocal()
     try:
-        result = (
-            db.query(
-                CandidatePlacementORM,
-                CandidateORM.full_name.label("candidate_name")  # fixed here
-            )
+        results = (
+            db.query(CandidatePlacementORM, CandidateORM.full_name.label("candidate_name"))
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            .filter(CandidatePlacementORM.id == placement_id)
-            .first()
+            .filter(CandidatePlacementORM.candidate_id == candidate_id)
+            .all()
         )
+        if not results:
+            raise HTTPException(status_code=404, detail="No placements found for this candidate")
 
-        if not result:
-            raise HTTPException(status_code=404, detail="Placement not found")
-
-        placement, candidate_name = result
-        data = placement.__dict__.copy()
-        data["candidate_name"] = candidate_name
-        data.pop('_sa_instance_state', None)
+        data = []
+        for placement, candidate_name in results:
+            record = placement.__dict__.copy()
+            record["candidate_name"] = candidate_name
+            record.pop("_sa_instance_state", None)
+            data.append(record)
         return data
     finally:
         db.close()
@@ -293,10 +300,12 @@ def create_placement(payload):
         db.close()
 
 
-def update_placement(placement_id: int, payload):
+def update_placement_by_candidate(candidate_id: int, payload):
     db: Session = SessionLocal()
     try:
-        placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
+        placement = db.query(CandidatePlacementORM).filter(
+            CandidatePlacementORM.candidate_id == candidate_id
+        ).first()
         if not placement:
             raise HTTPException(status_code=404, detail="Placement not found")
         for key, value in payload.dict(exclude_unset=True).items():
@@ -306,6 +315,7 @@ def update_placement(placement_id: int, payload):
         return placement.__dict__
     finally:
         db.close()
+
 
 
 def delete_placement(placement_id: int) -> Dict:
@@ -387,18 +397,24 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     return db_prep
 
 
-def get_candidate_preparation(db: Session, prep_id: int):
-    return (
+def get_preparations_by_candidate(db: Session, candidate_id: int):
+    results = (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate),
-            joinedload(CandidatePreparation.instructor1),  # ADD
-            joinedload(CandidatePreparation.instructor2),  # ADD
-            joinedload(CandidatePreparation.instructor3),  # ADD
+            joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidatePreparation.instructor3),
         )
-        .filter(CandidatePreparation.id == prep_id)
-        .first()
+        .filter(CandidatePreparation.candidate_id == candidate_id)
+        .all()
     )
+
+    if not results:
+        raise HTTPException(status_code=404, detail="No preparations found for this candidate")
+
+    return results
+
 
 def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
     return (

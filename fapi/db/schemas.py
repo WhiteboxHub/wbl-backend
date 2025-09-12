@@ -299,6 +299,7 @@ class CandidateMarketingBase(BaseModel):
     google_voice_number: Optional[str] = None
     rating: Optional[int] = None
     priority: Optional[int] = None
+    candidate_resume: Optional[str] = None
     candidate: Optional[CandidateBase]
 
     # extra fields for name display in UI
@@ -318,6 +319,22 @@ class CandidateMarketing(CandidateMarketingBase):
 
     class Config:
         from_attributes = True
+
+class CandidateMarketingUpdate(BaseModel):
+    candidate_id: Optional[int] = None
+    marketing_manager: Optional[int] = None
+    start_date: Optional[date] = None
+    notes: Optional[str] = None
+    status: Optional[Literal["active", "break", "not responding"]] = None
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
+    google_voice_number: Optional[str] = None
+    rating: Optional[int] = None
+    priority: Optional[int] = None
+    candidate_resume: Optional[str] = None
 
 
 # --------------------------------------------
@@ -343,6 +360,20 @@ class CandidatePlacement(CandidatePlacementBase):
     priority: Optional[int] = 99  # <-- add priority
     class Config:
         from_attributes = True
+
+
+class CandidatePlacementUpdate(BaseModel):
+    position: Optional[str] = None
+    company: Optional[str] = None
+    placement_date: Optional[date] = None
+    type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
+    status: Optional[Literal['scheduled', 'cancelled']] = None
+    base_salary_offered: Optional[float] = None
+    benefits: Optional[str] = None
+    fee_paid: Optional[float] = None
+    notes: Optional[str] = None
+    priority: Optional[int] = None
+
 # ----------------------------------------------------
 
 class InstructorOut(BaseModel):
@@ -980,7 +1011,9 @@ class SubjectUpdate(BaseModel):
 class CourseSubjectResponse(BaseModel):
     subject_id: int
     course_id: int
-    #lastmoddatetime: Optional[datetime] = None
+    course_name: str
+    subject_name: str
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
 
