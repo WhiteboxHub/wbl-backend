@@ -1,36 +1,41 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import Dict,Any
 from fapi.db.database import SessionLocal
 from fapi.db.models import LeadORM
 from fapi.db.schemas import LeadCreate, LeadUpdate
 from fastapi import HTTPException
-from sqlalchemy import func, or_
+from sqlalchemy import or_, cast, String,func
 
-def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, search_by: str):
+def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, search_by: str, sort: str):
     query = db.query(LeadORM)
 
     if search:
         if search_by == "id":
-            try:
+            if search.isdigit():
                 query = query.filter(LeadORM.id == int(search))
-            except ValueError:
-                # If search is not a valid integer, return empty results
-                query = query.filter(LeadORM.id == -1)
+            else:
+                query = query.filter(False)  # No results for invalid ID
         elif search_by == "full_name":
             query = query.filter(LeadORM.full_name.ilike(f"%{search}%"))
         elif search_by == "email":
             query = query.filter(LeadORM.email.ilike(f"%{search}%"))
         elif search_by == "phone":
-            query = query.filter(LeadORM.phone.ilike(f"%{search}%"))
+            query = query.filter(cast(LeadORM.phone, String).ilike(f"%{search}%"))
         else:  # search_by == "all"
             query = query.filter(
                 or_(
                     LeadORM.full_name.ilike(f"%{search}%"),
                     LeadORM.email.ilike(f"%{search}%"),
-                    LeadORM.phone.ilike(f"%{search}%"),
+                    cast(LeadORM.phone, String).ilike(f"%{search}%"),
                 )
             )
+
+    if sort:
+        sort_fields = sort.split(",")
+        for field in sort_fields:
+            col, direction = field.split(":")
+            column = getattr(LeadORM, col)
+            query = query.order_by(column.desc() if direction == "desc" else column.asc())
 
     total = query.count()
     leads = query.offset((page - 1) * limit).limit(limit).all()
