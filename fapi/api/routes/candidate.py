@@ -7,11 +7,11 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
-
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,CandidateMarketingUpdate, CandidateMarketing,CandidatePlacementCreate,CandidatePlacementUpdate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
-from sqlalchemy.orm import Session,joinedload
+from sqlalchemy.orm import Session,joinedload,selectinload
+
 from fapi.db.database import get_db,SessionLocal
 from fapi.utils.candidate_utils import get_all_candidates_paginated
 
@@ -138,9 +138,11 @@ def read_marketing_record(record_id: int = Path(...)):
 def create_marketing_record(record: CandidateMarketingCreate):
     return candidate_utils.create_marketing(record)
 
+
 @router.put("/candidate/marketing/{record_id}", response_model=CandidateMarketing)
-def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
+def update_marketing_record(record_id: int, record: CandidateMarketingUpdate):
     return candidate_utils.update_marketing(record_id, record)
+
 
 @router.delete("/candidate/marketing/{record_id}")
 def delete_marketing_record(record_id: int):
@@ -157,17 +159,21 @@ def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1
 def get_placement_metrics_endpoint(db: Session = Depends(get_db)):
     return get_placement_metrics(db)
 
-@router.get("/candidate/placements/{placement_id}")
-def read_placement(placement_id: int = Path(...)):
-    return candidate_utils.get_placement_by_id(placement_id)
+
+@router.get("/candidate/{candidate_id}/placements")
+def get_placements_by_candidate(candidate_id: int = Path(...)):
+    return candidate_utils.get_placements_by_candidate(candidate_id)
+
 
 @router.post("/candidate/placements", response_model=CandidatePlacement)
 def create_new_placement(placement: CandidatePlacementCreate):
     return candidate_utils.create_placement(placement)
 
-@router.put("/candidate/placements/{placement_id}", response_model=CandidatePlacement)
-def update_existing_placement(placement_id: int, placement: CandidatePlacementCreate):
-    return candidate_utils.update_placement(placement_id, placement)
+
+@router.put("/candidate/{candidate_id}/placements")
+def update_placement_for_candidate(candidate_id: int, placement: CandidatePlacementUpdate):
+    return candidate_utils.update_placement_by_candidate(candidate_id, placement)
+
 
 @router.delete("/candidate/placements/{placement_id}")
 def delete_existing_placement(placement_id: int):
@@ -264,12 +270,11 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
 def create_prep(prep: CandidatePreparationCreate, db: Session = Depends(get_db)):
     return candidate_utils.create_candidate_preparation(db, prep)
 
-@router.get("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
-def get_prep(prep_id: int, db: Session = Depends(get_db)):
-    prep = candidate_utils.get_candidate_preparation(db, prep_id)
-    if not prep:
-        raise HTTPException(status_code=404, detail="Candidate preparation not found")
-    return prep
+
+@router.get("/candidate/{candidate_id}/preparations", response_model=list[CandidatePreparationOut])
+def get_preparations_by_candidate(candidate_id: int, db: Session = Depends(get_db)):
+    return candidate_utils.get_preparations_by_candidate(db, candidate_id)
+
 
 @router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
 def list_preps(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -291,19 +296,23 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
 
 ##--------------------------------search----------------------------------
 
-
-
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
-    """Get candidate name suggestions for dropdown"""
+    """Optimized candidate name suggestions with caching"""
     if not search_term or len(search_term.strip()) < 2:
         return []
     
     try:
         candidates = (
             db.query(CandidateORM.id, CandidateORM.full_name, CandidateORM.email)
-            .filter(CandidateORM.full_name.ilike(f"%{search_term}%"))
-            .limit(10)
+            .filter(
+                or_(
+                    CandidateORM.full_name.ilike(f"%{search_term}%"),
+                    CandidateORM.email.ilike(f"%{search_term}%")
+                )
+            )
+            .order_by(CandidateORM.full_name)
+            .limit(10)  
             .all()
         )
         
@@ -317,15 +326,30 @@ def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
         ]
     except Exception as e:
         return {"error": str(e)}
+
 @router.get("/candidates/details/{candidate_id}")
 def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
-    """Get full candidate details for accordion"""
+    """Optimized single query for candidate details"""
     try:
-        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    
+        candidate = (
+            db.query(CandidateORM)
+            .options(
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1_employee),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2_employee),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3_employee),
+                selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_employee),
+                selectinload(CandidateORM.interview_records),
+                selectinload(CandidateORM.placement_records)
+            )
+            .filter(CandidateORM.id == candidate_id)
+            .first()
+        )
+        
         if not candidate:
             return {"error": "Candidate not found"}
         
-        # Get batch name
+        # Get batch and authuser info
         batch_name = f"Batch ID: {candidate.batchid}"
         try:
             batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
@@ -334,66 +358,13 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
         except:
             pass
         
-        # Get preparation records
-        preparation_records = []
-        try:
-            prep_data = db.query(CandidatePreparation).filter(CandidatePreparation.candidate_id == candidate.id).all()
-            for prep in prep_data:
-                preparation_records.append({
-                    "start_date": prep.start_date.isoformat() if prep.start_date else None,
-                    "status": prep.status or "Unknown",
-                    "rating": prep.rating,
-                    "tech_rating": prep.tech_rating,
-                    "communication": prep.communication,
-                    "notes": prep.notes
-                })
-        except:
-            pass
+        authuser = None
+        if candidate.email:
+            try:
+                authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
+            except:
+                pass
         
-        # Get marketing records
-        marketing_records = []
-        try:
-            marketing_data = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate.id).all()
-            for marketing in marketing_data:
-                marketing_records.append({
-                    "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
-                    "status": marketing.status or "Unknown",
-                    "notes": marketing.notes
-                })
-        except:
-            pass
-        
-        # Get interview records
-        interview_records = []
-        try:
-            interview_data = db.query(CandidateInterview).filter(CandidateInterview.candidate_id == candidate.id).all()
-            for interview in interview_data:
-                interview_records.append({
-                    "company": interview.company,
-                    "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
-                    "interview_type": interview.interview_type,
-                    "status": interview.status,
-                    "feedback": interview.feedback,
-                    "notes": interview.notes
-                })
-        except:
-            pass
-        
-        # Get placement records
-        placement_records = []
-        try:
-            placement_data = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.candidate_id == candidate.id).all()
-            for placement in placement_data:
-                placement_records.append({
-                    "position": placement.position,
-                    "company": placement.company,
-                    "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
-                    "status": placement.status,
-                    "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
-                    "notes": placement.notes
-                })
-        except:
-            pass
         
         return {
             "candidate_id": candidate.id,
@@ -401,22 +372,32 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                 "full_name": candidate.full_name,
                 "email": candidate.email,
                 "phone": candidate.phone,
+                "secondaryemail": candidate.secondaryemail,
+                "secondaryphone": candidate.secondaryphone,
+                "linkedin_id": candidate.linkedin_id,
                 "status": candidate.status,
                 "workstatus": candidate.workstatus,
                 "education": candidate.education,
                 "workexperience": candidate.workexperience,
+                "ssn": "***-**-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+                "dob": candidate.dob.isoformat() if candidate.dob else None,
+                "address": candidate.address,
+                "agreement": candidate.agreement,
                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                 "batch_name": batch_name,
-                "agreement": candidate.agreement
+                "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None
+                ,"notes": candidate.notes
             },
             "emergency_contact": {
                 "emergcontactname": candidate.emergcontactname,
                 "emergcontactphone": candidate.emergcontactphone,
-                "emergcontactemail": candidate.emergcontactemail
+                "emergcontactemail": candidate.emergcontactemail,
+                "emergcontactaddrs": candidate.emergcontactaddrs
             },
             "fee_financials": {
                 "fee_paid": candidate.fee_paid,
-                "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending"
+                "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
+                "notes": candidate.notes
             },
             "preparation_records": [
                 {
@@ -425,14 +406,12 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                     "instructor1_name": prep.instructor1_employee.name if prep.instructor1_employee else None,
                     "instructor2_name": prep.instructor2_employee.name if prep.instructor2_employee else None,
                     "instructor3_name": prep.instructor3_employee.name if prep.instructor3_employee else None,
-                    "rating": prep.rating,
                     "tech_rating": prep.tech_rating,
                     "communication": prep.communication,
-                    "years_of_experience": prep.years_of_experience,
                     "topics_finished": prep.topics_finished,
-                    "current_topics": prep.current_topics,
                     "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
-                    "notes": prep.notes
+                    "notes": prep.notes,
+                    "last_mod_datetime": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
 
                 }
                 for prep in candidate.preparation_records
@@ -442,7 +421,8 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                     "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
                     "status": marketing.status,
                     "marketing_manager_name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
-                    "notes": marketing.notes
+                    "notes": marketing.notes,
+                    "last_mod_datetime": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
                 }
                 for marketing in candidate.marketing_records
             ],
@@ -454,7 +434,6 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                     "status": interview.status,
                     "feedback": interview.feedback,
                     "recording_link": interview.recording_link,
-                    "interviewer_emails": interview.interviewer_emails,
                     "notes": interview.notes
                 }
                 for interview in candidate.interview_records
@@ -469,16 +448,24 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                     "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
                     "benefits": placement.benefits,
                     "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
+                    "last_mod_datetime": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,                   
                     "notes": placement.notes
                 }
                 for placement in candidate.placement_records
             ],
-
             "login_access": {
-                "status": "No login data available"
+                "logincount": authuser.logincount if authuser else 0,
+                "lastlogin": authuser.lastlogin.isoformat() if authuser and hasattr(authuser, 'lastlogin') and authuser.lastlogin else None,
+                "registereddate": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
+                "status": authuser.status if authuser else "No Account",
+                "reset_token": "Set" if authuser and hasattr(authuser, 'reset_token') and authuser.reset_token else "Not Set",
+                "googleId": authuser.googleId if authuser else None
             },
             "miscellaneous": {
-                "notes": candidate.notes
+                "notes": candidate.notes,
+                "preparation_active": len(candidate.preparation_records) > 0,
+                "marketing_active": len(candidate.marketing_records) > 0,
+                "placement_active": len(candidate.placement_records) > 0
             }
         }
         

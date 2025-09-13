@@ -29,7 +29,7 @@ class AuthUserORM(Base):
     passwd = Column(String(32), nullable=False)
     team = Column(String(255))
     status = Column(String(255), default="inactive")
-    # lastlogin = Column(DateTime)
+    lastlogin = Column(DateTime)
     logincount = Column(Integer)
     fullname = Column(String(50))
     address = Column(String(50))
@@ -274,6 +274,7 @@ class CandidateMarketingORM(Base):
     rating = Column(Integer, nullable=True)
     priority = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
+    candidate_resume = Column(String(255), nullable=True)
 
     # Relationships
     candidate = relationship("CandidateORM", back_populates="marketing_records")
@@ -334,7 +335,7 @@ class CandidatePlacementORM(Base):
     benefits = Column(Text, nullable=True)
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+    # last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
     priority = Column(Integer, default=99)  # <-- add this column
     candidate = relationship("CandidateORM", back_populates="placements")
