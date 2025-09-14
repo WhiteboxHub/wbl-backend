@@ -39,11 +39,6 @@ def list_candidates(
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
 
-# @router.get("/batches", response_model=dict)
-# def list_batches(db: Session = Depends(get_db)):
-#     # batches = db.query(Batch).all()
-#     batch_data = [{ "batchid": b.batchid, "batchname": b.batchname } for b in batches]
-#     return {"data": batch_data}
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
 def search_candidates(term: str, db: Session = Depends(get_db)):

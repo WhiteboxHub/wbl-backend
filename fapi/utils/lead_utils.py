@@ -1,5 +1,7 @@
+
 from sqlalchemy.orm import Session
 from typing import Dict,Any
+import json
 from fapi.db.database import SessionLocal
 from fapi.db.models import LeadORM
 from fapi.db.schemas import LeadCreate, LeadUpdate
@@ -14,7 +16,7 @@ def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, s
             if search.isdigit():
                 query = query.filter(LeadORM.id == int(search))
             else:
-                query = query.filter(False)  # No results for invalid ID
+                query = query.filter(False)  
         elif search_by == "full_name":
             query = query.filter(LeadORM.full_name.ilike(f"%{search}%"))
         elif search_by == "email":
@@ -40,6 +42,67 @@ def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, s
     total = query.count()
     leads = query.offset((page - 1) * limit).limit(limit).all()
     return {"data": leads, "total": total, "page": page, "limit": limit}
+
+def fetch_all_leads(db: Session, search: str = None, search_by: str = "name", sort: str = None, filters: str = None):
+    """Fetch all leads without pagination for AG Grid"""
+    query = db.query(LeadORM)
+
+    if search:
+        if search_by == "id":
+            if search.isdigit():
+                query = query.filter(LeadORM.id == int(search))
+            else:
+                query = query.filter(False)  
+        elif search_by == "full_name":
+            query = query.filter(LeadORM.full_name.ilike(f"%{search}%"))
+        elif search_by == "email":
+            query = query.filter(LeadORM.email.ilike(f"%{search}%"))
+        elif search_by == "phone":
+            query = query.filter(cast(LeadORM.phone, String).ilike(f"%{search}%"))
+        else:  
+            query = query.filter(
+                or_(
+                    LeadORM.full_name.ilike(f"%{search}%"),
+                    LeadORM.email.ilike(f"%{search}%"),
+                    cast(LeadORM.phone, String).ilike(f"%{search}%"),
+                )
+            )
+
+    if filters:
+        try:
+            filters_dict = json.loads(filters)
+            for field, filter_config in filters_dict.items():
+                if hasattr(LeadORM, field):
+                    column = getattr(LeadORM, field)
+                    filter_type = filter_config.get('type')
+                    filter_value = filter_config.get('filter')
+                    
+                    if filter_type == 'contains':
+                        query = query.filter(column.ilike(f"%{filter_value}%"))
+                    elif filter_type == 'equals':
+                        query = query.filter(column == filter_value)
+                    elif filter_type == 'startsWith':
+                        query = query.filter(column.ilike(f"{filter_value}%"))
+                    elif filter_type == 'endsWith':
+                        query = query.filter(column.ilike(f"%{filter_value}"))
+        except (json.JSONDecodeError, KeyError):
+           
+            pass
+
+    if sort:
+        sort_fields = sort.split(",")
+        for field in sort_fields:
+            if ":" in field:
+                col, direction = field.split(":")
+                if hasattr(LeadORM, col):
+                    column = getattr(LeadORM, col)
+                    query = query.order_by(column.desc() if direction == "desc" else column.asc())
+
+ 
+    leads = query.all()
+    total = len(leads)
+    
+    return {"data": leads, "total": total}
 
 def get_lead_by_id(db: Session, lead_id: int):
     return db.query(LeadORM).filter(LeadORM.id == lead_id).first()
@@ -103,4 +166,3 @@ def get_lead_info_mark_move_to_candidate_true(db: Session, lead_id: int):
     lead.moved_to_candidate = True
     db.commit()
     return lead
-
