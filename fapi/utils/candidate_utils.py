@@ -11,16 +11,73 @@ from datetime import date
 
 router = APIRouter()
       
+# def get_all_candidates_paginated(
+#     db: Session,
+#     page: int = 1,
+#     limit: int = 0,
+#     search: str = None,
+#     search_by: str = "all",
+#     sort: str = "enrolled_date:desc"  
+# ) -> Dict[str, Any]:
+#     query = db.query(CandidateORM)
+
+#     if search:
+#         if search_by == "id":
+#             try:
+#                 query = query.filter(CandidateORM.id == int(search))
+#             except ValueError:
+#                 query = query.filter(CandidateORM.id == -1)
+#         elif search_by == "full_name":
+#             query = query.filter(CandidateORM.full_name.ilike(f"%{search}%"))
+#         elif search_by == "email":
+#             query = query.filter(CandidateORM.email.ilike(f"%{search}%"))
+#         elif search_by == "phone":
+#             query = query.filter(CandidateORM.phone.ilike(f"%{search}%"))
+#         else:  # search_by == "all"
+#             query = query.filter(
+#                 or_(
+#                     CandidateORM.full_name.ilike(f"%{search}%"),
+#                     CandidateORM.email.ilike(f"%{search}%"),
+#                     CandidateORM.phone.ilike(f"%{search}%"),
+#                 )
+#             )
+
+    
+#     if sort:
+#         sort_fields = sort.split(",")
+#         for field in sort_fields:
+#             col, direction = field.split(":")
+#             if not hasattr(CandidateORM, col):
+#                 raise HTTPException(status_code=400, detail=f"Cannot sort by field: {col}")
+#             column = getattr(CandidateORM, col)
+#             if direction == "desc":
+#                 query = query.order_by(column.desc())
+#             else:
+#                 query = query.order_by(column.asc())
+
+#     total = query.count()
+#     candidates = query.offset((page - 1) * limit).limit(limit).all()
+
+#     data = []
+#     for candidate in candidates:
+#         item = candidate.__dict__.copy()
+#         item.pop('_sa_instance_state', None)
+#         data.append(item)
+
+#     return {"data": data, "total": total, "page": page, "limit": limit}
+
+
 def get_all_candidates_paginated(
     db: Session,
     page: int = 1,
     limit: int = 0,
     search: str = None,
     search_by: str = "all",
-    sort: str = "enrolled_date:desc"  
+    sort: str = "enrolled_date:desc"
 ) -> Dict[str, Any]:
     query = db.query(CandidateORM)
 
+    # Apply search filters
     if search:
         if search_by == "id":
             try:
@@ -42,7 +99,7 @@ def get_all_candidates_paginated(
                 )
             )
 
-    
+    # Apply sorting
     if sort:
         sort_fields = sort.split(",")
         for field in sort_fields:
@@ -55,9 +112,16 @@ def get_all_candidates_paginated(
             else:
                 query = query.order_by(column.asc())
 
+    # Get total count
     total = query.count()
-    candidates = query.offset((page - 1) * limit).limit(limit).all()
 
+    # Handle pagination
+    if limit > 0:
+        candidates = query.offset((page - 1) * limit).limit(limit).all()
+    else:
+        candidates = query.all()  # Return all records if limit=0
+
+    # Serialize data
     data = []
     for candidate in candidates:
         item = candidate.__dict__.copy()

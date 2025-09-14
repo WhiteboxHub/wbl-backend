@@ -191,7 +191,7 @@ class LeadBase(BaseModel):
     address: Optional[str] = None
     closed_date: Optional[date] = None
     notes: Optional[str] = None
-    last_modified: Optional[date] = None
+    last_modified: Optional[datetime] = None
 
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
