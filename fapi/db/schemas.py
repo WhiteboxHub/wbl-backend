@@ -560,6 +560,18 @@ class PaginatedInterviews(BaseModel):
 
 
 
+class CandidateInterviewCreate(BaseModel):
+    candidate_id: int
+    company: str
+    interview_type: str
+    interview_date: date
+    status: str = "pending"
+    feedback: Optional[str] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    notes: Optional[str] = None
+
+
 
 
 # -----------------------------------------------------------------------------------

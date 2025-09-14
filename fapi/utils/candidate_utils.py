@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
 from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any
 from datetime import date
@@ -197,14 +197,22 @@ def create_marketing(payload: CandidateMarketingCreate) -> Dict:
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
     db: Session = SessionLocal()
     try:
-        #  Use candidate_id for lookup instead of id
-        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == record_id).first()
+        # Lookup by candidate_id
+        record = (
+            db.query(CandidateMarketingORM)
+            .filter(CandidateMarketingORM.candidate_id == record_id)
+            .first()
+        )
         if not record:
             raise HTTPException(status_code=404, detail="Marketing record not found")
 
-        # Only update fields provided in payload
         update_data = payload.dict(exclude_unset=True)
+
         for key, value in update_data.items():
+            # Skip relationship fields (dicts)
+            if isinstance(value, dict):
+                continue
+
             if hasattr(record, key):
                 setattr(record, key, value)
 
@@ -300,19 +308,21 @@ def create_placement(payload):
         db.close()
 
 
-def update_placement_by_candidate(candidate_id: int, payload):
+def update_placement(placement_id: int, payload):
     db: Session = SessionLocal()
     try:
         placement = db.query(CandidatePlacementORM).filter(
-            CandidatePlacementORM.candidate_id == candidate_id
+            CandidatePlacementORM.id == placement_id   # use id, not candidate_id
         ).first()
         if not placement:
             raise HTTPException(status_code=404, detail="Placement not found")
+
         for key, value in payload.dict(exclude_unset=True).items():
             setattr(placement, key, value)
+
         db.commit()
         db.refresh(placement)
-        return placement.__dict__
+        return placement
     finally:
         db.close()
 
