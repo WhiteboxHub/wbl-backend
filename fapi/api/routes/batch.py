@@ -1,22 +1,20 @@
-# wbl-backend/fapi/api/routes/batch.py
-from fastapi import APIRouter, Depends, HTTPException,Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from fapi.db import schemas
 from typing import Optional
 from fapi.db.database import get_db
 from fapi.utils import batch_utils
 
-
 router = APIRouter()
 
-@router.get("/batch", response_model=schemas.PaginatedBatches)
+# Get all batches (no pagination)
+@router.get("/batch", response_model=list[schemas.BatchOut])
 def read_batches(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=100),
     search: Optional[str] = Query(None, description="Search by batch name"),
     db: Session = Depends(get_db),
 ):
-    return batch_utils.get_batches_paginated(db, page=page, per_page=per_page, search=search)
+    return batch_utils.get_all_batches(db, search=search)
+
 
 @router.get("/batch/{batch_id}", response_model=schemas.BatchOut)
 def read_batch(batch_id: int, db: Session = Depends(get_db)):
@@ -25,9 +23,11 @@ def read_batch(batch_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Batch not found")
     return db_batch
 
+
 @router.post("/batch", response_model=schemas.BatchOut)
 def create_batch(batch: schemas.BatchCreate, db: Session = Depends(get_db)):
     return batch_utils.create_batch(db, batch)
+
 
 @router.put("/batch/{batch_id}", response_model=schemas.BatchOut)
 def update_batch(batch_id: int, batch: schemas.BatchUpdate, db: Session = Depends(get_db)):
@@ -35,6 +35,7 @@ def update_batch(batch_id: int, batch: schemas.BatchUpdate, db: Session = Depend
     if not db_batch:
         raise HTTPException(status_code=404, detail="Batch not found")
     return db_batch
+
 
 @router.delete("/batch/{batch_id}", response_model=schemas.BatchOut)
 def delete_batch(batch_id: int, db: Session = Depends(get_db)):
