@@ -1,15 +1,25 @@
-# wbl-backend/fapi/api/routes/authuser.py
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import authuser_utils
-
+from fapi.db.models import AuthUserORM
 
 router = APIRouter()
 
 
+#New endpoint: Return ALL users (for AG Grid client-side pagination)
+@router.get("/users", response_model=List[schemas.AuthUserResponse])
+def get_all_users(db: Session = Depends(get_db)):
+    try:
+        users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).all()
+        return [authuser_utils.clean_dates(u) for u in users]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Existing paginated endpoint (keep for other API clients)
 @router.get("/user", response_model=schemas.PaginatedUsers)
 def read_users(
     page: int = Query(1, ge=1, description="Page number"),
@@ -18,7 +28,9 @@ def read_users(
     search_name: str = Query(None, description="Search by user name"),
     db: Session = Depends(get_db),
 ):
-    return authuser_utils.get_users_paginated(db, page=page, per_page=per_page, search_id=search_id, search_name=search_name)
+    return authuser_utils.get_users_paginated(
+        db, page=page, per_page=per_page, search_id=search_id, search_name=search_name
+    )
 
 
 @router.get("/user/{user_id}", response_model=schemas.AuthUserResponse)
