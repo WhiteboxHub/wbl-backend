@@ -4,9 +4,20 @@ from datetime import datetime
 from fapi.db import models
 from fapi.db import schemas
 
-def get_all_course_subjects(db: Session) -> List[models.CourseSubject]:
-    """Get all course-subject relationships"""
-    return db.query(models.CourseSubject).all()
+def get_all_course_subjects(db: Session):
+    return (
+        db.query(
+            models.CourseSubject.course_id,
+            models.CourseSubject.subject_id,
+            models.Course.name.label("course_name"),
+            models.Subject.name.label("subject_name"),
+            models.CourseSubject.lastmoddatetime
+        )
+        .join(models.Course, models.Course.id == models.CourseSubject.course_id)
+        .join(models.Subject, models.Subject.id == models.CourseSubject.subject_id)
+        .order_by(models.CourseSubject.lastmoddatetime.desc())
+        .all()
+    )
 
 def create_course_subject(db: Session, course_subject: schemas.CourseSubjectCreate) -> models.CourseSubject:
     """Create a new course-subject relationship"""
@@ -29,12 +40,31 @@ def create_course_subject(db: Session, course_subject: schemas.CourseSubjectCrea
     db_course_subject = models.CourseSubject(
         course_id=course_subject.course_id,
         subject_id=course_subject.subject_id,
+        lastmoddatetime=datetime.now()
 
     )
     db.add(db_course_subject)
     db.commit()
     db.refresh(db_course_subject)
-    return db_course_subject
+    
+    
+    result = (
+        db.query(
+            models.CourseSubject.course_id,
+            models.CourseSubject.subject_id,
+            models.Course.name.label("course_name"),
+            models.Subject.name.label("subject_name"),
+            models.CourseSubject.lastmoddatetime
+        )
+        .join(models.Course, models.Course.id == models.CourseSubject.course_id)
+        .join(models.Subject, models.Subject.id == models.CourseSubject.subject_id)
+        .filter(
+            models.CourseSubject.course_id == db_course_subject.course_id,
+            models.CourseSubject.subject_id == db_course_subject.subject_id
+        )
+        .first()
+    )
+    return result
 
 def update_course_subject(
     db: Session, 

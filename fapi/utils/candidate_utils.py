@@ -11,16 +11,73 @@ from datetime import date
 
 router = APIRouter()
       
+# def get_all_candidates_paginated(
+#     db: Session,
+#     page: int = 1,
+#     limit: int = 0,
+#     search: str = None,
+#     search_by: str = "all",
+#     sort: str = "enrolled_date:desc"  
+# ) -> Dict[str, Any]:
+#     query = db.query(CandidateORM)
+
+#     if search:
+#         if search_by == "id":
+#             try:
+#                 query = query.filter(CandidateORM.id == int(search))
+#             except ValueError:
+#                 query = query.filter(CandidateORM.id == -1)
+#         elif search_by == "full_name":
+#             query = query.filter(CandidateORM.full_name.ilike(f"%{search}%"))
+#         elif search_by == "email":
+#             query = query.filter(CandidateORM.email.ilike(f"%{search}%"))
+#         elif search_by == "phone":
+#             query = query.filter(CandidateORM.phone.ilike(f"%{search}%"))
+#         else:  # search_by == "all"
+#             query = query.filter(
+#                 or_(
+#                     CandidateORM.full_name.ilike(f"%{search}%"),
+#                     CandidateORM.email.ilike(f"%{search}%"),
+#                     CandidateORM.phone.ilike(f"%{search}%"),
+#                 )
+#             )
+
+    
+#     if sort:
+#         sort_fields = sort.split(",")
+#         for field in sort_fields:
+#             col, direction = field.split(":")
+#             if not hasattr(CandidateORM, col):
+#                 raise HTTPException(status_code=400, detail=f"Cannot sort by field: {col}")
+#             column = getattr(CandidateORM, col)
+#             if direction == "desc":
+#                 query = query.order_by(column.desc())
+#             else:
+#                 query = query.order_by(column.asc())
+
+#     total = query.count()
+#     candidates = query.offset((page - 1) * limit).limit(limit).all()
+
+#     data = []
+#     for candidate in candidates:
+#         item = candidate.__dict__.copy()
+#         item.pop('_sa_instance_state', None)
+#         data.append(item)
+
+#     return {"data": data, "total": total, "page": page, "limit": limit}
+
+
 def get_all_candidates_paginated(
     db: Session,
     page: int = 1,
     limit: int = 0,
     search: str = None,
     search_by: str = "all",
-    sort: str = "enrolled_date:desc"  
+    sort: str = "enrolled_date:desc"
 ) -> Dict[str, Any]:
     query = db.query(CandidateORM)
 
+    # Apply search filters
     if search:
         if search_by == "id":
             try:
@@ -42,7 +99,7 @@ def get_all_candidates_paginated(
                 )
             )
 
-    
+    # Apply sorting
     if sort:
         sort_fields = sort.split(",")
         for field in sort_fields:
@@ -55,9 +112,16 @@ def get_all_candidates_paginated(
             else:
                 query = query.order_by(column.asc())
 
+    # Get total count
     total = query.count()
-    candidates = query.offset((page - 1) * limit).limit(limit).all()
 
+    # Handle pagination
+    if limit > 0:
+        candidates = query.offset((page - 1) * limit).limit(limit).all()
+    else:
+        candidates = query.all()  # Return all records if limit=0
+
+    # Serialize data
     data = []
     for candidate in candidates:
         item = candidate.__dict__.copy()
@@ -466,7 +530,6 @@ def delete_candidate_preparation(db: Session, prep_id: int):
     return db_prep
 
 ##-------------------------------------------------search---------------------------------------------------------------
-
 def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]:
     """
     Search candidates by name and return comprehensive information for accordion display
@@ -539,7 +602,9 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                             "topics_finished": prep.topics_finished,
                             "current_topics": prep.current_topics,
                             "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
-                            "notes": prep.notes
+                            "notes": prep.notes,
+                            "last_mod_date": prep.last_mod_date.isoformat() if prep.last_mod_date else None
+                            
                         }
                         preparation_records.append(prep_record)
                     except Exception as e:
@@ -564,7 +629,8 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                             "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
                             "status": marketing.status,
                             "marketing_manager_name": manager_name,
-                            "notes": marketing.notes
+                            "notes": marketing.notes,
+                            "last_mod_date": marketing.last_mod_date.isoformat() if marketing.last_mod_date else None
                         }
                         marketing_records.append(marketing_record)
                     except Exception as e:
@@ -585,7 +651,6 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                             "status": interview.status,
                             "feedback": interview.feedback,
                             "recording_link": interview.recording_link,
-                            "interviewer_emails": interview.interviewer_emails,
                             "notes": interview.notes
                         }
                         interview_records.append(interview_record)
@@ -609,6 +674,7 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                             "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
                             "benefits": placement.benefits,
                             "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
+                            "last_mod_date": placement.last_mod_date.isoformat() if placement.last_mod_date else None,
                             "notes": placement.notes
                         }
                         placement_records.append(placement_record)
@@ -639,7 +705,8 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                     "agreement": candidate.agreement,
                     "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                     "batch_name": batch_name,
-                    "candidate_folder": candidate.candidate_folder
+                    "candidate_folder": candidate.candidate_folder,
+                    "notes": candidate.notes
                 },
                 
                 # Section 2: Emergency Contact
@@ -666,7 +733,7 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                 # Section 8: Login & Access Info
                 "login_access": {
                     "logincount": authuser.logincount if authuser else 0,
-                    "lastlogin": authuser.lastlogin.isoformat() if authuser and authuser.lastlogin else None,
+                    "lastlogin": authuser.lastlogin.isoformat() if authuser and authuser.cd  else None,
                     "registereddate": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
                     "status": authuser.status if authuser else "No Account",
                     "reset_token": "Set" if authuser and authuser.reset_token else "Not Set",

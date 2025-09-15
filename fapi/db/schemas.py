@@ -191,7 +191,7 @@ class LeadBase(BaseModel):
     address: Optional[str] = None
     closed_date: Optional[date] = None
     notes: Optional[str] = None
-    last_modified: Optional[date] = None
+    last_modified: Optional[datetime] = None
 
     massemail_unsubscribe: Optional[bool] = None
     massemail_email_sent: Optional[bool] = None
@@ -348,6 +348,7 @@ class CandidatePlacementBase(BaseModel):
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
+    last_mod_datetime: Optional[datetime] = None
     notes: Optional[str] = None
 
 class CandidatePlacementCreate(CandidatePlacementBase):
@@ -1022,7 +1023,9 @@ class SubjectUpdate(BaseModel):
 class CourseSubjectResponse(BaseModel):
     subject_id: int
     course_id: int
-    #lastmoddatetime: Optional[datetime] = None
+    course_name: str
+    subject_name: str
+    lastmoddatetime: Optional[datetime] = None
 
     model_config = {
 
