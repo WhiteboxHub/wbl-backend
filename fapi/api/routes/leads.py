@@ -4,6 +4,7 @@ from fapi.db.database import get_db
 from fapi.db.schemas import LeadCreate, LeadUpdate, LeadMetricsResponse
 from fapi.utils.lead_utils import (
     fetch_all_leads_paginated,
+    fetch_all_leads,  
     get_lead_by_id,
     create_lead,
     update_lead,
@@ -18,8 +19,9 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 
 router = APIRouter()
-@router.get("/leads")
-def get_all_leads(
+
+@router.get("/leads/paginated")
+def get_leads_paginated(
     page: int = 1,
     limit: int = 100,
     search: str = None,
@@ -28,6 +30,16 @@ def get_all_leads(
     db: Session = Depends(get_db)
 ):
     return fetch_all_leads_paginated(db, page, limit, search, search_by, sort)
+
+@router.get("/leads")
+def get_all_leads(
+    search: str = None,
+    search_by: str = "name",
+    sort: str = Query("entry_date:desc"),
+    filters: str = None, 
+    db: Session = Depends(get_db)
+):
+    return fetch_all_leads(db, search, search_by, sort, filters)
 
 
 @router.get("/leads/metrics", response_model=LeadMetricsResponse)
@@ -76,5 +88,3 @@ def remove_lead_from_candidate(lead_id: int, db: Session = Depends(get_db)):
     lead.moved_to_candidate = False
     db.commit()
     return {"detail": f"Lead {lead_id} removed from candidate"}
-
-
