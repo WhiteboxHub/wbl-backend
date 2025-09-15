@@ -335,7 +335,7 @@ class CandidatePlacementORM(Base):
     benefits = Column(Text, nullable=True)
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
     notes = Column(Text, nullable=True)
-    # last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
+    last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
     priority = Column(Integer, default=99)  # <-- add this column
     candidate = relationship("CandidateORM", back_populates="placements")
