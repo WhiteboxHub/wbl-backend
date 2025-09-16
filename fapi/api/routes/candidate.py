@@ -268,8 +268,9 @@ def get_prep(prep_id: int, db: Session = Depends(get_db)):
     return prep
 
 @router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
-def list_preps(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return candidate_utils.get_all_preparations(db, skip, limit)
+def list_preps(db: Session = Depends(get_db)):
+    return candidate_utils.get_all_preparations(db)
+
 
 @router.put("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
 def update_prep(prep_id: int, updates: CandidatePreparationUpdate, db: Session = Depends(get_db)):

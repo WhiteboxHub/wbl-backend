@@ -405,7 +405,7 @@ def delete_placement(placement_id: int) -> Dict:
         db.close()
 
 
-# -----------------------------------------------------Candidate_Interviews------------------------------------------------------
+# ----------------------------------------Candidate_Interviews-------------------------------------
 
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
     data = interview.dict()
@@ -490,20 +490,17 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
     return results
 
 
-def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
+def get_all_preparations(db: Session):
     return (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate),
-            joinedload(CandidatePreparation.instructor1),  # ADD
-            joinedload(CandidatePreparation.instructor2),  # ADD
-            joinedload(CandidatePreparation.instructor3),  # ADD
+            joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidatePreparation.instructor3),
         )
-        .offset(skip)
-        .limit(limit)
         .all()
     )
-
 
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):

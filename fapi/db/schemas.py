@@ -534,93 +534,9 @@ class CandidatePreparationOut(BaseModel):
         from_attributes = True
         populate_by_name = True
         
-        
 
 
-# --------------------------------------------------
-# class InterviewTypeEnum(str, Enum):
-#     phone = "Phone"
-#     virtual = "Virtual"
-#     in_person = "In Person"
-#     assessment = "Assessment"
-
-
-# class FeedbackEnum(str, Enum):
-#     negative = "Negative"
-#     positive = "Positive"
-#     no_response = "No Response"
-#     cancelled = "Cancelled" 
-    
-
-
-# class CandidateInterviewBase(BaseModel):
-#     candidate_id: int
-#     # candidate_name: Optional[str] = None
-#     company: str
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: date
-#     interview_type: Optional[InterviewTypeEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     candidate: Optional[CandidateBase]  # added line
-
-
-# class CandidateInterviewCreate(CandidateInterviewBase):
-#     pass
-
-
-# class CandidateInterviewUpdate(BaseModel):
-#     candidate_id: Optional[int] = None
-#     # candidate_name: Optional[str] = None
-#     company: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: Optional[date] = None
-#     interview_type: Optional[InterviewTypeEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     # candidate: Optional[CandidateBase]  # added line
-
-
-# class CandidateInterviewOut(CandidateInterviewBase):
-#     id: int
-#     # candidate_name: Optional[str]   # only in output
-#     last_mod_datetime: Optional[datetime]
-#     candidate: Optional[CandidateBase]  # added line
-
-#     class Config:
-#         from_attributes = True
-
-
-
-# class PaginatedInterviews(BaseModel):
-#     items: List[CandidateInterviewOut]
-#     total: int
-#     page: int
-#     per_page: int
-
-
-
-# class CandidateInterviewCreate(BaseModel):
-#     candidate_id: int
-#     company: str
-#     interview_type: str
-#     interview_date: date
-#     status: str = "pending"
-#     feedback: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     notes: Optional[str] = None
-
-
-# --- Enums ---
+# --------------candidate interview  -----------
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
@@ -644,7 +560,7 @@ class FeedbackEnum(str, Enum):
     cancelled = "Cancelled"
 
 
-# --- Base Schema ---
+
 class CandidateInterviewBase(BaseModel):
     candidate_id: int
     company: str
@@ -661,12 +577,11 @@ class CandidateInterviewBase(BaseModel):
     candidate: Optional[CandidateBase] = None
 
 
-# --- Create Schema ---
+
 class CandidateInterviewCreate(CandidateInterviewBase):
     pass
 
 
-# --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
@@ -682,7 +597,6 @@ class CandidateInterviewUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-# --- Output Schema ---
 class CandidateInterviewOut(CandidateInterviewBase):
     id: int
     last_mod_datetime: Optional[datetime]
@@ -691,7 +605,6 @@ class CandidateInterviewOut(CandidateInterviewBase):
         from_attributes = True
 
 
-# --- Paginated Output ---
 class PaginatedInterviews(BaseModel):
     items: List[CandidateInterviewOut]
     total: int
