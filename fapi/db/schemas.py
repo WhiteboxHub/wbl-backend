@@ -1359,14 +1359,14 @@ class BatchMetrics(BaseModel):
     current_active_batches_count: int 
     enrolled_candidates_current: int
     total_candidates: int
-    candidates_last_batch: int
+    candidates_previous_batch: int
     new_enrollments_month: int
     candidate_status_breakdown: Dict[str, int]
 
 
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
-    fee_collected_last_batch: float
+    fee_collected_previous_batch: float
     top_batches_fee: List[Dict[str, Any]]
 
 
@@ -1405,6 +1405,7 @@ class LeadMetrics(BaseModel):
     total_leads: int
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
+    leadConversionRate: int
 
 class LeadMetricsResponse(BaseModel):
     success: bool

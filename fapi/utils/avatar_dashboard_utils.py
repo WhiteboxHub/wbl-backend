@@ -12,39 +12,47 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
         Batch.enddate >= today
     ).all()
     if current_active_batches:
-        batch_names = [batch.batchname for batch in current_active_batches]
-        current_active_batches_str = batch_names[0]  # First batch name
-        if len(batch_names) > 1:
-            current_active_batches_str += f" (+{len(batch_names) - 1} more)"
+        latest_batch = max(current_active_batches, key=lambda b: b.startdate)
+        current_active_batches_str = latest_batch.batchname
     else:
         current_active_batches_str = "No active batches"
     # If multiple batches, show count and first batch name
     current_active_batches_count = len(current_active_batches)
 
     # Enrolled candidates
-    enrolled_candidates_current = db.query(CandidateORM).join(
-        Batch,
-        CandidateORM.batchid == Batch.batchid
-    ).filter(
-        Batch.startdate <= today,
-        Batch.enddate >= today
-    ).count()
-    total_candidates = db.query(CandidateORM).count()
-    # Candidates enrolled in Last Batch only for batches that have started
-    last_batch = (
+    latest_active_batch = (
         db.query(Batch)
-        .filter(Batch.startdate <= date.today()) 
-        .order_by(desc(Batch.startdate))
+        .filter(Batch.startdate <= today, Batch.enddate >= today)
+        .order_by(Batch.startdate.desc())
         .first()
     )
 
-    candidates_last_batch = 0
-    if last_batch:
-        candidates_last_batch = (
+    if latest_active_batch:
+        enrolled_candidates_current = (
             db.query(CandidateORM)
-            .filter(CandidateORM.batchid == last_batch.batchid)
+            .filter(CandidateORM.batchid == latest_active_batch.batchid)
             .count()
         )
+    else:
+        enrolled_candidates_current = 0
+
+    total_candidates = db.query(CandidateORM).count()
+    # Candidates enrolled in Last Batch only for batches that have started
+    previous_batch = (
+            db.query(Batch)
+            .filter(Batch.startdate <= date.today())
+            .order_by(desc(Batch.startdate))
+            .offset(1)  
+            .first()
+        )
+
+    candidates_previous_batch = 0
+    if previous_batch:
+        candidates_previous_batch = (
+                db.query(CandidateORM)
+                .filter(CandidateORM.batchid == previous_batch.batchid)
+                .count()
+            )
 
 
     # New Enrollments in this Month
@@ -63,7 +71,7 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
         "current_active_batches_count": current_active_batches_count,
         "enrolled_candidates_current": enrolled_candidates_current,
         "total_candidates": total_candidates,
-        "candidates_last_batch": candidates_last_batch,
+        "candidates_previous_batch": candidates_previous_batch,
         "new_enrollments_month": new_enrollments_month,
         "candidate_status_breakdown": status_dict
     }
@@ -71,29 +79,35 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
 
 def get_financial_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
-    first_day_month = today.replace(day=1)
-    # Total Fee Paid in Current Batch
-    current_batch = db.query(Batch).filter(
-        Batch.startdate <= today,
-        Batch.enddate >= today
-    ).first()
-    total_fee_current_batch = 0
-    if current_batch:
-        total_fee_current_batch = db.query(func.sum(CandidateORM.fee_paid)).filter(
-            CandidateORM.batchid == current_batch.batchid
-        ).scalar() or 0
-    # fee collected in last batch
-    last_batch = (
+    current_batch = (
         db.query(Batch)
-        .filter(Batch.enddate < today)  # only past batches
-        .order_by(Batch.enddate.desc())
+        .filter(Batch.startdate <= today, Batch.enddate >= today)
+        .order_by(desc(Batch.startdate))
         .first()
     )
-    fee_collected_last_batch = 0
-    if last_batch:
-        fee_collected_last_batch = (
+
+    total_fee_current_batch = 0
+    if current_batch:
+        total_fee_current_batch = (
             db.query(func.sum(CandidateORM.fee_paid))
-            .filter(CandidateORM.batchid == last_batch.batchid)
+            .filter(CandidateORM.batchid == current_batch.batchid)
+            .scalar()
+            or 0
+        )
+    # fee collected in last batch
+    previous_batch = (
+        db.query(Batch)
+        .filter(Batch.startdate < today) 
+        .order_by(desc(Batch.startdate))
+        .offset(1) 
+        .first()
+    )
+
+    total_fee_previous_batch = 0
+    if previous_batch:
+        total_fee_previous_batch = (
+            db.query(func.sum(CandidateORM.fee_paid))
+            .filter(CandidateORM.batchid == previous_batch.batchid)
             .scalar()
             or 0
         )
@@ -114,7 +128,7 @@ def get_financial_metrics(db: Session) -> Dict[str, Any]:
     ]
     return {
         "total_fee_current_batch": total_fee_current_batch,
-        "fee_collected_last_batch": fee_collected_last_batch,
+        "fee_collected_previous_batch": total_fee_previous_batch,
         "top_batches_fee": top_batches_list
     }
 
@@ -358,12 +372,27 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
             "workstatus": latest_lead.workstatus,
             "status": latest_lead.status
         }
+
+        today = date.today()
+        first_day_month = today.replace(day=1)
+        closed_leads_this_month = db.query(func.count(LeadORM.id)).filter(
+            LeadORM.closed_date >= first_day_month,
+            LeadORM.closed_date <= today,
+            LeadORM.status == "Close"
+        ).scalar() or 0
+
+        leadConversionRate = (
+            round((closed_leads_this_month / leads_this_month) * 100, 2)
+            if leads_this_month > 0 else 0
+        )
+
+
     return {
         "total_leads": total_leads,
         "leads_this_month": leads_this_month,
-        "latest_lead": latest_lead_data
+        "latest_lead": latest_lead_data,
+        "leadConversionRate":leadConversionRate
     }
-
 
 
 
