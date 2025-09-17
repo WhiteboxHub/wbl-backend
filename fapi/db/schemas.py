@@ -497,6 +497,11 @@ class CandidatePreparationOut(BaseModel):
         populate_by_name = True
         
         
+
+
+
+# ---------Interview-------------------------------
+
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
@@ -514,10 +519,9 @@ class TypeOfInterviewEnum(str, Enum):
 
 
 class FeedbackEnum(str, Enum):
-    negative = "Negative"
+    pending = "Pending"
     positive = "Positive"
-    no_response = "No Response"
-    cancelled = "Cancelled"
+    negative = "Negative"
 
 
 # --- Base Schema ---
@@ -531,7 +535,8 @@ class CandidateInterviewBase(BaseModel):
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
-    status: Optional[str] = None
+    url: Optional[str] = None  # New field added
+    # status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
     candidate: Optional[CandidateBase] = None
@@ -553,6 +558,7 @@ class CandidateInterviewUpdate(BaseModel):
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
+    url: Optional[str] = None  # New field added
     status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
@@ -1203,7 +1209,6 @@ class Session(SessionBase):
 
 class SessionOut(SessionBase):
     sessionid: int
-
     @field_validator("sessiondate", mode="before")
     def clean_invalid_date(cls, v):
         if v in ("0000-00-00", None, ""):

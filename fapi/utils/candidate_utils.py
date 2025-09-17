@@ -11,60 +11,6 @@ from datetime import date
 
 router = APIRouter()
       
-# def get_all_candidates_paginated(
-#     db: Session,
-#     page: int = 1,
-#     limit: int = 0,
-#     search: str = None,
-#     search_by: str = "all",
-#     sort: str = "enrolled_date:desc"  
-# ) -> Dict[str, Any]:
-#     query = db.query(CandidateORM)
-
-#     if search:
-#         if search_by == "id":
-#             try:
-#                 query = query.filter(CandidateORM.id == int(search))
-#             except ValueError:
-#                 query = query.filter(CandidateORM.id == -1)
-#         elif search_by == "full_name":
-#             query = query.filter(CandidateORM.full_name.ilike(f"%{search}%"))
-#         elif search_by == "email":
-#             query = query.filter(CandidateORM.email.ilike(f"%{search}%"))
-#         elif search_by == "phone":
-#             query = query.filter(CandidateORM.phone.ilike(f"%{search}%"))
-#         else:  # search_by == "all"
-#             query = query.filter(
-#                 or_(
-#                     CandidateORM.full_name.ilike(f"%{search}%"),
-#                     CandidateORM.email.ilike(f"%{search}%"),
-#                     CandidateORM.phone.ilike(f"%{search}%"),
-#                 )
-#             )
-
-    
-#     if sort:
-#         sort_fields = sort.split(",")
-#         for field in sort_fields:
-#             col, direction = field.split(":")
-#             if not hasattr(CandidateORM, col):
-#                 raise HTTPException(status_code=400, detail=f"Cannot sort by field: {col}")
-#             column = getattr(CandidateORM, col)
-#             if direction == "desc":
-#                 query = query.order_by(column.desc())
-#             else:
-#                 query = query.order_by(column.asc())
-
-#     total = query.count()
-#     candidates = query.offset((page - 1) * limit).limit(limit).all()
-
-#     data = []
-#     for candidate in candidates:
-#         item = candidate.__dict__.copy()
-#         item.pop('_sa_instance_state', None)
-#         data.append(item)
-
-#     return {"data": data, "total": total, "page": page, "limit": limit}
 
 
 def get_all_candidates_paginated(
@@ -405,7 +351,7 @@ def delete_placement(placement_id: int) -> Dict:
         db.close()
 
 
-# -----------------------------------------------------Candidate_Interviews------------------------------------------------------
+# ----------------------------------------Candidate_Interviews-------------------------------------
 
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
     data = interview.dict()
@@ -416,6 +362,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
 
+    # URL field is already included in `data` via dict()
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
@@ -490,20 +437,17 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
     return results
 
 
-def get_all_preparations(db: Session, skip: int = 0, limit: int = 100):
+def get_all_preparations(db: Session):
     return (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate),
-            joinedload(CandidatePreparation.instructor1),  # ADD
-            joinedload(CandidatePreparation.instructor2),  # ADD
-            joinedload(CandidatePreparation.instructor3),  # ADD
+            joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidatePreparation.instructor3),
         )
-        .offset(skip)
-        .limit(limit)
         .all()
     )
-
 
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
@@ -530,33 +474,31 @@ def delete_candidate_preparation(db: Session, prep_id: int):
     return db_prep
 
 ##-------------------------------------------------search---------------------------------------------------------------
+
 def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]:
     """
-    Search candidates by name and return comprehensive information for accordion display
+    Search candidates by name and return comprehensive information for accordion display with proper readable keys
     """
     try:
-        # Search candidates by name (case-insensitive, partial match)
         candidates = (
             db.query(CandidateORM)
             .filter(CandidateORM.full_name.ilike(f"%{search_term}%"))
             .all()
         )
-        
+
         if not candidates:
             return []
-        
+
         results = []
-        
+
         for candidate in candidates:
-            # Get batch name - Fix the import and query
             try:
                 from fapi.db.models import Batch
                 batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
                 batch_name = batch.batchname if batch else "Unknown Batch"
             except:
                 batch_name = f"Batch ID: {candidate.batchid}"
-            
-            # Get authuser info (join by email)
+
             authuser = None
             try:
                 from fapi.db.models import AuthUserORM
@@ -564,194 +506,158 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                     authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
             except:
                 pass
-            
-            # Get preparation records with error handling
+
             preparation_records = []
             try:
                 prep_data = db.query(CandidatePreparation).filter(CandidatePreparation.candidate_id == candidate.id).all()
                 for prep in prep_data:
-                    # Get instructor names safely
                     try:
                         from fapi.db.models import EmployeeORM
-                        inst1_name = None
-                        inst2_name = None
-                        inst3_name = None
-                        
-                        if prep.instructor1_id:
-                            inst1 = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor1_id).first()
-                            inst1_name = inst1.name if inst1 else None
-                        
-                        if prep.instructor2_id:
-                            inst2 = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor2_id).first()
-                            inst2_name = inst2.name if inst2 else None
-                            
-                        if prep.instructor3_id:
-                            inst3 = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor3_id).first()
-                            inst3_name = inst3.name if inst3 else None
-                        
+                        inst1_name = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor1_id).first().name if prep.instructor1_id else None
+                        inst2_name = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor2_id).first().name if prep.instructor2_id else None
+                        inst3_name = db.query(EmployeeORM).filter(EmployeeORM.id == prep.instructor3_id).first().name if prep.instructor3_id else None
+
                         prep_record = {
-                            "start_date": prep.start_date.isoformat() if prep.start_date else None,
-                            "status": prep.status,
-                            "instructor1_name": inst1_name,
-                            "instructor2_name": inst2_name, 
-                            "instructor3_name": inst3_name,
-                            "rating": prep.rating,
-                            "tech_rating": prep.tech_rating,
-                            "communication": prep.communication,
-                            "years_of_experience": prep.years_of_experience,
-                            "topics_finished": prep.topics_finished,
-                            "current_topics": prep.current_topics,
-                            "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
-                            "notes": prep.notes,
-                            "last_mod_date": prep.last_mod_date.isoformat() if prep.last_mod_date else None
-                            
+                            "Start Date": prep.start_date.isoformat() if prep.start_date else None,
+                            "Status": prep.status,
+                            "Instructor 1 Name": inst1_name,
+                            "Instructor 2 Name": inst2_name,
+                            "Instructor 3 Name": inst3_name,
+                            "Rating": prep.rating,
+                            "Tech Rating": prep.tech_rating,
+                            "Communication": prep.communication,
+                            "Years of Experience": prep.years_of_experience,
+                            "Topics Finished": prep.topics_finished,
+                            "Current Topics": prep.current_topics,
+                            "Target Date of Marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
+                            "Notes": prep.notes,
+                            "Last Modified": prep.last_mod_date.isoformat() if prep.last_mod_date else None
                         }
                         preparation_records.append(prep_record)
                     except Exception as e:
-                        # Add record with error info
-                        preparation_records.append({"error": f"Error loading prep record: {str(e)}"})
+                        preparation_records.append({"Error": f"Error loading prep record: {str(e)}"})
             except:
                 pass
-            
-            # Get marketing records with error handling
+
             marketing_records = []
             try:
                 marketing_data = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate.id).all()
                 for marketing in marketing_data:
                     try:
                         from fapi.db.models import EmployeeORM
-                        manager_name = None
-                        if marketing.marketing_manager:
-                            manager = db.query(EmployeeORM).filter(EmployeeORM.id == marketing.marketing_manager).first()
-                            manager_name = manager.name if manager else None
-                        
+                        manager_name = db.query(EmployeeORM).filter(EmployeeORM.id == marketing.marketing_manager).first().name if marketing.marketing_manager else None
+
                         marketing_record = {
-                            "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
-                            "status": marketing.status,
-                            "marketing_manager_name": manager_name,
-                            "notes": marketing.notes,
-                            "last_mod_date": marketing.last_mod_date.isoformat() if marketing.last_mod_date else None
+                            "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
+                            "Status": marketing.status,
+                            "Marketing Manager Name": manager_name,
+                            "Notes": marketing.notes,
+                            "Last Modified": marketing.last_mod_date.isoformat() if marketing.last_mod_date else None
                         }
                         marketing_records.append(marketing_record)
                     except Exception as e:
-                        marketing_records.append({"error": f"Error loading marketing record: {str(e)}"})
+                        marketing_records.append({"Error": f"Error loading marketing record: {str(e)}"})
             except:
                 pass
-            
-            # Get interview records with error handling
+
             interview_records = []
             try:
                 interview_data = db.query(CandidateInterview).filter(CandidateInterview.candidate_id == candidate.id).all()
                 for interview in interview_data:
                     try:
                         interview_record = {
-                            "company": interview.company,
-                            "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
-                            "interview_type": interview.interview_type,
-                            "status": interview.status,
-                            "feedback": interview.feedback,
-                            "recording_link": interview.recording_link,
-                            "notes": interview.notes
+                            "Company": interview.company,
+                            "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
+                            "Interview Type": interview.type_of_interview,
+                            "Feedback": interview.feedback,
+                            "Recording Link": interview.recording_link,
+                            "Notes": interview.notes
                         }
                         interview_records.append(interview_record)
                     except Exception as e:
-                        interview_records.append({"error": f"Error loading interview record: {str(e)}"})
+                        interview_records.append({"Error": f"Error loading interview record: {str(e)}"})
             except:
                 pass
-            
-            # Get placement records with error handling  
+
             placement_records = []
             try:
                 placement_data = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.candidate_id == candidate.id).all()
                 for placement in placement_data:
                     try:
                         placement_record = {
-                            "position": placement.position,
-                            "company": placement.company,
-                            "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
-                            "status": placement.status,
-                            "type": placement.type,
-                            "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
-                            "benefits": placement.benefits,
-                            "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
-                            "last_mod_date": placement.last_mod_date.isoformat() if placement.last_mod_date else None,
-                            "notes": placement.notes
+                            "Position": placement.position,
+                            "Company": placement.company,
+                            "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
+                            "Status": placement.status,
+                            "Type": placement.type,
+                            "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                            "Benefits": placement.benefits,
+                            "Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
+                            "Last Modified": placement.last_mod_date.isoformat() if placement.last_mod_date else None,
+                            "Notes": placement.notes
                         }
                         placement_records.append(placement_record)
                     except Exception as e:
-                        placement_records.append({"error": f"Error loading placement record: {str(e)}"})
+                        placement_records.append({"Error": f"Error loading placement record: {str(e)}"})
             except:
                 pass
-            
-            # Compile comprehensive candidate data with safe date conversions
+
             candidate_data = {
-                "candidate_id": candidate.id,
-                
-                # Section 1: Basic Information
-                "basic_info": {
-                    "full_name": candidate.full_name,
-                    "email": candidate.email,
-                    "phone": candidate.phone,
-                    "secondaryemail": candidate.secondaryemail,
-                    "secondaryphone": candidate.secondaryphone,
-                    "linkedin_id": candidate.linkedin_id,
-                    "status": candidate.status,
-                    "workstatus": candidate.workstatus,
-                    "education": candidate.education,
-                    "workexperience": candidate.workexperience,
-                    "ssn": "***-**-" + candidate.ssn[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
-                    "dob": candidate.dob.isoformat() if candidate.dob else None,
-                    "address": candidate.address,
-                    "agreement": candidate.agreement,
-                    "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
-                    "batch_name": batch_name,
-                    "candidate_folder": candidate.candidate_folder,
-                    "notes": candidate.notes
+                "Candidate ID": candidate.id,
+                "Basic Info": {
+                    "Full Name": candidate.full_name,
+                    "Email": candidate.email,
+                    "Phone": candidate.phone,
+                    "Secondary Email": candidate.secondaryemail,
+                    "Secondary Phone": candidate.secondaryphone,
+                    "LinkedIn ID": candidate.linkedin_id,
+                    "Status": candidate.status,
+                    "Work Status": candidate.workstatus,
+                    "Education": candidate.education,
+                    "Work Experience": candidate.workexperience,
+                    "SSN": "***-**-" + candidate.ssn[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+                    "Date of Birth": candidate.dob.isoformat() if candidate.dob else None,
+                    "Address": candidate.address,
+                    "Agreement": candidate.agreement,
+                    "Enrolled Date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
+                    "Batch Name": batch_name,
+                    "Candidate Folder": candidate.candidate_folder,
+                    "Notes": candidate.notes
                 },
-                
-                # Section 2: Emergency Contact
-                "emergency_contact": {
-                    "emergcontactname": candidate.emergcontactname,
-                    "emergcontactphone": candidate.emergcontactphone,
-                    "emergcontactemail": candidate.emergcontactemail,
-                    "emergcontactaddrs": candidate.emergcontactaddrs
+                "Emergency Contact": {
+                    "Emergency Contact Name": candidate.emergcontactname,
+                    "Emergency Contact Phone": candidate.emergcontactphone,
+                    "Emergency Contact Email": candidate.emergcontactemail,
+                    "Emergency Contact Address": candidate.emergcontactaddrs
                 },
-                
-                # Section 3: Fee & Financials
-                "fee_financials": {
-                    "fee_paid": candidate.fee_paid,
-                    "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
-                    "notes": candidate.notes
+                "Fee & Financials": {
+                    "Fee Paid": candidate.fee_paid,
+                    "Payment Status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
+                    "Notes": candidate.notes
                 },
-                
-                # Section 4-7: Tables (1-to-many)
-                "preparation_records": preparation_records,
-                "marketing_records": marketing_records,
-                "interview_records": interview_records,
-                "placement_records": placement_records,
-                
-                # Section 8: Login & Access Info
-                "login_access": {
-                    "logincount": authuser.logincount if authuser else 0,
-                    "lastlogin": authuser.lastlogin.isoformat() if authuser and authuser.cd  else None,
-                    "registereddate": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
-                    "status": authuser.status if authuser else "No Account",
-                    "reset_token": "Set" if authuser and authuser.reset_token else "Not Set",
-                    "googleId": authuser.googleId if authuser else None
+                "Preparation Records": preparation_records,
+                "Marketing Records": marketing_records,
+                "Interview Records": interview_records,
+                "Placement Records": placement_records,
+                "Login & Access": {
+                    "Login Count": authuser.logincount if authuser else 0,
+                    "Last Login": authuser.lastlogin.isoformat() if authuser and authuser.lastlogin else None,
+                    "Registered Date": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
+                    "Status": authuser.status if authuser else "No Account",
+                    "Reset Token": "Set" if authuser and authuser.reset_token else "Not Set",
+                    "Google ID": authuser.googleId if authuser else None
                 },
-                
-                # Section 9: Miscellaneous
-                "miscellaneous": {
-                    "notes": candidate.notes,
-                    "preparation_active": len(preparation_records) > 0,
-                    "marketing_active": len(marketing_records) > 0,
-                    "placement_active": len(placement_records) > 0
+                "Miscellaneous": {
+                    "Notes": candidate.notes,
+                    "Preparation Active": len(preparation_records) > 0,
+                    "Marketing Active": len(marketing_records) > 0,
+                    "Placement Active": len(placement_records) > 0
                 }
             }
-            
+
             results.append(candidate_data)
-        
+
         return results
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
