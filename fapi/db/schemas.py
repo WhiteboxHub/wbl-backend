@@ -337,44 +337,6 @@ class CandidateMarketingUpdate(BaseModel):
     candidate_resume: Optional[str] = None
 
 
-# --------------------------------------------
-# class CandidatePlacementBase(BaseModel):
-#     candidate_id: int
-#     position: Optional[str] = None
-#     company: str
-#     placement_date: date
-#     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-#     status: Literal['scheduled', 'cancelled']
-#     base_salary_offered: Optional[float] = None
-#     benefits: Optional[str] = None
-#     fee_paid: Optional[float] = None
-#     last_mod_datetime: Optional[datetime] = None
-#     notes: Optional[str] = None
-
-# class CandidatePlacementCreate(CandidatePlacementBase):
-#     pass
-
-# class CandidatePlacement(CandidatePlacementBase):
-#     id: int
-#     last_mod_datetime: Optional[datetime]
-#     priority: Optional[int] 
-#     class Config:
-#         from_attributes = True
-
-
-# class CandidatePlacementUpdate(BaseModel):
-#     position: Optional[str] = None
-#     company: Optional[str] = None
-#     placement_date: Optional[date] = None
-#     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-#     status: Optional[Literal['scheduled', 'cancelled']] = None
-#     base_salary_offered: Optional[float] = None
-#     benefits: Optional[str] = None
-#     fee_paid: Optional[float] = None
-#     notes: Optional[str] = None
-#     priority: Optional[int] = None
-
-
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
@@ -535,92 +497,6 @@ class CandidatePreparationOut(BaseModel):
         populate_by_name = True
         
         
-
-
-# --------------------------------------------------
-# class InterviewTypeEnum(str, Enum):
-#     phone = "Phone"
-#     virtual = "Virtual"
-#     in_person = "In Person"
-#     assessment = "Assessment"
-
-
-# class FeedbackEnum(str, Enum):
-#     negative = "Negative"
-#     positive = "Positive"
-#     no_response = "No Response"
-#     cancelled = "Cancelled" 
-    
-
-
-# class CandidateInterviewBase(BaseModel):
-#     candidate_id: int
-#     # candidate_name: Optional[str] = None
-#     company: str
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: date
-#     interview_type: Optional[InterviewTypeEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     candidate: Optional[CandidateBase]  # added line
-
-
-# class CandidateInterviewCreate(CandidateInterviewBase):
-#     pass
-
-
-# class CandidateInterviewUpdate(BaseModel):
-#     candidate_id: Optional[int] = None
-#     # candidate_name: Optional[str] = None
-#     company: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: Optional[date] = None
-#     interview_type: Optional[InterviewTypeEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     # candidate: Optional[CandidateBase]  # added line
-
-
-# class CandidateInterviewOut(CandidateInterviewBase):
-#     id: int
-#     # candidate_name: Optional[str]   # only in output
-#     last_mod_datetime: Optional[datetime]
-#     candidate: Optional[CandidateBase]  # added line
-
-#     class Config:
-#         from_attributes = True
-
-
-
-# class PaginatedInterviews(BaseModel):
-#     items: List[CandidateInterviewOut]
-#     total: int
-#     page: int
-#     per_page: int
-
-
-
-# class CandidateInterviewCreate(BaseModel):
-#     candidate_id: int
-#     company: str
-#     interview_type: str
-#     interview_date: date
-#     status: str = "pending"
-#     feedback: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     notes: Optional[str] = None
-
-
-# --- Enums ---
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
