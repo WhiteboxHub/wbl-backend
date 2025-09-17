@@ -196,30 +196,15 @@ def create_interview(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
-@router.get("/interviews", response_model=schemas.PaginatedInterviews)
-def list_interviews(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(10, le=100),
-    db: Session = Depends(get_db),
-):
-    query = db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate))
-
-    total = query.count()
-
+@router.get("/interviews", response_model=list[CandidateInterviewOut])
+def list_interviews(db: Session = Depends(get_db)):
     interviews = (
-        query.order_by(CandidateInterview.interview_date.desc())
-        .offset((page - 1) * per_page)
-        .limit(per_page)
+        db.query(CandidateInterview)
+        .options(joinedload(CandidateInterview.candidate))
+        .order_by(CandidateInterview.interview_date.desc())
         .all()
     )
-
-    return {
-        "items": interviews,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-    }
-
+    return interviews
 
 @router.get("/interviews/{interview_id}", response_model=CandidateInterviewOut)
 def read_candidate_interview(
@@ -287,6 +272,183 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
     return deleted
 
 ##--------------------------------search----------------------------------
+
+# @router.get("/candidates/search-names/{search_term}")
+# def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
+#     """Optimized candidate name suggestions with caching"""
+#     if not search_term or len(search_term.strip()) < 2:
+#         return []
+    
+#     try:
+#         candidates = (
+#             db.query(CandidateORM.id, CandidateORM.full_name, CandidateORM.email)
+#             .filter(
+#                 or_(
+#                     CandidateORM.full_name.ilike(f"%{search_term}%"),
+#                     CandidateORM.email.ilike(f"%{search_term}%")
+#                 )
+#             )
+#             .order_by(CandidateORM.full_name)
+#             .limit(10)  
+#             .all()
+#         )
+        
+#         return [
+#             {
+#                 "id": candidate.id,
+#                 "name": candidate.full_name,
+#                 "email": candidate.email or "No email"
+#             }
+#             for candidate in candidates
+#         ]
+#     except Exception as e:
+#         return {"error": str(e)}
+
+# @router.get("/candidates/details/{candidate_id}")
+# def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
+#     """Optimized single query for candidate details"""
+#     try:
+    
+#         candidate = (
+#             db.query(CandidateORM)
+#             .options(
+#                 selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1_employee),
+#                 selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2_employee),
+#                 selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3_employee),
+#                 selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_employee),
+#                 selectinload(CandidateORM.interview_records),
+#                 selectinload(CandidateORM.placement_records)
+#             )
+#             .filter(CandidateORM.id == candidate_id)
+#             .first()
+#         )
+        
+#         if not candidate:
+#             return {"error": "Candidate not found"}
+        
+#         # Get batch and authuser info
+#         batch_name = f"Batch ID: {candidate.batchid}"
+#         try:
+#             batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
+#             if batch:
+#                 batch_name = batch.batchname
+#         except:
+#             pass
+        
+#         authuser = None
+#         if candidate.email:
+#             try:
+#                 authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
+#             except:
+#                 pass
+        
+        
+#         return {
+#             "candidate_id": candidate.id,
+#             "basic_info": {
+#                 "full_name": candidate.full_name,
+#                 "email": candidate.email,
+#                 "phone": candidate.phone,
+#                 "secondaryemail": candidate.secondaryemail,
+#                 "secondaryphone": candidate.secondaryphone,
+#                 "linkedin_id": candidate.linkedin_id,
+#                 "status": candidate.status,
+#                 "workstatus": candidate.workstatus,
+#                 "education": candidate.education,
+#                 "workexperience": candidate.workexperience,
+#                 "ssn": "***-**-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+#                 "dob": candidate.dob.isoformat() if candidate.dob else None,
+#                 "address": candidate.address,
+#                 "agreement": candidate.agreement,
+#                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
+#                 "batch_name": batch_name,
+#                 "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None
+#                 ,"notes": candidate.notes
+#             },
+#             "emergency_contact": {
+#                 "emergcontactname": candidate.emergcontactname,
+#                 "emergcontactphone": candidate.emergcontactphone,
+#                 "emergcontactemail": candidate.emergcontactemail,
+#                 "emergcontactaddrs": candidate.emergcontactaddrs
+#             },
+#             "fee_financials": {
+#                 "fee_paid": candidate.fee_paid,
+#                 "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
+#                 "notes": candidate.notes
+#             },
+#             "preparation_records": [
+#                 {
+#                     "start_date": prep.start_date.isoformat() if prep.start_date else None,
+#                     "status": prep.status,
+#                     "instructor1_name": prep.instructor1_employee.name if prep.instructor1_employee else None,
+#                     "instructor2_name": prep.instructor2_employee.name if prep.instructor2_employee else None,
+#                     "instructor3_name": prep.instructor3_employee.name if prep.instructor3_employee else None,
+#                     "tech_rating": prep.tech_rating,
+#                     "communication": prep.communication,
+#                     "topics_finished": prep.topics_finished,
+#                     "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
+#                     "notes": prep.notes,
+#                     "last_mod_datetime": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
+
+#                 }
+#                 for prep in candidate.preparation_records
+#             ],
+#             "marketing_records": [
+#                 {
+#                     "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
+#                     "status": marketing.status,
+#                     "marketing_manager_name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
+#                     "notes": marketing.notes,
+#                     "last_mod_datetime": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
+#                 }
+#                 for marketing in candidate.marketing_records
+#             ],
+#             "interview_records": [
+#                 {
+#                     "company": interview.company,
+#                     "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
+#                     "interview_type": interview.interview_type,
+#                     "status": interview.status,
+#                     "feedback": interview.feedback,
+#                     "recording_link": interview.recording_link,
+#                     "notes": interview.notes
+#                 }
+#                 for interview in candidate.interview_records
+#             ],
+#             "placement_records": [
+#                 {
+#                     "position": placement.position,
+#                     "company": placement.company,
+#                     "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
+#                     "status": placement.status,
+#                     "type": placement.type,
+#                     "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+#                     "benefits": placement.benefits,
+#                     "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
+#                     "last_mod_datetime": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,                   
+#                     "notes": placement.notes
+#                 }
+#                 for placement in candidate.placement_records
+#             ],
+#             "login_access": {
+#                 "logincount": authuser.logincount if authuser else 0,
+#                 "lastlogin": authuser.lastlogin.isoformat() if authuser and hasattr(authuser, 'lastlogin') and authuser.lastlogin else None,
+#                 "registereddate": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
+#                 "status": authuser.status if authuser else "No Account",
+#                 "reset_token": "Set" if authuser and hasattr(authuser, 'reset_token') and authuser.reset_token else "Not Set",
+#                 "googleId": authuser.googleId if authuser else None
+#             },
+#             "miscellaneous": {
+#                 "notes": candidate.notes,
+#                 "preparation_active": len(candidate.preparation_records) > 0,
+#                 "marketing_active": len(candidate.marketing_records) > 0,
+#                 "placement_active": len(candidate.placement_records) > 0
+#             }
+#         }
+        
+#     except Exception as e:
+#         return {"error": str(e)}
+
 
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
@@ -364,13 +526,13 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                 "full_name": candidate.full_name,
                 "email": candidate.email,
                 "phone": candidate.phone,
-                "secondaryemail": candidate.secondaryemail,
-                "secondaryphone": candidate.secondaryphone,
+                "secondary_email": candidate.secondaryemail,
+                "secondary_phone": candidate.secondaryphone,
                 "linkedin_id": candidate.linkedin_id,
                 "status": candidate.status,
-                "workstatus": candidate.workstatus,
+                "work_status": candidate.workstatus,
                 "education": candidate.education,
-                "workexperience": candidate.workexperience,
+                "work_experience": candidate.workexperience,
                 "ssn": "***-**-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
                 "dob": candidate.dob.isoformat() if candidate.dob else None,
                 "address": candidate.address,
@@ -381,86 +543,83 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                 ,"notes": candidate.notes
             },
             "emergency_contact": {
-                "emergcontactname": candidate.emergcontactname,
-                "emergcontactphone": candidate.emergcontactphone,
-                "emergcontactemail": candidate.emergcontactemail,
-                "emergcontactaddrs": candidate.emergcontactaddrs
+                "emergency_contact_name": candidate.emergcontactname,
+                "emergency_contact_phone": candidate.emergcontactphone,
+                "emergency_contact_email": candidate.emergcontactemail,
+                "emergecy_contact_address": candidate.emergcontactaddrs
             },
             "fee_financials": {
-                "fee_paid": candidate.fee_paid,
-                "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
-                "notes": candidate.notes
+                "Fee Paid": candidate.fee_paid,
+                "Payment Status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
+                "Notes": candidate.notes
             },
             "preparation_records": [
                 {
-                    "start_date": prep.start_date.isoformat() if prep.start_date else None,
-                    "status": prep.status,
-                    "instructor1_name": prep.instructor1_employee.name if prep.instructor1_employee else None,
-                    "instructor2_name": prep.instructor2_employee.name if prep.instructor2_employee else None,
-                    "instructor3_name": prep.instructor3_employee.name if prep.instructor3_employee else None,
-                    "tech_rating": prep.tech_rating,
-                    "communication": prep.communication,
-                    "topics_finished": prep.topics_finished,
-                    "target_date_of_marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
-                    "notes": prep.notes,
-                    "last_mod_datetime": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
+                "Start Date": prep.start_date.isoformat() if prep.start_date else None,
+                "Status": prep.status,
+                "Instructor 1 Name": prep.instructor1_employee.name if prep.instructor1_employee else None,
+                "Instructor 2 Name": prep.instructor2_employee.name if prep.instructor2_employee else None,
+                "Instructor 3 Name": prep.instructor3_employee.name if prep.instructor3_employee else None,
+                "Tech Rating": prep.tech_rating,
+                "Communication": prep.communication,
+                "Topics Finished": prep.topics_finished,
+                "Target Date of Marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
+                "Notes": prep.notes,
+                "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
 
                 }
                 for prep in candidate.preparation_records
             ],
             "marketing_records": [
                 {
-                    "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
-                    "status": marketing.status,
-                    "marketing_manager_name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
-                    "notes": marketing.notes,
-                    "last_mod_datetime": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
+                    "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
+                    "Status": marketing.status,
+                    "Marketing Manager Name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
+                    "Notes": marketing.notes,
+                    "Last Modified": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
                 }
                 for marketing in candidate.marketing_records
             ],
             "interview_records": [
                 {
-                    "company": interview.company,
-                    "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
-                    "interview_type": interview.interview_type,
-                    "status": interview.status,
-                    "feedback": interview.feedback,
-                    "recording_link": interview.recording_link,
-                    "notes": interview.notes
+                "Company": interview.company,
+                "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
+                "Interview Type": interview.type_of_interview,
+                "Feedback": interview.feedback,
+                "Recording Link": interview.recording_link,
+                "Notes": interview.notes
                 }
                 for interview in candidate.interview_records
             ],
             "placement_records": [
                 {
-                    "position": placement.position,
-                    "company": placement.company,
-                    "placement_date": placement.placement_date.isoformat() if placement.placement_date else None,
-                    "status": placement.status,
-                    "type": placement.type,
-                    "base_salary_offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
-                    "benefits": placement.benefits,
-                    "fee_paid": float(placement.fee_paid) if placement.fee_paid else None,
-                    "last_mod_datetime": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,                   
-                    "notes": placement.notes
+                "Position": placement.position,
+                "Company": placement.company,
+                "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
+                "Status": placement.status,
+                "Type": placement.type,
+                "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                "Benefits": placement.benefits,
+                "Placement Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
+                "Last Modified": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,
+                "Notes": placement.notes
                 }
                 for placement in candidate.placement_records
             ],
             "login_access": {
-                "logincount": authuser.logincount if authuser else 0,
-                "lastlogin": authuser.lastlogin.isoformat() if authuser and hasattr(authuser, 'lastlogin') and authuser.lastlogin else None,
-                "registereddate": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
-                "status": authuser.status if authuser else "No Account",
-                "reset_token": "Set" if authuser and hasattr(authuser, 'reset_token') and authuser.reset_token else "Not Set",
-                "googleId": authuser.googleId if authuser else None
+                "Login Count": authuser.logincount if authuser else 0,
+                "Last Login": authuser.lastlogin.isoformat() if authuser and hasattr(authuser, 'lastlogin') and authuser.lastlogin else None,
+                "Registered Date": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
+                "Status": authuser.status if authuser else "No Account",
+                "Google ID": authuser.googleId if authuser else None
             },
             "miscellaneous": {
-                "notes": candidate.notes,
-                "preparation_active": len(candidate.preparation_records) > 0,
-                "marketing_active": len(candidate.marketing_records) > 0,
-                "placement_active": len(candidate.placement_records) > 0
+                "Notes": candidate.notes,
+                "Preparation Active": len(candidate.preparation_records) > 0,
+                "Marketing Active": len(candidate.marketing_records) > 0,
+                "Placement Active": len(candidate.placement_records) > 0
             }
         }
         
     except Exception as e:
         return {"error": str(e)}
-    
