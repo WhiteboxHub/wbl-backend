@@ -407,6 +407,22 @@ def delete_placement(placement_id: int) -> Dict:
 
 # ----------------------------------------Candidate_Interviews-------------------------------------
 
+# def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
+#     data = interview.dict()
+
+#     # Normalize interviewer_emails to lowercase if provided
+#     if data.get("interviewer_emails"):
+#         data["interviewer_emails"] = ",".join(
+#             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
+#         )
+
+#     db_obj = CandidateInterview(**data)
+#     db.add(db_obj)
+#     db.commit()
+#     db.refresh(db_obj)
+#     return db_obj
+
+
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
     data = interview.dict()
 
@@ -416,6 +432,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
 
+    # URL field is already included in `data` via dict()
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
