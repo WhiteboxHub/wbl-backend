@@ -287,39 +287,6 @@ class CandidateMarketingORM(Base):
         "EmployeeORM", foreign_keys=[marketing_manager], overlaps="marketing_manager_obj"
     )
 # -------------------------------------- Candidate Interview -------------------------------
-# class CandidateInterview(Base):
-#     __tablename__ = "candidate_interview"
-
-#     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-#     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-
-#     # Relationship to CandidateORM
-#     candidate = relationship("CandidateORM", back_populates="interviews")
-
-#     company = Column(String(200), nullable=False)
-#     interviewer_emails = Column(Text, nullable=True)
-#     interviewer_contact = Column(Text, nullable=True)
-#     interview_date = Column(Date, nullable=False)
-
-#     interview_type = Column(
-#         Enum("Phone", "Virtual", "In Person", "Assessment", name="interview_type_enum"),
-#         nullable=True
-#     )
-
-#     recording_link = Column(String(500), nullable=True)
-#     backup_url = Column(String(500), nullable=True)
-#     status = Column(String(100), nullable=True)
-
-#     feedback = Column(
-#         Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
-#         nullable=True
-#     )
-
-#     notes = Column(Text, nullable=True)
-#     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-
-
-
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
 
@@ -340,17 +307,20 @@ class CandidateInterview(Base):
     )
 
     type_of_interview = Column(
-        Enum("Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call", 
-             name="type_of_interview_enum"),
+        Enum(
+            "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call",
+            name="type_of_interview_enum"
+        ),
         nullable=True
     )
 
     recording_link = Column(String(500), nullable=True)
     backup_url = Column(String(500), nullable=True)
-    status = Column(String(100), nullable=True)
+    url = Column(String(500), nullable=True)  # New column added
+    # status = Column(String(100), nullable=True)
 
     feedback = Column(
-        Enum("Negative", "Positive", "No Response", "Cancelled", name="feedback_enum"),
+        Enum("Pending", "Positive", "Negative", name="feedback_enum"),
         nullable=True
     )
 
@@ -359,27 +329,8 @@ class CandidateInterview(Base):
 
 
 
+
 # -------------------------------------- Candidate Placement -------------------------------
-# class CandidatePlacementORM(Base):
-#     __tablename__ = "candidate_placement"
-
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
-
-#     position = Column(String(255), nullable=True)
-#     company = Column(String(200), nullable=False)
-#     placement_date = Column(Date, nullable=False)
-#     type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
-#     status = Column(Enum('scheduled', 'cancelled'), nullable=False)
-#     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
-#     benefits = Column(Text, nullable=True)
-#     fee_paid = Column(DECIMAL(10, 2), nullable=True)
-#     notes = Column(Text, nullable=True)
-#     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
-
-#     priority = Column(Integer, default=99)  # <-- add this column
-#     candidate = relationship("CandidateORM", back_populates="placements")
-
 
 class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"

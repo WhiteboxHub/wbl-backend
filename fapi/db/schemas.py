@@ -337,44 +337,6 @@ class CandidateMarketingUpdate(BaseModel):
     candidate_resume: Optional[str] = None
 
 
-# --------------------------------------------
-# class CandidatePlacementBase(BaseModel):
-#     candidate_id: int
-#     position: Optional[str] = None
-#     company: str
-#     placement_date: date
-#     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-#     status: Literal['scheduled', 'cancelled']
-#     base_salary_offered: Optional[float] = None
-#     benefits: Optional[str] = None
-#     fee_paid: Optional[float] = None
-#     last_mod_datetime: Optional[datetime] = None
-#     notes: Optional[str] = None
-
-# class CandidatePlacementCreate(CandidatePlacementBase):
-#     pass
-
-# class CandidatePlacement(CandidatePlacementBase):
-#     id: int
-#     last_mod_datetime: Optional[datetime]
-#     priority: Optional[int] 
-#     class Config:
-#         from_attributes = True
-
-
-# class CandidatePlacementUpdate(BaseModel):
-#     position: Optional[str] = None
-#     company: Optional[str] = None
-#     placement_date: Optional[date] = None
-#     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-#     status: Optional[Literal['scheduled', 'cancelled']] = None
-#     base_salary_offered: Optional[float] = None
-#     benefits: Optional[str] = None
-#     fee_paid: Optional[float] = None
-#     notes: Optional[str] = None
-#     priority: Optional[int] = None
-
-
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
@@ -537,90 +499,9 @@ class CandidatePreparationOut(BaseModel):
         
 
 
-# --------------------------------------------------
-# class InterviewTypeEnum(str, Enum):
-#     phone = "Phone"
-#     virtual = "Virtual"
-#     in_person = "In Person"
-#     assessment = "Assessment"
 
+# ---------Interview-------------------------------
 
-# class FeedbackEnum(str, Enum):
-#     negative = "Negative"
-#     positive = "Positive"
-#     no_response = "No Response"
-#     cancelled = "Cancelled" 
-    
-
-
-# class CandidateInterviewBase(BaseModel):
-#     candidate_id: int
-#     # candidate_name: Optional[str] = None
-#     company: str
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: date
-#     interview_type: Optional[InterviewTypeEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     candidate: Optional[CandidateBase]  # added line
-
-
-# class CandidateInterviewCreate(CandidateInterviewBase):
-#     pass
-
-
-# class CandidateInterviewUpdate(BaseModel):
-#     candidate_id: Optional[int] = None
-#     # candidate_name: Optional[str] = None
-#     company: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: Optional[date] = None
-#     interview_type: Optional[InterviewTypeEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     # candidate: Optional[CandidateBase]  # added line
-
-
-# class CandidateInterviewOut(CandidateInterviewBase):
-#     id: int
-#     # candidate_name: Optional[str]   # only in output
-#     last_mod_datetime: Optional[datetime]
-#     candidate: Optional[CandidateBase]  # added line
-
-#     class Config:
-#         from_attributes = True
-
-
-
-# class PaginatedInterviews(BaseModel):
-#     items: List[CandidateInterviewOut]
-#     total: int
-#     page: int
-#     per_page: int
-
-
-
-# class CandidateInterviewCreate(BaseModel):
-#     candidate_id: int
-#     company: str
-#     interview_type: str
-#     interview_date: date
-#     status: str = "pending"
-#     feedback: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     notes: Optional[str] = None
-
-
-# --- Enums ---
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
@@ -638,10 +519,9 @@ class TypeOfInterviewEnum(str, Enum):
 
 
 class FeedbackEnum(str, Enum):
-    negative = "Negative"
+    pending = "Pending"
     positive = "Positive"
-    no_response = "No Response"
-    cancelled = "Cancelled"
+    negative = "Negative"
 
 
 # --- Base Schema ---
@@ -655,7 +535,8 @@ class CandidateInterviewBase(BaseModel):
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
-    status: Optional[str] = None
+    url: Optional[str] = None  # New field added
+    # status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
     candidate: Optional[CandidateBase] = None
@@ -677,6 +558,7 @@ class CandidateInterviewUpdate(BaseModel):
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
+    url: Optional[str] = None  # New field added
     status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
@@ -1327,7 +1209,6 @@ class Session(SessionBase):
 
 class SessionOut(SessionBase):
     sessionid: int
-
     @field_validator("sessiondate", mode="before")
     def clean_invalid_date(cls, v):
         if v in ("0000-00-00", None, ""):
@@ -1359,14 +1240,14 @@ class BatchMetrics(BaseModel):
     current_active_batches_count: int 
     enrolled_candidates_current: int
     total_candidates: int
-    candidates_last_batch: int
+    candidates_previous_batch: int
     new_enrollments_month: int
     candidate_status_breakdown: Dict[str, int]
 
 
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
-    fee_collected_last_batch: float
+    fee_collected_previous_batch: float
     top_batches_fee: List[Dict[str, Any]]
 
 
@@ -1405,6 +1286,7 @@ class LeadMetrics(BaseModel):
     total_leads: int
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
+    leadConversionRate: int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
