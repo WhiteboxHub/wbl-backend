@@ -337,44 +337,6 @@ class CandidateMarketingUpdate(BaseModel):
     candidate_resume: Optional[str] = None
 
 
-# --------------------------------------------
-# class CandidatePlacementBase(BaseModel):
-#     candidate_id: int
-#     position: Optional[str] = None
-#     company: str
-#     placement_date: date
-#     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-#     status: Literal['scheduled', 'cancelled']
-#     base_salary_offered: Optional[float] = None
-#     benefits: Optional[str] = None
-#     fee_paid: Optional[float] = None
-#     last_mod_datetime: Optional[datetime] = None
-#     notes: Optional[str] = None
-
-# class CandidatePlacementCreate(CandidatePlacementBase):
-#     pass
-
-# class CandidatePlacement(CandidatePlacementBase):
-#     id: int
-#     last_mod_datetime: Optional[datetime]
-#     priority: Optional[int] 
-#     class Config:
-#         from_attributes = True
-
-
-# class CandidatePlacementUpdate(BaseModel):
-#     position: Optional[str] = None
-#     company: Optional[str] = None
-#     placement_date: Optional[date] = None
-#     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-#     status: Optional[Literal['scheduled', 'cancelled']] = None
-#     base_salary_offered: Optional[float] = None
-#     benefits: Optional[str] = None
-#     fee_paid: Optional[float] = None
-#     notes: Optional[str] = None
-#     priority: Optional[int] = None
-
-
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
@@ -537,7 +499,9 @@ class CandidatePreparationOut(BaseModel):
         
 
 
+
 # ---------Interview-------------------------------
+
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
@@ -1276,14 +1240,14 @@ class BatchMetrics(BaseModel):
     current_active_batches_count: int 
     enrolled_candidates_current: int
     total_candidates: int
-    candidates_last_batch: int
+    candidates_previous_batch: int
     new_enrollments_month: int
     candidate_status_breakdown: Dict[str, int]
 
 
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
-    fee_collected_last_batch: float
+    fee_collected_previous_batch: float
     top_batches_fee: List[Dict[str, Any]]
 
 
@@ -1322,6 +1286,7 @@ class LeadMetrics(BaseModel):
     total_leads: int
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
+    leadConversionRate: int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
