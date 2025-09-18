@@ -64,6 +64,7 @@ def create_user_and_lead(db: Session, user: UserRegistration):
         full_name=full_name,
         phone=user.phone,
         email=uname,
+        status=user.status or "open",
         address=user.address,
         workstatus=user.visa_status,
         notes=notes_text,
