@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
-from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
+from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterviewCopy,CandidatePreparation
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any
@@ -363,7 +363,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
         )
 
     # URL field is already included in `data` via dict()
-    db_obj = CandidateInterview(**data)
+    db_obj = CandidateInterviewCopy(**data)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -371,15 +371,15 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
 
 
 def get_candidate_interviews(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(CandidateInterview).options(contains_eager(CandidateInterview.candidate)) .join(CandidateORM, CandidateInterview.candidate_id == CandidateORM.id).offset(skip).limit(limit).all()
+    return db.query(CandidateInterviewCopy).options(contains_eager(CandidateInterviewCopy.candidate)) .join(CandidateORM, CandidateInterviewCopy.candidate_id == CandidateORM.id).offset(skip).limit(limit).all()
 
 
 def get_candidate_interview(db: Session, interview_id: int):
-    return db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate)).filter(CandidateInterview.id == interview_id).first()
+    return db.query(CandidateInterviewCopy).options(joinedload(CandidateInterviewCopy.candidate)).filter(CandidateInterviewCopy.id == interview_id).first()
 
 
 def update_candidate_interview(db: Session, interview_id: int, updates: CandidateInterviewUpdate):
-    db_obj = db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate)) .join(CandidateORM, CandidateInterview.candidate_id == CandidateORM.id).filter(CandidateInterview.id == interview_id).first()
+    db_obj = db.query(CandidateInterviewCopy).options(joinedload(CandidateInterviewCopy.candidate)) .join(CandidateORM, CandidateInterviewCopy.candidate_id == CandidateORM.id).filter(CandidateInterviewCopy.id == interview_id).first()
     if not db_obj:
         return None
 
@@ -400,11 +400,34 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
 
 
 def delete_candidate_interview(db: Session, interview_id: int):
-    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
+    db_obj = db.query(CandidateInterviewCopy).filter(CandidateInterviewCopy.id == interview_id).first()
     if db_obj:
         db.delete(db_obj)
         db.commit()
     return db_obj
+
+
+
+def get_active_marketing_candidates(db: Session):
+    results = (
+        db.query(CandidateMarketingORM, CandidateORM)
+        .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+        .filter(CandidateMarketingORM.status == "active")
+        .all()
+    )
+
+    return [
+        {
+            "candidate_id": candidate.id,
+            "full_name": candidate.full_name,
+            "email": candidate.email,
+            "phone": candidate.phone,
+            "start_date": marketing.start_date,
+            "status": marketing.status,
+        }
+        for marketing, candidate in results
+    ]
+
 
 # -------------------Candidate_Preparation-------------
 
@@ -562,7 +585,7 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
 
             interview_records = []
             try:
-                interview_data = db.query(CandidateInterview).filter(CandidateInterview.candidate_id == candidate.id).all()
+                interview_data = db.query(CandidateInterviewCopy).filter(CandidateInterviewCopy.candidate_id == candidate.id).all()
                 for interview in interview_data:
                     try:
                         interview_record = {

@@ -235,14 +235,14 @@ class CandidateORM(Base):
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
 
     # Relationships
-    interviews = relationship("CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
+    interviews = relationship("CandidateInterviewCopy", back_populates="candidate", cascade="all, delete-orphan")
     preparations = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
     placements = relationship("CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship("CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
     
     preparation_records = relationship("CandidatePreparation", back_populates="candidate")
     # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
-    interview_records = relationship("CandidateInterview", back_populates="candidate")
+    interview_records = relationship("CandidateInterviewCopy", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
@@ -287,8 +287,50 @@ class CandidateMarketingORM(Base):
         "EmployeeORM", foreign_keys=[marketing_manager], overlaps="marketing_manager_obj"
     )
 # -------------------------------------- Candidate Interview -------------------------------
-class CandidateInterview(Base):
-    __tablename__ = "candidate_interview"
+# class CandidateInterview(Base):
+#     __tablename__ = "candidate_interview"
+
+#     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+#     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+
+#     # Relationship to CandidateORM
+#     candidate = relationship("CandidateORM", back_populates="interviews")
+
+#     company = Column(String(200), nullable=False)
+#     interviewer_emails = Column(Text, nullable=True)
+#     interviewer_contact = Column(Text, nullable=True)
+#     interview_date = Column(Date, nullable=False)
+
+#     mode_of_interview = Column(
+#         Enum("Virtual", "In Person", "Phone", "Assessment", name="mode_of_interview_enum"),
+#         nullable=True
+#     )
+
+#     type_of_interview = Column(
+#         Enum(
+#             "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call",
+#             name="type_of_interview_enum"
+#         ),
+#         nullable=True
+#     )
+
+#     recording_link = Column(String(500), nullable=True)
+#     backup_url = Column(String(500), nullable=True)
+#     url = Column(String(500), nullable=True)  # New column added
+#     # status = Column(String(100), nullable=True)
+
+#     feedback = Column(
+#         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
+#         nullable=True
+#     )
+
+#     notes = Column(Text, nullable=True)
+#     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+
+
+class CandidateInterviewCopy(Base):
+    __tablename__ = "candidate_interview_copy"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
@@ -301,31 +343,25 @@ class CandidateInterview(Base):
     interviewer_contact = Column(Text, nullable=True)
     interview_date = Column(Date, nullable=False)
 
+    interview_type = Column(String(100), nullable=True)  # varchar in DDL
+
     mode_of_interview = Column(
         Enum("Virtual", "In Person", "Phone", "Assessment", name="mode_of_interview_enum"),
         nullable=True
     )
 
-    type_of_interview = Column(
-        Enum(
-            "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call",
-            name="type_of_interview_enum"
-        ),
-        nullable=True
-    )
-
     recording_link = Column(String(500), nullable=True)
-    backup_url = Column(String(500), nullable=True)
-    url = Column(String(500), nullable=True)  # New column added
-    # status = Column(String(100), nullable=True)
-
+    status = Column(String(100), nullable=True)  # varchar in DDL
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
         nullable=True
     )
 
     notes = Column(Text, nullable=True)
-    last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    last_mod_datetime = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=True
+    )
+    backup_url = Column(String(500), nullable=True)
 
 
 

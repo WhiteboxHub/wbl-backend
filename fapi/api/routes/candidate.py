@@ -7,8 +7,8 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
-from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
+from fapi.db.schemas import CandidateBase, CandidateUpdate,ActiveMarketingCandidate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+from fapi.db.models import CandidateInterviewCopy,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload,selectinload
 
@@ -196,12 +196,13 @@ def create_interview(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
+
 @router.get("/interviews", response_model=list[CandidateInterviewOut])
 def list_interviews(db: Session = Depends(get_db)):
     interviews = (
-        db.query(CandidateInterview)
-        .options(joinedload(CandidateInterview.candidate))
-        .order_by(CandidateInterview.interview_date.desc())
+        db.query(CandidateInterviewCopy)
+        .options(joinedload(CandidateInterviewCopy.candidate))
+        .order_by(CandidateInterviewCopy.interview_date.desc())
         .all()
     )
     return interviews
@@ -235,6 +236,16 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
     return {"detail": "Interview deleted successfully"}
+
+
+@router.get(
+    "/candidates/marketing/active",
+    response_model=List[ActiveMarketingCandidate],
+    summary="Get all active marketing candidates"
+)
+def list_active_marketing_candidates(db: Session = Depends(get_db)):
+    return candidate_utils.get_active_marketing_candidates(db)
+
 
 
 
@@ -272,6 +283,7 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
     return deleted
 
 ##--------------------------------search----------------------------------
+
 
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
@@ -446,3 +458,4 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
         
     except Exception as e:
         return {"error": str(e)}
+
