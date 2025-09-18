@@ -430,26 +430,8 @@ class CandidatePreparationBase(BaseModel):
     
 
 
-# class CandidatePreparationCreate(CandidatePreparationBase):
-#     id: int = Field(..., alias="id")
-#     candidate_id: int
-#     batch: Optional[str] = None
-#     start_date: Optional[date] = None
-#     status: str
-#     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-#     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-#     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-#     rating: Optional[str] = None
-#     tech_rating: Optional[str] = None
-#     communication: Optional[str] = None
-#     years_of_experience: Optional[str] = None
-#     topics_finished: Optional[str] = None
-#     current_topics: Optional[str] = None
-#     target_date_of_marketing: Optional[date] = None
-#     notes: Optional[str] = None
-#     candidate: Optional[CandidateBase]  # added line
-
-class CandidatePreparationCreate(BaseModel):
+class CandidatePreparationCreate(CandidatePreparationBase):
+    id: int = Field(..., alias="id")
     candidate_id: int
     batch: Optional[str] = None
     start_date: Optional[date] = None
@@ -465,9 +447,7 @@ class CandidatePreparationCreate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
-
-    class Config:
-        populate_by_name = True
+    candidate: Optional[CandidateBase]  # added line
 
 class CandidatePreparationUpdate(BaseModel):
     batch: Optional[str] = None
@@ -487,47 +467,11 @@ class CandidatePreparationUpdate(BaseModel):
     # candidate: Optional[CandidateBase]  # added line
     
 
-# class CandidatePreparationOut(BaseModel):
-#     id: int
-#     batch: Optional[str] = None
-#     start_date: Optional[date] = None
-#     status: str
-#     rating: Optional[str] = None
-#     tech_rating: Optional[str] = None
-#     communication: Optional[str] = None
-#     years_of_experience: Optional[str] = None
-#     topics_finished: Optional[str] = None
-#     current_topics: Optional[str] = None
-#     target_date_of_marketing: Optional[date] = None
-#     notes: Optional[str] = None
-#     last_mod_datetime: Optional[datetime]
-
-#     candidate: Optional[CandidateBase]
-
-#     # Nested instructors
-#     instructor1: Optional[EmployeeBase]
-#     instructor2: Optional[EmployeeBase]
-#     instructor3: Optional[EmployeeBase]
-
-#     # Keep the IDs for reference if needed
-#     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-#     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-#     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-
-#     class Config:
-#         from_attributes = True
-#         populate_by_name = True
-
-
 class CandidatePreparationOut(BaseModel):
     id: int
-    candidate_id: int
     batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
     rating: Optional[str] = None
     tech_rating: Optional[str] = None
     communication: Optional[str] = None
@@ -539,9 +483,16 @@ class CandidatePreparationOut(BaseModel):
     last_mod_datetime: Optional[datetime]
 
     candidate: Optional[CandidateBase]
+
+    # Nested instructors
     instructor1: Optional[EmployeeBase]
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
+
+    # Keep the IDs for reference if needed
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
 
     class Config:
         from_attributes = True
@@ -551,119 +502,20 @@ class CandidatePreparationOut(BaseModel):
 
 
 # ---------Interview-----------------------------------------
-# class ModeOfInterviewEnum(str, Enum):
-#     virtual = "Virtual"
-#     in_person = "In Person"
-#     phone = "Phone"
-#     assessment = "Assessment"
-
-
-# class TypeOfInterviewEnum(str, Enum):
-#     assessment = "Assessment"
-#     recruiter_call = "Recruiter Call"
-#     technical = "Technical"
-#     hr_round = "HR Round"
-#     in_person = "In Person"
-#     prep_call = "Prep Call"
-
-
-# class FeedbackEnum(str, Enum):
-#     pending = "Pending"
-#     positive = "Positive"
-#     negative = "Negative"
-
-
-# # --- Base Schema ---
-# class CandidateInterviewBase(BaseModel):
-#     candidate_id: int
-#     company: str
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: date
-#     mode_of_interview: Optional[ModeOfInterviewEnum] = None
-#     type_of_interview: Optional[TypeOfInterviewEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     url: Optional[str] = None  # New field added
-#     # status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-#     candidate: Optional[CandidateBase] = None
-
-
-# # --- Create Schema ---
-# class CandidateInterviewCreate(CandidateInterviewBase):
-#     pass
-
-
-# # --- Update Schema ---
-# class CandidateInterviewUpdate(BaseModel):
-#     candidate_id: Optional[int] = None
-#     company: Optional[str] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     interview_date: Optional[date] = None
-#     mode_of_interview: Optional[ModeOfInterviewEnum] = None
-#     type_of_interview: Optional[TypeOfInterviewEnum] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     url: Optional[str] = None  # New field added
-#     status: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-
-
-# # --- Output Schema ---
-# class CandidateInterviewOut(CandidateInterviewBase):
-#     id: int
-#     last_mod_datetime: Optional[datetime]
-
-#     class Config:
-#         from_attributes = True
-
-
-# # --- Paginated Output ---
-# class PaginatedInterviews(BaseModel):
-#     items: List[CandidateInterviewOut]
-#     total: int
-#     page: int
-#     per_page: int
-
-class ActiveMarketingCandidate(BaseModel):
-    candidate_id: int
-    full_name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    start_date: date
-    status: str
-
-    class Config:
-        orm_mode = True
-
-
-# class CandidateInterviewCreate(BaseModel):
-#     candidate_id: int
-#     company: str
-#     interview_date: date
-#     mode_of_interview: Optional[ModeOfInterviewEnum] = None
-#     type_of_interview: Optional[TypeOfInterviewEnum] = None
-#     interviewer_emails: Optional[str] = None
-#     interviewer_contact: Optional[str] = None
-#     recording_link: Optional[str] = None
-#     backup_url: Optional[str] = None
-#     url: Optional[str] = None
-#     feedback: Optional[FeedbackEnum] = None
-#     notes: Optional[str] = None
-
-#     class Config:
-#         allow_population_by_field_name = True
-
-
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
     phone = "Phone"
     assessment = "Assessment"
+
+
+class TypeOfInterviewEnum(str, Enum):
+    assessment = "Assessment"
+    recruiter_call = "Recruiter Call"
+    technical = "Technical"
+    hr_round = "HR Round"
+    in_person = "In Person"
+    prep_call = "Prep Call"
 
 
 class FeedbackEnum(str, Enum):
@@ -679,14 +531,15 @@ class CandidateInterviewBase(BaseModel):
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
     interview_date: date
-    interview_type: Optional[str] = None  # varchar(100) from DDL
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
+    type_of_interview: Optional[TypeOfInterviewEnum] = None
     recording_link: Optional[str] = None
-    status: Optional[str] = None
+    backup_url: Optional[str] = None
+    url: Optional[str] = None  # New field added
+    # status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
-    backup_url: Optional[str] = None
-    candidate: Optional["CandidateBase"] = None  # forward reference
+    candidate: Optional[CandidateBase] = None
 
 
 # --- Create Schema ---
@@ -701,13 +554,14 @@ class CandidateInterviewUpdate(BaseModel):
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
     interview_date: Optional[date] = None
-    interview_type: Optional[str] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
+    type_of_interview: Optional[TypeOfInterviewEnum] = None
     recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    url: Optional[str] = None  # New field added
     status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
-    backup_url: Optional[str] = None
 
 
 # --- Output Schema ---
@@ -726,6 +580,34 @@ class PaginatedInterviews(BaseModel):
     page: int
     per_page: int
 
+class ActiveMarketingCandidate(BaseModel):
+    candidate_id: int
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    start_date: date
+    status: str
+
+    class Config:
+        orm_mode = True
+
+
+class CandidateInterviewCreate(BaseModel):
+    candidate_id: int
+    company: str
+    interview_date: date
+    mode_of_interview: Optional[ModeOfInterviewEnum] = None
+    type_of_interview: Optional[TypeOfInterviewEnum] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    url: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
+
+    class Config:
+        allow_population_by_field_name = True
 # -----------------------------------------------------------------------------------
 
 class GoogleUserCreate(BaseModel):

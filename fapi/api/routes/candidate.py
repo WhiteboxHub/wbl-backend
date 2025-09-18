@@ -8,7 +8,7 @@ from fapi.utils.avatar_dashboard_utils import (
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
 from fapi.db.schemas import CandidateBase, CandidateUpdate,ActiveMarketingCandidate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
-from fapi.db.models import CandidateInterviewCopy,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
+from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload,selectinload
 
@@ -200,9 +200,9 @@ def create_interview(
 @router.get("/interviews", response_model=list[CandidateInterviewOut])
 def list_interviews(db: Session = Depends(get_db)):
     interviews = (
-        db.query(CandidateInterviewCopy)
-        .options(joinedload(CandidateInterviewCopy.candidate))
-        .order_by(CandidateInterviewCopy.interview_date.desc())
+        db.query(CandidateInterview)
+        .options(joinedload(CandidateInterview.candidate))
+        .order_by(CandidateInterview.interview_date.desc())
         .all()
     )
     return interviews

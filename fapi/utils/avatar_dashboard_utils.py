@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterviewCopy, EmployeeORM, LeadORM
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM
 
 
 def get_batch_metrics(db: Session) -> Dict[str, Any]:
@@ -182,16 +182,16 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
     today = datetime.now().date()
     next_week = today + timedelta(days=7)
     # Upcoming Interviews
-    upcoming_interviews = db.query(CandidateInterviewCopy).filter(
-        CandidateInterviewCopy.interview_date >= datetime.now(),
-        CandidateInterviewCopy.interview_date <= datetime.combine(next_week, datetime.max.time())
+    upcoming_interviews = db.query(CandidateInterview).filter(
+        CandidateInterview.interview_date >= datetime.now(),
+        CandidateInterview.interview_date <= datetime.combine(next_week, datetime.max.time())
     ).count()
     # Total Interviews Scheduled
-    total_interviews = db.query(CandidateInterviewCopy).count()
+    total_interviews = db.query(CandidateInterview).count()
     # Interviews This Month
-    interviews_month = db.query(CandidateInterviewCopy).filter(
-        extract('month', CandidateInterviewCopy.interview_date) == today.month,
-        extract('year', CandidateInterviewCopy.interview_date) == today.year
+    interviews_month = db.query(CandidateInterview).filter(
+        extract('month', CandidateInterview.interview_date) == today.month,
+        extract('year', CandidateInterview.interview_date) == today.year
     ).count()
     # Candidates in Marketing Phase
     marketing_candidates = db.query(CandidateORM.full_name).join( 
@@ -202,9 +202,9 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
     ).all() 
     # Interview Feedback Breakdown
     feedback_breakdown = db.query(
-        CandidateInterviewCopy.feedback,
-        func.count(CandidateInterviewCopy.id)
-    ).group_by(CandidateInterviewCopy.feedback).all()
+        CandidateInterview.feedback,
+        func.count(CandidateInterview.id)
+    ).group_by(CandidateInterview.feedback).all()
     feedback_dict = {}
     for feedback, count in feedback_breakdown:
         if feedback:
@@ -372,15 +372,15 @@ def candidate_interview_performance(db: Session):
         db.query(
             CandidateORM.id.label("candidate_id"),
             CandidateORM.full_name.label("candidate_name"),
-            func.count(CandidateInterviewCopy.id).label("total_interviews"),
+            func.count(CandidateInterview.id).label("total_interviews"),
             func.coalesce(
                 func.sum(
-                    case((CandidateInterviewCopy.feedback == "Positive", 1), else_=0)
+                    case((CandidateInterview.feedback == "Positive", 1), else_=0)
                 ), 0
             ).label("success_count")
         )
         .join(CandidateMarketingORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
-        .outerjoin(CandidateInterviewCopy, CandidateInterviewCopy.candidate_id == CandidateORM.id)
+        .outerjoin(CandidateInterview, CandidateInterview.candidate_id == CandidateORM.id)
         .group_by(CandidateORM.id, CandidateORM.full_name)
         .all()
     )
