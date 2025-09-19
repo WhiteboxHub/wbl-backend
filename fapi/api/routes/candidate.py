@@ -7,7 +7,7 @@ from fapi.utils.avatar_dashboard_utils import (
 )
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+from fapi.db.schemas import CandidateBase, CandidateUpdate,ActiveMarketingCandidate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload,selectinload
@@ -23,6 +23,25 @@ router = APIRouter()
 
 
 # ------------------------Candidate------------------------------------
+
+
+
+@router.get("/candidates/all", response_model=List[Dict[str, Any]])
+def get_all_candidates(db: Session = Depends(get_db)):
+    """
+    Fetch all candidates without pagination, for dropdowns.
+    """
+    try:
+        candidates = db.query(CandidateORM).all()
+        data: List[Dict[str, Any]] = []
+        for c in candidates:
+            item = c.__dict__.copy()
+            item.pop("_sa_instance_state", None)
+            data.append(item)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
@@ -196,6 +215,7 @@ def create_interview(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
+
 @router.get("/interviews", response_model=list[CandidateInterviewOut])
 def list_interviews(db: Session = Depends(get_db)):
     interviews = (
@@ -237,6 +257,16 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
     return {"detail": "Interview deleted successfully"}
 
 
+@router.get(
+    "/candidates/marketing/active",
+    response_model=List[ActiveMarketingCandidate],
+    summary="Get all active marketing candidates"
+)
+def list_active_marketing_candidates(db: Session = Depends(get_db)):
+    return candidate_utils.get_active_marketing_candidates(db)
+
+
+
 
 # -------------------Candidate_Preparation -------------------
 
@@ -272,6 +302,7 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
     return deleted
 
 ##--------------------------------search----------------------------------
+
 
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
@@ -379,15 +410,11 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
             "preparation_records": [
                 {
                 "Start Date": prep.start_date.isoformat() if prep.start_date else None,
-                "Status": prep.status,
                 "Instructor 1 Name": prep.instructor1_employee.name if prep.instructor1_employee else None,
                 "Instructor 2 Name": prep.instructor2_employee.name if prep.instructor2_employee else None,
                 "Instructor 3 Name": prep.instructor3_employee.name if prep.instructor3_employee else None,
                 "Tech Rating": prep.tech_rating,
-                "Communication": prep.communication,
                 "Topics Finished": prep.topics_finished,
-                "Target Date of Marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
-                "Notes": prep.notes,
                 "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
 
                 }
@@ -396,7 +423,6 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
             "marketing_records": [
                 {
                     "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
-                    "Status": marketing.status,
                     "Marketing Manager Name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
                     "Notes": marketing.notes,
                     "Last Modified": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
@@ -446,3 +472,4 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
         
     except Exception as e:
         return {"error": str(e)}
+

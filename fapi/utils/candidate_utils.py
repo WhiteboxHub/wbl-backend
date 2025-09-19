@@ -406,6 +406,29 @@ def delete_candidate_interview(db: Session, interview_id: int):
         db.commit()
     return db_obj
 
+
+
+def get_active_marketing_candidates(db: Session):
+    results = (
+        db.query(CandidateMarketingORM, CandidateORM)
+        .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+        .filter(CandidateMarketingORM.status == "active")
+        .all()
+    )
+
+    return [
+        {
+            "candidate_id": candidate.id,
+            "full_name": candidate.full_name,
+            "email": candidate.email,
+            "phone": candidate.phone,
+            "start_date": marketing.start_date,
+            "status": marketing.status,
+        }
+        for marketing, candidate in results
+    ]
+
+
 # -------------------Candidate_Preparation-------------
 
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
@@ -519,7 +542,6 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
 
                         prep_record = {
                             "Start Date": prep.start_date.isoformat() if prep.start_date else None,
-                            "Status": prep.status,
                             "Instructor 1 Name": inst1_name,
                             "Instructor 2 Name": inst2_name,
                             "Instructor 3 Name": inst3_name,
@@ -527,10 +549,7 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                             "Tech Rating": prep.tech_rating,
                             "Communication": prep.communication,
                             "Years of Experience": prep.years_of_experience,
-                            "Topics Finished": prep.topics_finished,
                             "Current Topics": prep.current_topics,
-                            "Target Date of Marketing": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
-                            "Notes": prep.notes,
                             "Last Modified": prep.last_mod_date.isoformat() if prep.last_mod_date else None
                         }
                         preparation_records.append(prep_record)
@@ -549,7 +568,6 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
 
                         marketing_record = {
                             "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
-                            "Status": marketing.status,
                             "Marketing Manager Name": manager_name,
                             "Notes": marketing.notes,
                             "Last Modified": marketing.last_mod_date.isoformat() if marketing.last_mod_date else None
