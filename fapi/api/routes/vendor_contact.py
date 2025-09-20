@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
 from fastapi.responses import JSONResponse
 from typing import List
 from fapi.db.schemas import VendorContactExtract, VendorContactExtractCreate, VendorContactExtractUpdate
@@ -6,7 +6,8 @@ from fapi.utils.vendor_contact_utils import (
     get_all_vendor_contacts,
     insert_vendor_contact,
     update_vendor_contact,
-    delete_vendor_contact
+    delete_vendor_contact,
+    move_contacts_to_vendor,
 )
 
 router = APIRouter()
@@ -33,3 +34,9 @@ async def update_vendor_contact_handler(contact_id: int, update_data: VendorCont
 async def delete_vendor_contact_handler(contact_id: int):
     await delete_vendor_contact(contact_id)
     return {"message": f"Vendor contact {contact_id} deleted successfully"}
+
+
+@router.post("/vendor_contact/move_to_vendor")
+async def move_to_vendor(contact_ids: list[int] = Body(default=None, embed=True)):
+    result = await move_contacts_to_vendor(contact_ids)
+    return result
