@@ -437,7 +437,24 @@ class CandidatePreparationBase(BaseModel):
     
 
 from pydantic import field_validator
-class CandidatePreparationCreate(BaseModel):  
+class CandidatePreparationCreate(BaseModel):
+    # id: int = Field(..., alias="id")
+    # candidate_id: int
+    # batch: Optional[str] = None
+    # start_date: Optional[date] = None
+    # status: str
+    # instructor1_id: Optional[int] = Field(None, alias="instructor1_id")
+    # instructor2_id: Optional[int] = Field(None, alias="instructor2_id")
+    # instructor3_id: Optional[int] = Field(None, alias="instructor3_id")
+    # rating: Optional[str] = None
+    # tech_rating: Optional[str] = None
+    # communication: Optional[str] = None
+    # years_of_experience: Optional[str] = None
+    # topics_finished: Optional[str] = None
+    # current_topics: Optional[str] = None
+    # target_date_of_marketing: Optional[date] = None
+    # notes: Optional[str] = None
+    # candidate: Optional[CandidateBase]  # added line
 
     candidate_id: int
     batch: Optional[str] = None

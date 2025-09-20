@@ -286,6 +286,9 @@ class CandidateMarketingORM(Base):
     marketing_manager_employee = relationship(
         "EmployeeORM", foreign_keys=[marketing_manager], overlaps="marketing_manager_obj"
     )
+
+
+
 # -------------------------------------- Candidate Interview -------------------------------
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"

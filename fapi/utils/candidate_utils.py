@@ -430,16 +430,44 @@ def get_active_marketing_candidates(db: Session):
 
 
 # -------------------Candidate_Preparation-------------
-
+from datetime import datetime
+def is_valid_date(date_str):
+    if not date_str:
+        return False
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
-    if prep_data.email:
-        prep_data.email = prep_data.email.lower()
-    db_prep = CandidatePreparation(**prep_data.dict())
-    db.add(db_prep)
-    db.commit()
-    db.refresh(db_prep)
-    return db_prep
+    PAYLOAD_TO_DB_MAP = {
+        "candidate_id": "candidate_id",
+        "batch": "batch",
+        "start_date": "start_date",
+        "status": "status",
+        "instructor1_id": "instructor1_id",
+        "instructor2_id": "instructor2_id",
+        "instructor3_id": "instructor3_id",
+        "rating": "rating",
+        "tech_rating": "tech_rating",
+        "communication": "communication",
+        "years_of_experience": "years_of_experience",
+        "topics_finished": "topics_finished",
+        "current_topics": "current_topics",
+        "target_date_of_marketing": "target_date_of_marketing",
+        "notes": "notes",
+    }
 
+    data = prep_data.model_dump()
+    db_data = {db_col: data[key] for key, db_col in PAYLOAD_TO_DB_MAP.items() if key in data}
+
+    candidate = CandidatePreparation(**db_data)
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+
+    # Return the full object so it matches the response_model
+    return candidate
 
 def get_preparations_by_candidate(db: Session, candidate_id: int):
     results = (
