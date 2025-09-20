@@ -160,6 +160,17 @@ def delete_marketing_record(record_id: int):
 
 # -------------------Candidate_Placements -------------------
 
+# @router.get("/candidates/marketing")
+# def get_marketing_candidates(db: Session = Depends(get_db)):
+#     candidates = db.query(CandidateORM).filter(
+#         CandidateORM.department.ilike("marketing") 
+#     ).all()
+    
+#     if not candidates:
+#         raise HTTPException(status_code=404, detail="No marketing candidates found")
+    
+#     return {"data": [{"id": c.id, "full_name": c.full_name, "department": c.department} for c in candidates]}
+
 @router.get("/candidate/placements")
 def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
     return candidate_utils.get_all_placements(page, limit)
