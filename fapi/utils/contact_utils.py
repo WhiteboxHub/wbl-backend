@@ -7,7 +7,7 @@ from datetime import datetime
 
 def save_contact_lead(
     db: Session, full_name: str, email: str = None,
-    phone: str = None, message: str = None
+    phone: str = None, message: str = None, status: str = "Open"
 ):
     try:
         lead = LeadORM(
@@ -17,7 +17,8 @@ def save_contact_lead(
             notes=message,
             moved_to_candidate=False,
             entry_date=datetime.utcnow(),
-            last_modified=datetime.utcnow()
+            last_modified=datetime.utcnow(),
+            status=status
         )
         db.add(lead)
         db.commit()
