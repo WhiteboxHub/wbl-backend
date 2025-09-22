@@ -237,7 +237,6 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
     return {"detail": "Interview deleted successfully"}
 
 
-
 # -------------------Candidate_Preparation -------------------
 
 

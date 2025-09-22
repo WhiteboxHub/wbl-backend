@@ -143,52 +143,99 @@ def delete_candidate(candidate_id: int):
 
 # -----------------------------------------------Marketing----------------------------
 
-
 def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
     try:
         total = db.query(CandidateMarketingORM).count()
-        results = (
+        records = (
             db.query(CandidateMarketingORM)
             .options(
-                joinedload(CandidateMarketingORM.candidate),
-                joinedload(CandidateMarketingORM.instructor1),
-                joinedload(CandidateMarketingORM.instructor2),
-                joinedload(CandidateMarketingORM.instructor3),
-                joinedload(CandidateMarketingORM.marketing_manager_obj),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1_employee),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2_employee),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3_employee),
             )
             .order_by(CandidateMarketingORM.id.asc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
         )
-        return {"page": page, "limit": limit, "total": total, "data": results}
+
+        results_serialized = []
+        for r in records:
+            candidate = r.candidate
+            prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
+            # Convert full ORM to dict
+            record_dict = r.__dict__.copy()
+            # Remove SQLAlchemy internal state
+            record_dict.pop("_sa_instance_state", None)
+            # Override instructor names from prep
+            record_dict["instructor1_name"] = prep.instructor1_employee.name if prep and prep.instructor1_employee else None
+            record_dict["instructor2_name"] = prep.instructor2_employee.name if prep and prep.instructor2_employee else None
+            record_dict["instructor3_name"] = prep.instructor3_employee.name if prep and prep.instructor3_employee else None
+            # Optionally add full candidate and marketing_manager objects
+            record_dict["candidate"] = candidate.__dict__ if candidate else None
+            if record_dict["candidate"]:
+                record_dict["candidate"].pop("_sa_instance_state", None)
+            record_dict["marketing_manager_obj"] = r.marketing_manager_obj.__dict__ if r.marketing_manager_obj else None
+            if record_dict["marketing_manager_obj"]:
+                record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+
+            results_serialized.append(record_dict)
+
+        return {"page": page, "limit": limit, "total": total, "data": results_serialized}
     finally:
         db.close()
 
 
-# Get marketing by candidate ID
 def get_marketing_by_candidate_id(candidate_id: int):
     db: Session = SessionLocal()
     try:
         records = (
             db.query(CandidateMarketingORM)
             .options(
-                joinedload(CandidateMarketingORM.candidate),
-                joinedload(CandidateMarketingORM.instructor1),
-                joinedload(CandidateMarketingORM.instructor2),
-                joinedload(CandidateMarketingORM.instructor3),
-                joinedload(CandidateMarketingORM.marketing_manager_obj),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1_employee),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2_employee),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3_employee),
             )
             .filter(CandidateMarketingORM.candidate_id == candidate_id)
             .all()
         )
         if not records:
             raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
-        return {"candidate_id": candidate_id, "data": records}
+
+        results_serialized = []
+        for r in records:
+            candidate = r.candidate
+            prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
+            results_serialized.append({
+                "id": r.id,
+                "candidate_id": r.candidate_id,
+                "candidate_name": candidate.full_name if candidate else None,
+                "start_date": r.start_date.isoformat() if r.start_date else None,
+                "status": r.status,
+                "instructor1_name": prep.instructor1_employee.name if prep and prep.instructor1_employee else None,
+                "instructor2_name": prep.instructor2_employee.name if prep and prep.instructor2_employee else None,
+                "instructor3_name": prep.instructor3_employee.name if prep and prep.instructor3_employee else None,
+                "marketing_manager_name": r.marketing_manager_obj.name if r.marketing_manager_obj else None,
+                "notes": r.notes,
+                "last_mod_datetime": r.last_mod_datetime.isoformat() if r.last_mod_datetime else None
+            })
+
+        return {"candidate_id": candidate_id, "data": results_serialized}
     finally:
         db.close()
-
 
 
 
@@ -349,7 +396,6 @@ def delete_placement(placement_id: int) -> Dict:
         return {"message": "Placement deleted successfully"}
     finally:
         db.close()
-
 
 # ----------------------------------------Candidate_Interviews-------------------------------------
 
