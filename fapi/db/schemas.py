@@ -174,7 +174,34 @@ class PaginatedUsers(BaseModel):
     page: int
     per_page: int
     users: List[AuthUserResponse]
+# ------------------------------------Batch---------------------------------------
+class BatchBase(BaseModel):
+    batchname: str
+    orientationdate: Optional[date] = None
+    subject: Optional[str] = "ML"
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    courseid: Optional[int] = None
 
+class BatchCreate(BatchBase):
+    pass
+
+class BatchUpdate(BatchBase):
+    pass
+
+
+class BatchOut(BatchBase):
+    batchid: int
+    # lastmoddatetime: Optional[datetime]
+
+    # @field_validator("lastmoddatetime", mode="before")
+    # def handle_invalid_datetime(cls, v):
+    #     if v in (None, "0000-00-00 00:00:00"):
+    #         return None
+    #     return v
+
+    class Config:
+        orm_mode = True
 
 
 # ----------------------------------------------------------------------------------------
@@ -266,7 +293,7 @@ class CandidateDelete(CandidateBase):
     id: int
 
     class Config:
-        from_attributes = True
+         validate_by_name = True
     
 class PaginatedCandidateResponse(BaseModel):
     page: int
@@ -280,6 +307,9 @@ class PaginatedCandidateResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class CandidateOut(CandidateBase):
+    id: int
+    batch: Optional[BatchOut] = None
 # -------------------------------------------------
 
 
@@ -870,33 +900,33 @@ class CourseSubject(CourseSubjectBase):
 
 
 
-class BatchBase(BaseModel):
-    batchname: str
-    orientationdate: Optional[date] = None
-    subject: Optional[str] = "ML"
-    startdate: Optional[date] = None
-    enddate: Optional[date] = None
-    courseid: Optional[int] = None
+# class BatchBase(BaseModel):
+#     batchname: str
+#     orientationdate: Optional[date] = None
+#     subject: Optional[str] = "ML"
+#     startdate: Optional[date] = None
+#     enddate: Optional[date] = None
+#     courseid: Optional[int] = None
 
-class BatchCreate(BatchBase):
-    pass
+# class BatchCreate(BatchBase):
+#     pass
 
-class BatchUpdate(BatchBase):
-    pass
+# class BatchUpdate(BatchBase):
+#     pass
 
 
-class BatchOut(BatchBase):
-    batchid: int
-    # lastmoddatetime: Optional[datetime]
+# class BatchOut(BatchBase):
+#     batchid: int
+#     # lastmoddatetime: Optional[datetime]
 
-    # @field_validator("lastmoddatetime", mode="before")
-    # def handle_invalid_datetime(cls, v):
-    #     if v in (None, "0000-00-00 00:00:00"):
-    #         return None
-    #     return v
+#     # @field_validator("lastmoddatetime", mode="before")
+#     # def handle_invalid_datetime(cls, v):
+#     #     if v in (None, "0000-00-00 00:00:00"):
+#     #         return None
+#     #     return v
 
-    class Config:
-        orm_mode = True
+#     class Config:
+#         orm_mode = True
 
 # -----------------------------------------------------------
 

@@ -90,13 +90,49 @@ def get_candidate_by_id(candidate_id: int) -> Dict:
 
 
 
+# def create_candidate(candidate_data: dict) -> int:
+#     db: Session = SessionLocal()
+#     try:
+#         candidate_data.setdefault("enrolled_date", date.today())
+#         if "email" in candidate_data and candidate_data["email"]:
+#             candidate_data["email"] = candidate_data["email"].lower()
+
+#         new_candidate = CandidateORM(**candidate_data)
+#         db.add(new_candidate)
+#         db.commit()
+#         db.refresh(new_candidate)
+#         return new_candidate.id
+#     except Exception as e:
+#         db.rollback()
+#         print("Error creating candidate:", e)  
+#         raise HTTPException(status_code=500, detail=str(e))
+#     finally:
+#         db.close()
+
+# def update_candidate(candidate_id: int, candidate_data: dict):
+#     db: Session = SessionLocal()
+#     try:
+#         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+#         if not candidate:
+#             raise HTTPException(status_code=404, detail="Candidate not found")
+#         for key, value in candidate_data.items():
+#             setattr(candidate, key, value)
+#         db.commit()  
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(status_code=500, detail=str(e))
+#     finally:
+#         db.close()  
+
+
+
+
 def create_candidate(candidate_data: dict) -> int:
     db: Session = SessionLocal()
     try:
         candidate_data.setdefault("enrolled_date", date.today())
         if "email" in candidate_data and candidate_data["email"]:
             candidate_data["email"] = candidate_data["email"].lower()
-
         new_candidate = CandidateORM(**candidate_data)
         db.add(new_candidate)
         db.commit()
@@ -104,7 +140,7 @@ def create_candidate(candidate_data: dict) -> int:
         return new_candidate.id
     except Exception as e:
         db.rollback()
-        print("Error creating candidate:", e)  
+        print("Error creating candidate:", e)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
@@ -117,12 +153,12 @@ def update_candidate(candidate_id: int, candidate_data: dict):
             raise HTTPException(status_code=404, detail="Candidate not found")
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
-        db.commit()  
+        db.commit()
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()  
+        db.close()
 
 def delete_candidate(candidate_id: int):
     db: Session = SessionLocal()
