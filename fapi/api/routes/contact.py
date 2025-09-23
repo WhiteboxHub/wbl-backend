@@ -27,7 +27,8 @@ async def contact(user: ContactForm, db: Session = Depends(get_db)):
         full_name=full_name,
         email=user.email,
         phone=user.phone,
-        message=user.message
+        message=user.message,
+        status = "open"
     )
 
     return {"detail": "Message sent successfully"}
