@@ -406,6 +406,29 @@ def delete_candidate_interview(db: Session, interview_id: int):
         db.commit()
     return db_obj
 
+
+
+def get_active_marketing_candidates(db: Session):
+    results = (
+        db.query(CandidateMarketingORM, CandidateORM)
+        .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+        .filter(CandidateMarketingORM.status == "active")
+        .all()
+    )
+
+    return [
+        {
+            "candidate_id": candidate.id,
+            "full_name": candidate.full_name,
+            "email": candidate.email,
+            "phone": candidate.phone,
+            "start_date": marketing.start_date,
+            "status": marketing.status,
+        }
+        for marketing, candidate in results
+    ]
+
+
 # -------------------Candidate_Preparation-------------
 
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
