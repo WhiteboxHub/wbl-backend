@@ -362,8 +362,9 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
                 "agreement": candidate.agreement,
                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                 "batch_name": batch_name,
-                "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None
-                ,"notes": candidate.notes
+                "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None,
+                "github_link": candidate.github_link if hasattr(candidate, 'github_link') else None,
+                "notes": candidate.notes
             },
             "emergency_contact": {
                 "emergency_contact_name": candidate.emergcontactname,
@@ -441,3 +442,13 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
         
     except Exception as e:
         return {"error": str(e)}
+@router.get("/candidates/sessions/{candidate_id}")
+def get_candidate_sessions_route(candidate_id: int, db: Session = Depends(get_db)):
+    """Get sessions for a specific candidate by matching name in title"""
+    try:
+        # Import and call the utils function
+        from fapi.utils.candidate_utils import get_candidate_sessions
+        return get_candidate_sessions(candidate_id, db)
+    except Exception as e:
+        return {"error": str(e)}
+

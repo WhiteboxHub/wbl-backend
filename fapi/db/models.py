@@ -232,7 +232,9 @@ class CandidateORM(Base):
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     batchid = Column(Integer, nullable=False)
+    
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
+    github_link = Column(String(500), nullable=True)
 
     # Relationships
     interviews = relationship("CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
