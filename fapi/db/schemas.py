@@ -423,6 +423,7 @@ class CandidatePreparationBase(BaseModel):
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
+
     class Config:
         from_attributes = True  # Pydantic v2 equivalent of orm_mode
     
@@ -548,7 +549,7 @@ class CandidateInterviewCreate(CandidateInterviewBase):
     pass
 
 
-# --- Update Schema ---
+# # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
@@ -568,7 +569,10 @@ class CandidateInterviewUpdate(BaseModel):
 # --- Output Schema ---
 class CandidateInterviewOut(CandidateInterviewBase):
     id: int
-    last_mod_datetime: Optional[datetime]
+    instructor1_name: Optional[str] = None
+    instructor2_name: Optional[str] = None
+    instructor3_name: Optional[str] = None
+    last_mod_datetime: Optional[datetime] = None 
 
     class Config:
         from_attributes = True

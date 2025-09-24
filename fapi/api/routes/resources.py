@@ -15,6 +15,7 @@ import traceback
 from fapi.utils.avatar_dashboard_utils import (
     get_batch_metrics,
 )
+
 router = APIRouter()
 
 
