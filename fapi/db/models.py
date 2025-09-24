@@ -372,9 +372,9 @@ class CandidatePreparation(Base):
     instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
 
-    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id])
-    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id])
-    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id])
+    instructor1 = relationship("EmployeeORM", foreign_keys=[instructor1_id],overlaps="instructor1_employee")
+    instructor2 = relationship("EmployeeORM", foreign_keys=[instructor2_id],overlaps="instructor2_employee")
+    instructor3 = relationship("EmployeeORM", foreign_keys=[instructor3_id],overlaps="instructor3_employee")
 
     batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
