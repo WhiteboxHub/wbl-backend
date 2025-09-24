@@ -152,6 +152,11 @@ def get_placement_metrics_endpoint(
     return get_placement_metrics(db)
 
 
+# @router.get("/candidate/placements/{placement_id}")
+# def read_placement(placement_id: int = Path(...)):
+#     return candidate_utils.get_placement_by_id(placement_id)
+
+
 @router.get("/candidate/placements/{placement_id}", response_model=dict)
 def read_placement(
     placement_id: int = Path(...),
@@ -162,6 +167,21 @@ def read_placement(
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
     return placement
+
+
+# @router.get("/candidate/placements/{placement_id}", response_model=schemas.CandidatePlacement)
+# def read_placement(
+#     placement_id: int = Path(...),
+#     db: Session = Depends(get_db),
+#     credentials: HTTPAuthorizationCredentials = Security(security),
+# ):
+#     placement = candidate_utils.get_placement_by_id(db, placement_id)
+#     if not placement:
+#         raise HTTPException(status_code=404, detail="Placement not found")
+#     return placement
+
+
+
 @router.post("/candidate/placements", response_model=CandidatePlacement)
 def create_new_placement(placement: CandidatePlacementCreate):
     return candidate_utils.create_placement(placement)

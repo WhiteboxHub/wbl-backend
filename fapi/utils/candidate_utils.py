@@ -250,6 +250,17 @@ def delete_marketing(record_id: int) -> Dict:
 
 # ----------------------------------------------------Candidate_Placement---------------------------------
 
+def get_placement_by_id(placement_id: int):
+    db: Session = SessionLocal()
+    try:
+        placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
+        if not placement:
+            raise HTTPException(status_code=404, detail="Placement not found")
+        data = placement.__dict__.copy()
+        data.pop("_sa_instance_state", None)
+        return data
+    finally:
+        db.close()
 
 
 def get_all_placements(page: int, limit: int) -> Dict:
