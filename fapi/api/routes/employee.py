@@ -1,17 +1,27 @@
-from fastapi import FastAPI, HTTPException, status,APIRouter, Depends
+from fastapi import FastAPI, HTTPException, status, APIRouter, Depends, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db.models import EmployeeORM
-from fapi.db.database import SessionLocal,get_db
+from fapi.db.database import SessionLocal, get_db
 from fapi.db.schemas import Employee, EmployeeCreate, EmployeeUpdate
-from fapi.utils.employee_utils import get_all_employees,create_employee_db,update_employee_db,delete_employee_db,clean_invalid_values
+from fapi.utils.employee_utils import (
+    get_all_employees,
+    create_employee_db,
+    update_employee_db,
+    delete_employee_db,
+    clean_invalid_values
+)
 from fapi.utils.avatar_dashboard_utils import get_employee_birthdays
 
 app = FastAPI()
 router = APIRouter()
 
+security = HTTPBearer()
 
 @router.get("/employees", response_model=list[Employee])
-def get_employees():
+def get_employees(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     try:
         rows = get_all_employees()
         return [Employee(**row) for row in rows]
@@ -63,3 +73,5 @@ def delete_employee(employee_id: int):
         delete_employee_db(employee_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+

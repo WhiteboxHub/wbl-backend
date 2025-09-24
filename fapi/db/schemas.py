@@ -500,6 +500,7 @@ class CandidatePreparationOut(BaseModel):
 
 
 
+
 # ---------Interview-------------------------------
 
 class ModeOfInterviewEnum(str, Enum):
@@ -583,9 +584,34 @@ class PaginatedInterviews(BaseModel):
     page: int
     per_page: int
 
+class ActiveMarketingCandidate(BaseModel):
+    candidate_id: int
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    start_date: date
+    status: str
+
+    class Config:
+        orm_mode = True
 
 
+class CandidateInterviewCreate(BaseModel):
+    candidate_id: int
+    company: str
+    interview_date: date
+    mode_of_interview: Optional[ModeOfInterviewEnum] = None
+    type_of_interview: Optional[TypeOfInterviewEnum] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    url: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
 
+    class Config:
+        allow_population_by_field_name = True
 # -----------------------------------------------------------------------------------
 
 class GoogleUserCreate(BaseModel):
