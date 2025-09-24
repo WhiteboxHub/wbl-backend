@@ -356,16 +356,16 @@ class CandidatePlacementORM(Base):
 
     candidate = relationship("CandidateORM", back_populates="placements")
 
-
-
 # -------------------------------------- Candidate Preparation -------------------------------
+
+
 class CandidatePreparation(Base):
     __tablename__ = "candidate_preparation"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
 
-    # 🔗 Candidate relationship (use overlaps to fix conflict with preparations/preparation_records)
+    # Candidate relationship (use overlaps to fix conflict with preparations/preparation_records)
     candidate = relationship(
         "CandidateORM",
         back_populates="preparation_records",
@@ -376,15 +376,15 @@ class CandidatePreparation(Base):
     instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
 
-    # 🔗 Instructor relationships (use only *_employee, remove duplicates)
-    instructor1_employee = relationship(
-        "EmployeeORM", foreign_keys=[instructor1_id], overlaps="instructor1"
+    #  Instructor relationships (use only *_employee, remove duplicates)
+    instructor1 = relationship(
+        "EmployeeORM", foreign_keys=[instructor1_id], overlaps="instructor1_employee"
     )
-    instructor2_employee = relationship(
-        "EmployeeORM", foreign_keys=[instructor2_id], overlaps="instructor2"
+    instructor2 = relationship(
+        "EmployeeORM", foreign_keys=[instructor2_id], overlaps="instructor2_employee"
     )
-    instructor3_employee = relationship(
-        "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3"
+    instructor3 = relationship(
+        "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
     # Other fields

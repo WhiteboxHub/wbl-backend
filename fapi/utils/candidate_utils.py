@@ -3,8 +3,8 @@
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
-from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
+from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut, PaginatedInterviews
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any
 from datetime import date
@@ -147,18 +147,29 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
     try:
         total = db.query(CandidateMarketingORM).count()
+
+        # Query marketing records with candidate and latest preparation
         records = (
             db.query(CandidateMarketingORM)
+            .join(CandidateMarketingORM.candidate)  # join candidate
+            .outerjoin(
+                CandidateORM.preparation_records
+            )  # join preparations
             .options(
+                joinedload(CandidateMarketingORM.candidate),
+                joinedload(CandidateMarketingORM.instructor1),
+                joinedload(CandidateMarketingORM.instructor2),
+                joinedload(CandidateMarketingORM.instructor3),
+                joinedload(CandidateMarketingORM.marketing_manager_obj),
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor1_employee),
+                .joinedload(CandidatePreparation.instructor1),
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor2_employee),
+                .joinedload(CandidatePreparation.instructor2),
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor3_employee),
+                .joinedload(CandidatePreparation.instructor3),
             )
             .order_by(CandidateMarketingORM.id.asc())
             .offset((page - 1) * limit)
@@ -169,19 +180,23 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         results_serialized = []
         for r in records:
             candidate = r.candidate
+            # get the latest preparation record
             prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
-            # Convert full ORM to dict
+
             record_dict = r.__dict__.copy()
-            # Remove SQLAlchemy internal state
             record_dict.pop("_sa_instance_state", None)
-            # Override instructor names from prep
-            record_dict["instructor1_name"] = prep.instructor1_employee.name if prep and prep.instructor1_employee else None
-            record_dict["instructor2_name"] = prep.instructor2_employee.name if prep and prep.instructor2_employee else None
-            record_dict["instructor3_name"] = prep.instructor3_employee.name if prep and prep.instructor3_employee else None
-            # Optionally add full candidate and marketing_manager objects
+
+            # Instructor names from latest preparation
+            record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
+            record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
+            record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+
+            # Candidate dict
             record_dict["candidate"] = candidate.__dict__ if candidate else None
             if record_dict["candidate"]:
                 record_dict["candidate"].pop("_sa_instance_state", None)
+
+            # Marketing manager dict
             record_dict["marketing_manager_obj"] = r.marketing_manager_obj.__dict__ if r.marketing_manager_obj else None
             if record_dict["marketing_manager_obj"]:
                 record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
@@ -191,6 +206,7 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         return {"page": page, "limit": limit, "total": total, "data": results_serialized}
     finally:
         db.close()
+
 
 
 def get_marketing_by_candidate_id(candidate_id: int):
@@ -414,10 +430,6 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     db.commit()
     db.refresh(db_obj)
     return db_obj
-
-
-def get_candidate_interviews(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(CandidateInterview).options(contains_eager(CandidateInterview.candidate)) .join(CandidateORM, CandidateInterview.candidate_id == CandidateORM.id).offset(skip).limit(limit).all()
 
 
 def get_candidate_interview(db: Session, interview_id: int):
