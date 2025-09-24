@@ -162,6 +162,8 @@ def read_placement(
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
     return placement
+
+
 @router.post("/candidate/placements", response_model=CandidatePlacement)
 def create_new_placement(placement: CandidatePlacementCreate):
     return candidate_utils.create_placement(placement)
@@ -298,12 +300,10 @@ def delete_prep(
     return deleted
 
 ##--------------------------------search----------------------------------
+##--------------------------------search----------------------------------
+
 @router.get("/candidates/search-names/{search_term}")
-def get_candidate_suggestions(
-    search_term: str,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
+def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
     """Optimized candidate name suggestions with caching"""
     if not search_term or len(search_term.strip()) < 2:
         return []
@@ -334,13 +334,10 @@ def get_candidate_suggestions(
         return {"error": str(e)}
 
 @router.get("/candidates/details/{candidate_id}")
-def get_candidate_details(
-    candidate_id: int,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
+def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
     """Optimized single query for candidate details"""
     try:
+    
         candidate = (
             db.query(CandidateORM)
             .options(
@@ -358,6 +355,7 @@ def get_candidate_details(
         if not candidate:
             return {"error": "Candidate not found"}
         
+        # Get batch and authuser info
         batch_name = f"Batch ID: {candidate.batchid}"
         try:
             batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
@@ -373,6 +371,7 @@ def get_candidate_details(
             except:
                 pass
         
+        
         return {
             "candidate_id": candidate.id,
             "basic_info": {
@@ -386,13 +385,14 @@ def get_candidate_details(
                 "work_status": candidate.workstatus,
                 "education": candidate.education,
                 "work_experience": candidate.workexperience,
-                "ssn": "***-**-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+                "ssn": "-*-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
                 "dob": candidate.dob.isoformat() if candidate.dob else None,
                 "address": candidate.address,
                 "agreement": candidate.agreement,
                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                 "batch_name": batch_name,
                 "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None,
+                "github_link": candidate.github_link if hasattr(candidate, 'github_link') else None,
                 "notes": candidate.notes
             },
             "emergency_contact": {
@@ -408,13 +408,14 @@ def get_candidate_details(
             },
             "preparation_records": [
                 {
-                    "Start Date": prep.start_date.isoformat() if prep.start_date else None,
-                    "Instructor 1 Name": prep.instructor1_employee.name if prep.instructor1_employee else None,
-                    "Instructor 2 Name": prep.instructor2_employee.name if prep.instructor2_employee else None,
-                    "Instructor 3 Name": prep.instructor3_employee.name if prep.instructor3_employee else None,
-                    "Tech Rating": prep.tech_rating,
-                    "Topics Finished": prep.topics_finished,
-                    "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
+                "Start Date": prep.start_date.isoformat() if prep.start_date else None,
+                "Instructor 1 Name": prep.instructor1_employee.name if prep.instructor1_employee else None,
+                "Instructor 2 Name": prep.instructor2_employee.name if prep.instructor2_employee else None,
+                "Instructor 3 Name": prep.instructor3_employee.name if prep.instructor3_employee else None,
+                "Tech Rating": prep.tech_rating,
+                "Topics Finished": prep.topics_finished,
+                "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
+
                 }
                 for prep in candidate.preparation_records
             ],
@@ -429,27 +430,27 @@ def get_candidate_details(
             ],
             "interview_records": [
                 {
-                    "Company": interview.company,
-                    "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
-                    "Interview Type": interview.type_of_interview,
-                    "Feedback": interview.feedback,
-                    "Recording Link": interview.recording_link,
-                    "Notes": interview.notes
+                "Company": interview.company,
+                "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
+                "Interview Type": interview.type_of_interview,
+                "Feedback": interview.feedback,
+                "Recording Link": interview.recording_link,
+                "Notes": interview.notes
                 }
                 for interview in candidate.interview_records
             ],
             "placement_records": [
                 {
-                    "Position": placement.position,
-                    "Company": placement.company,
-                    "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
-                    "Status": placement.status,
-                    "Type": placement.type,
-                    "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
-                    "Benefits": placement.benefits,
-                    "Placement Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
-                    "Last Modified": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,
-                    "Notes": placement.notes
+                "Position": placement.position,
+                "Company": placement.company,
+                "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
+                "Status": placement.status,
+                "Type": placement.type,
+                "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                "Benefits": placement.benefits,
+                "Placement Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
+                "Last Modified": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,
+                "Notes": placement.notes
                 }
                 for placement in candidate.placement_records
             ],
@@ -470,4 +471,12 @@ def get_candidate_details(
         
     except Exception as e:
         return {"error": str(e)}
-    
+@router.get("/candidates/sessions/{candidate_id}")
+def get_candidate_sessions_route(candidate_id: int, db: Session = Depends(get_db)):
+    """Get sessions for a specific candidate by matching name in title"""
+    try:
+        # Import and call the utils function
+        from fapi.utils.candidate_utils import get_candidate_sessions
+        return get_candidate_sessions(candidate_id, db)
+    except Exception as e:
+        return {"error": str(e)}
