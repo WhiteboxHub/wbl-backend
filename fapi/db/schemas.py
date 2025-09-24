@@ -446,6 +446,7 @@ class CandidatePreparationBase(BaseModel):
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
+
     class Config:
         from_attributes = True  # Pydantic v2 equivalent of orm_mode
     
@@ -523,6 +524,7 @@ class CandidatePreparationOut(BaseModel):
 
 
 
+
 # ---------Interview-------------------------------
 
 class ModeOfInterviewEnum(str, Enum):
@@ -570,7 +572,7 @@ class CandidateInterviewCreate(CandidateInterviewBase):
     pass
 
 
-# --- Update Schema ---
+# # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
@@ -590,7 +592,10 @@ class CandidateInterviewUpdate(BaseModel):
 # --- Output Schema ---
 class CandidateInterviewOut(CandidateInterviewBase):
     id: int
-    last_mod_datetime: Optional[datetime]
+    instructor1_name: Optional[str] = None
+    instructor2_name: Optional[str] = None
+    instructor3_name: Optional[str] = None
+    last_mod_datetime: Optional[datetime] = None 
 
     class Config:
         from_attributes = True
@@ -603,9 +608,34 @@ class PaginatedInterviews(BaseModel):
     page: int
     per_page: int
 
+class ActiveMarketingCandidate(BaseModel):
+    candidate_id: int
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    start_date: date
+    status: str
+
+    class Config:
+        orm_mode = True
 
 
+class CandidateInterviewCreate(BaseModel):
+    candidate_id: int
+    company: str
+    interview_date: date
+    mode_of_interview: Optional[ModeOfInterviewEnum] = None
+    type_of_interview: Optional[TypeOfInterviewEnum] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    url: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
 
+    class Config:
+        allow_population_by_field_name = True
 # -----------------------------------------------------------------------------------
 
 class GoogleUserCreate(BaseModel):
