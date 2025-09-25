@@ -231,26 +231,21 @@ class CandidateORM(Base):
     emergcontactaddrs = Column(String(300), nullable=True)
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
-
+    # batchid = Column(Integer, nullable=False)
+    candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
+    github_link = Column(String(500), nullable=True)
    
-
     batchid = Column(Integer, ForeignKey("batch.batchid"),nullable=False)  # Foreign key to batches table
     batch = relationship("Batch", back_populates="candidates")  # Relationship to Batch model
     # Relationships
-    # batchid = Column(Integer, nullable=False)
-    github_link = Column(String(500), nullable=True)
-    candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
-
-   
     interviews = relationship("CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
     preparations = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
     placements = relationship("CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship("CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
-    
+    interview_records = relationship("CandidateInterview", back_populates="candidate")
     preparation_records = relationship("CandidatePreparation", back_populates="candidate")
     # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
-
-    interview_records = relationship("CandidateInterview", back_populates="candidate")
+    # interview_records = relationship("CandidateInterview", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
