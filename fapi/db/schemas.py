@@ -55,12 +55,34 @@ class EmployeeBirthdayOut(BaseModel):
     id: int
     name: str
     dob: date
-    # wish: str | None = None 
     wish: Optional[str] = None     
 
     class Config:
         orm_mode = True
 
+class EmployeeTaskBase(BaseModel): 
+    employee_name: str | None = None 
+    task: str 
+    assigned_date: date 
+    due_date: date 
+    status: str 
+    priority: str 
+    notes: str | None = None 
+class EmployeeTaskCreate(EmployeeTaskBase): 
+    pass
+class EmployeeTaskUpdate(BaseModel):
+    employee_name: Optional[str]
+    task: Optional[str]
+    assigned_date: Optional[date]
+    due_date: Optional[date]
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str]
+
+class EmployeeTask(EmployeeTaskBase): 
+    id: int 
+class Config: 
+    orm_mode = True
 
 class Token(BaseModel):
     access_token: str
