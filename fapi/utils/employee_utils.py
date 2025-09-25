@@ -12,7 +12,7 @@ def get_all_employees() -> list[dict]:
         print(f"Generated SQL: {query}")  
         employees = query.all()
         for emp in employees:
-            print(f"Employee ID: {emp.id}, Name: {emp.name}, Start Date: {emp.startdate}")  # Debug print
+            print(f"Employee ID: {emp.id}, Name: {emp.name}, Start Date: {emp.startdate}")  
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
 
 

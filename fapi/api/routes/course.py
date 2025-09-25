@@ -1,24 +1,34 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List
-
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import course_utils
 
 router = APIRouter()
 
+security = HTTPBearer()
+
 @router.get("/courses", response_model=List[schemas.CourseResponse])
-def get_courses(db: Session = Depends(get_db)):
+def get_courses(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     courses = course_utils.get_all_courses(db)
     return courses
 
-@router.get("/courses/{course_id}", response_model=schemas.CourseResponse)  
-def get_course(course_id: int, db: Session = Depends(get_db)):
+@router.get("/courses/{course_id}", response_model=schemas.CourseResponse)
+def get_course(
+    course_id: int,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     course = course_utils.get_course_by_id(db, course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     return course
+
 
 @router.post("/courses", response_model=schemas.CourseResponse)
 def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
@@ -43,4 +53,4 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
         return {"status": "success", "message": "Course deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    
+

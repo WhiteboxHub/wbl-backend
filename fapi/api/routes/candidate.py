@@ -1,10 +1,12 @@
-
-# fapi/api/routes/candidate.py
+import logging
+from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
     get_interview_metrics,
     candidate_interview_performance,
 )
+
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
@@ -12,18 +14,22 @@ from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation,
 
 from sqlalchemy.orm import Session,joinedload,selectinload
 
-from fapi.db.database import get_db,SessionLocal
-from fapi.utils.candidate_utils import get_all_candidates_paginated
+from fapi.db.database import get_db,SessionLocal 
+from fapi.utils.candidate_utils import get_all_candidates_paginated, serialize_interview 
 from fapi.db import schemas
 from typing import Dict, Any, List
 from sqlalchemy import or_, func
 import re
+
 router = APIRouter()
 
 
 
-# ------------------------Candidate------------------------------------
+logger = logging.getLogger(__name__)
+router = APIRouter()
+security = HTTPBearer()
 
+# ------------------------Candidate------------------------------------
 
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(
@@ -32,48 +38,47 @@ def list_candidates(
     search: str = None,
     search_by: str = "all",
     sort: str = Query("enrolled_date:desc", description="Sort by field:direction (e.g., 'enrolled_date:desc')"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
-
-
 @router.get("/candidates/search", response_model=Dict[str, Any])
-def search_candidates(term: str, db: Session = Depends(get_db)):
+def search_candidates(
+    term: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     try:
         filters = [
             CandidateORM.full_name.ilike(f"%{term}%"),
             CandidateORM.email.ilike(f"%{term}%"),
         ]
-
-
         normalized_term = re.sub(r"\D", "", term)
         if normalized_term:
-           
             filters.append(func.replace(func.replace(CandidateORM.phone, "-", ""), " ", "").ilike(f"%{normalized_term}%"))
-
         if term.isdigit():
             filters.append(CandidateORM.id == int(term))
-
         results = db.query(CandidateORM).filter(or_(*filters)).all()
-
         data: List[Dict[str, Any]] = []
         for r in results:
             item = r.__dict__.copy()
             item.pop("_sa_instance_state", None)
             data.append(item)
-
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @router.get("/candidates/{candidate_id}", response_model=dict)
-def get_candidate(candidate_id: int):
-    candidate = candidate_utils.get_candidate_by_id(candidate_id)
+def get_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    candidate = candidate_utils.get_candidate_by_id(db, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
-
 
 @router.post("/candidates", response_model=int)
 def create_candidate(candidate: CandidateCreate):
@@ -90,37 +95,16 @@ def delete_candidate(candidate_id: int):
     return {"message": "Candidate deleted successfully"}
 
 
-@router.get("/candidates/search", response_model=Dict[str, Any])
-def search_candidates(term: str, db: Session = Depends(get_db)):
-    try:
-        filters = []
-
-        # Search by full_name, email, or phone (case-insensitive)
-        filters.append(CandidateORM.full_name.ilike(f"%{term}%"))
-        filters.append(CandidateORM.email.ilike(f"%{term}%"))
-        filters.append(CandidateORM.phone.ilike(f"%{term}%"))
-
-        # If term is a digit, also search by id
-        if term.isdigit():
-            filters.append(CandidateORM.id == int(term))
-
-        results = db.query(CandidateORM).filter(or_(*filters)).all()
-
-        data: List[Dict[str, Any]] = []
-        for r in results:
-            item = r.__dict__.copy()
-            item.pop("_sa_instance_state", None)
-            data.append(item)
-
-        return {"data": data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ------------------- Marketing -------------------
-
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
-def read_all_marketing(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
-    return candidate_utils.get_all_marketing_records(page, limit)
+def read_all_marketing(
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_all_marketing_records( page, limit)
 
 
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
@@ -142,17 +126,34 @@ def delete_marketing_record(record_id: int):
 # -------------------Candidate_Placements -------------------
 
 @router.get("/candidate/placements")
-def read_all_placements(page: int = Query(1, ge=1), limit: int = Query(100, ge=1, le=1000)):
+def read_all_placements(
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return candidate_utils.get_all_placements(page, limit)
 
 
 @router.get("/candidate/placements/metrics", response_model=PlacementMetrics)
-def get_placement_metrics_endpoint(db: Session = Depends(get_db)):
+def get_placement_metrics_endpoint(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return get_placement_metrics(db)
 
-@router.get("/candidate/placements/{placement_id}")
-def read_placement(placement_id: int = Path(...)):
-    return candidate_utils.get_placement_by_id(placement_id)
+
+@router.get("/candidate/placements/{placement_id}", response_model=dict)
+def read_placement(
+    placement_id: int = Path(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    placement = candidate_utils.get_placement_by_id(db, placement_id)
+    if not placement:
+        raise HTTPException(status_code=404, detail="Placement not found")
+    return placement
+
 
 @router.post("/candidate/placements", response_model=CandidatePlacement)
 def create_new_placement(placement: CandidatePlacementCreate):
@@ -169,16 +170,21 @@ def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
 
 
-
 # -----------candidate interview metrics-------------
 
 
 @router.get("/candidate/interviews/metrics", response_model=InterviewMetrics)
-def get_interview_metrics_endpoint(db: Session = Depends(get_db)):
+def get_interview_metrics_endpoint(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return get_interview_metrics(db)
 
 @router.get("/interview/performance", response_model=CandidateInterviewPerformanceResponse)
-def get_candidate_interview_performance(db: Session = Depends(get_db)):   
+def get_candidate_interview_performance(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     data = candidate_interview_performance(db)
     return {
         "success": True,
@@ -187,7 +193,6 @@ def get_candidate_interview_performance(db: Session = Depends(get_db)):
     }
 
 # -------------------Candidate_interview -------------------
-
 @router.post("/interviews", response_model=CandidateInterviewOut)
 def create_interview(
     interview: CandidateInterviewCreate,
@@ -196,25 +201,20 @@ def create_interview(
     return candidate_utils.create_candidate_interview(db, interview)
 
 
-@router.get("/interviews", response_model=list[CandidateInterviewOut])
-def list_interviews(db: Session = Depends(get_db)):
-    interviews = (
-        db.query(CandidateInterview)
-        .options(joinedload(CandidateInterview.candidate))
-        .order_by(CandidateInterview.interview_date.desc())
-        .all()
-    )
-    return interviews
 
 @router.get("/interviews/{interview_id}", response_model=CandidateInterviewOut)
-def read_candidate_interview(
-    interview_id: int,
-    db: Session = Depends(get_db),
-):
-    db_obj = candidate_utils.get_candidate_interview(db, interview_id)
+def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
+    db_obj = candidate_utils.get_candidate_interview_with_instructors(db, interview_id)
+
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
-    return db_obj
+    return serialize_interview(db_obj)
+
+
+@router.get("/interviews", response_model=List[CandidateInterviewOut])
+def list_interviews(db: Session = Depends(get_db)):
+    interviews = candidate_utils.list_interviews_with_instructors(db)
+    return [serialize_interview(i) for i in interviews]
 
 
 @router.put("/interviews/{interview_id}", response_model=CandidateInterviewOut)
@@ -237,13 +237,12 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
     return {"detail": "Interview deleted successfully"}
 
 
-
 # -------------------Candidate_Preparation -------------------
-
 
 @router.post("/candidate_preparation", response_model=CandidatePreparationOut)
 def create_prep(prep: CandidatePreparationCreate, db: Session = Depends(get_db)):
     return candidate_utils.create_candidate_preparation(db, prep)
+
 
 @router.get("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
 def get_prep(prep_id: int, db: Session = Depends(get_db)):
@@ -252,20 +251,32 @@ def get_prep(prep_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return prep
 
+
 @router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
-def list_preps(db: Session = Depends(get_db)):
+def list_preps(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return candidate_utils.get_all_preparations(db)
 
-
 @router.put("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
-def update_prep(prep_id: int, updates: CandidatePreparationUpdate, db: Session = Depends(get_db)):
+def update_prep(
+    prep_id: int,
+    updates: CandidatePreparationUpdate,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     updated = candidate_utils.update_candidate_preparation(db, prep_id, updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return updated
 
 @router.delete("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
-def delete_prep(prep_id: int, db: Session = Depends(get_db)):
+def delete_prep(
+    prep_id: int,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     deleted = candidate_utils.delete_candidate_preparation(db, prep_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
@@ -273,171 +284,20 @@ def delete_prep(prep_id: int, db: Session = Depends(get_db)):
 
 ##--------------------------------search----------------------------------
 
+
+
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
-    """Optimized candidate name suggestions with caching"""
-    if not search_term or len(search_term.strip()) < 2:
-        return []
-    
-    try:
-        candidates = (
-            db.query(CandidateORM.id, CandidateORM.full_name, CandidateORM.email)
-            .filter(
-                or_(
-                    CandidateORM.full_name.ilike(f"%{search_term}%"),
-                    CandidateORM.email.ilike(f"%{search_term}%")
-                )
-            )
-            .order_by(CandidateORM.full_name)
-            .limit(10)  
-            .all()
-        )
-        
-        return [
-            {
-                "id": candidate.id,
-                "name": candidate.full_name,
-                "email": candidate.email or "No email"
-            }
-            for candidate in candidates
-        ]
-    except Exception as e:
-        return {"error": str(e)}
+    return candidate_utils.get_candidate_suggestions(search_term, db)
+
+
 
 @router.get("/candidates/details/{candidate_id}")
 def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
-    """Optimized single query for candidate details"""
-    try:
-    
-        candidate = (
-            db.query(CandidateORM)
-            .options(
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1_employee),
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2_employee),
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3_employee),
-                selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_employee),
-                selectinload(CandidateORM.interview_records),
-                selectinload(CandidateORM.placement_records)
-            )
-            .filter(CandidateORM.id == candidate_id)
-            .first()
-        )
-        
-        if not candidate:
-            return {"error": "Candidate not found"}
-        
-        # Get batch and authuser info
-        batch_name = f"Batch ID: {candidate.batchid}"
-        try:
-            batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
-            if batch:
-                batch_name = batch.batchname
-        except:
-            pass
-        
-        authuser = None
-        if candidate.email:
-            try:
-                authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
-            except:
-                pass
-        
-        
-        return {
-            "candidate_id": candidate.id,
-            "basic_info": {
-                "full_name": candidate.full_name,
-                "email": candidate.email,
-                "phone": candidate.phone,
-                "secondary_email": candidate.secondaryemail,
-                "secondary_phone": candidate.secondaryphone,
-                "linkedin_id": candidate.linkedin_id,
-                "status": candidate.status,
-                "work_status": candidate.workstatus,
-                "education": candidate.education,
-                "work_experience": candidate.workexperience,
-                "ssn": "***-**-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
-                "dob": candidate.dob.isoformat() if candidate.dob else None,
-                "address": candidate.address,
-                "agreement": candidate.agreement,
-                "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
-                "batch_name": batch_name,
-                "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None
-                ,"notes": candidate.notes
-            },
-            "emergency_contact": {
-                "emergency_contact_name": candidate.emergcontactname,
-                "emergency_contact_phone": candidate.emergcontactphone,
-                "emergency_contact_email": candidate.emergcontactemail,
-                "emergecy_contact_address": candidate.emergcontactaddrs
-            },
-            "fee_financials": {
-                "Fee Paid": candidate.fee_paid,
-                "Payment Status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
-                "Notes": candidate.notes
-            },
-            "preparation_records": [
-                {
-                "Start Date": prep.start_date.isoformat() if prep.start_date else None,
-                "Instructor 1 Name": prep.instructor1_employee.name if prep.instructor1_employee else None,
-                "Instructor 2 Name": prep.instructor2_employee.name if prep.instructor2_employee else None,
-                "Instructor 3 Name": prep.instructor3_employee.name if prep.instructor3_employee else None,
-                "Tech Rating": prep.tech_rating,
-                "Topics Finished": prep.topics_finished,
-                "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
+    return candidate_utils.get_candidate_details(candidate_id, db)
 
-                }
-                for prep in candidate.preparation_records
-            ],
-            "marketing_records": [
-                {
-                    "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
-                    "Marketing Manager Name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
-                    "Notes": marketing.notes,
-                    "Last Modified": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
-                }
-                for marketing in candidate.marketing_records
-            ],
-            "interview_records": [
-                {
-                "Company": interview.company,
-                "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
-                "Interview Type": interview.type_of_interview,
-                "Feedback": interview.feedback,
-                "Recording Link": interview.recording_link,
-                "Notes": interview.notes
-                }
-                for interview in candidate.interview_records
-            ],
-            "placement_records": [
-                {
-                "Position": placement.position,
-                "Company": placement.company,
-                "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
-                "Status": placement.status,
-                "Type": placement.type,
-                "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
-                "Benefits": placement.benefits,
-                "Placement Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
-                "Last Modified": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,
-                "Notes": placement.notes
-                }
-                for placement in candidate.placement_records
-            ],
-            "login_access": {
-                "Login Count": authuser.logincount if authuser else 0,
-                "Last Login": authuser.lastlogin.isoformat() if authuser and hasattr(authuser, 'lastlogin') and authuser.lastlogin else None,
-                "Registered Date": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
-                "Status": authuser.status if authuser else "No Account",
-                "Google ID": authuser.googleId if authuser else None
-            },
-            "miscellaneous": {
-                "Notes": candidate.notes,
-                "Preparation Active": len(candidate.preparation_records) > 0,
-                "Marketing Active": len(candidate.marketing_records) > 0,
-                "Placement Active": len(candidate.placement_records) > 0
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
+
+
+@router.get("/candidates/sessions/{candidate_id}")
+def get_candidate_sessions_route(candidate_id: int, db: Session = Depends(get_db)):
+    return candidate_utils.get_candidate_sessions(candidate_id, db)

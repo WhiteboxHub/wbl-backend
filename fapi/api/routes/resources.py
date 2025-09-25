@@ -15,9 +15,8 @@ import traceback
 from fapi.utils.avatar_dashboard_utils import (
     get_batch_metrics,
 )
+
 router = APIRouter()
-
-
 
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
@@ -84,9 +83,11 @@ async def get_sessions(
 
 
 @router.get("/materials")
+
 @limiter.limit("15/minute")
+
 async def get_materials(
-    request: Request,  # REQUIRED for slowapi
+    request: Request, 
     course: str = Query(..., description="Course name: QA, UI, or ML"),
     search: str = Query(..., description="Type of material: Presentations, Cheatsheets, etc.")
 ):
@@ -101,7 +102,6 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
-
 @router.get("/recording")
 def get_recordings(
     course: str,
@@ -112,7 +112,6 @@ def get_recordings(
   
     recordings = fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
     
-
     if not recordings.get("batch_recordings"):
         msg = f"No recordings found for course '{course}'"
         if batchid:
@@ -124,15 +123,12 @@ def get_recordings(
     return recordings
 
 
-
-
 @router.get("/batches")
 def get_batches(
     course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
     db: Session = Depends(get_db)
 ):
     return fetch_course_batches(course, db)
-
 
 
 @router.get("/batches/metrics", response_model=BatchMetrics)

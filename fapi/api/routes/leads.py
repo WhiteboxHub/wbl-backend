@@ -1,10 +1,11 @@
-from fastapi import APIRouter,Query, Depends, HTTPException
+from fastapi import APIRouter, Query, Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import LeadCreate, LeadUpdate, LeadMetricsResponse
 from fapi.utils.lead_utils import (
     fetch_all_leads_paginated,
-    fetch_all_leads,  
+    fetch_all_leads,
     get_lead_by_id,
     create_lead,
     update_lead,
@@ -14,11 +15,11 @@ from fapi.utils.lead_utils import (
     create_candidate_from_lead,
     get_lead_info_mark_move_to_candidate_true,
 )
-from fapi.utils.avatar_dashboard_utils import (
-    get_lead_metrics
-)
+from fapi.utils.avatar_dashboard_utils import get_lead_metrics
 
 router = APIRouter()
+
+security = HTTPBearer()
 
 @router.get("/leads/paginated")
 def get_leads_paginated(
@@ -26,8 +27,9 @@ def get_leads_paginated(
     limit: int = 100,
     search: str = None,
     search_by: str = "name",
-    sort: str = Query("entry_date:desc"),  
-    db: Session = Depends(get_db)
+    sort: str = Query("entry_date:desc"),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return fetch_all_leads_paginated(db, page, limit, search, search_by, sort)
 
@@ -36,8 +38,9 @@ def get_all_leads(
     search: str = None,
     search_by: str = "name",
     sort: str = Query("entry_date:desc"),
-    filters: str = None, 
-    db: Session = Depends(get_db)
+    filters: str = None,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return fetch_all_leads(db, search, search_by, sort, filters)
 
