@@ -60,7 +60,6 @@ class EmployeeBirthdayOut(BaseModel):
         orm_mode = True
 
 class EmployeeTaskBase(BaseModel): 
-    employee_id: int 
     employee_name: str | None = None 
     task: str 
     assigned_date: date 
@@ -69,16 +68,16 @@ class EmployeeTaskBase(BaseModel):
     priority: str 
     notes: str | None = None 
 class EmployeeTaskCreate(EmployeeTaskBase): 
-    employee_id: int = Field(..., description="ID of the employee") 
-    employee_name: str 
-    task: str 
-    assigned_date: date 
-    due_date: date 
-    status: str 
-    priority: str 
-    notes: str = "" 
-class EmployeeTaskUpdate(EmployeeTaskBase): 
-    pass 
+    pass
+class EmployeeTaskUpdate(BaseModel):
+    employee_name: Optional[str]
+    task: Optional[str]
+    assigned_date: Optional[date]
+    due_date: Optional[date]
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str]
+
 class EmployeeTask(EmployeeTaskBase): 
     id: int 
 class Config: 
