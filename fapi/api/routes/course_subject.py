@@ -1,15 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List
-
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import course_subject_utils
 
 router = APIRouter()
 
+security = HTTPBearer()
+
 @router.get("/course-subjects", response_model=List[schemas.CourseSubjectResponse])
-def get_course_subjects(db: Session = Depends(get_db)):
+def get_course_subjects(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     course_subjects = course_subject_utils.get_all_course_subjects(db)
     return course_subjects
 
@@ -42,15 +47,6 @@ def update_course_subject(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))  
     
 
-# @router.delete("/course-subjects")
-# def delete_course_subject(course_id: int, subject_id: int, db: Session = Depends(get_db)):
-#     try:
-#         course_subject_utils.delete_course_subject(db, course_id, subject_id)
-#         return {"status": "success", "message": "Course-Subject relationship deleted successfully"}
-#     except ValueError as e:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    
-# Change from query params to path parameters
 @router.delete("/course-subjects/{course_id}/{subject_id}")
 def delete_course_subject(course_id: int, subject_id: int, db: Session = Depends(get_db)):
     try:
@@ -58,3 +54,4 @@ def delete_course_subject(course_id: int, subject_id: int, db: Session = Depends
         return {"status": "success", "message": "Course-Subject relationship deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+

@@ -1,18 +1,17 @@
 # wbl-backend/fapi/utils/candidate_utils.py
-
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
-from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate
+
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
+
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any
 from datetime import date
 
 router = APIRouter()
       
-
-
 def get_all_candidates_paginated(
     db: Session,
     page: int = 1,
@@ -143,52 +142,111 @@ def delete_candidate(candidate_id: int):
 
 # -----------------------------------------------Marketing----------------------------
 
-
 def get_all_marketing_records(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
     try:
         total = db.query(CandidateMarketingORM).count()
-        results = (
+
+        records = (
             db.query(CandidateMarketingORM)
+            .join(CandidateMarketingORM.candidate)  
+            .outerjoin(
+                CandidateORM.preparation_records
+            )  
             .options(
                 joinedload(CandidateMarketingORM.candidate),
                 joinedload(CandidateMarketingORM.instructor1),
                 joinedload(CandidateMarketingORM.instructor2),
                 joinedload(CandidateMarketingORM.instructor3),
                 joinedload(CandidateMarketingORM.marketing_manager_obj),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3),
             )
             .order_by(CandidateMarketingORM.id.asc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
         )
-        return {"page": page, "limit": limit, "total": total, "data": results}
+
+        results_serialized = []
+        for r in records:
+            candidate = r.candidate
+            prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
+
+            record_dict = r.__dict__.copy()
+            record_dict.pop("_sa_instance_state", None)
+            record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
+            record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
+            record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+
+            # Candidate dict
+            record_dict["candidate"] = candidate.__dict__ if candidate else None
+            if record_dict["candidate"]:
+                record_dict["candidate"].pop("_sa_instance_state", None)
+
+            # Marketing manager dict
+            record_dict["marketing_manager_obj"] = r.marketing_manager_obj.__dict__ if r.marketing_manager_obj else None
+            if record_dict["marketing_manager_obj"]:
+                record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+
+            results_serialized.append(record_dict)
+
+        return {"page": page, "limit": limit, "total": total, "data": results_serialized}
     finally:
         db.close()
 
 
-# Get marketing by candidate ID
+
 def get_marketing_by_candidate_id(candidate_id: int):
     db: Session = SessionLocal()
     try:
         records = (
             db.query(CandidateMarketingORM)
             .options(
-                joinedload(CandidateMarketingORM.candidate),
-                joinedload(CandidateMarketingORM.instructor1),
-                joinedload(CandidateMarketingORM.instructor2),
-                joinedload(CandidateMarketingORM.instructor3),
-                joinedload(CandidateMarketingORM.marketing_manager_obj),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1_employee),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2_employee),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3_employee),
             )
             .filter(CandidateMarketingORM.candidate_id == candidate_id)
             .all()
         )
         if not records:
             raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
-        return {"candidate_id": candidate_id, "data": records}
+
+        results_serialized = []
+        for r in records:
+            candidate = r.candidate
+            prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
+            results_serialized.append({
+                "id": r.id,
+                "candidate_id": r.candidate_id,
+                "candidate_name": candidate.full_name if candidate else None,
+                "start_date": r.start_date.isoformat() if r.start_date else None,
+                "status": r.status,
+                "instructor1_name": prep.instructor1_employee.name if prep and prep.instructor1_employee else None,
+                "instructor2_name": prep.instructor2_employee.name if prep and prep.instructor2_employee else None,
+                "instructor3_name": prep.instructor3_employee.name if prep and prep.instructor3_employee else None,
+                "marketing_manager_name": r.marketing_manager_obj.name if r.marketing_manager_obj else None,
+                "notes": r.notes,
+                "last_mod_datetime": r.last_mod_datetime.isoformat() if r.last_mod_datetime else None
+            })
+
+        return {"candidate_id": candidate_id, "data": results_serialized}
     finally:
         db.close()
-
 
 
 
@@ -219,7 +277,6 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
         update_data = payload.dict(exclude_unset=True)
 
         for key, value in update_data.items():
-            # Skip relationship fields (dicts)
             if isinstance(value, dict):
                 continue
 
@@ -250,6 +307,17 @@ def delete_marketing(record_id: int) -> Dict:
 
 # ----------------------------------------------------Candidate_Placement---------------------------------
 
+def get_placement_by_id(placement_id: int):
+    db: Session = SessionLocal()
+    try:
+        placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
+        if not placement:
+            raise HTTPException(status_code=404, detail="Placement not found")
+        data = placement.__dict__.copy()
+        data.pop("_sa_instance_state", None)
+        return data
+    finally:
+        db.close()
 
 
 def get_all_placements(page: int, limit: int) -> Dict:
@@ -264,7 +332,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
             # .order_by(CandidatePlacementORM.id.desc())
-            .order_by(CandidatePlacementORM.priority.desc())  # ORDER BY priority
+            .order_by(CandidatePlacementORM.priority.desc()) 
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
@@ -350,19 +418,16 @@ def delete_placement(placement_id: int) -> Dict:
     finally:
         db.close()
 
-
 # ----------------------------------------Candidate_Interviews-------------------------------------
 
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
     data = interview.dict()
 
-    # Normalize interviewer_emails to lowercase if provided
     if data.get("interviewer_emails"):
         data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
 
-    # URL field is already included in `data` via dict()
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
@@ -370,12 +435,63 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     return db_obj
 
 
-def get_candidate_interviews(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(CandidateInterview).options(contains_eager(CandidateInterview.candidate)) .join(CandidateORM, CandidateInterview.candidate_id == CandidateORM.id).offset(skip).limit(limit).all()
+def get_candidate_interview_with_instructors(db: Session, interview_id: int):
+    return (
+        db.query(CandidateInterview)
+        .join(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
+        .options(
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor3),
+        )
+        .filter(CandidateInterview.id == interview_id)
+        .first()
+    )
 
 
-def get_candidate_interview(db: Session, interview_id: int):
-    return db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate)).filter(CandidateInterview.id == interview_id).first()
+def list_interviews_with_instructors(db: Session):
+    return (
+        db.query(CandidateInterview)
+        .join(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
+        .options(
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor3),
+        )
+        .order_by(CandidateInterview.interview_date.desc())
+        .all()
+    )
+
+def serialize_interview(interview: CandidateInterview) -> dict:
+    data = CandidateInterviewOut.from_orm(interview).dict()
+
+    # Default None
+    data["instructor1_name"] = None
+    data["instructor2_name"] = None
+    data["instructor3_name"] = None
+
+    if interview.candidate and interview.candidate.preparations:
+        prep = interview.candidate.preparations[0]  
+        if prep.instructor1:
+            data["instructor1_name"] = prep.instructor1.name
+        if prep.instructor2:
+            data["instructor2_name"] = prep.instructor2.name
+        if prep.instructor3:
+            data["instructor3_name"] = prep.instructor3.name
+
+    return data
 
 
 def update_candidate_interview(db: Session, interview_id: int, updates: CandidateInterviewUpdate):
@@ -526,6 +642,165 @@ def delete_candidate_preparation(db: Session, prep_id: int):
 
 ##-------------------------------------------------search---------------------------------------------------------------
 
+def get_candidate_suggestions(search_term: str, db: Session):
+    if not search_term or len(search_term.strip()) < 2:
+        return []
+    
+    try:
+        candidates = (
+            db.query(CandidateORM.id, CandidateORM.full_name, CandidateORM.email)
+            .filter(
+                or_(
+                    CandidateORM.full_name.ilike(f"%{search_term}%"),
+                    CandidateORM.email.ilike(f"%{search_term}%")
+                )
+            )
+            .order_by(CandidateORM.full_name)
+            .limit(10)
+            .all()
+        )
+        
+        return [
+            {
+                "id": candidate.id,
+                "name": candidate.full_name,
+                "email": candidate.email or "No email"
+            }
+            for candidate in candidates
+        ]
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_candidate_details(candidate_id: int, db: Session):
+    try:
+        candidate = (
+            db.query(CandidateORM)
+            .options(
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3),
+                selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_employee),
+                selectinload(CandidateORM.interview_records),
+                selectinload(CandidateORM.placement_records)
+            )
+            .filter(CandidateORM.id == candidate_id)
+            .first()
+        )
+
+        if not candidate:
+            return {"error": "Candidate not found"}
+        
+      
+        batch_name = f"Batch ID: {candidate.batchid}"
+        batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
+        if batch:
+            batch_name = batch.batchname
+
+    
+        authuser = None
+        if candidate.email:
+            authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
+
+        return {
+            "candidate_id": candidate.id,
+            "basic_info": {
+                "full_name": candidate.full_name,
+                "email": candidate.email,
+                "phone": candidate.phone,
+                "secondary_email": candidate.secondaryemail,
+                "secondary_phone": candidate.secondaryphone,
+                "linkedin_id": candidate.linkedin_id,
+                "status": candidate.status,
+                "work_status": candidate.workstatus,
+                "education": candidate.education,
+                "work_experience": candidate.workexperience,
+                "ssn": "-*-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+                "dob": candidate.dob.isoformat() if candidate.dob else None,
+                "address": candidate.address,
+                "agreement": candidate.agreement,
+                "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
+                "batch_name": batch_name,
+                "candidate_folder": getattr(candidate, 'candidate_folder', None),
+                "github_link": getattr(candidate, 'github_link', None),
+                "notes": candidate.notes
+            },
+            "emergency_contact": {
+                "emergency_contact_name": candidate.emergcontactname,
+                "emergency_contact_phone": candidate.emergcontactphone,
+                "emergency_contact_email": candidate.emergcontactemail,
+                "emergecy_contact_address": candidate.emergcontactaddrs
+            },
+            "fee_financials": {
+                "Fee Paid": candidate.fee_paid,
+                "Payment Status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
+                "Notes": candidate.notes
+            },
+            "preparation_records": [
+                {
+                    "Start Date": prep.start_date.isoformat() if prep.start_date else None,
+                    "Instructor 1 Name": prep.instructor1.name if prep.instructor1 else None,
+                    "Instructor 2 Name": prep.instructor2.name if prep.instructor2 else None,
+                    "Instructor 3 Name": prep.instructor3.name if prep.instructor3 else None,
+                    "Tech Rating": prep.tech_rating,
+                    "Topics Finished": prep.topics_finished,
+                    "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
+                }
+                for prep in candidate.preparation_records
+            ],
+            "marketing_records": [
+                {
+                    "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
+                    "Marketing Manager Name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
+                    "Notes": marketing.notes,
+                    "Last Modified": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
+                }
+                for marketing in candidate.marketing_records
+            ],
+            "interview_records": [
+                {
+                    "Company": interview.company,
+                    "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
+                    "Interview Type": interview.type_of_interview,
+                    "Feedback": interview.feedback,
+                    "Recording Link": interview.recording_link,
+                    "Notes": interview.notes
+                }
+                for interview in candidate.interview_records
+            ],
+            "placement_records": [
+                {
+                    "Position": placement.position,
+                    "Company": placement.company,
+                    "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
+                    "Status": placement.status,
+                    "Type": placement.type,
+                    "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
+                    "Benefits": placement.benefits,
+                    "Placement Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
+                    "Last Modified": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,
+                    "Notes": placement.notes
+                }
+                for placement in candidate.placement_records
+            ],
+            "login_access": {
+                "Login Count": authuser.logincount if authuser else 0,
+                "Last Login": authuser.lastlogin.isoformat() if authuser and getattr(authuser, 'lastlogin', None) else None,
+                "Registered Date": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
+                "Status": authuser.status if authuser else "No Account",
+                "Google ID": authuser.googleId if authuser else None
+            },
+            "miscellaneous": {
+                "Notes": candidate.notes,
+                "Preparation Active": len(candidate.preparation_records) > 0,
+                "Marketing Active": len(candidate.marketing_records) > 0,
+                "Placement Active": len(candidate.placement_records) > 0
+            }
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
 def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]:
     """
     Search candidates by name and return comprehensive information for accordion display with proper readable keys
@@ -661,13 +936,14 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
                     "Work Status": candidate.workstatus,
                     "Education": candidate.education,
                     "Work Experience": candidate.workexperience,
-                    "SSN": "***-**-" + candidate.ssn[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
+                    "SSN": "-*-" + candidate.ssn[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
                     "Date of Birth": candidate.dob.isoformat() if candidate.dob else None,
                     "Address": candidate.address,
                     "Agreement": candidate.agreement,
                     "Enrolled Date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                     "Batch Name": batch_name,
                     "Candidate Folder": candidate.candidate_folder,
+                    "GitHub Link": candidate.github_link,
                     "Notes": candidate.notes
                 },
                 "Emergency Contact": {
@@ -707,3 +983,148 @@ def search_candidates_comprehensive(search_term: str, db: Session) -> List[Dict]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
+    """
+    Get sessions with smart name matching - handles common names like 'Sai'
+    """
+    try:
+        from fapi.db.models import Session as SessionModel
+        from datetime import datetime, timedelta
+        import re
+        
+        
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            return {"error": "Candidate not found", "sessions": []}
+        
+
+        all_words = [word for word in candidate.full_name.split() if len(word) >= 3]
+        
+    
+        common_names = ['sai', 'sri', 'kumar', 'reddy', 'rao', 'prasad']
+        
+     
+        priority_words = []
+        common_words = []
+        
+        for word in all_words:
+            if word.lower() in common_names:
+                common_words.append(word)
+            else:
+                priority_words.append(word)
+        
+        
+        search_words = priority_words if priority_words else all_words
+        
+        if not search_words:
+            return {"candidate_id": candidate_id, "candidate_name": candidate.full_name, "sessions": []}
+        
+        
+        one_year_ago = datetime.now() - timedelta(days=365)
+        
+
+        recent_sessions = (
+            db.query(SessionModel)
+            .filter(SessionModel.sessiondate >= one_year_ago)
+            .all()
+        )
+        
+        
+        matched_sessions = []
+        for session in recent_sessions:
+            title_text = (session.title or "").lower()
+            subject_text = (session.subject or "").lower()
+            combined_text = f"{title_text} {subject_text}"
+            
+            word_found = False
+            
+          
+            for word in priority_words:
+                word_lower = word.lower()
+                
+         
+                pattern = r'\b' + re.escape(word_lower) + r'\b'
+                if re.search(pattern, combined_text):
+                    word_found = True
+                    break
+                
+       
+                if len(word_lower) >= 4 and word_lower in combined_text:
+                    word_found = True
+                    break
+            
+        
+            if not word_found and common_words and not priority_words:
+                for word in common_words:
+                    word_lower = word.lower()
+                    
+            
+                    pattern = r'\b' + re.escape(word_lower) + r'\b'
+                    if re.search(pattern, combined_text):
+                        word_found = True
+                        break
+            
+            
+            if not word_found and priority_words and common_words:
+                priority_matches = 0
+                common_matches = 0
+                
+                
+                for word in priority_words:
+                    word_lower = word.lower()
+                    pattern = r'\b' + re.escape(word_lower) + r'\b'
+                    if re.search(pattern, combined_text):
+                        priority_matches += 1
+                
+                
+                for word in common_words:
+                    word_lower = word.lower()
+                    pattern = r'\b' + re.escape(word_lower) + r'\b'
+                    if re.search(pattern, combined_text):
+                        common_matches += 1
+                
+                
+                if priority_matches >= 1 or (priority_matches + common_matches >= 2):
+                    word_found = True
+            
+            if word_found:
+                matched_sessions.append(session)
+        
+        
+        matched_sessions.sort(key=lambda x: x.sessiondate or datetime.min, reverse=True)
+        
+        
+        session_list = []
+        for session in matched_sessions:
+            session_date_str = None
+            if session.sessiondate:
+                if isinstance(session.sessiondate, str):
+                    session_date_str = session.sessiondate
+                else:
+                    session_date_str = session.sessiondate.isoformat()
+            
+            session_data = {
+                "session_id": session.sessionid,
+                "title": session.title,
+                "session_date": session_date_str,
+                "type": session.type,
+                "subject": session.subject,
+                "link": session.link
+            }
+            session_list.append(session_data)
+        
+        return {
+            "candidate_id": candidate_id,
+            "candidate_name": candidate.full_name,
+            "sessions": session_list,
+            "debug_info": {
+                "all_words": all_words,
+                "priority_words": priority_words,
+                "common_words": common_words,
+                "search_strategy": "priority_first" if priority_words else "all_words"
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "sessions": []}

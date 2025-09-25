@@ -8,6 +8,7 @@ from enum import Enum
 
 
 class EmployeeBase(BaseModel):
+    id: Optional[int] = None
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -238,10 +239,10 @@ class CandidateBase(BaseModel):
     batchid: int
     candidate_folder: Optional[str] = None   
 
-
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+    model_config = {
+        "from_attributes": True,   
+        "populate_by_name": True   
+    }
 
     @field_validator("agreement", mode="before")
     def normalize_agreement(cls, v):
@@ -427,13 +428,14 @@ class CandidatePreparationBase(BaseModel):
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
 
-    candidate: Optional[CandidateBase]  # candidate relationship
-    instructor1: Optional[EmployeeBase]  # instructor relationships
+    candidate: Optional[CandidateBase]  
+    instructor1: Optional[EmployeeBase]  
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
+
     class Config:
-        from_attributes = True  # Pydantic v2 equivalent of orm_mode
+        from_attributes = True  
     
 
 from pydantic import field_validator
@@ -487,7 +489,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
-    # candidate: Optional[CandidateBase]  # added line
+    # candidate: Optional[CandidateBase]  
     
 
 class CandidatePreparationOut(BaseModel):
@@ -507,12 +509,10 @@ class CandidatePreparationOut(BaseModel):
 
     candidate: Optional[CandidateBase]
 
-    # Nested instructors
     instructor1: Optional[EmployeeBase]
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
-    # Keep the IDs for reference if needed
     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
     instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
     instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
@@ -573,7 +573,7 @@ class CandidateInterviewCreate(CandidateInterviewBase):
     pass
 
 
-# --- Update Schema ---
+# # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
@@ -593,7 +593,10 @@ class CandidateInterviewUpdate(BaseModel):
 # --- Output Schema ---
 class CandidateInterviewOut(CandidateInterviewBase):
     id: int
-    last_mod_datetime: Optional[datetime]
+    instructor1_name: Optional[str] = None
+    instructor2_name: Optional[str] = None
+    instructor3_name: Optional[str] = None
+    last_mod_datetime: Optional[datetime] = None 
 
     class Config:
         from_attributes = True

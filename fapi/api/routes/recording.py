@@ -1,5 +1,6 @@
-# fapi/routes/recording_routes.py
-from fastapi import APIRouter, Depends, HTTPException, Query
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import Optional
 from fapi.db import schemas, database
@@ -7,12 +8,13 @@ from fapi.utils import recording_utils
 
 router = APIRouter()
 
+security = HTTPBearer()
 
-# Get all recordings (no pagination)
 @router.get("/recordings", response_model=list[schemas.RecordingOut])
 def get_recordings(
     search: Optional[str] = Query(None, description="Search by ID, batch name, subject, or description"),
     db: Session = Depends(database.get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return recording_utils.get_all_recordings(db, search=search)
 
