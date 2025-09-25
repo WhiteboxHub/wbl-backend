@@ -8,11 +8,8 @@ def clean_invalid_values(row: dict) -> dict:
 
 def get_all_employees() -> list[dict]:
     with SessionLocal() as session:
-        query = session.query(EmployeeORM).order_by(EmployeeORM.startdate.desc())
-        print(f"Generated SQL: {query}")  
+        query = session.query(EmployeeORM).order_by(EmployeeORM.startdate.desc()) 
         employees = query.all()
-        for emp in employees:
-            print(f"Employee ID: {emp.id}, Name: {emp.name}, Start Date: {emp.startdate}")  # Debug print
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
 
 
