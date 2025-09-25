@@ -37,47 +37,62 @@ def list_candidates(
     search: str = None,
     search_by: str = "all",
     sort: str = Query("enrolled_date:desc", description="Sort by field:direction (e.g., 'enrolled_date:desc')"),
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    db: Session = Depends(get_db)
 ):
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
+
+
 @router.get("/candidates/search", response_model=Dict[str, Any])
-def search_candidates(
-    term: str,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
+def search_candidates(term: str, db: Session = Depends(get_db)):
     try:
         filters = [
             CandidateORM.full_name.ilike(f"%{term}%"),
             CandidateORM.email.ilike(f"%{term}%"),
         ]
+
+
         normalized_term = re.sub(r"\D", "", term)
         if normalized_term:
+           
             filters.append(func.replace(func.replace(CandidateORM.phone, "-", ""), " ", "").ilike(f"%{normalized_term}%"))
+
         if term.isdigit():
             filters.append(CandidateORM.id == int(term))
+
         results = db.query(CandidateORM).filter(or_(*filters)).all()
+
         data: List[Dict[str, Any]] = []
         for r in results:
-            item = r.__dict__.copy()
+            item = r._dict_.copy()
             item.pop("_sa_instance_state", None)
             data.append(item)
+
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 @router.get("/candidates/{candidate_id}", response_model=dict)
-def get_candidate(
-    candidate_id: int,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    candidate = candidate_utils.get_candidate_by_id(db, candidate_id)
+def get_candidate(candidate_id: int):
+    candidate = candidate_utils.get_candidate_by_id(candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
+
+
+@router.post("/candidates", response_model=int)
+def create_candidate(candidate: CandidateCreate):
+    return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
+
+@router.put("/candidates/{candidate_id}")
+def update_candidate(candidate_id: int, candidate: CandidateUpdate):
+    candidate_utils.update_candidate(candidate_id, candidate.dict(exclude_unset=True))
+    return {"message": "Candidate updated successfully"}
+
+@router.delete("/candidates/{candidate_id}")
+def delete_candidate(candidate_id: int):
+    candidate_utils.delete_candidate(candidate_id)
+    return {"message": "Candidate deleted successfully"}
 
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
@@ -85,10 +100,12 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
     try:
         filters = []
 
+        # Search by full_name, email, or phone (case-insensitive)
         filters.append(CandidateORM.full_name.ilike(f"%{term}%"))
         filters.append(CandidateORM.email.ilike(f"%{term}%"))
         filters.append(CandidateORM.phone.ilike(f"%{term}%"))
-      
+
+        # If term is a digit, also search by id
         if term.isdigit():
             filters.append(CandidateORM.id == int(term))
 
@@ -96,7 +113,7 @@ def search_candidates(term: str, db: Session = Depends(get_db)):
 
         data: List[Dict[str, Any]] = []
         for r in results:
-            item = r.__dict__.copy()
+            item = r._dict_.copy()
             item.pop("_sa_instance_state", None)
             data.append(item)
 

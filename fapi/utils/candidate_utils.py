@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
 
-from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fastapi import HTTPException,APIRouter,Depends
