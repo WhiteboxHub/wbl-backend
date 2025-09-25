@@ -1337,7 +1337,7 @@ class LeadMetrics(BaseModel):
     total_leads: int
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
-    leadConversionRate: int
+    leads_this_week: int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
