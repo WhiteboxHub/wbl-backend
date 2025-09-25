@@ -161,6 +161,8 @@ def read_placement(
     if not placement:
         raise HTTPException(status_code=404, detail="Placement not found")
     return placement
+
+
 @router.post("/candidate/placements", response_model=CandidatePlacement)
 def create_new_placement(placement: CandidatePlacementCreate):
     return candidate_utils.create_placement(placement)
@@ -290,175 +292,17 @@ def delete_prep(
 
 ##--------------------------------search----------------------------------
 @router.get("/candidates/search-names/{search_term}")
-def get_candidate_suggestions(
-    search_term: str,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    """Optimized candidate name suggestions with caching"""
-    if not search_term or len(search_term.strip()) < 2:
-        return []
-    
-    try:
-        candidates = (
-            db.query(CandidateORM.id, CandidateORM.full_name, CandidateORM.email)
-            .filter(
-                or_(
-                    CandidateORM.full_name.ilike(f"%{search_term}%"),
-                    CandidateORM.email.ilike(f"%{search_term}%")
-                )
-            )
-            .order_by(CandidateORM.full_name)
-            .limit(10)  
-            .all()
-        )
-        
-        return [
-            {
-                "id": candidate.id,
-                "name": candidate.full_name,
-                "email": candidate.email or "No email"
-            }
-            for candidate in candidates
-        ]
-    except Exception as e:
-        return {"error": str(e)}
+def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
+    return candidate_utils.get_candidate_suggestions(search_term, db)
+
+
 
 @router.get("/candidates/details/{candidate_id}")
-def get_candidate_details(
-    candidate_id: int,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    """Optimized single query for candidate details"""
-    try:
-        candidate = (
-            db.query(CandidateORM)
-            .options(
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1_employee),
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2_employee),
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3_employee),
-                selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_employee),
-                selectinload(CandidateORM.interview_records),
-                selectinload(CandidateORM.placement_records)
-            )
-            .filter(CandidateORM.id == candidate_id)
-            .first()
-        )
-        
-        if not candidate:
-            return {"error": "Candidate not found"}
-        
-        batch_name = f"Batch ID: {candidate.batchid}"
-        try:
-            batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
-            if batch:
-                batch_name = batch.batchname
-        except:
-            pass
-        
-        authuser = None
-        if candidate.email:
-            try:
-                authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
-            except:
-                pass
-        
-        return {
-            "candidate_id": candidate.id,
-            "basic_info": {
-                "full_name": candidate.full_name,
-                "email": candidate.email,
-                "phone": candidate.phone,
-                "secondary_email": candidate.secondaryemail,
-                "secondary_phone": candidate.secondaryphone,
-                "linkedin_id": candidate.linkedin_id,
-                "status": candidate.status,
-                "work_status": candidate.workstatus,
-                "education": candidate.education,
-                "work_experience": candidate.workexperience,
-                "ssn": "***-**-" + str(candidate.ssn)[-4:] if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
-                "dob": candidate.dob.isoformat() if candidate.dob else None,
-                "address": candidate.address,
-                "agreement": candidate.agreement,
-                "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
-                "batch_name": batch_name,
-                "candidate_folder": candidate.candidate_folder if hasattr(candidate, 'candidate_folder') else None,
-                "notes": candidate.notes
-            },
-            "emergency_contact": {
-                "emergency_contact_name": candidate.emergcontactname,
-                "emergency_contact_phone": candidate.emergcontactphone,
-                "emergency_contact_email": candidate.emergcontactemail,
-                "emergecy_contact_address": candidate.emergcontactaddrs
-            },
-            "fee_financials": {
-                "Fee Paid": candidate.fee_paid,
-                "Payment Status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
-                "Notes": candidate.notes
-            },
-            "preparation_records": [
-                {
-                    "Start Date": prep.start_date.isoformat() if prep.start_date else None,
-                    "Instructor 1 Name": prep.instructor1_employee.name if prep.instructor1_employee else None,
-                    "Instructor 2 Name": prep.instructor2_employee.name if prep.instructor2_employee else None,
-                    "Instructor 3 Name": prep.instructor3_employee.name if prep.instructor3_employee else None,
-                    "Tech Rating": prep.tech_rating,
-                    "Topics Finished": prep.topics_finished,
-                    "Last Modified": prep.last_mod_datetime.isoformat() if prep.last_mod_datetime else None
-                }
-                for prep in candidate.preparation_records
-            ],
-            "marketing_records": [
-                {
-                    "Start Date": marketing.start_date.isoformat() if marketing.start_date else None,
-                    "Marketing Manager Name": marketing.marketing_manager_employee.name if marketing.marketing_manager_employee else None,
-                    "Notes": marketing.notes,
-                    "Last Modified": marketing.last_mod_datetime.isoformat() if marketing.last_mod_datetime else None
-                }
-                for marketing in candidate.marketing_records
-            ],
-            "interview_records": [
-                {
-                    "Company": interview.company,
-                    "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
-                    "Interview Type": interview.type_of_interview,
-                    "Feedback": interview.feedback,
-                    "Recording Link": interview.recording_link,
-                    "Notes": interview.notes
-                }
-                for interview in candidate.interview_records
-            ],
-            "placement_records": [
-                {
-                    "Position": placement.position,
-                    "Company": placement.company,
-                    "Placement Date": placement.placement_date.isoformat() if placement.placement_date else None,
-                    "Status": placement.status,
-                    "Type": placement.type,
-                    "Base Salary Offered": float(placement.base_salary_offered) if placement.base_salary_offered else None,
-                    "Benefits": placement.benefits,
-                    "Placement Fee Paid": float(placement.fee_paid) if placement.fee_paid else None,
-                    "Last Modified": placement.last_mod_datetime.isoformat() if placement.last_mod_datetime else None,
-                    "Notes": placement.notes
-                }
-                for placement in candidate.placement_records
-            ],
-            "login_access": {
-                "Login Count": authuser.logincount if authuser else 0,
-                "Last Login": authuser.lastlogin.isoformat() if authuser and hasattr(authuser, 'lastlogin') and authuser.lastlogin else None,
-                "Registered Date": authuser.registereddate.isoformat() if authuser and authuser.registereddate else None,
-                "Status": authuser.status if authuser else "No Account",
-                "Google ID": authuser.googleId if authuser else None
-            },
-            "miscellaneous": {
-                "Notes": candidate.notes,
-                "Preparation Active": len(candidate.preparation_records) > 0,
-                "Marketing Active": len(candidate.marketing_records) > 0,
-                "Placement Active": len(candidate.placement_records) > 0
-            }
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-    
+def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
+    return candidate_utils.get_candidate_details(candidate_id, db)
+
+
+
+@router.get("/candidates/sessions/{candidate_id}")
+def get_candidate_sessions_route(candidate_id: int, db: Session = Depends(get_db)):
+    return candidate_utils.get_candidate_sessions(candidate_id, db)
