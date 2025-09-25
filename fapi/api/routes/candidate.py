@@ -30,6 +30,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 # ------------------------Candidate------------------------------------
+
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(
     page: int = 1,
@@ -79,30 +80,21 @@ def get_candidate(
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
 
+@router.post("/candidates", response_model=int)
+def create_candidate(candidate: CandidateCreate):
+    return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
 
-@router.get("/candidates/search", response_model=Dict[str, Any])
-def search_candidates(term: str, db: Session = Depends(get_db)):
-    try:
-        filters = []
+@router.put("/candidates/{candidate_id}")
+def update_candidate(candidate_id: int, candidate: CandidateUpdate):
+    candidate_utils.update_candidate(candidate_id, candidate.dict(exclude_unset=True))
+    return {"message": "Candidate updated successfully"}
 
-        filters.append(CandidateORM.full_name.ilike(f"%{term}%"))
-        filters.append(CandidateORM.email.ilike(f"%{term}%"))
-        filters.append(CandidateORM.phone.ilike(f"%{term}%"))
-      
-        if term.isdigit():
-            filters.append(CandidateORM.id == int(term))
+@router.delete("/candidates/{candidate_id}")
+def delete_candidate(candidate_id: int):
+    candidate_utils.delete_candidate(candidate_id)
+    return {"message": "Candidate deleted successfully"}
 
-        results = db.query(CandidateORM).filter(or_(*filters)).all()
 
-        data: List[Dict[str, Any]] = []
-        for r in results:
-            item = r.__dict__.copy()
-            item.pop("_sa_instance_state", None)
-            data.append(item)
-
-        return {"data": data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ------------------- Marketing -------------------
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
@@ -291,6 +283,9 @@ def delete_prep(
     return deleted
 
 ##--------------------------------search----------------------------------
+
+
+
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
     return candidate_utils.get_candidate_suggestions(search_term, db)
