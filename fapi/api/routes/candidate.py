@@ -6,25 +6,24 @@ from fapi.utils.avatar_dashboard_utils import (
     get_interview_metrics,
     candidate_interview_performance,
 )
-from fapi.utils import candidate_utils
-from fapi.db.schemas import (
-    CandidateBase, CandidateUpdate, PaginatedCandidateResponse,
-    CandidatePlacementUpdate, CandidatePlacement, CandidateMarketing,
-    CandidatePlacementCreate, CandidateMarketingCreate, CandidateInterviewOut,
-    CandidateCreate, CandidateInterviewCreate, CandidateInterviewUpdate,
-    CandidatePreparationCreate, CandidatePreparationUpdate, CandidatePreparationOut,
-    PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
-)
-from fapi.db.models import (
-    CandidateInterview, CandidateORM, CandidatePreparation,
-    CandidateMarketingORM, CandidatePlacementORM, Batch, AuthUserORM
-)
-from sqlalchemy.orm import Session, joinedload, selectinload
-from fapi.db.database import get_db, SessionLocal
-from fapi.utils.candidate_utils import get_all_candidates_paginated
+
+from fastapi import APIRouter, Query, Path, HTTPException,Depends
+from fapi.utils import candidate_utils                                         
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
+
+from sqlalchemy.orm import Session,joinedload,selectinload
+
+from fapi.db.database import get_db,SessionLocal 
+from fapi.utils.candidate_utils import get_all_candidates_paginated, serialize_interview 
+from fapi.db import schemas
 from typing import Dict, Any, List
 from sqlalchemy import or_, func
 import re
+
+router = APIRouter()
+
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -209,29 +208,21 @@ def create_interview(
 ):
     return candidate_utils.create_candidate_interview(db, interview)
 
-@router.get("/interviews", response_model=list[CandidateInterviewOut])
-def list_interviews(
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    interviews = (
-        db.query(CandidateInterview)
-        .options(joinedload(CandidateInterview.candidate))
-        .order_by(CandidateInterview.interview_date.desc())
-        .all()
-    )
-    return interviews
+
 
 @router.get("/interviews/{interview_id}", response_model=CandidateInterviewOut)
-def read_candidate_interview(
-    interview_id: int,
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    db_obj = candidate_utils.get_candidate_interview(db, interview_id)
+def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
+    db_obj = candidate_utils.get_candidate_interview_with_instructors(db, interview_id)
+
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
-    return db_obj
+    return serialize_interview(db_obj)
+
+
+@router.get("/interviews", response_model=List[CandidateInterviewOut])
+def list_interviews(db: Session = Depends(get_db)):
+    interviews = candidate_utils.list_interviews_with_instructors(db)
+    return [serialize_interview(i) for i in interviews]
 
 
 @router.put("/interviews/{interview_id}", response_model=CandidateInterviewOut)

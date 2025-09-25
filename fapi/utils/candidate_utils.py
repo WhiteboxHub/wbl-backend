@@ -2,8 +2,10 @@
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
-from fapi.db.models import AuthUserORM,Batch,CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut, PaginatedInterviews
+
+from fapi.db.models import CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
+
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any
 from datetime import date
@@ -145,13 +147,12 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
     try:
         total = db.query(CandidateMarketingORM).count()
 
-        # Query marketing records with candidate and latest preparation
         records = (
             db.query(CandidateMarketingORM)
-            .join(CandidateMarketingORM.candidate)  # join candidate
+            .join(CandidateMarketingORM.candidate)  
             .outerjoin(
                 CandidateORM.preparation_records
-            )  # join preparations
+            )  
             .options(
                 joinedload(CandidateMarketingORM.candidate),
                 joinedload(CandidateMarketingORM.instructor1),
@@ -177,13 +178,10 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         results_serialized = []
         for r in records:
             candidate = r.candidate
-            # get the latest preparation record
             prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
 
             record_dict = r.__dict__.copy()
             record_dict.pop("_sa_instance_state", None)
-
-            # Instructor names from latest preparation
             record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
             record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
             record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
@@ -279,7 +277,6 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
         update_data = payload.dict(exclude_unset=True)
 
         for key, value in update_data.items():
-            # Skip relationship fields (dicts)
             if isinstance(value, dict):
                 continue
 
@@ -335,7 +332,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
             # .order_by(CandidatePlacementORM.id.desc())
-            .order_by(CandidatePlacementORM.priority.desc())  # ORDER BY priority
+            .order_by(CandidatePlacementORM.priority.desc()) 
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
@@ -426,13 +423,11 @@ def delete_placement(placement_id: int) -> Dict:
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
     data = interview.dict()
 
-    # Normalize interviewer_emails to lowercase if provided
     if data.get("interviewer_emails"):
         data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
 
-    # URL field is already included in `data` via dict()
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
@@ -440,8 +435,63 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     return db_obj
 
 
-def get_candidate_interview(db: Session, interview_id: int):
-    return db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate)).filter(CandidateInterview.id == interview_id).first()
+def get_candidate_interview_with_instructors(db: Session, interview_id: int):
+    return (
+        db.query(CandidateInterview)
+        .join(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
+        .options(
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor3),
+        )
+        .filter(CandidateInterview.id == interview_id)
+        .first()
+    )
+
+
+def list_interviews_with_instructors(db: Session):
+    return (
+        db.query(CandidateInterview)
+        .join(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
+        .options(
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidateInterview.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor3),
+        )
+        .order_by(CandidateInterview.interview_date.desc())
+        .all()
+    )
+
+def serialize_interview(interview: CandidateInterview) -> dict:
+    data = CandidateInterviewOut.from_orm(interview).dict()
+
+    # Default None
+    data["instructor1_name"] = None
+    data["instructor2_name"] = None
+    data["instructor3_name"] = None
+
+    if interview.candidate and interview.candidate.preparations:
+        prep = interview.candidate.preparations[0]  
+        if prep.instructor1:
+            data["instructor1_name"] = prep.instructor1.name
+        if prep.instructor2:
+            data["instructor2_name"] = prep.instructor2.name
+        if prep.instructor3:
+            data["instructor3_name"] = prep.instructor3.name
+
+    return data
 
 
 def update_candidate_interview(db: Session, interview_id: int, updates: CandidateInterviewUpdate):
