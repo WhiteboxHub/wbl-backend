@@ -109,25 +109,22 @@ async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None):
     cur_select = None
     cur_exec = None
     try:
-        # Determine selection criteria
+
         skipped_already_moved = 0
-        skipped_already_moved_ids: List[int] = []
-        if contact_ids and len(contact_ids) > 0:
-            # Enforce only records with moved_to_vendor = 0 are processed
+        if contact_ids:
+
             where_clause = f"id IN ({','.join(['%s'] * len(contact_ids))}) AND moved_to_vendor = 0"
             where_params = tuple(contact_ids)
-            # Precompute how many of the provided IDs are already marked as moved (to report back)
+
             cur_check = conn.cursor()
             check_query = f"SELECT id FROM vendor_contact_extracts WHERE id IN ({','.join(['%s'] * len(contact_ids))}) AND moved_to_vendor = 1"
             await loop.run_in_executor(None, cur_check.execute, check_query, tuple(contact_ids))
-            skipped_already_moved_ids = [row[0] for row in (cur_check.fetchall() or [])]
-            skipped_already_moved = len(skipped_already_moved_ids)
+            skipped_already_moved = len(cur_check.fetchall() or [])
             cur_check.close()
         else:
             where_clause = "moved_to_vendor = 0"
             where_params = tuple()
 
-        # Fetch contacts to move
         cur_select = conn.cursor(dictionary=True)
         select_query = f"""
             SELECT id, full_name, email, phone, linkedin_id, company_name, location, linkedin_internal_id
@@ -137,9 +134,8 @@ async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None):
         await loop.run_in_executor(None, cur_select.execute, select_query, where_params)
         rows = cur_select.fetchall()
         if not rows:
-            return {"message": "No contacts to move", "inserted": 0, "skipped_already_moved": skipped_already_moved, "count": 0}
+            return {"inserted": 0, "skipped_already_moved": skipped_already_moved, "count": 0}
 
-        # Prepare cursors and statements
         cur_exec = conn.cursor()
         insert_query = (
             """
@@ -147,18 +143,24 @@ async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None):
             VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
             """
         )
+        exist_query = "SELECT id FROM vendor WHERE (email = %s) OR (linkedin_id = %s) LIMIT 1"
 
         inserted = 0
         moved_ids: List[int] = []
 
         for r in rows:
             email = r.get("email")
+            linkedin = r.get("linkedin_id")
+            await loop.run_in_executor(None, cur_exec.execute, exist_query, (email, linkedin))
+            exists = cur_exec.fetchone()
+            if exists:
+                continue
 
             values = (
                 r.get("full_name"),
                 r.get("phone"),
                 email,
-                r.get("linkedin_id"),
+                linkedin,
                 r.get("company_name"),
                 r.get("location"),
                 r.get("linkedin_internal_id"),
@@ -174,10 +176,7 @@ async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None):
             await loop.run_in_executor(None, cur_exec.execute, update_query, tuple(moved_ids))
 
         conn.commit()
-        total_attempted = len(rows)
-        message = f"Inserted {inserted}, skipped {skipped_already_moved} already moved"
         return {
-            "message": message,
             "inserted": inserted,
             "skipped_already_moved": skipped_already_moved,
             "count": len(moved_ids),
