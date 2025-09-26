@@ -8,6 +8,7 @@ from enum import Enum
 
 
 class EmployeeBase(BaseModel):
+    id: Optional[int] = None
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -54,12 +55,34 @@ class EmployeeBirthdayOut(BaseModel):
     id: int
     name: str
     dob: date
-    # wish: str | None = None 
     wish: Optional[str] = None     
 
     class Config:
         orm_mode = True
 
+class EmployeeTaskBase(BaseModel): 
+    employee_name: str | None = None 
+    task: str 
+    assigned_date: date 
+    due_date: date 
+    status: str 
+    priority: str 
+    notes: str | None = None 
+class EmployeeTaskCreate(EmployeeTaskBase): 
+    pass
+class EmployeeTaskUpdate(BaseModel):
+    employee_name: Optional[str]
+    task: Optional[str]
+    assigned_date: Optional[date]
+    due_date: Optional[date]
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str]
+
+class EmployeeTask(EmployeeTaskBase): 
+    id: int 
+class Config: 
+    orm_mode = True
 
 class Token(BaseModel):
     access_token: str
@@ -238,10 +261,10 @@ class CandidateBase(BaseModel):
     batchid: int
     candidate_folder: Optional[str] = None   
 
-
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+    model_config = {
+        "from_attributes": True,   
+        "populate_by_name": True   
+    }
 
     @field_validator("agreement", mode="before")
     def normalize_agreement(cls, v):
@@ -325,7 +348,7 @@ class CandidateMarketingUpdate(BaseModel):
     marketing_manager: Optional[int] = None
     start_date: Optional[date] = None
     notes: Optional[str] = None
-    status: Optional[Literal["active", "break", "not responding"]] = None
+    status: Optional[Literal["active", "break", "not responding", "inactive"]] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
@@ -418,13 +441,14 @@ class CandidatePreparationBase(BaseModel):
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
 
-    candidate: Optional[CandidateBase]  # candidate relationship
-    instructor1: Optional[EmployeeBase]  # instructor relationships
+    candidate: Optional[CandidateBase]  
+    instructor1: Optional[EmployeeBase]  
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
+
     class Config:
-        from_attributes = True  # Pydantic v2 equivalent of orm_mode
+        from_attributes = True  
     
 
 
@@ -462,7 +486,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
-    # candidate: Optional[CandidateBase]  # added line
+    # candidate: Optional[CandidateBase]  
     
 
 class CandidatePreparationOut(BaseModel):
@@ -482,21 +506,20 @@ class CandidatePreparationOut(BaseModel):
 
     candidate: Optional[CandidateBase]
 
-    # Nested instructors
     instructor1: Optional[EmployeeBase]
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
-    # Keep the IDs for reference if needed
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
 
     class Config:
         from_attributes = True
         populate_by_name = True
         
         
+
 
 
 
@@ -547,7 +570,7 @@ class CandidateInterviewCreate(CandidateInterviewBase):
     pass
 
 
-# --- Update Schema ---
+# # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
@@ -567,7 +590,10 @@ class CandidateInterviewUpdate(BaseModel):
 # --- Output Schema ---
 class CandidateInterviewOut(CandidateInterviewBase):
     id: int
-    last_mod_datetime: Optional[datetime]
+    instructor1_name: Optional[str] = None
+    instructor2_name: Optional[str] = None
+    instructor3_name: Optional[str] = None
+    last_mod_datetime: Optional[datetime] = None 
 
     class Config:
         from_attributes = True
@@ -580,9 +606,34 @@ class PaginatedInterviews(BaseModel):
     page: int
     per_page: int
 
+class ActiveMarketingCandidate(BaseModel):
+    candidate_id: int
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    start_date: date
+    status: str
+
+    class Config:
+        orm_mode = True
 
 
+class CandidateInterviewCreate(BaseModel):
+    candidate_id: int
+    company: str
+    interview_date: date
+    mode_of_interview: Optional[ModeOfInterviewEnum] = None
+    type_of_interview: Optional[TypeOfInterviewEnum] = None
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    recording_link: Optional[str] = None
+    backup_url: Optional[str] = None
+    url: Optional[str] = None
+    feedback: Optional[FeedbackEnum] = None
+    notes: Optional[str] = None
 
+    class Config:
+        allow_population_by_field_name = True
 # -----------------------------------------------------------------------------------
 
 class GoogleUserCreate(BaseModel):
@@ -1286,7 +1337,7 @@ class LeadMetrics(BaseModel):
     total_leads: int
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
-    leadConversionRate: int
+    leads_this_week: int
 
 class LeadMetricsResponse(BaseModel):
     success: bool

@@ -310,43 +310,6 @@ def get_employee_birthdays(db: Session):
     }
 
 
-# Fetching Leads
-def fetch_all_leads_paginated_dashboard(page: int, limit: int, db: Session) -> dict[str, any]:
-    skip = (page - 1) * limit
-    # Get total count
-    total_leads = db.query(func.count(LeadORM.id)).scalar() or 0
-    # Get paginated leads
-    leads = db.query(LeadORM)\
-        .order_by(LeadORM.entry_date.desc())\
-        .offset(skip)\
-        .limit(limit)\
-        .all()
-    # Convert to list of dictionaries
-    leads_data = [{
-        "id": lead.id,
-        "full_name": lead.full_name,
-        "entry_date": lead.entry_date.isoformat() if lead.entry_date else None,
-        "phone": lead.phone,
-        "email": lead.email,
-        "workstatus": lead.workstatus,
-        "status": lead.status,
-        "closed_date": lead.closed_date.isoformat() if lead.closed_date else None,
-        "moved_to_candidate": lead.moved_to_candidate
-    } for lead in leads]
-    return {
-        "success": True,
-        "data": {
-            "leads": leads_data,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": total_leads,
-                "pages": (total_leads + limit - 1) // limit
-            }
-        },
-        "message": "Leads retrieved successfully"
-    }
-
 
 def get_lead_metrics(db: Session) -> dict[str, any]:
     # Total leads count
@@ -358,9 +321,20 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
         extract('month', LeadORM.entry_date) == current_month,
         extract('year', LeadORM.entry_date) == current_year
     ).scalar() or 0
+
+    start_of_week = datetime.combine(
+        (date.today() - timedelta(days=date.today().weekday())), datetime.min.time()
+    )
+    end_of_today = datetime.combine(date.today(), datetime.max.time())
+
+    leads_this_week = db.query(func.count(LeadORM.id)).filter(
+        LeadORM.entry_date >= start_of_week,
+        LeadORM.entry_date <= end_of_today
+    ).scalar() or 0
+  
+
     # Latest lead
     latest_lead = db.query(LeadORM).order_by(LeadORM.entry_date.desc()).first()
-    # Prepare latest lead data
     latest_lead_data = None
     if latest_lead:
         latest_lead_data = {
@@ -373,25 +347,11 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
             "status": latest_lead.status
         }
 
-        today = date.today()
-        first_day_month = today.replace(day=1)
-        closed_leads_this_month = db.query(func.count(LeadORM.id)).filter(
-            LeadORM.closed_date >= first_day_month,
-            LeadORM.closed_date <= today,
-            LeadORM.status == "Close"
-        ).scalar() or 0
-
-        leadConversionRate = (
-            round((closed_leads_this_month / leads_this_month) * 100, 2)
-            if leads_this_month > 0 else 0
-        )
-
-
     return {
         "total_leads": total_leads,
         "leads_this_month": leads_this_month,
+        "leads_this_week": leads_this_week,
         "latest_lead": latest_lead_data,
-        "leadConversionRate":leadConversionRate
     }
 
 

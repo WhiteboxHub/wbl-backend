@@ -1,23 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db import schemas
-from typing import Optional
 from fapi.db.database import get_db
 from fapi.utils import batch_utils
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Get all batches (no pagination)
-@router.get("/batch", response_model=list[schemas.BatchOut])
+security = HTTPBearer()
+
+
+@router.get("/batch", response_model=List[schemas.BatchOut])
 def read_batches(
     search: Optional[str] = Query(None, description="Search by batch name"),
     db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return batch_utils.get_all_batches(db, search=search)
 
 
 @router.get("/batch/{batch_id}", response_model=schemas.BatchOut)
-def read_batch(batch_id: int, db: Session = Depends(get_db)):
+def read_batch(
+    batch_id: int = Path(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     db_batch = batch_utils.get_batch_by_id(db, batch_id)
     if not db_batch:
         raise HTTPException(status_code=404, detail="Batch not found")
