@@ -55,12 +55,34 @@ class EmployeeBirthdayOut(BaseModel):
     id: int
     name: str
     dob: date
-    # wish: str | None = None 
     wish: Optional[str] = None     
 
     class Config:
         orm_mode = True
 
+class EmployeeTaskBase(BaseModel): 
+    employee_name: str | None = None 
+    task: str 
+    assigned_date: date 
+    due_date: date 
+    status: str 
+    priority: str 
+    notes: str | None = None 
+class EmployeeTaskCreate(EmployeeTaskBase): 
+    pass
+class EmployeeTaskUpdate(BaseModel):
+    employee_name: Optional[str]
+    task: Optional[str]
+    assigned_date: Optional[date]
+    due_date: Optional[date]
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str]
+
+class EmployeeTask(EmployeeTaskBase): 
+    id: int 
+class Config: 
+    orm_mode = True
 
 class Token(BaseModel):
     access_token: str
@@ -326,7 +348,7 @@ class CandidateMarketingUpdate(BaseModel):
     marketing_manager: Optional[int] = None
     start_date: Optional[date] = None
     notes: Optional[str] = None
-    status: Optional[Literal["active", "break", "not responding"]] = None
+    status: Optional[Literal["active", "break", "not responding", "inactive"]] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
@@ -488,9 +510,9 @@ class CandidatePreparationOut(BaseModel):
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
 
     class Config:
         from_attributes = True
@@ -1315,7 +1337,7 @@ class LeadMetrics(BaseModel):
     total_leads: int
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
-    leadConversionRate: int
+    leads_this_week: int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
