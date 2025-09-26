@@ -12,7 +12,7 @@ from fapi.api.routes import (
     vendor, vendor_activity, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject, 
     course_content, course_material, batch, authuser, avatar_dashboard, 
-    session, recording, referrals
+    session, recording, referrals,employee_tasks,
 )
 from fapi.core.config import limiter 
 
@@ -29,6 +29,7 @@ app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact E
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
 app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
 app.include_router(employee.router, prefix="/api", tags=["Employee"])
+app.include_router(employee_tasks.router, prefix="/api", tags=["Employee Tasks"])
 app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(password.router, prefix="/api", tags=["password"])
