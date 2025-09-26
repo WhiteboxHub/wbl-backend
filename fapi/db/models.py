@@ -258,7 +258,7 @@ class CandidateMarketingORM(Base):
 
     # Matches table columns
     start_date = Column(Date, nullable=False)
-    status = Column(Enum("active", "break", "not responding"), nullable=False)
+    status = Column(Enum("active", "break", "not responding", "inactive"), nullable=False)
     last_mod_datetime = Column(
         TIMESTAMP,
         default=datetime.utcnow,

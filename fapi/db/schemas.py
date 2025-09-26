@@ -348,7 +348,7 @@ class CandidateMarketingUpdate(BaseModel):
     marketing_manager: Optional[int] = None
     start_date: Optional[date] = None
     notes: Optional[str] = None
-    status: Optional[Literal["active", "break", "not responding"]] = None
+    status: Optional[Literal["active", "break", "not responding", "inactive"]] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
@@ -510,9 +510,9 @@ class CandidatePreparationOut(BaseModel):
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
 
     class Config:
         from_attributes = True
