@@ -6,7 +6,6 @@ from typing import Optional, List, Literal, Union,Dict,Any
 from enum import Enum
 
 
-
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -517,11 +516,6 @@ class CandidatePreparationOut(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
-        
-        
-
-
-
 
 # ---------Interview-------------------------------
 
