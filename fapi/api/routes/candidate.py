@@ -30,6 +30,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 # ------------------------Candidate------------------------------------
+
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
 def list_candidates(
     page: int = 1,
@@ -37,48 +38,47 @@ def list_candidates(
     search: str = None,
     search_by: str = "all",
     sort: str = Query("enrolled_date:desc", description="Sort by field:direction (e.g., 'enrolled_date:desc')"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
 
-
-
 @router.get("/candidates/search", response_model=Dict[str, Any])
-def search_candidates(term: str, db: Session = Depends(get_db)):
+def search_candidates(
+    term: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     try:
         filters = [
             CandidateORM.full_name.ilike(f"%{term}%"),
             CandidateORM.email.ilike(f"%{term}%"),
         ]
-
-
         normalized_term = re.sub(r"\D", "", term)
         if normalized_term:
-           
             filters.append(func.replace(func.replace(CandidateORM.phone, "-", ""), " ", "").ilike(f"%{normalized_term}%"))
-
         if term.isdigit():
             filters.append(CandidateORM.id == int(term))
-
         results = db.query(CandidateORM).filter(or_(*filters)).all()
-
         data: List[Dict[str, Any]] = []
         for r in results:
-            item = r._dict_.copy()
+            item = r.__dict__.copy()
             item.pop("_sa_instance_state", None)
             data.append(item)
-
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @router.get("/candidates/{candidate_id}", response_model=dict)
-def get_candidate(candidate_id: int):
-    candidate = candidate_utils.get_candidate_by_id(candidate_id)
+def get_candidate(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    candidate = candidate_utils.get_candidate_by_id(db, candidate_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     return candidate
-
 
 @router.post("/candidates", response_model=int)
 def create_candidate(candidate: CandidateCreate):
@@ -95,31 +95,6 @@ def delete_candidate(candidate_id: int):
     return {"message": "Candidate deleted successfully"}
 
 
-@router.get("/candidates/search", response_model=Dict[str, Any])
-def search_candidates(term: str, db: Session = Depends(get_db)):
-    try:
-        filters = []
-
-        # Search by full_name, email, or phone (case-insensitive)
-        filters.append(CandidateORM.full_name.ilike(f"%{term}%"))
-        filters.append(CandidateORM.email.ilike(f"%{term}%"))
-        filters.append(CandidateORM.phone.ilike(f"%{term}%"))
-
-        # If term is a digit, also search by id
-        if term.isdigit():
-            filters.append(CandidateORM.id == int(term))
-
-        results = db.query(CandidateORM).filter(or_(*filters)).all()
-
-        data: List[Dict[str, Any]] = []
-        for r in results:
-            item = r._dict_.copy()
-            item.pop("_sa_instance_state", None)
-            data.append(item)
-
-        return {"data": data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ------------------- Marketing -------------------
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
@@ -319,6 +294,9 @@ def delete_prep(
     return deleted
 
 ##--------------------------------search----------------------------------
+
+
+
 @router.get("/candidates/search-names/{search_term}")
 def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
     return candidate_utils.get_candidate_suggestions(search_term, db)
