@@ -315,7 +315,7 @@ class CandidateInterview(Base):
         ),
         nullable=True
     )
-
+    transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
     backup_url = Column(String(500), nullable=True)
     url = Column(String(500), nullable=True)  # New column added
