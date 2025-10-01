@@ -95,7 +95,7 @@ class LeadORM(Base):
     entry_date = Column(DateTime)
     phone = Column(String(20))
     email = Column(String(255), nullable=False)
-    workstatus = Column(String(50))
+    workstatus = Column(String(50), default="Waiting for Status")
     status = Column(String(45), nullable=False, server_default="Open")
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
