@@ -1,26 +1,45 @@
-from fastapi import APIRouter, Depends, HTTPException, status , Query, Request
-from typing import List, Optional
-from sqlalchemy.orm import Session
-from fapi.db.database import SessionLocal, get_db
-from fapi.db.schemas import CourseContentResponse, BatchMetrics
-from sqlalchemy.future import select
-from fapi.db.models import CourseContent
-import anyio
-from fastapi.responses import JSONResponse
-from fapi.core.config import limiter
 import logging
-from fapi.utils.resources_utils import fetch_subject_batch_recording,fetch_course_batches,fetch_session_types_by_team,fetch_sessions_by_type_orm , fetch_keyword_presentation
-from sqlalchemy.exc import SQLAlchemyError
 import traceback
-from fapi.utils.avatar_dashboard_utils import (
-    get_batch_metrics,
+from typing import List, Optional
+
+import anyio
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Security,
+    status,
 )
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.future import select
+from sqlalchemy.orm import Session
+
+from fapi.db.database import get_db
+from fapi.db.schemas import CourseContentResponse, BatchMetrics
+from fapi.db.models import CourseContent
+from fapi.core.config import limiter
+from fapi.utils.resources_utils import (
+    fetch_subject_batch_recording,
+    fetch_course_batches,
+    fetch_session_types_by_team,
+    fetch_sessions_by_type_orm,
+    fetch_keyword_presentation,
+)
+from fapi.utils.avatar_dashboard_utils import get_batch_metrics
 
 router = APIRouter()
+security = HTTPBearer() 
 
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
-async def get_course_content(db: Session = Depends(get_db)):
+async def get_course_content(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+    db: Session = Depends(get_db),
+):
     def _get_content():
         result = db.execute(select(CourseContent))
         return result.scalars().all()
@@ -29,9 +48,18 @@ async def get_course_content(db: Session = Depends(get_db)):
 
 
 @router.get("/session-types")
-async def get_session_types(team: str = "null", db: Session = Depends(get_db)):
+async def get_session_types(
+    team: str = "null",
+    credentials: HTTPAuthorizationCredentials = Security(security),  
+    db: Session = Depends(get_db),
+):
+    token = credentials.credentials
+  
+    async def _get_types():
+        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team)
+
     try:
-        types = await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team)
+        types = await _get_types()
         if not types:
             raise HTTPException(status_code=404, detail="Types not found")
         return {"types": types}
@@ -44,15 +72,14 @@ async def get_sessions(
     course_name: Optional[str] = None,
     session_type: Optional[str] = None,
     team: str = "admin",
-    db: Session = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Security(security),  
+    db: Session = Depends(get_db),
 ):
-    try:
-        course_name_to_id = {
-            "QA": 1,
-            "UI": 2,
-            "ML": 3,
-        }
+    token = credentials.credentials
 
+    async def _get_sessions():
+        course_name_to_id = {"QA": 1, "UI": 2, "ML": 3}
+        course_id = None
         if course_name:
             course_id = course_name_to_id.get(course_name.upper())
             if not course_id:
@@ -60,22 +87,22 @@ async def get_sessions(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
                 )
-        else:
-            course_id = None
+        return await anyio.to_thread.run_sync(
+            fetch_sessions_by_type_orm, db, course_id, session_type, team
+        )
 
-        sessions = await anyio.to_thread.run_sync(fetch_sessions_by_type_orm, db, course_id, session_type, team)
-
-
+    try:
+        sessions = await _get_sessions()
         if not sessions:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Sessions not found"
             )
-
         return {"sessions": sessions}
-
+    except HTTPException:
+        raise
     except Exception as e:
-        traceback.print_exc()   # print full error in server logs
+        traceback.print_exc()  
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error: {str(e)}"
