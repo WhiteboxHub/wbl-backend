@@ -372,10 +372,8 @@ class CandidatePlacementUpdate(BaseModel):
     company: Optional[str] = None
     placement_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-    
     # Updated status enum
     status: Optional[Literal['Active', 'Inactive']]
-
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
