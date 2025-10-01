@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 security = HTTPBearer()
 
+
 # ------------------------Candidate------------------------------------
 
 @router.get("/candidates", response_model=PaginatedCandidateResponse)
@@ -68,6 +69,7 @@ def search_candidates(
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(
@@ -285,17 +287,24 @@ def delete_prep(
 ##--------------------------------search----------------------------------
 
 
-
 @router.get("/candidates/search-names/{search_term}")
-def get_candidate_suggestions(search_term: str, db: Session = Depends(get_db)):
-    return candidate_utils.get_candidate_suggestions(search_term, db)
+def get_candidate_suggestions(
+    search_term: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    token = credentials.credentials
 
+    try:
+        results = candidate_utils.get_candidate_suggestions(search_term, db)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/candidates/details/{candidate_id}")
 def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
     return candidate_utils.get_candidate_details(candidate_id, db)
-
 
 
 @router.get("/candidates/sessions/{candidate_id}")
