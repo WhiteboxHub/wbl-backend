@@ -108,20 +108,45 @@ def create_candidate(candidate_data: dict) -> int:
     finally:
         db.close()
 
+
+
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
+
+        # Update candidate fields
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
-        db.commit()  
+
+        db.flush()  # Ensure updated values are available
+
+        # If move_to_prep is True, insert into candidate_preparation if not exists
+        if getattr(candidate, "move_to_prep", False):
+            prep_exists = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id).first()
+            if not prep_exists:
+                new_prep = CandidatePreparation(
+                    candidate_id=candidate.id,
+                    batch=str(candidate.batchid),
+                    start_date=date.today(),
+                    status="active"
+                )
+                db.add(new_prep)
+
+        db.commit()
+        db.refresh(candidate)
+        return candidate.id
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()  
+        db.close()
+
+
+        
 
 def delete_candidate(candidate_id: int):
     db: Session = SessionLocal()
@@ -604,13 +629,30 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
     return db_prep
 
 
-def delete_candidate_preparation(db: Session, prep_id: int):
-    db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
+
+def delete_candidate_preparation(db: Session, prep_id: int) -> dict | None:
+    db_prep = (
+        db.query(CandidatePreparation)
+        .options(
+            joinedload(CandidatePreparation.candidate),
+            joinedload(CandidatePreparation.instructor1),
+        )
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
+    )
     if not db_prep:
         return None
+    # Convert to dict before deleting
+    result = {
+        "id": db_prep.id,
+        "candidate_id": db_prep.candidate_id,
+        "instructor1_id": db_prep.instructor1_id,
+        # Add other fields as needed
+    }
     db.delete(db_prep)
     db.commit()
-    return db_prep
+    return result
+
 
 ##-------------------------------------------------search---------------------------------------------------------------
 

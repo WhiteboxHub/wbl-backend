@@ -236,6 +236,7 @@ class CandidateBase(BaseModel):
     notes: Optional[str]
     batchid: int
     candidate_folder: Optional[str] = None   
+    move_to_prep: Optional[bool] = False 
 
     model_config = {
         "from_attributes": True,   
