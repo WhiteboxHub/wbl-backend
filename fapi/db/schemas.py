@@ -23,8 +23,8 @@ class EmployeeBase(BaseModel):
     aadhaar: Optional[str] = None
 
     @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_empty_dates(cls, v):
-        if v == "":
+    def handle_invalid_dates(cls, v):
+        if v in ("", "0000-00-00", None):
             return None
         return v
 
@@ -60,29 +60,24 @@ class EmployeeBirthdayOut(BaseModel):
     class Config:
         orm_mode = True
 
-class EmployeeTaskBase(BaseModel): 
-    employee_name: str | None = None 
-    task: str 
-    assigned_date: date 
-    due_date: date 
-    status: str 
-    priority: str 
-    notes: str | None = None 
-class EmployeeTaskCreate(EmployeeTaskBase): 
-    pass
-class EmployeeTaskUpdate(BaseModel):
-    employee_name: Optional[str]
-    task: Optional[str]
-    assigned_date: Optional[date]
-    due_date: Optional[date]
-    status: Optional[str] = "pending"
-    priority: Optional[str] = "medium"
-    notes: Optional[str]
+# ---------------------------enployee search -----------------------------
+class EmployeeDetailSchema(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
 
-class EmployeeTask(EmployeeTaskBase): 
-    id: int 
-class Config: 
-    orm_mode = True
+    class Config:
+        orm_mode = True
 
 class Token(BaseModel):
     access_token: str
