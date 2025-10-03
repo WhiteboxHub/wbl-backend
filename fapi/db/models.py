@@ -95,7 +95,7 @@ class LeadORM(Base):
     entry_date = Column(DateTime)
     phone = Column(String(20))
     email = Column(String(255), nullable=False)
-    workstatus = Column(String(50))
+    workstatus = Column(String(50),default="Waiting for Status")
     status = Column(String(45), nullable=False, server_default="Open")
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
@@ -315,7 +315,7 @@ class CandidateInterview(Base):
         ),
         nullable=True
     )
-
+    transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
     backup_url = Column(String(500), nullable=True)
     url = Column(String(500), nullable=True)  # New column added
@@ -421,7 +421,6 @@ class EmployeeORM(Base):
     notes = Column(Text, nullable=True)
     status = Column(Integer, nullable=True)
     aadhaar = Column(String(20), nullable=True, unique=True)
-
 
 class CandidateStatus(str, enum.Enum):
     active = "active"

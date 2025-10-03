@@ -6,7 +6,6 @@ from typing import Optional, List, Literal, Union,Dict,Any
 from enum import Enum
 
 
-
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -60,24 +59,6 @@ class EmployeeBirthdayOut(BaseModel):
     class Config:
         orm_mode = True
 
-# ---------------------------enployee search -----------------------------
-class EmployeeDetailSchema(BaseModel):
-    id: Optional[int] = None
-    name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    state: Optional[str] = None
-    dob: Optional[date] = None
-    startdate: Optional[date] = None
-    enddate: Optional[date] = None
-    notes: Optional[str] = None
-    status: Optional[int] = None
-    instructor: Optional[int] = None
-    aadhaar: Optional[str] = None
-
-    class Config:
-        orm_mode = True
 
 class Token(BaseModel):
     access_token: str
@@ -512,11 +493,6 @@ class CandidatePreparationOut(BaseModel):
     class Config:
         from_attributes = True
         populate_by_name = True
-        
-        
-
-
-
 
 # ---------Interview-------------------------------
 
@@ -551,6 +527,7 @@ class CandidateInterviewBase(BaseModel):
     interview_date: date
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
+    transcript: Optional[str] = None 
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
     url: Optional[str] = None  # New field added
@@ -574,6 +551,7 @@ class CandidateInterviewUpdate(BaseModel):
     interview_date: Optional[date] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
+    transcript: Optional[str] = None 
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
     url: Optional[str] = None  # New field added
