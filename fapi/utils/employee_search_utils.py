@@ -1,12 +1,9 @@
 from sqlalchemy.orm import Session
-# from fastapi import  HTTPException
-# from sqlalchemy import func
 from typing import List, Dict
 from fapi.db.models import EmployeeORM, CandidatePreparation, CandidateMarketingORM, Recording
 from typing import List
 from fapi.db.models import Session as SessionORM 
 from datetime import datetime, date
-from rapidfuzz import fuzz
 from typing import List, Dict
 
 def search_employees(db: Session, query: str) -> List[EmployeeORM]:
@@ -84,56 +81,6 @@ def get_employee_candidates(db: Session, employee_id: int) -> Dict:
 
 
 
-
-# def get_employee_sessions_and_recordings(db: Session, employee_id: int, threshold: int = 70):
-   
-#     employee = db.query(EmployeeORM).filter(EmployeeORM.id == employee_id, EmployeeORM.status == 1).first()
-#     if not employee:
-#         return {"error": "Active employee not found"}
-
-#     emp_name = employee.name.lower().strip()
-#     emp_parts = emp_name.split()  
-
-#     all_sessions = db.query(SessionORM).all()
-#     all_recordings = db.query(Recording).all()
-
-#     matched_sessions: List[Dict] = []
-#     matched_recordings: List[Dict] = []
-
-    
-#     def highest_match(text: str, name_parts: List[str]) -> int:
-#         text = text.lower()
-#         return max([fuzz.partial_ratio(part, text) for part in name_parts])
-
-    
-#     for s in all_sessions:
-#         title_text = s.title or ""
-#         score = highest_match(title_text, emp_parts)
-#         if score >= threshold:
-#             matched_sessions.append({
-#                 "session": s,
-#                 "match_score": score
-#             })
-
-    
-#     for r in all_recordings:
-#         combined_text = " ".join(filter(None, [r.description, r.batchname, r.subject or ""]))
-#         score = highest_match(combined_text, emp_parts)
-#         if score >= threshold:
-#             matched_recordings.append({
-#                 "recording": r,
-#                 "match_score": score
-#             })
-
-#     return {
-#         "employee": employee,
-#         "sessions": matched_sessions,
-#         "recordings": matched_recordings
-#     }
-
-
-
-# -------------------------------------------------------new----
 def get_employee_sessions_and_recordings(db: Session, employee_id: int):
     employee = db.query(EmployeeORM).filter(EmployeeORM.id == employee_id, EmployeeORM.status == 1).first()
     if not employee:
@@ -147,7 +94,7 @@ def get_employee_sessions_and_recordings(db: Session, employee_id: int):
     matched_sessions = []
     matched_recordings = []
 
-    # Check if any part of the title/description matches employee name
+    
     for s in all_sessions:
         if s.title and any(part in s.title.lower() for part in emp_name.split()):
             matched_sessions.append(s)
