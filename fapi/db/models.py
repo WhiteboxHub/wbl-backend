@@ -234,7 +234,7 @@ class CandidateORM(Base):
     batchid = Column(Integer, nullable=False)
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
-
+    move_to_prep = Column(Boolean, default=False)
    
     interviews = relationship("CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
     preparations = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
