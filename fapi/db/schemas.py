@@ -22,8 +22,8 @@ class EmployeeBase(BaseModel):
     aadhaar: Optional[str] = None
 
     @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_empty_dates(cls, v):
-        if v == "":
+    def handle_invalid_dates(cls, v):
+        if v in ("", "0000-00-00", None):
             return None
         return v
 
@@ -58,6 +58,27 @@ class EmployeeBirthdayOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# ---------------------------enployee search -----------------------------
+class EmployeeDetailSchema(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
 
 
 class Token(BaseModel):
@@ -1314,6 +1335,9 @@ class LeadMetrics(BaseModel):
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
     leads_this_week: int
+    open_leads:int
+    closed_leads:int
+    future_leads:int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
