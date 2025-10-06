@@ -403,6 +403,8 @@ class CandidatePreparation(Base):
     target_date_of_marketing = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
+    move_to_mrkt = Column(Boolean, default=False, nullable=False)
+    # move_to_prep = Column(Boolean, default=False)
 
 # ---------------------------------------------------------------
 class EmployeeORM(Base):
@@ -421,6 +423,7 @@ class EmployeeORM(Base):
     notes = Column(Text, nullable=True)
     status = Column(Integer, nullable=True)
     aadhaar = Column(String(20), nullable=True, unique=True)
+    
 
 class CandidateStatus(str, enum.Enum):
     active = "active"
