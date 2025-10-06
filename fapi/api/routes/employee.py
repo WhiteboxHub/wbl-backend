@@ -106,67 +106,17 @@ def employee_candidates(employee_id: int, db: Session = Depends(get_db)):
     return candidates
 
 
-# ------------------old-----------------
-
-
-# @router.get("/employees/{employee_id}/session-class-data")
-# def get_employee_session_class_data(employee_id: int, db: Session = Depends(get_db)):
-#     data = get_employee_sessions_and_recordings(db, employee_id)
-
-#     timeline = []
-
-#     # Recordings
-#     for item in data["recordings"]:
-#         r = item["recording"]  
-#         timeline.append({
-#             "type": "class",
-#             "title": r.description,
-#             "date": str(r.classdate) if r.classdate else None,
-#             "link": r.link,
-#             "match_score": item["match_score"]
-#         })
-
-#     # Sessions
-#     for item in data["sessions"]:
-#         s = item["session"]  
-#         timeline.append({
-#             "type": "session",
-#             "title": s.title,
-#             "date": str(s.sessiondate) if s.sessiondate else None,
-#             "link": s.link,
-#             "match_score": item["match_score"]
-#         })
-
-#     timeline.sort(key=lambda x: x["date"] or "", reverse=True)
-
-#     return {
-#         "class_count": len(data["recordings"]),
-#         "session_count": len(data["sessions"]),
-#         "timeline": timeline
-#     }
-
-
-
-
-# ========================================newwww---------------
-
 
 
 @router.get("/employees/{employee_id}/session-class-data")
 def get_employee_session_class_data(employee_id: int, db: Session = Depends(get_db)):
-    """
-    Fetch session & class data for an active employee,
-    matching partial name in titles/descriptions.
-    """
+    
     data = get_employee_sessions_and_recordings(db, employee_id)
-
-    # If employee not found or inactive
     if "error" in data:
         return {"error": data["error"], "class_count": 0, "session_count": 0, "timeline": []}
 
     timeline: List[Dict] = []
 
-    # Add recordings (classes)
     for r in data["recordings"]:
         timeline.append({
             "type": "class",
@@ -174,8 +124,6 @@ def get_employee_session_class_data(employee_id: int, db: Session = Depends(get_
             "date": str(r.classdate) if r.classdate else None,
             "link": r.link
         })
-
-    # Add sessions
     for s in data["sessions"]:
         timeline.append({
             "type": "session",
@@ -184,7 +132,6 @@ def get_employee_session_class_data(employee_id: int, db: Session = Depends(get_
             "link": s.link
         })
 
-    # Sort timeline descending by date
     timeline.sort(key=lambda x: x["date"] or "", reverse=True)
 
     return {

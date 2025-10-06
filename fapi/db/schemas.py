@@ -1333,6 +1333,9 @@ class LeadMetrics(BaseModel):
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
     leads_this_week: int
+    open_leads:int
+    closed_leads:int
+    future_leads:int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
