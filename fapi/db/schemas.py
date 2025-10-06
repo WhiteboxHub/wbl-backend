@@ -235,6 +235,7 @@ class CandidateBase(BaseModel):
     fee_paid: Optional[int]
     notes: Optional[str]
     batchid: int
+    github_link: Optional[str] = None
     candidate_folder: Optional[str] = None   
     move_to_prep: Optional[bool] = False 
 
