@@ -7,7 +7,7 @@ from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementO
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fastapi import HTTPException,APIRouter,Depends
-from typing import List, Dict,Any
+from typing import List, Dict,Any, Optional 
 from datetime import date
 
 router = APIRouter()
@@ -108,20 +108,45 @@ def create_candidate(candidate_data: dict) -> int:
     finally:
         db.close()
 
+
+
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
+
+       
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
-        db.commit()  
+
+        db.flush()  
+
+        # If move_to_prep is True, insert into candidate_preparation if not exists
+        if getattr(candidate, "move_to_prep", False):
+            prep_exists = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id).first()
+            if not prep_exists:
+                new_prep = CandidatePreparation(
+                    candidate_id=candidate.id,
+                    batch=str(candidate.batchid),
+                    start_date=date.today(),
+                    status="active"
+                )
+                db.add(new_prep)
+
+        db.commit()
+        db.refresh(candidate)
+        return candidate.id
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        db.close()  
+        db.close()
+
+
+        
 
 def delete_candidate(candidate_id: int):
     db: Session = SessionLocal()
@@ -262,10 +287,38 @@ def create_marketing(payload: CandidateMarketingCreate) -> Dict:
         db.close()
 
 
+
+def serialize_marketing(record: CandidateMarketingORM) -> dict:
+    if not record:
+        return None
+
+    record_dict = record.__dict__.copy()
+    record_dict.pop("_sa_instance_state", None)
+
+    candidate = record.candidate
+    record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
+    if record_dict["candidate"]:
+        record_dict["candidate"].pop("_sa_instance_state", None)
+
+    record_dict["marketing_manager_obj"] = (
+        record.marketing_manager_obj.__dict__.copy() if record.marketing_manager_obj else None
+    )
+    if record_dict["marketing_manager_obj"]:
+        record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+
+    for i, rel in enumerate([record.instructor1, record.instructor2, record.instructor3], start=1):
+        if rel:
+            d = rel.__dict__.copy()
+            d.pop("_sa_instance_state", None)
+            record_dict[f"instructor{i}"] = d
+        else:
+            record_dict[f"instructor{i}"] = None
+
+    return record_dict
+
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
     db: Session = SessionLocal()
     try:
-        # Lookup by candidate_id
         record = (
             db.query(CandidateMarketingORM)
             .filter(CandidateMarketingORM.candidate_id == record_id)
@@ -275,19 +328,16 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
             raise HTTPException(status_code=404, detail="Marketing record not found")
 
         update_data = payload.dict(exclude_unset=True)
-
         for key, value in update_data.items():
-            if isinstance(value, dict):
-                continue
-
-            if hasattr(record, key):
+            if hasattr(record, key) and not isinstance(value, dict):
                 setattr(record, key, value)
 
         db.commit()
         db.refresh(record)
-        return record.__dict__
+        return serialize_marketing(record)
     finally:
         db.close()
+
 
 
 
@@ -593,24 +643,60 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
     if not db_prep:
         return None
-    update_data = updates.dict(exclude_unset=True)
 
+    update_data = updates.dict(exclude_unset=True)
+ 
     for key, value in update_data.items():
         if hasattr(db_prep, key):
             setattr(db_prep, key, value)
+
+    db.flush()  
+
+    candidate = db.query(CandidateORM).filter(CandidateORM.id == db_prep.candidate_id).first()
+    if candidate and getattr(db_prep, "move_to_mrkt", False):
+        marketing_exists = (
+            db.query(CandidateMarketingORM)
+            .filter_by(candidate_id=candidate.id, status="active")
+            .first()
+        )
+        if not marketing_exists:
+            new_marketing = CandidateMarketingORM(
+                candidate_id=candidate.id,
+                start_date=date.today(),
+                status="active"
+            )
+            db.add(new_marketing)
 
     db.commit()
     db.refresh(db_prep)
     return db_prep
 
 
-def delete_candidate_preparation(db: Session, prep_id: int):
-    db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
+
+
+
+def delete_candidate_preparation(db: Session, prep_id: int) -> Optional[dict]:
+    db_prep = (
+        db.query(CandidatePreparation)
+        .options(
+            joinedload(CandidatePreparation.candidate),
+            joinedload(CandidatePreparation.instructor1),
+        )
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
+    )
     if not db_prep:
         return None
+  
+    result = {
+        "id": db_prep.id,
+        "candidate_id": db_prep.candidate_id,
+        "instructor1_id": db_prep.instructor1_id,
+    }
     db.delete(db_prep)
     db.commit()
-    return db_prep
+    return result
+
 
 ##-------------------------------------------------search---------------------------------------------------------------
 

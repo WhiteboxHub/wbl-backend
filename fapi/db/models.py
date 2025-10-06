@@ -95,7 +95,7 @@ class LeadORM(Base):
     entry_date = Column(DateTime)
     phone = Column(String(20))
     email = Column(String(255), nullable=False)
-    workstatus = Column(String(50))
+    workstatus = Column(String(50),default="Waiting for Status")
     status = Column(String(45), nullable=False, server_default="Open")
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
@@ -234,7 +234,7 @@ class CandidateORM(Base):
     batchid = Column(Integer, nullable=False)
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
-
+    move_to_prep = Column(Boolean, default=False)
    
     interviews = relationship("CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
     preparations = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
@@ -403,6 +403,8 @@ class CandidatePreparation(Base):
     target_date_of_marketing = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
+    move_to_mrkt = Column(Boolean, default=False, nullable=False)
+    # move_to_prep = Column(Boolean, default=False)
 
 # ---------------------------------------------------------------
 class EmployeeORM(Base):
@@ -421,20 +423,7 @@ class EmployeeORM(Base):
     notes = Column(Text, nullable=True)
     status = Column(Integer, nullable=True)
     aadhaar = Column(String(20), nullable=True, unique=True)
-    tasks = relationship("EmployeeTaskORM", back_populates="employee")
-
-class EmployeeTaskORM(Base):
-    __tablename__ = "employee_task" 
-
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
-    task = Column(String(255), nullable=False)
-    assigned_date = Column(Date, nullable=False)
-    due_date = Column(Date, nullable=False)
-    status = Column(Enum("pending","in_progress","completed","blocked"), default="pending")
-    priority = Column(Enum("low","medium","high","urgent"), default="medium")
-    notes = Column(Text, nullable=True)
-    employee = relationship("EmployeeORM", back_populates="tasks")
+    
 
 class CandidateStatus(str, enum.Enum):
     active = "active"

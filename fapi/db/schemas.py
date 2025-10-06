@@ -59,31 +59,6 @@ class EmployeeBirthdayOut(BaseModel):
     class Config:
         orm_mode = True
 
-class EmployeeTaskBase(BaseModel): 
-    # employee_name: str | None = None 
-    employee_name: Optional[str] = None
-    task: str 
-    assigned_date: date 
-    due_date: date 
-    status: str 
-    priority: str 
-    # notes: str | None = None 
-    notes: Optional[str] = None
-class EmployeeTaskCreate(EmployeeTaskBase): 
-    pass
-class EmployeeTaskUpdate(BaseModel):
-    employee_name: Optional[str]
-    task: Optional[str]
-    assigned_date: Optional[date]
-    due_date: Optional[date]
-    status: Optional[str] = "pending"
-    priority: Optional[str] = "medium"
-    notes: Optional[str]
-
-class EmployeeTask(EmployeeTaskBase): 
-    id: int 
-class Config: 
-    orm_mode = True
 
 class Token(BaseModel):
     access_token: str
@@ -261,6 +236,7 @@ class CandidateBase(BaseModel):
     notes: Optional[str]
     batchid: int
     candidate_folder: Optional[str] = None   
+    move_to_prep: Optional[bool] = False 
 
     model_config = {
         "from_attributes": True,   
@@ -439,6 +415,7 @@ class CandidatePreparationBase(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = False
 
     candidate: Optional[CandidateBase]  
     instructor1: Optional[EmployeeBase]  
@@ -452,23 +429,24 @@ class CandidatePreparationBase(BaseModel):
 
 
 class CandidatePreparationCreate(CandidatePreparationBase):
-    id: int = Field(..., alias="id")
-    candidate_id: int
-    batch: Optional[str] = None
-    start_date: Optional[date] = None
-    status: str
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-    rating: Optional[str] = None
-    tech_rating: Optional[str] = None
-    communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
-    notes: Optional[str] = None
-    candidate: Optional[CandidateBase]  # added line
+    pass
+    # id: int = Field(..., alias="id")
+    # candidate_id: int
+    # batch: Optional[str] = None
+    # start_date: Optional[date] = None
+    # status: str
+    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    # rating: Optional[str] = None
+    # tech_rating: Optional[str] = None
+    # communication: Optional[str] = None
+    # years_of_experience: Optional[str] = None
+    # topics_finished: Optional[str] = None
+    # current_topics: Optional[str] = None
+    # target_date_of_marketing: Optional[date] = None
+    # notes: Optional[str] = None
+    # candidate: Optional[CandidateBase]  # added line
 
 class CandidatePreparationUpdate(BaseModel):
     batch: Optional[str] = None
@@ -485,6 +463,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = None
     # candidate: Optional[CandidateBase]  
     
 
@@ -502,6 +481,7 @@ class CandidatePreparationOut(BaseModel):
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
     last_mod_datetime: Optional[datetime]
+    move_to_mrkt: Optional[bool] = None
 
     candidate: Optional[CandidateBase]
 
