@@ -60,6 +60,27 @@ class EmployeeBirthdayOut(BaseModel):
         orm_mode = True
 
 
+# ---------------------------enployee search -----------------------------
+class EmployeeDetailSchema(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
