@@ -234,7 +234,7 @@ class CandidateORM(Base):
     # batchid = Column(Integer, nullable=False)
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
     github_link = Column(String(500), nullable=True)
-   
+    move_to_prep = Column(Boolean, default=False)
     batchid = Column(Integer, ForeignKey("batch.batchid"),nullable=False)  # Foreign key to batches table
     batch = relationship("Batch", back_populates="candidates")  # Relationship to Batch model
     # Relationships

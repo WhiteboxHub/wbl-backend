@@ -86,8 +86,9 @@ def get_candidate(
 def create_candidate(candidate: CandidateCreate):
     return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
 
+
 @router.put("/candidates/{candidate_id}")
-def update_candidate(candidate_id: int, candidate: CandidateUpdate):
+def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdate):
     candidate_utils.update_candidate(candidate_id, candidate.dict(exclude_unset=True))
     return {"message": "Candidate updated successfully"}
 
@@ -273,7 +274,10 @@ def update_prep(
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return updated
 
-@router.delete("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
+
+
+
+@router.delete("/candidate_preparation/{prep_id}")
 def delete_prep(
     prep_id: int,
     db: Session = Depends(get_db),
