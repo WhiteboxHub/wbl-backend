@@ -310,13 +310,13 @@ def get_employee_birthdays(db: Session):
     }
 
 
-
 def get_lead_metrics(db: Session) -> dict[str, any]:
-    # Total leads count
+    
     total_leads = db.query(func.count(LeadORM.id)).scalar() or 0
-    # Leads in current month
+
     current_month = datetime.now().month
     current_year = datetime.now().year
+
     leads_this_month = db.query(func.count(LeadORM.id)).filter(
         extract('month', LeadORM.entry_date) == current_month,
         extract('year', LeadORM.entry_date) == current_year
@@ -331,9 +331,13 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
         LeadORM.entry_date >= start_of_week,
         LeadORM.entry_date <= end_of_today
     ).scalar() or 0
-  
 
-    # Latest lead
+    
+    open_leads = db.query(func.count(LeadORM.id)).filter(LeadORM.status == "open").scalar() or 0
+    closed_leads = db.query(func.count(LeadORM.id)).filter(LeadORM.status == "closed").scalar() or 0
+    future_leads = db.query(func.count(LeadORM.id)).filter(LeadORM.status == "future").scalar() or 0
+
+   
     latest_lead = db.query(LeadORM).order_by(LeadORM.entry_date.desc()).first()
     latest_lead_data = None
     if latest_lead:
@@ -351,9 +355,11 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
         "total_leads": total_leads,
         "leads_this_month": leads_this_month,
         "leads_this_week": leads_this_week,
+        "open_leads": open_leads,
+        "closed_leads": closed_leads,
+        "future_leads":future_leads,
         "latest_lead": latest_lead_data,
     }
-
 
 
 def candidate_interview_performance(db: Session):
