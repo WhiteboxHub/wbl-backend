@@ -194,7 +194,7 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
                 .joinedload(CandidateORM.preparation_records)
                 .joinedload(CandidatePreparation.instructor3),
             )
-            .order_by(CandidateMarketingORM.id.asc())
+            .order_by(CandidateMarketingORM.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
