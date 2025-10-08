@@ -114,8 +114,6 @@ def read_all_marketing(
 
 
 
-
-
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
 def read_marketing_record(record_id: int = Path(...)):
     return candidate_utils.get_marketing_by_id(record_id)
@@ -132,7 +130,10 @@ def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
 def delete_marketing_record(record_id: int):
     return candidate_utils.delete_marketing(record_id)
 
+
+
 # -------------------Candidate_Placements -------------------
+
 
 @router.get("/candidate/placements")
 def read_all_placements(
