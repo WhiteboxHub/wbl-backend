@@ -161,24 +161,14 @@ class AuthUserUpdate(AuthUserBase):
 
 class AuthUserResponse(AuthUserBase):
     id: int
-    # lastlogin: Optional[datetime] = None
     logincount: Optional[int] = None
     registereddate: Optional[datetime] = None
-    # level3date: Optional[datetime] = None
-    # lastmoddatetime: Optional[datetime] = None
-    # demo: Optional[str] = "N"
     enddate: Optional[date] = None
-    # reset_token: Optional[str] = None
-    # token_expiry: Optional[datetime] = None
 
 
     @validator(
-        # "lastlogin",
         "registereddate",
-        # "level3date",
-        # "lastmoddatetime",
         "enddate",
-        # "token_expiry",
         pre=True,
     )
     def fix_invalid_datetime(cls, v):
@@ -307,11 +297,11 @@ class PaginatedCandidateResponse(BaseModel):
 
 
 class CandidateMarketingBase(BaseModel):
-    candidate_id: int
+    candidate_id: int = None
     marketing_manager: Optional[int] = None
-    start_date: date
+    start_date: date = None
     notes: Optional[str] = None
-    status: Literal["active", "break", "not responding"]
+    status: Literal["active", "break", "not responding"] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
@@ -321,9 +311,9 @@ class CandidateMarketingBase(BaseModel):
     rating: Optional[int] = None
     priority: Optional[int] = None
     candidate_resume: Optional[str] = None
-    candidate: Optional[CandidateBase]
+    move_to_placement: Optional[bool] = None
+    candidate: Optional[CandidateBase] = None
 
-    # extra fields for name display in UI
     instructor1: Optional[EmployeeBase] = None
     instructor2: Optional[EmployeeBase] = None
     instructor3: Optional[EmployeeBase] = None
@@ -356,7 +346,7 @@ class CandidateMarketingUpdate(BaseModel):
     rating: Optional[int] = None
     priority: Optional[int] = None
     candidate_resume: Optional[str] = None
-
+    move_to_placement: Optional[bool] = None
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
@@ -364,8 +354,6 @@ class CandidatePlacementBase(BaseModel):
     company: str
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-    
-    # Updated status enum
     status: Literal['Active', 'Inactive']
 
     base_salary_offered: Optional[float] = None
@@ -393,7 +381,6 @@ class CandidatePlacementUpdate(BaseModel):
     company: Optional[str] = None
     placement_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-    # Updated status enum
     status: Optional[Literal['Active', 'Inactive']]
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
@@ -406,7 +393,7 @@ class CandidatePlacementUpdate(BaseModel):
 
 class InstructorOut(BaseModel):
     id: int
-    full_name: str  # adjust if your Instructor model uses a different field name
+    full_name: str 
     class Config:
         orm_mode = True
 
@@ -437,6 +424,9 @@ class CandidatePreparationBase(BaseModel):
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = False
+    linkedin: Optional[str]
+    github: Optional[str]
+    resume: Optional[str]
 
     candidate: Optional[CandidateBase]  
     instructor1: Optional[EmployeeBase]  
@@ -451,23 +441,6 @@ class CandidatePreparationBase(BaseModel):
 
 class CandidatePreparationCreate(CandidatePreparationBase):
     pass
-    # id: int = Field(..., alias="id")
-    # candidate_id: int
-    # batch: Optional[str] = None
-    # start_date: Optional[date] = None
-    # status: str
-    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
-    # rating: Optional[str] = None
-    # tech_rating: Optional[str] = None
-    # communication: Optional[str] = None
-    # years_of_experience: Optional[str] = None
-    # topics_finished: Optional[str] = None
-    # current_topics: Optional[str] = None
-    # target_date_of_marketing: Optional[date] = None
-    # notes: Optional[str] = None
-    # candidate: Optional[CandidateBase]  # added line
 
 class CandidatePreparationUpdate(BaseModel):
     batch: Optional[str] = None
@@ -485,6 +458,9 @@ class CandidatePreparationUpdate(BaseModel):
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = None
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    resume: Optional[str] = None
     # candidate: Optional[CandidateBase]  
     
 
@@ -503,6 +479,9 @@ class CandidatePreparationOut(BaseModel):
     notes: Optional[str] = None
     last_mod_datetime: Optional[datetime]
     move_to_mrkt: Optional[bool] = None
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    resume: Optional[str] = None
 
     candidate: Optional[CandidateBase]
 
@@ -510,9 +489,6 @@ class CandidatePreparationOut(BaseModel):
     instructor2: Optional[EmployeeBase]
     instructor3: Optional[EmployeeBase]
 
-    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
 
     class Config:
         from_attributes = True
@@ -542,10 +518,18 @@ class FeedbackEnum(str, Enum):
     negative = "Negative"
 
 
+class CompanyTypeEnum(str, Enum):
+    client = "client"
+    third_party_vendor = "third-party-vendor"
+    implementation_partner = "implementation-partner"
+    sourcer = "sourcer"
+    contact_from_ip = "contact-from-ip"
+
 # --- Base Schema ---
 class CandidateInterviewBase(BaseModel):
     candidate_id: int
     company: str
+    company_type: Optional[CompanyTypeEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
     interview_date: date
@@ -554,8 +538,7 @@ class CandidateInterviewBase(BaseModel):
     transcript: Optional[str] = None 
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
-    url: Optional[str] = None  # New field added
-    # status: Optional[str] = None
+    url: Optional[str] = None  
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
     candidate: Optional[CandidateBase] = None
@@ -570,6 +553,7 @@ class CandidateInterviewCreate(CandidateInterviewBase):
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
+    company_type: Optional[CompanyTypeEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
     interview_date: Optional[date] = None
@@ -578,7 +562,7 @@ class CandidateInterviewUpdate(BaseModel):
     transcript: Optional[str] = None 
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
-    url: Optional[str] = None  # New field added
+    url: Optional[str] = None 
     status: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
@@ -587,6 +571,7 @@ class CandidateInterviewUpdate(BaseModel):
 # --- Output Schema ---
 class CandidateInterviewOut(CandidateInterviewBase):
     id: int
+    company_type: Optional[CompanyTypeEnum] = None
     instructor1_name: Optional[str] = None
     instructor2_name: Optional[str] = None
     instructor3_name: Optional[str] = None
@@ -935,13 +920,6 @@ class BatchUpdate(BatchBase):
 
 class BatchOut(BatchBase):
     batchid: int
-    # lastmoddatetime: Optional[datetime]
-
-    # @field_validator("lastmoddatetime", mode="before")
-    # def handle_invalid_datetime(cls, v):
-    #     if v in (None, "0000-00-00 00:00:00"):
-    #         return None
-    #     return v
 
     class Config:
         orm_mode = True
@@ -959,7 +937,6 @@ class RecordingBase(BaseModel):
     videoid: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
-    # lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
 
 class RecordingCreate(RecordingBase):
@@ -1235,8 +1212,6 @@ class SessionBase(BaseModel):
     sessiondate: Optional[datetime] = None
     # lastmoddatetime: Optional[datetime] = None
     subject_id: int
-    # notes: Optional[str] = None
-    # status: Optional[str] = None 
 
 
 class SessionCreate(SessionBase):
