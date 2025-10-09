@@ -1,7 +1,10 @@
 import logging
 import traceback
 from typing import List, Optional
-
+from fapi.db.models import Session as SessionORM
+from fapi.db.schemas import CourseContentResponse, BatchMetrics, PaginatedRecordingOut, RecordingOut
+from fapi.utils.resources_utils import fetch_my_recordings
+from datetime import datetime
 import anyio
 from fastapi import (
     APIRouter,
@@ -162,3 +165,39 @@ def get_batches(
 def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
     return get_batch_metrics(db)
 
+
+@router.get("/my-recordings", response_model=PaginatedRecordingOut)
+def get_my_recordings(
+    db: Session = Depends(get_db),
+    page: int = 1,
+    per_page: int = 100,
+    name: str = "kumar",
+    subject: str = None
+):
+    recordings_data = fetch_my_recordings(
+        db,
+        name=name,
+        page=page,
+        per_page=per_page,
+        subject=subject
+    )
+
+    if not recordings_data["recordings"]:
+        recordings_data["recordings"] = [
+            RecordingOut(
+                batchname="string",
+                description="string",
+                type="class",
+                classdate=datetime.utcnow(),
+                link="string",
+                videoid="string",
+                subject="string",
+                filename="string",
+                new_subject_id=0,
+                id=0
+            )
+        ]
+        recordings_data["page"] = 0
+        recordings_data["per_page"] = 0
+
+    return recordings_data 

@@ -428,3 +428,39 @@ def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"Error fetching batches for {course}: {e}")
         raise HTTPException(status_code=500, detail="Unexpected server error")
+    
+
+
+
+def fetch_my_recordings(
+    db: Session,
+    name: str = "kumar",
+    subject: str = None,
+    page: int = 1,
+    per_page: int = 100
+):
+    offset = (page - 1) * per_page
+    query = select(Recording).where(Recording.filename.ilike(f"%{name}%"))
+
+    if subject:
+        query = query.where(Recording.subject.ilike(f"%{subject}%"))
+
+    total_query = select(func.count(Recording.id)).where(Recording.filename.ilike(f"%{name}%"))
+    if subject:
+        total_query = total_query.where(Recording.subject.ilike(f"%{subject}%"))
+
+    total = db.execute(total_query).scalar() or 0
+
+    result = db.execute(
+        query.order_by(desc(Recording.classdate))
+        .offset(offset)
+        .limit(per_page)
+    )
+    recordings = result.scalars().all()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "recordings": recordings
+    }
