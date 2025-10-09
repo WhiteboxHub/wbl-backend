@@ -316,12 +316,13 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
 
     return record_dict
 
+
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
     db: Session = SessionLocal()
     try:
         record = (
             db.query(CandidateMarketingORM)
-            .filter(CandidateMarketingORM.candidate_id == record_id)
+            .filter(CandidateMarketingORM.id == record_id) 
             .first()
         )
         if not record:
@@ -331,6 +332,23 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
         for key, value in update_data.items():
             if hasattr(record, key) and not isinstance(value, dict):
                 setattr(record, key, value)
+
+        # Handle move_to_placement logic
+        if getattr(record, "move_to_placement", False):
+            candidate = db.query(CandidateORM).filter(CandidateORM.id == record.candidate_id).first()
+            if candidate:
+                placement_exists = (
+                    db.query(CandidatePlacementORM)
+                    .filter_by(candidate_id=candidate.id, status="Active")
+                    .first()
+                )
+                if not placement_exists:
+                    new_placement = CandidatePlacementORM(
+                        candidate_id=candidate.id,
+                        placement_date=date.today(),
+                        status="Active"
+                    )
+                    db.add(new_placement)
 
         db.commit()
         db.refresh(record)
@@ -381,7 +399,6 @@ def get_all_placements(page: int, limit: int) -> Dict:
                 CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            # .order_by(CandidatePlacementORM.id.desc())
             .order_by(CandidatePlacementORM.priority.desc()) 
             .offset((page - 1) * limit)
             .limit(limit)
@@ -440,7 +457,7 @@ def update_placement(placement_id: int, payload):
     db: Session = SessionLocal()
     try:
         placement = db.query(CandidatePlacementORM).filter(
-            CandidatePlacementORM.id == placement_id   # use id, not candidate_id
+            CandidatePlacementORM.id == placement_id  
         ).first()
         if not placement:
             raise HTTPException(status_code=404, detail="Placement not found")
@@ -527,7 +544,6 @@ def list_interviews_with_instructors(db: Session):
 def serialize_interview(interview: CandidateInterview) -> dict:
     data = CandidateInterviewOut.from_orm(interview).dict()
 
-    # Default None
     data["instructor1_name"] = None
     data["instructor2_name"] = None
     data["instructor3_name"] = None
@@ -551,7 +567,6 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
 
     update_data = updates.dict(exclude_unset=True)
 
-    # Normalize interviewer_emails to lowercase if provided
     if update_data.get("interviewer_emails"):
         update_data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in update_data["interviewer_emails"].split(",")]
@@ -698,8 +713,6 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
     db.commit()
     db.refresh(db_prep)
     return db_prep
-
-
 
 
 
