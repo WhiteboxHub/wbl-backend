@@ -100,6 +100,9 @@ def delete_candidate(candidate_id: int):
 
 
 # ------------------- Marketing -------------------
+
+
+
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
 def read_all_marketing(
     page: int = Query(1, ge=1),
@@ -108,6 +111,7 @@ def read_all_marketing(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return candidate_utils.get_all_marketing_records( page, limit)
+
 
 
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
@@ -126,7 +130,10 @@ def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
 def delete_marketing_record(record_id: int):
     return candidate_utils.delete_marketing(record_id)
 
+
+
 # -------------------Candidate_Placements -------------------
+
 
 @router.get("/candidate/placements")
 def read_all_placements(

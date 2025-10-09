@@ -40,19 +40,13 @@ class AuthUserORM(Base):
     country = Column(String(45))
     message = Column(Text)
     registereddate = Column(DateTime)
-    # level3date = Column(DateTime)
     lastmoddatetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-    # demo = Column(String(1), default="N")
     enddate = Column(Date, default="1990-01-01")
     googleId = Column(String(255))
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
     role = Column(String(100))
     visa_status = Column(String(50))
-    # experience = Column(String(100))
-    # education = Column(String(255))
-    # referby = Column(String(100))
-    # specialization = Column(String(255))
     notes = Column(Text)
 
 
@@ -256,7 +250,6 @@ class CandidateMarketingORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
 
-    # Matches table columns
     start_date = Column(Date, nullable=False)
     status = Column(Enum("active", "break", "not responding", "inactive"), nullable=False)
     last_mod_datetime = Column(
@@ -278,6 +271,8 @@ class CandidateMarketingORM(Base):
     notes = Column(Text, nullable=True)
     candidate_resume = Column(String(255), nullable=True)
 
+    move_to_placement = Column(Boolean, default=False)
+
     # Relationships
     candidate = relationship("CandidateORM", back_populates="marketing_records")
 
@@ -294,11 +289,20 @@ class CandidateInterview(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-
-    # Relationship to CandidateORM
     candidate = relationship("CandidateORM", back_populates="interviews")
 
     company = Column(String(200), nullable=False)
+    company_type = Column(
+        Enum(
+            "client",
+            "third-party-vendor",
+            "implementation-partner",
+            "sourcer",
+            "contact-from-ip",
+            name="company_type_enum"
+        ),
+        nullable=True,
+    )
     interviewer_emails = Column(Text, nullable=True)
     interviewer_contact = Column(Text, nullable=True)
     interview_date = Column(Date, nullable=False)
@@ -318,8 +322,7 @@ class CandidateInterview(Base):
     transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
     backup_url = Column(String(500), nullable=True)
-    url = Column(String(500), nullable=True)  # New column added
-    # status = Column(String(100), nullable=True)
+    url = Column(String(500), nullable=True) 
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -345,7 +348,6 @@ class CandidatePlacementORM(Base):
     placement_date = Column(Date, nullable=False)
     type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
     
-    # Updated status enum
     status = Column(Enum('Active', 'Inactive'), nullable=False)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
@@ -367,7 +369,6 @@ class CandidatePreparation(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
 
-    # Candidate relationship (use overlaps to fix conflict with preparations/preparation_records)
     candidate = relationship(
         "CandidateORM",
         back_populates="preparation_records",
@@ -378,7 +379,6 @@ class CandidatePreparation(Base):
     instructor2_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     instructor3_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
 
-    #  Instructor relationships (use only *_employee, remove duplicates)
     instructor1 = relationship(
         "EmployeeORM", foreign_keys=[instructor1_id], overlaps="instructor1_employee"
     )
@@ -389,7 +389,6 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
-    # Other fields
     batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum("active", "break", "not responding", "inactive"), nullable=False)
@@ -402,7 +401,11 @@ class CandidatePreparation(Base):
     current_topics = Column(Text, nullable=True)
     target_date_of_marketing = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
+    linkedin = Column(String(255), nullable=True)
+    github = Column(String(255), nullable=True)
+    resume = Column(String(255), nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
+    move_to_mrkt = Column(Boolean, default=False, nullable=False)
 
 # ---------------------------------------------------------------
 class EmployeeORM(Base):
@@ -421,6 +424,7 @@ class EmployeeORM(Base):
     notes = Column(Text, nullable=True)
     status = Column(Integer, nullable=True)
     aadhaar = Column(String(20), nullable=True, unique=True)
+    
 
 class CandidateStatus(str, enum.Enum):
     active = "active"
@@ -514,7 +518,6 @@ class Subject(Base):
     lastmoddatetime = Column(DateTime, default=datetime.now, onupdate=datetime.now)  
     course_subjects = relationship("CourseSubject", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject")
-    # sessions = relationship("Session", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject_rel")  
 
 
@@ -541,7 +544,6 @@ class Batch(Base):
     subject = Column(String(45), nullable=False, default="ML")
     startdate = Column(Date, nullable=True)
     enddate = Column(Date, nullable=True)
-    # lastmoddatetime = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
     courseid = Column(Integer, ForeignKey("course.id"), nullable=True)
 
     course = relationship("Course", back_populates="batches")

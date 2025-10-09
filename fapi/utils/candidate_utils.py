@@ -7,7 +7,7 @@ from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementO
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fastapi import HTTPException,APIRouter,Depends
-from typing import List, Dict,Any
+from typing import List, Dict,Any, Optional 
 from datetime import date
 
 router = APIRouter()
@@ -117,11 +117,11 @@ def update_candidate(candidate_id: int, candidate_data: dict):
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
 
-        # Update candidate fields
+       
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
 
-        db.flush()  # Ensure updated values are available
+        db.flush()  
 
         # If move_to_prep is True, insert into candidate_preparation if not exists
         if getattr(candidate, "move_to_prep", False):
@@ -194,7 +194,7 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
                 .joinedload(CandidateORM.preparation_records)
                 .joinedload(CandidatePreparation.instructor3),
             )
-            .order_by(CandidateMarketingORM.id.asc())
+            .order_by(CandidateMarketingORM.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
@@ -287,32 +287,75 @@ def create_marketing(payload: CandidateMarketingCreate) -> Dict:
         db.close()
 
 
+
+def serialize_marketing(record: CandidateMarketingORM) -> dict:
+    if not record:
+        return None
+
+    record_dict = record.__dict__.copy()
+    record_dict.pop("_sa_instance_state", None)
+
+    candidate = record.candidate
+    record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
+    if record_dict["candidate"]:
+        record_dict["candidate"].pop("_sa_instance_state", None)
+
+    record_dict["marketing_manager_obj"] = (
+        record.marketing_manager_obj.__dict__.copy() if record.marketing_manager_obj else None
+    )
+    if record_dict["marketing_manager_obj"]:
+        record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+
+    for i, rel in enumerate([record.instructor1, record.instructor2, record.instructor3], start=1):
+        if rel:
+            d = rel.__dict__.copy()
+            d.pop("_sa_instance_state", None)
+            record_dict[f"instructor{i}"] = d
+        else:
+            record_dict[f"instructor{i}"] = None
+
+    return record_dict
+
+
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
     db: Session = SessionLocal()
     try:
-        # Lookup by candidate_id
         record = (
             db.query(CandidateMarketingORM)
-            .filter(CandidateMarketingORM.candidate_id == record_id)
+            .filter(CandidateMarketingORM.id == record_id) 
             .first()
         )
         if not record:
             raise HTTPException(status_code=404, detail="Marketing record not found")
 
         update_data = payload.dict(exclude_unset=True)
-
         for key, value in update_data.items():
-            if isinstance(value, dict):
-                continue
-
-            if hasattr(record, key):
+            if hasattr(record, key) and not isinstance(value, dict):
                 setattr(record, key, value)
+
+        # Handle move_to_placement logic
+        if getattr(record, "move_to_placement", False):
+            candidate = db.query(CandidateORM).filter(CandidateORM.id == record.candidate_id).first()
+            if candidate:
+                placement_exists = (
+                    db.query(CandidatePlacementORM)
+                    .filter_by(candidate_id=candidate.id, status="Active")
+                    .first()
+                )
+                if not placement_exists:
+                    new_placement = CandidatePlacementORM(
+                        candidate_id=candidate.id,
+                        placement_date=date.today(),
+                        status="Active"
+                    )
+                    db.add(new_placement)
 
         db.commit()
         db.refresh(record)
-        return record.__dict__
+        return serialize_marketing(record)
     finally:
         db.close()
+
 
 
 
@@ -356,7 +399,6 @@ def get_all_placements(page: int, limit: int) -> Dict:
                 CandidateORM.full_name.label("candidate_name")  #
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            # .order_by(CandidatePlacementORM.id.desc())
             .order_by(CandidatePlacementORM.priority.desc()) 
             .offset((page - 1) * limit)
             .limit(limit)
@@ -415,7 +457,7 @@ def update_placement(placement_id: int, payload):
     db: Session = SessionLocal()
     try:
         placement = db.query(CandidatePlacementORM).filter(
-            CandidatePlacementORM.id == placement_id   # use id, not candidate_id
+            CandidatePlacementORM.id == placement_id  
         ).first()
         if not placement:
             raise HTTPException(status_code=404, detail="Placement not found")
@@ -502,7 +544,6 @@ def list_interviews_with_instructors(db: Session):
 def serialize_interview(interview: CandidateInterview) -> dict:
     data = CandidateInterviewOut.from_orm(interview).dict()
 
-    # Default None
     data["instructor1_name"] = None
     data["instructor2_name"] = None
     data["instructor3_name"] = None
@@ -526,7 +567,6 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
 
     update_data = updates.dict(exclude_unset=True)
 
-    # Normalize interviewer_emails to lowercase if provided
     if update_data.get("interviewer_emails"):
         update_data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in update_data["interviewer_emails"].split(",")]
@@ -618,11 +658,29 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
     if not db_prep:
         return None
-    update_data = updates.dict(exclude_unset=True)
 
+    update_data = updates.dict(exclude_unset=True)
+ 
     for key, value in update_data.items():
         if hasattr(db_prep, key):
             setattr(db_prep, key, value)
+
+    db.flush()  
+
+    candidate = db.query(CandidateORM).filter(CandidateORM.id == db_prep.candidate_id).first()
+    if candidate and getattr(db_prep, "move_to_mrkt", False):
+        marketing_exists = (
+            db.query(CandidateMarketingORM)
+            .filter_by(candidate_id=candidate.id, status="active")
+            .first()
+        )
+        if not marketing_exists:
+            new_marketing = CandidateMarketingORM(
+                candidate_id=candidate.id,
+                start_date=date.today(),
+                status="active"
+            )
+            db.add(new_marketing)
 
     db.commit()
     db.refresh(db_prep)
@@ -630,7 +688,7 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
 
 
 
-def delete_candidate_preparation(db: Session, prep_id: int) -> dict | None:
+def delete_candidate_preparation(db: Session, prep_id: int) -> Optional[dict]:
     db_prep = (
         db.query(CandidatePreparation)
         .options(
@@ -642,12 +700,11 @@ def delete_candidate_preparation(db: Session, prep_id: int) -> dict | None:
     )
     if not db_prep:
         return None
-    # Convert to dict before deleting
+  
     result = {
         "id": db_prep.id,
         "candidate_id": db_prep.candidate_id,
         "instructor1_id": db_prep.instructor1_id,
-        # Add other fields as needed
     }
     db.delete(db_prep)
     db.commit()
