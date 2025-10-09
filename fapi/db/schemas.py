@@ -22,8 +22,8 @@ class EmployeeBase(BaseModel):
     aadhaar: Optional[str] = None
 
     @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_empty_dates(cls, v):
-        if v == "":
+    def handle_invalid_dates(cls, v):
+        if v in ("", "0000-00-00", None):
             return None
         return v
 
@@ -58,6 +58,27 @@ class EmployeeBirthdayOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+# ---------------------------enployee search -----------------------------
+class EmployeeDetailSchema(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    state: Optional[str] = None
+    dob: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    notes: Optional[str] = None
+    status: Optional[int] = None
+    instructor: Optional[int] = None
+    aadhaar: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
 
 
 class Token(BaseModel):
@@ -381,10 +402,8 @@ class CandidatePlacementUpdate(BaseModel):
     company: Optional[str] = None
     placement_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
-    
     # Updated status enum
     status: Optional[Literal['Active', 'Inactive']]
-
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -426,6 +445,7 @@ class CandidatePreparationBase(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = False
 
     candidate: Optional[CandidateBase]  
     instructor1: Optional[EmployeeBase]  
@@ -438,40 +458,27 @@ class CandidatePreparationBase(BaseModel):
     
 
 from pydantic import field_validator
-class CandidatePreparationCreate(BaseModel):  
+# class CandidatePreparationCreate(BaseModel):  
 
-    candidate_id: int
-    batch: Optional[str] = None
-    start_date: Optional[date] = None
-    status: str
-    instructor1_id: Optional[int] = None
-    instructor2_id: Optional[int] = None
-    instructor3_id: Optional[int] = None
-    rating: Optional[str] = None
-    tech_rating: Optional[str] = None
-    communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
-    notes: Optional[str] = None
-
-    class Config:
-        extra = "ignore" 
-
-    @field_validator("start_date", "target_date_of_marketing", mode="before")
-    @classmethod
-    def empty_str_to_none(cls, v):
-        if v == "" or v is None:
-            return None
-        return v
-
-    @field_validator("candidate_id", "instructor1_id", "instructor2_id", "instructor3_id", mode="before")
-    @classmethod
-    def str_to_int(cls, v):
-        if isinstance(v, str) and v.isdigit():
-            return int(v)
-        return v
+class CandidatePreparationCreate(CandidatePreparationBase):
+    pass
+    # id: int = Field(..., alias="id")
+    # candidate_id: int
+    # batch: Optional[str] = None
+    # start_date: Optional[date] = None
+    # status: str
+    # instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    # instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    # instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    # rating: Optional[str] = None
+    # tech_rating: Optional[str] = None
+    # communication: Optional[str] = None
+    # years_of_experience: Optional[str] = None
+    # topics_finished: Optional[str] = None
+    # current_topics: Optional[str] = None
+    # target_date_of_marketing: Optional[date] = None
+    # notes: Optional[str] = None
+    # candidate: Optional[CandidateBase]  # added line
 
 class CandidatePreparationUpdate(BaseModel):
     batch: Optional[str] = None
@@ -488,6 +495,7 @@ class CandidatePreparationUpdate(BaseModel):
     current_topics: Optional[str] = None
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = None
     # candidate: Optional[CandidateBase]  
     
 
@@ -505,6 +513,7 @@ class CandidatePreparationOut(BaseModel):
     target_date_of_marketing: Optional[date] = None
     notes: Optional[str] = None
     last_mod_datetime: Optional[datetime]
+    move_to_mrkt: Optional[bool] = None
 
     candidate: Optional[CandidateBase]
 
@@ -1337,6 +1346,9 @@ class LeadMetrics(BaseModel):
     leads_this_month: int
     latest_lead: Optional[Dict[str, Any]] = None
     leads_this_week: int
+    open_leads:int
+    closed_leads:int
+    future_leads:int
 
 class LeadMetricsResponse(BaseModel):
     success: bool
