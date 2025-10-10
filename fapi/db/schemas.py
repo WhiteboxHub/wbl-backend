@@ -1345,6 +1345,10 @@ class CandidateInterviewPerformanceResponse(BaseModel):
     success: bool
     data: List[CandidateInterviewPerformance]
     message: str
+class CandidatePreparationMetrics(BaseModel):
+    total_preparation_candidates: int
+    active_candidates: int
+    inactive_candidates: int
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
