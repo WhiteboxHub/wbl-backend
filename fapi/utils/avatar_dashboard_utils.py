@@ -2,8 +2,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM
-
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Session as SessionModel
+from fapi.db.schemas import CandidatePreparationMetrics
+from fapi.db.models import Session as SessionModel
+import re
 
 def get_batch_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
@@ -389,4 +391,23 @@ def candidate_interview_performance(db: Session):
         }
         for row in results
     ]
+
+
+
+
+
+def get_candidate_preparation_metrics(db: Session):
+    total_preparation_candidates = db.query(func.count(CandidatePreparation.id)).scalar() or 0
+    active_candidates = db.query(func.count(CandidatePreparation.id)).filter(
+        CandidatePreparation.status == "Active"
+    ).scalar() or 0
+    inactive_candidates = db.query(func.count(CandidatePreparation.id)).filter(
+        CandidatePreparation.status == "Inactive"
+    ).scalar() or 0
+
+    return CandidatePreparationMetrics(
+        total_preparation_candidates=total_preparation_candidates,
+        active_candidates=active_candidates,
+        inactive_candidates=inactive_candidates
+    )
 
