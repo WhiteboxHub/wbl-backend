@@ -3,7 +3,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db.models import EmployeeORM
 from fapi.db.database import SessionLocal, get_db
-from fapi.db.schemas import Employee, EmployeeCreate, EmployeeUpdate
+from fapi.db import models, schemas
+from typing import List, Dict
+from fapi.db.schemas import Employee, EmployeeCreate, EmployeeUpdate,EmployeeDetailSchema
+from fapi.utils.employee_search_utils import (
+    search_employees,
+    get_employee_details,
+    get_employee_candidates,
+     get_employee_sessions_and_recordings,
+)
+from typing import List
 from fapi.utils.employee_utils import (
     get_all_employees,
     create_employee_db,
@@ -75,3 +84,58 @@ def delete_employee(employee_id: int):
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
+# ---------------------------------employee search--------------------------------------
+
+
+@router.get("/employees/search", response_model=List[EmployeeDetailSchema])
+def employee_search(query: str = "", db: Session = Depends(get_db)):
+    employees = get_employee_details(db)
+    if query:
+        query_lower = query.lower()
+        employees = [e for e in employees if e["name"] and query_lower in e["name"].lower()]
+    return employees
+
+
+@router.get("/employees/{employee_id}/candidates", response_model=Dict)
+def employee_candidates(employee_id: int, db: Session = Depends(get_db)):
+    emp = db.query(models.EmployeeORM).filter(models.EmployeeORM.id == employee_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    candidates = get_employee_candidates(db, employee_id)
+    return candidates
+
+
+
+
+@router.get("/employees/{employee_id}/session-class-data")
+def get_employee_session_class_data(employee_id: int, db: Session = Depends(get_db)):
+    
+    data = get_employee_sessions_and_recordings(db, employee_id)
+    if "error" in data:
+        return {"error": data["error"], "class_count": 0, "session_count": 0, "timeline": []}
+
+    timeline: List[Dict] = []
+
+    for r in data["recordings"]:
+        timeline.append({
+            "type": "class",
+            "title": r.description or "Untitled",
+            "date": str(r.classdate) if r.classdate else None,
+            "link": r.link
+        })
+    for s in data["sessions"]:
+        timeline.append({
+            "type": "session",
+            "title": s.title or "Untitled",
+            "date": str(s.sessiondate) if s.sessiondate else None,
+            "link": s.link
+        })
+
+    timeline.sort(key=lambda x: x["date"] or "", reverse=True)
+
+    return {
+        "class_count": len(data["recordings"]),
+        "session_count": len(data["sessions"]),
+        "timeline": timeline
+    }
