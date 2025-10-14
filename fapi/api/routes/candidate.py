@@ -5,11 +5,12 @@ from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
     get_interview_metrics,
     candidate_interview_performance,
+    get_candidate_preparation_metrics
 )
 
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse
+from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse,CandidatePreparationMetrics
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload,selectinload
@@ -203,6 +204,7 @@ def get_candidate_interview_performance(
     }
 
 # -------------------Candidate_interview -------------------
+
 @router.post("/interviews", response_model=CandidateInterviewOut)
 def create_interview(
     interview: CandidateInterviewCreate,
@@ -294,6 +296,11 @@ def delete_prep(
     if not deleted:
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return deleted
+
+
+@router.get("/candidate/preparation/metrics", response_model=CandidatePreparationMetrics)
+def read_candidate_preparation_metrics(db: Session = Depends(get_db)):
+    return get_candidate_preparation_metrics(db)
 
 ##--------------------------------search----------------------------------
 

@@ -225,28 +225,28 @@ class CandidateBase(BaseModel):
     id:Optional[int]=None
     full_name: Optional[str]
     name: Optional[str] = Field(None)
-    enrolled_date: Optional[date]
-    email: Optional[str]
-    phone: Optional[str]
-    status: Optional[Literal['active', 'discontinued', 'break', 'closed']] = None   
-    workstatus: Optional[str]
-    education: Optional[str]
-    workexperience: Optional[str]
-    ssn: Optional[str]
-    agreement: Optional[str]
-    secondaryemail: Optional[str]
-    secondaryphone: Optional[str]
-    address: Optional[str]
-    linkedin_id: Optional[str]
+    enrolled_date: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None   
+    workstatus: Optional[str] = None
+    education: Optional[str] = None
+    workexperience: Optional[str] = None
+    ssn: Optional[str] = None
+    agreement: Optional[str] = None
+    secondaryemail: Optional[str] = None
+    secondaryphone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin_id: Optional[str] = None
     github_link: Optional[str] = None
-    dob: Optional[date]
-    emergcontactname: Optional[str]
-    emergcontactemail: Optional[str]
-    emergcontactphone: Optional[str]
-    emergcontactaddrs: Optional[str]
-    fee_paid: Optional[int]
-    notes: Optional[str]
-    batchid: int
+    dob: Optional[date] = None
+    emergcontactname: Optional[str] = None
+    emergcontactemail: Optional[str] = None
+    emergcontactphone: Optional[str] = None
+    emergcontactaddrs: Optional[str] = None
+    fee_paid: Optional[int] = None
+    notes: Optional[str] = None
+    batchid: int = None
     candidate_folder: Optional[str] = None   
     move_to_prep: Optional[bool] = False 
 
@@ -267,6 +267,7 @@ class CandidateCreate(CandidateBase):
 
 class StatusEnum(str, Enum):
     active = 'active'
+    inactive = 'inactive'
     discontinued = 'discontinued'
     break_ = 'break'
     closed = 'closed'
@@ -511,6 +512,7 @@ class TypeOfInterviewEnum(str, Enum):
     hr_round = "HR Round"
     in_person = "In Person"
     prep_call = "Prep Call"
+    ai_interview = "AI Interview"
 
 
 class FeedbackEnum(str, Enum):
@@ -533,6 +535,7 @@ class CandidateInterviewBase(BaseModel):
     company_type: Optional[CompanyTypeEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
     interview_date: date
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
@@ -545,9 +548,6 @@ class CandidateInterviewBase(BaseModel):
     candidate: Optional[CandidateBase] = None
 
 
-# --- Create Schema ---
-class CandidateInterviewCreate(CandidateInterviewBase):
-    pass
 
 
 # # --- Update Schema ---
@@ -557,6 +557,7 @@ class CandidateInterviewUpdate(BaseModel):
     company_type: Optional[CompanyTypeEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
     interview_date: Optional[date] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
@@ -609,6 +610,7 @@ class CandidateInterviewCreate(BaseModel):
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
     url: Optional[str] = None
@@ -1335,6 +1337,10 @@ class CandidateInterviewPerformanceResponse(BaseModel):
     success: bool
     data: List[CandidateInterviewPerformance]
     message: str
+class CandidatePreparationMetrics(BaseModel):
+    total_preparation_candidates: int
+    active_candidates: int
+    inactive_candidates: int
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
