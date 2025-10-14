@@ -208,7 +208,7 @@ class CandidateORM(Base):
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(Enum('active', 'discontinued', 'break', 'closed', name='status_enum'), nullable=True)
+    status = Column(Enum('active', 'inactive', 'discontinued', 'break', 'closed', name='status_enum'), nullable=True)
     workstatus = Column(String(50), nullable=True)
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
@@ -225,7 +225,7 @@ class CandidateORM(Base):
     emergcontactaddrs = Column(String(300), nullable=True)
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
-    batchid = Column(Integer, nullable=False)
+    batchid = Column(Integer, ForeignKey("batch.batchid"), nullable=False)
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
     move_to_prep = Column(Boolean, default=False)
@@ -242,6 +242,8 @@ class CandidateORM(Base):
     placement_records = relationship("CandidatePlacementORM", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
+    batch = relationship("Batch", back_populates="candidates")
+    preparation_records = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan" )
 
 # --------------------- Candidate Marketing -----------------
 class CandidateMarketingORM(Base):
@@ -305,6 +307,7 @@ class CandidateInterview(Base):
     )
     interviewer_emails = Column(Text, nullable=True)
     interviewer_contact = Column(Text, nullable=True)
+    interviewer_linkedin = Column(String(500), nullable=True)
     interview_date = Column(Date, nullable=False)
 
     mode_of_interview = Column(
@@ -314,7 +317,7 @@ class CandidateInterview(Base):
 
     type_of_interview = Column(
         Enum(
-            "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call",
+            "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call", "AI Interview",
             name="type_of_interview_enum"
         ),
         nullable=True
@@ -389,7 +392,6 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
-    batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum("active", "break", "not responding", "inactive"), nullable=False)
 
@@ -548,6 +550,8 @@ class Batch(Base):
 
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+    candidates = relationship("CandidateORM", back_populates="batch")
 
 
 
