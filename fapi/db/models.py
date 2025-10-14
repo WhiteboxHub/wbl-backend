@@ -225,7 +225,7 @@ class CandidateORM(Base):
     emergcontactaddrs = Column(String(300), nullable=True)
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
-    batchid = Column(Integer, nullable=False)
+    batchid = Column(Integer, ForeignKey("batch.batchid"), nullable=False)
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True, comment="Google Drive folder link for the candidate")
     move_to_prep = Column(Boolean, default=False)
@@ -242,6 +242,8 @@ class CandidateORM(Base):
     placement_records = relationship("CandidatePlacementORM", back_populates="candidate")
     placement_records = relationship("CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
+    batch = relationship("Batch", back_populates="candidates")
+    preparation_records = relationship("CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan" )
 
 # --------------------- Candidate Marketing -----------------
 class CandidateMarketingORM(Base):
@@ -390,7 +392,6 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
-    batch = Column(String(100), nullable=True)
     start_date = Column(Date, nullable=True)
     status = Column(Enum("active", "break", "not responding", "inactive"), nullable=False)
 
@@ -549,6 +550,8 @@ class Batch(Base):
 
     course = relationship("Course", back_populates="batches")
     recording_batches = relationship("RecordingBatch", back_populates="batch")
+
+    candidates = relationship("CandidateORM", back_populates="batch")
 
 
 

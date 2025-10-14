@@ -109,27 +109,25 @@ def create_candidate(candidate_data: dict) -> int:
         db.close()
 
 
-
+        
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
+    print(candidate_data,"*"*200)
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
 
-       
         for key, value in candidate_data.items():
             setattr(candidate, key, value)
 
-        db.flush()  
+        db.flush()
 
-        # If move_to_prep is True, insert into candidate_preparation if not exists
         if getattr(candidate, "move_to_prep", False):
             prep_exists = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id).first()
             if not prep_exists:
                 new_prep = CandidatePreparation(
                     candidate_id=candidate.id,
-                    batch=str(candidate.batchid),
                     start_date=date.today(),
                     status="active"
                 )
@@ -145,8 +143,6 @@ def update_candidate(candidate_id: int, candidate_data: dict):
     finally:
         db.close()
 
-
-        
 
 def delete_candidate(candidate_id: int):
     db: Session = SessionLocal()
@@ -333,7 +329,6 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
             if hasattr(record, key) and not isinstance(value, dict):
                 setattr(record, key, value)
 
-        # Handle move_to_placement logic
         if getattr(record, "move_to_placement", False):
             candidate = db.query(CandidateORM).filter(CandidateORM.id == record.candidate_id).first()
             if candidate:
@@ -615,7 +610,7 @@ def get_active_marketing_candidates(db: Session):
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
     if prep_data.email:
         prep_data.email = prep_data.email.lower()
-    db_prep = CandidatePreparation(**prep_data.dict())
+    db_prep = CandidatePreparation(**prep_data.dict(exclude_unset=True))
     db.add(db_prep)
     db.commit()
     db.refresh(db_prep)
@@ -645,14 +640,14 @@ def get_all_preparations(db: Session):
     return (
         db.query(CandidatePreparation)
         .options(
-            joinedload(CandidatePreparation.candidate),
+            joinedload(CandidatePreparation.candidate)
+            .joinedload(CandidateORM.batch),  
             joinedload(CandidatePreparation.instructor1),
             joinedload(CandidatePreparation.instructor2),
             joinedload(CandidatePreparation.instructor3),
         )
         .all()
     )
-
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
