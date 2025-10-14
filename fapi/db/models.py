@@ -208,7 +208,7 @@ class CandidateORM(Base):
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
     phone = Column(String(100), nullable=True)
-    status = Column(Enum('active', 'discontinued', 'break', 'closed', name='status_enum'), nullable=True)
+    status = Column(Enum('active', 'inactive', 'discontinued', 'break', 'closed', name='status_enum'), nullable=True)
     workstatus = Column(String(50), nullable=True)
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
@@ -308,6 +308,7 @@ class CandidateInterview(Base):
     )
     interviewer_emails = Column(Text, nullable=True)
     interviewer_contact = Column(Text, nullable=True)
+    interviewer_linkedin = Column(String(500), nullable=True)
     interview_date = Column(Date, nullable=False)
 
     mode_of_interview = Column(
@@ -317,7 +318,7 @@ class CandidateInterview(Base):
 
     type_of_interview = Column(
         Enum(
-            "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call",
+            "Assessment", "Recruiter Call", "Technical", "HR Round", "In Person", "Prep Call", "AI Interview",
             name="type_of_interview_enum"
         ),
         nullable=True
