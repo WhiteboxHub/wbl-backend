@@ -833,6 +833,7 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "Company": interview.company,
                     "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
                     "Interview Type": interview.type_of_interview,
+                    "Mode of Interview": interview.mode_of_interview,
                     "Feedback": interview.feedback,
                     "Recording Link": interview.recording_link,
                     "Notes": interview.notes

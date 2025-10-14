@@ -238,6 +238,7 @@ class CandidateBase(BaseModel):
     secondaryphone: Optional[str]
     address: Optional[str]
     linkedin_id: Optional[str]
+    github_link: Optional[str] = None
     dob: Optional[date]
     emergcontactname: Optional[str]
     emergcontactemail: Optional[str]
