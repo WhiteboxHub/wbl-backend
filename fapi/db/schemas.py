@@ -219,11 +219,16 @@ class LeadSchema(LeadBase):
         from_attributes = True  
 # --------------------------------------------------------candidate-------------------------------------------------------
 
+class BatchOut(BaseModel):
+    batchid: int
+    batchname: str                 
 
+    class Config:
+        orm_mode = True
 class CandidateBase(BaseModel):
 
     id:Optional[int]=None
-    full_name: Optional[str]
+    full_name: Optional[str] = None
     name: Optional[str] = Field(None)
     enrolled_date: Optional[date] = None
     email: Optional[str] = None
@@ -246,6 +251,7 @@ class CandidateBase(BaseModel):
     fee_paid: Optional[int] = None
     notes: Optional[str] = None
     batchid: int = None
+    batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None   
     move_to_prep: Optional[bool] = False 
 
@@ -271,9 +277,47 @@ class StatusEnum(str, Enum):
     break_ = 'break'
     closed = 'closed'
 
-class CandidateUpdate(CandidateBase):
-    pass
+class CandidateUpdate(BaseModel):
+    id: Optional[int] = None
+    full_name: Optional[str] = None
+    name: Optional[str] = None
+    enrolled_date: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None
+    workstatus: Optional[str] = None
+    education: Optional[str] = None
+    workexperience: Optional[str] = None
+    ssn: Optional[str] = None
+    agreement: Optional[str] = None
+    secondaryemail: Optional[str] = None
+    secondaryphone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    dob: Optional[date] = None
+    emergcontactname: Optional[str] = None
+    emergcontactemail: Optional[str] = None
+    emergcontactphone: Optional[str] = None
+    emergcontactaddrs: Optional[str] = None
+    fee_paid: Optional[int] = None
+    notes: Optional[str] = None
+    batchid: Optional[int] = None
+    candidate_folder: Optional[str] = None
+    move_to_prep: Optional[bool] = False
 
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True
+    }
+
+    @field_validator("agreement", mode="before")
+    def normalize_agreement(cls, v):
+        if v is True:
+            return "Y"
+        if v is False:
+            return "N"
+        return v
+    
 class CandidateDelete(CandidateBase):
     id: int
 
@@ -286,8 +330,6 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[CandidateBase]
 
-# class CandidateBase(BaseModel):
-#     name: str
 
     class Config:
         orm_mode = True
@@ -410,7 +452,7 @@ class InstructorOut(BaseModel):
 class CandidatePreparationBase(BaseModel):
     id: int = Field(..., alias="id")
     candidate_id: int
-    batch: Optional[str] = None
+    # batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
@@ -440,11 +482,30 @@ class CandidatePreparationBase(BaseModel):
     
 
 
-class CandidatePreparationCreate(CandidatePreparationBase):
-    pass
+# class CandidatePreparationCreate(CandidatePreparationBase):
+#     pass
+class CandidatePreparationCreate(BaseModel):
+    candidate_id: int
+    start_date: Optional[date] = None
+    status: str = "active"
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = False
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    resume: Optional[str] = None
 
 class CandidatePreparationUpdate(BaseModel):
-    batch: Optional[str] = None
+    # batch: Optional[str] = None
     start_date: Optional[date] = None
     status: Optional[str] = None
     instructor1_id: Optional[int] = None
@@ -467,7 +528,7 @@ class CandidatePreparationUpdate(BaseModel):
 
 class CandidatePreparationOut(BaseModel):
     id: int
-    batch: Optional[str] = None
+    # batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     rating: Optional[str] = None
