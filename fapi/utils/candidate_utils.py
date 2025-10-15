@@ -4,7 +4,7 @@ from sqlalchemy import or_
 from fapi.db.database import SessionLocal,get_db
 
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any, Optional 
@@ -20,9 +20,11 @@ def get_all_candidates_paginated(
     search_by: str = "all",
     sort: str = "enrolled_date:desc"
 ) -> Dict[str, Any]:
-    query = db.query(CandidateORM)
+    query = (
+        db.query(CandidateORM)
+        .options(joinedload(CandidateORM.batch)) 
+    )
 
-    # Apply search filters
     if search:
         if search_by == "id":
             try:
@@ -35,7 +37,7 @@ def get_all_candidates_paginated(
             query = query.filter(CandidateORM.email.ilike(f"%{search}%"))
         elif search_by == "phone":
             query = query.filter(CandidateORM.phone.ilike(f"%{search}%"))
-        else:  # search_by == "all"
+        else:
             query = query.filter(
                 or_(
                     CandidateORM.full_name.ilike(f"%{search}%"),
@@ -52,28 +54,29 @@ def get_all_candidates_paginated(
             if not hasattr(CandidateORM, col):
                 raise HTTPException(status_code=400, detail=f"Cannot sort by field: {col}")
             column = getattr(CandidateORM, col)
-            if direction == "desc":
-                query = query.order_by(column.desc())
-            else:
-                query = query.order_by(column.asc())
+            query = query.order_by(column.desc() if direction == "desc" else column.asc())
 
-    # Get total count
     total = query.count()
 
-    # Handle pagination
     if limit > 0:
         candidates = query.offset((page - 1) * limit).limit(limit).all()
     else:
-        candidates = query.all()  # Return all records if limit=0
+        candidates = query.all()
 
-    # Serialize data
     data = []
     for candidate in candidates:
         item = candidate.__dict__.copy()
         item.pop('_sa_instance_state', None)
+
+        if candidate.batch:
+            item["batchname"] = candidate.batch.batchname
+        else:
+            item["batchname"] = None
+
         data.append(item)
 
     return {"data": data, "total": total, "page": page, "limit": limit}
+
 
 def get_candidate_by_id(candidate_id: int) -> Dict:
     db: Session = SessionLocal()
@@ -112,7 +115,6 @@ def create_candidate(candidate_data: dict) -> int:
         
 def update_candidate(candidate_id: int, candidate_data: dict):
     db: Session = SessionLocal()
-    print(candidate_data,"*"*200)
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
@@ -170,16 +172,10 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
 
         records = (
             db.query(CandidateMarketingORM)
-            .join(CandidateMarketingORM.candidate)  
-            .outerjoin(
-                CandidateORM.preparation_records
-            )  
             .options(
-                joinedload(CandidateMarketingORM.candidate),
-                joinedload(CandidateMarketingORM.instructor1),
-                joinedload(CandidateMarketingORM.instructor2),
-                joinedload(CandidateMarketingORM.instructor3),
-                joinedload(CandidateMarketingORM.marketing_manager_obj),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.batch),
+
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
                 .joinedload(CandidatePreparation.instructor1),
@@ -189,6 +185,11 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
                 .joinedload(CandidatePreparation.instructor3),
+
+                joinedload(CandidateMarketingORM.instructor1),
+                joinedload(CandidateMarketingORM.instructor2),
+                joinedload(CandidateMarketingORM.instructor3),
+                joinedload(CandidateMarketingORM.marketing_manager_obj),
             )
             .order_by(CandidateMarketingORM.id.desc())
             .offset((page - 1) * limit)
@@ -203,17 +204,22 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
 
             record_dict = r.__dict__.copy()
             record_dict.pop("_sa_instance_state", None)
+
+            # Candidate info
+            record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
+            if record_dict["candidate"]:
+                record_dict["candidate"].pop("_sa_instance_state", None)
+                record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
+                if record_dict["candidate"]["batch"]:
+                    record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
+
+            # Preparation instructors
             record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
             record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
             record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
 
-            # Candidate dict
-            record_dict["candidate"] = candidate.__dict__ if candidate else None
-            if record_dict["candidate"]:
-                record_dict["candidate"].pop("_sa_instance_state", None)
-
-            # Marketing manager dict
-            record_dict["marketing_manager_obj"] = r.marketing_manager_obj.__dict__ if r.marketing_manager_obj else None
+            # Marketing manager
+            record_dict["marketing_manager_obj"] = r.marketing_manager_obj.__dict__.copy() if r.marketing_manager_obj else None
             if record_dict["marketing_manager_obj"]:
                 record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
 
@@ -224,26 +230,37 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
         db.close()
 
 
-
 def get_marketing_by_candidate_id(candidate_id: int):
     db: Session = SessionLocal()
     try:
         records = (
             db.query(CandidateMarketingORM)
             .options(
+                # Candidate + batch
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.batch),
+
+                # Candidate preparation records + instructors
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor1_employee),
+                .joinedload(CandidatePreparation.instructor1),
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor2_employee),
+                .joinedload(CandidatePreparation.instructor2),
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor3_employee),
+                .joinedload(CandidatePreparation.instructor3),
+
+                # Marketing instructors & manager
+                joinedload(CandidateMarketingORM.instructor1),
+                joinedload(CandidateMarketingORM.instructor2),
+                joinedload(CandidateMarketingORM.instructor3),
+                joinedload(CandidateMarketingORM.marketing_manager_obj),
             )
             .filter(CandidateMarketingORM.candidate_id == candidate_id)
             .all()
         )
+
         if not records:
             raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
 
@@ -251,24 +268,27 @@ def get_marketing_by_candidate_id(candidate_id: int):
         for r in records:
             candidate = r.candidate
             prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
-            results_serialized.append({
+
+            record_dict = {
                 "id": r.id,
                 "candidate_id": r.candidate_id,
                 "candidate_name": candidate.full_name if candidate else None,
+                "candidate_batch": candidate.batch.name if candidate and candidate.batch else None,
                 "start_date": r.start_date.isoformat() if r.start_date else None,
                 "status": r.status,
-                "instructor1_name": prep.instructor1_employee.name if prep and prep.instructor1_employee else None,
-                "instructor2_name": prep.instructor2_employee.name if prep and prep.instructor2_employee else None,
-                "instructor3_name": prep.instructor3_employee.name if prep and prep.instructor3_employee else None,
+                "instructor1_name": prep.instructor1.name if prep and prep.instructor1 else None,
+                "instructor2_name": prep.instructor2.name if prep and prep.instructor2 else None,
+                "instructor3_name": prep.instructor3.name if prep and prep.instructor3 else None,
                 "marketing_manager_name": r.marketing_manager_obj.name if r.marketing_manager_obj else None,
                 "notes": r.notes,
                 "last_mod_datetime": r.last_mod_datetime.isoformat() if r.last_mod_datetime else None
-            })
+            }
+
+            results_serialized.append(record_dict)
 
         return {"candidate_id": candidate_id, "data": results_serialized}
     finally:
         db.close()
-
 
 
 def create_marketing(payload: CandidateMarketingCreate) -> Dict:
@@ -278,10 +298,9 @@ def create_marketing(payload: CandidateMarketingCreate) -> Dict:
         db.add(new_entry)
         db.commit()
         db.refresh(new_entry)
-        return new_entry.__dict__
+        return serialize_marketing(new_entry)
     finally:
         db.close()
-
 
 
 def serialize_marketing(record: CandidateMarketingORM) -> dict:
@@ -295,6 +314,10 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
     record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
     if record_dict["candidate"]:
         record_dict["candidate"].pop("_sa_instance_state", None)
+        record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
+        # record_dict["candidate"]["batch_name"] = candidate.batch.batchname if candidate.batch else None
+        if record_dict["candidate"]["batch"]:
+            record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
 
     record_dict["marketing_manager_obj"] = (
         record.marketing_manager_obj.__dict__.copy() if record.marketing_manager_obj else None
@@ -316,11 +339,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
     db: Session = SessionLocal()
     try:
-        record = (
-            db.query(CandidateMarketingORM)
-            .filter(CandidateMarketingORM.id == record_id) 
-            .first()
-        )
+        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
         if not record:
             raise HTTPException(status_code=404, detail="Marketing record not found")
 
@@ -350,8 +369,6 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
         return serialize_marketing(record)
     finally:
         db.close()
-
-
 
 
 def delete_marketing(record_id: int) -> Dict:
@@ -489,7 +506,6 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
         data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
-
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
