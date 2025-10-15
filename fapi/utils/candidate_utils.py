@@ -408,10 +408,10 @@ def get_all_placements(page: int, limit: int) -> Dict:
         results = (
             db.query(
                 CandidatePlacementORM,
-                CandidateORM.full_name.label("candidate_name")  #
+                CandidateORM.full_name.label("candidate_name")
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            .order_by(CandidatePlacementORM.priority.desc()) 
+            .order_by(CandidatePlacementORM.id.desc()) 
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
@@ -427,6 +427,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
         return {"page": page, "limit": limit, "total": total, "data": data}
     finally:
         db.close()
+
 
 
 
