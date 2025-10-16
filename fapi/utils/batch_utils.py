@@ -9,14 +9,11 @@ def get_all_batches(db: Session, search: Optional[str] = None):
         search = search.strip()
         filters = []
 
-        # Partial match for batchname
         filters.append(models.Batch.batchname.ilike(f"%{search}%"))
 
-        # If numeric, also match batchid
         if search.isdigit():
             filters.append(models.Batch.batchid == int(search))
 
-        # Apply combined filter
         query = query.filter(*filters)
 
     return query.order_by(models.Batch.batchid.desc()).all()

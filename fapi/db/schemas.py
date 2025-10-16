@@ -219,33 +219,63 @@ class LeadSchema(LeadBase):
         from_attributes = True  
 # --------------------------------------------------------candidate-------------------------------------------------------
 
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
 
+class BatchCreate(BatchBase):
+    pass
+class BatchUpdate(BatchBase):
+    pass
+
+class BatchOut(BaseModel):
+    batchid: int
+    batchname: str
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    subject: Optional[str] = None
+    courseid: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedBatches(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    batches: List[BatchOut] 
+    
+    
 class CandidateBase(BaseModel):
 
     id:Optional[int]=None
-    full_name: Optional[str]
+    full_name: Optional[str] = None
     name: Optional[str] = Field(None)
-    enrolled_date: Optional[date]
-    email: Optional[str]
-    phone: Optional[str]
-    status: Optional[Literal['active', 'discontinued', 'break', 'closed']] = None   
-    workstatus: Optional[str]
-    education: Optional[str]
-    workexperience: Optional[str]
-    ssn: Optional[str]
-    agreement: Optional[str]
-    secondaryemail: Optional[str]
-    secondaryphone: Optional[str]
-    address: Optional[str]
-    linkedin_id: Optional[str]
-    dob: Optional[date]
-    emergcontactname: Optional[str]
-    emergcontactemail: Optional[str]
-    emergcontactphone: Optional[str]
-    emergcontactaddrs: Optional[str]
-    fee_paid: Optional[int]
-    notes: Optional[str]
-    batchid: int
+    enrolled_date: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None   
+    workstatus: Optional[str] = None
+    education: Optional[str] = None
+    workexperience: Optional[str] = None
+    ssn: Optional[str] = None
+    agreement: Optional[str] = None
+    secondaryemail: Optional[str] = None
+    secondaryphone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    dob: Optional[date] = None
+    emergcontactname: Optional[str] = None
+    emergcontactemail: Optional[str] = None
+    emergcontactphone: Optional[str] = None
+    emergcontactaddrs: Optional[str] = None
+    fee_paid: Optional[int] = None
+    notes: Optional[str] = None
+    batchid: int = None
+    batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None   
     move_to_prep: Optional[bool] = False 
 
@@ -266,13 +296,52 @@ class CandidateCreate(CandidateBase):
 
 class StatusEnum(str, Enum):
     active = 'active'
+    inactive = 'inactive'
     discontinued = 'discontinued'
     break_ = 'break'
     closed = 'closed'
 
-class CandidateUpdate(CandidateBase):
-    pass
+class CandidateUpdate(BaseModel):
+    id: Optional[int] = None
+    full_name: Optional[str] = None
+    name: Optional[str] = None
+    enrolled_date: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None
+    workstatus: Optional[str] = None
+    education: Optional[str] = None
+    workexperience: Optional[str] = None
+    ssn: Optional[str] = None
+    agreement: Optional[str] = None
+    secondaryemail: Optional[str] = None
+    secondaryphone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    dob: Optional[date] = None
+    emergcontactname: Optional[str] = None
+    emergcontactemail: Optional[str] = None
+    emergcontactphone: Optional[str] = None
+    emergcontactaddrs: Optional[str] = None
+    fee_paid: Optional[int] = None
+    notes: Optional[str] = None
+    batchid: Optional[int] = None
+    candidate_folder: Optional[str] = None
+    move_to_prep: Optional[bool] = False
 
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True
+    }
+
+    @field_validator("agreement", mode="before")
+    def normalize_agreement(cls, v):
+        if v is True:
+            return "Y"
+        if v is False:
+            return "N"
+        return v
+    
 class CandidateDelete(CandidateBase):
     id: int
 
@@ -285,8 +354,6 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[CandidateBase]
 
-# class CandidateBase(BaseModel):
-#     name: str
 
     class Config:
         orm_mode = True
@@ -409,7 +476,6 @@ class InstructorOut(BaseModel):
 class CandidatePreparationBase(BaseModel):
     id: int = Field(..., alias="id")
     candidate_id: int
-    batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
@@ -439,11 +505,27 @@ class CandidatePreparationBase(BaseModel):
     
 
 
-class CandidatePreparationCreate(CandidatePreparationBase):
-    pass
+class CandidatePreparationCreate(BaseModel):
+    candidate_id: int
+    start_date: Optional[date] = None
+    status: str = "active"
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = False
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    resume: Optional[str] = None
 
 class CandidatePreparationUpdate(BaseModel):
-    batch: Optional[str] = None
     start_date: Optional[date] = None
     status: Optional[str] = None
     instructor1_id: Optional[int] = None
@@ -461,12 +543,10 @@ class CandidatePreparationUpdate(BaseModel):
     linkedin: Optional[str] = None
     github: Optional[str] = None
     resume: Optional[str] = None
-    # candidate: Optional[CandidateBase]  
     
 
 class CandidatePreparationOut(BaseModel):
     id: int
-    batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     rating: Optional[str] = None
@@ -510,6 +590,7 @@ class TypeOfInterviewEnum(str, Enum):
     hr_round = "HR Round"
     in_person = "In Person"
     prep_call = "Prep Call"
+    ai_interview = "AI Interview"
 
 
 class FeedbackEnum(str, Enum):
@@ -532,6 +613,7 @@ class CandidateInterviewBase(BaseModel):
     company_type: Optional[CompanyTypeEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
     interview_date: date
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
@@ -544,9 +626,6 @@ class CandidateInterviewBase(BaseModel):
     candidate: Optional[CandidateBase] = None
 
 
-# --- Create Schema ---
-class CandidateInterviewCreate(CandidateInterviewBase):
-    pass
 
 
 # # --- Update Schema ---
@@ -556,6 +635,7 @@ class CandidateInterviewUpdate(BaseModel):
     company_type: Optional[CompanyTypeEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
     interview_date: Optional[date] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
@@ -608,6 +688,7 @@ class CandidateInterviewCreate(BaseModel):
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
     recording_link: Optional[str] = None
     backup_url: Optional[str] = None
     url: Optional[str] = None
@@ -898,33 +979,6 @@ class CourseSubject(CourseSubjectBase):
     model_config = {
         "from_attributes": True  
     }
-
-# ----------------------------------batch-------------
-
-
-
-class BatchBase(BaseModel):
-    batchname: str
-    orientationdate: Optional[date] = None
-    subject: Optional[str] = "ML"
-    startdate: Optional[date] = None
-    enddate: Optional[date] = None
-    courseid: Optional[int] = None
-
-class BatchCreate(BatchBase):
-    pass
-
-class BatchUpdate(BatchBase):
-    pass
-
-
-class BatchOut(BatchBase):
-    batchid: int
-
-    class Config:
-        orm_mode = True
-
-# -----------------------------------------------------------
 
 # -----------------------------------------------------Recordings------------------------------------
 
@@ -1334,6 +1388,10 @@ class CandidateInterviewPerformanceResponse(BaseModel):
     success: bool
     data: List[CandidateInterviewPerformance]
     message: str
+class CandidatePreparationMetrics(BaseModel):
+    total_preparation_candidates: int
+    active_candidates: int
+    inactive_candidates: int
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
