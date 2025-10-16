@@ -1,23 +1,18 @@
-# wbl-backend/fapi/utils/auth_dependencies.py
-
 import os
+import logging
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
-
 from fapi.db.database import get_db
 from fapi.db.models import AuthUserORM
-
-# Security scheme
+logger = logging.getLogger("wbl")
 security = HTTPBearer(auto_error=False)
 
-# Environment variables
-SECRET_KEY = os.getenv("SECRET_KEY", "change_this_secret")
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 
-# 🔐 Decode the JWT token
 def decode_token(token: str):
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -28,13 +23,11 @@ def decode_token(token: str):
         )
 
 
-# 👤 Get currently logged-in user (handles both admin & normal users)
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
-    # token = credentials.credentials if credentials else request.headers.get("access-tokan")
     token = None
     if credentials and credentials.credentials:
         token = credentials.credentials
@@ -57,7 +50,6 @@ def get_current_user(
             detail="Invalid token payload",
         )
 
-    # 🧩 Works for both numeric IDs and username-based tokens
     user = None
     try:
         user = db.query(AuthUserORM).filter(AuthUserORM.id == int(user_id_or_name)).first()
@@ -72,10 +64,7 @@ def get_current_user(
 
     return user
 
-
-# 👑 Allow access only for admin users
 def admin_required(current_user=Depends(get_current_user)):
-    # accept role flag, boolean flag, OR username 'admin'
     uname = (getattr(current_user, "uname", None) or getattr(current_user, "username", "") or "").lower()
     if (
         getattr(current_user, "role", None) == "admin"
@@ -84,8 +73,36 @@ def admin_required(current_user=Depends(get_current_user)):
     ):
         return current_user
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
-        
-    
-# fapi/utils/auth_dependencies.py
+
+def check_modify_permission(request: Request, current_user=Depends(get_current_user)):
+    modifying_methods = {"POST", "PUT", "PATCH", "DELETE"}
+    method = request.method.upper()
+
+    uname = (getattr(current_user, "uname", None)
+             or getattr(current_user, "username", "") or "").lower()
+    is_admin = (
+        getattr(current_user, "role", None) == "admin"
+        or getattr(current_user, "is_admin", False)
+        or uname == "admin"
+    )
+
+    logger.info(
+        "check_modify_permission invoked -> user_id=%s uname=%s role=%s is_admin=%s method=%s",
+        getattr(current_user, "id", None),
+        uname,
+        getattr(current_user, "role", None),
+        getattr(current_user, "is_admin", None),
+        method,
+    )
+
+    if method in modifying_methods and not is_admin:
+        logger.warning("Modify blocked for user_id=%s method=%s role=%s", getattr(current_user, "id", None), method, getattr(current_user, "role", None))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Only admin users are allowed to perform {method} requests."
+        )
+
+    return True
+
 
 
