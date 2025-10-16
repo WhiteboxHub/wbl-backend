@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
-from sqlalchemy import case, or_, literal, desc,text
+from sqlalchemy import case, or_, literal, desc,text,extract
 from fapi.db.models import (Session as SessionORM, CourseSubject , CourseMaterial, 
                             Recording, RecordingBatch, CourseSubject,
                             Course, Subject, Batch, CourseContent)
@@ -429,48 +429,15 @@ def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
         print(f"Error fetching batches for {course}: {e}")
         raise HTTPException(status_code=500, detail="Unexpected server error")
     
-
-
-
-# def fetch_my_recordings(
-#     db: Session,
-#     name: str = "kumar",
-#     subject: str = None,
-#     page: int = 1,
-#     per_page: int = 100
-# ):
-#     offset = (page - 1) * per_page
-#     query = select(Recording).where(Recording.filename.ilike(f"%{name}%"))
-
-#     if subject:
-#         query = query.where(Recording.subject.ilike(f"%{subject}%"))
-
-#     total_query = select(func.count(Recording.id)).where(Recording.filename.ilike(f"%{name}%"))
-#     if subject:
-#         total_query = total_query.where(Recording.subject.ilike(f"%{subject}%"))
-
-#     total = db.execute(total_query).scalar() or 0
-
-#     result = db.execute(
-#         query.order_by(desc(Recording.classdate))
-#         .offset(offset)
-#         .limit(per_page)
-#     )
-#     recordings = result.scalars().all()
-
-#     return {
-#         "total": total,
-#         "page": page,
-#         "per_page": per_page,
-#         "recordings": recordings
-#     }
-
-
-
+    
 def fetch_kumar_recordings(
     db: Session,
     search: Optional[str] = None
 ):
+    """
+    Fetch all recordings that contain 'Kumar' in the description or filename,
+    but only include recordings from the year 2024 onwards.
+    """
 
     try:
         query = db.query(Recording).filter(
@@ -480,38 +447,14 @@ def fetch_kumar_recordings(
             )
         )
         if search:
-            query = query.filter(
-                Recording.description.ilike(f"%{search}%")
-            )
-        
+            query = query.filter(Recording.description.ilike(f"%{search}%"))
+        query = query.filter(
+            extract('year', Recording.classdate) >= 2024
+        )
         query = query.order_by(Recording.classdate.desc())
-        
         recordings = query.all()
-        
         return {"batch_recordings": recordings}
-    
+
     except Exception as e:
         logger.exception(f"Error fetching Kumar recordings: {e}")
         raise HTTPException(status_code=500, detail="Error fetching Kumar recordings")
-
-
-def fetch_course_batches_with_kumar(course: str, db: Session) -> List[Dict[str, Any]]:
-    try:
-        stmt = (
-            select(Batch.batchname, Batch.batchid)
-            .where(Batch.subject == course)  
-            .order_by(Batch.batchname.desc())
-        )
-
-        rows = db.execute(stmt).all()
-
-        
-        batches = [{"batchname": row.batchname, "batchid": row.batchid} for row in rows]
-
-        batches.insert(0, {"batchname": "99999", "batchid": 99999})
-        
-        return batches
-
-    except Exception as e:
-        logger.exception(f"Error fetching batches for {course}: {e}")
-        raise HTTPException(status_code=500, detail="Unexpected server error")

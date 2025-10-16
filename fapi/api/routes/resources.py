@@ -171,4 +171,3 @@ def get_batches_with_kumar(
 ):
     from fapi.utils.resources_utils import fetch_course_batches_with_kumar
     return fetch_course_batches_with_kumar(course, db)
-
