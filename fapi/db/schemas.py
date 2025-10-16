@@ -842,6 +842,14 @@ class VendorUpdate(BaseModel):
     intro_call: Optional[Literal['YES', 'NO']] = None
     linkedin_internal_id: Optional[str] = None
 
+class VendorMetrics(BaseModel):
+    total_vendors: int
+    today_extracted: int
+    week_extracted: int
+
+    class Config:
+        orm_mode = True
+
 # ---------------daily-vendor-activity --------------
 
 class YesNoEnum(str, Enum):
