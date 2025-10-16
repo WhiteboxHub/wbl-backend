@@ -432,35 +432,86 @@ def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
 
 
 
-def fetch_my_recordings(
+# def fetch_my_recordings(
+#     db: Session,
+#     name: str = "kumar",
+#     subject: str = None,
+#     page: int = 1,
+#     per_page: int = 100
+# ):
+#     offset = (page - 1) * per_page
+#     query = select(Recording).where(Recording.filename.ilike(f"%{name}%"))
+
+#     if subject:
+#         query = query.where(Recording.subject.ilike(f"%{subject}%"))
+
+#     total_query = select(func.count(Recording.id)).where(Recording.filename.ilike(f"%{name}%"))
+#     if subject:
+#         total_query = total_query.where(Recording.subject.ilike(f"%{subject}%"))
+
+#     total = db.execute(total_query).scalar() or 0
+
+#     result = db.execute(
+#         query.order_by(desc(Recording.classdate))
+#         .offset(offset)
+#         .limit(per_page)
+#     )
+#     recordings = result.scalars().all()
+
+#     return {
+#         "total": total,
+#         "page": page,
+#         "per_page": per_page,
+#         "recordings": recordings
+#     }
+
+
+
+def fetch_kumar_recordings(
     db: Session,
-    name: str = "kumar",
-    subject: str = None,
-    page: int = 1,
-    per_page: int = 100
+    search: Optional[str] = None
 ):
-    offset = (page - 1) * per_page
-    query = select(Recording).where(Recording.filename.ilike(f"%{name}%"))
 
-    if subject:
-        query = query.where(Recording.subject.ilike(f"%{subject}%"))
+    try:
+        query = db.query(Recording).filter(
+            or_(
+                Recording.description.ilike("%kumar%"),
+                Recording.filename.ilike("%kumar%")
+            )
+        )
+        if search:
+            query = query.filter(
+                Recording.description.ilike(f"%{search}%")
+            )
+        
+        query = query.order_by(Recording.classdate.desc())
+        
+        recordings = query.all()
+        
+        return {"batch_recordings": recordings}
+    
+    except Exception as e:
+        logger.exception(f"Error fetching Kumar recordings: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching Kumar recordings")
 
-    total_query = select(func.count(Recording.id)).where(Recording.filename.ilike(f"%{name}%"))
-    if subject:
-        total_query = total_query.where(Recording.subject.ilike(f"%{subject}%"))
 
-    total = db.execute(total_query).scalar() or 0
+def fetch_course_batches_with_kumar(course: str, db: Session) -> List[Dict[str, Any]]:
+    try:
+        stmt = (
+            select(Batch.batchname, Batch.batchid)
+            .where(Batch.subject == course)  
+            .order_by(Batch.batchname.desc())
+        )
 
-    result = db.execute(
-        query.order_by(desc(Recording.classdate))
-        .offset(offset)
-        .limit(per_page)
-    )
-    recordings = result.scalars().all()
+        rows = db.execute(stmt).all()
 
-    return {
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "recordings": recordings
-    }
+        
+        batches = [{"batchname": row.batchname, "batchid": row.batchid} for row in rows]
+
+        batches.insert(0, {"batchname": "99999", "batchid": 99999})
+        
+        return batches
+
+    except Exception as e:
+        logger.exception(f"Error fetching batches for {course}: {e}")
+        raise HTTPException(status_code=500, detail="Unexpected server error")
