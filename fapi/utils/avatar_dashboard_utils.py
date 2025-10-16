@@ -2,9 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Session as SessionModel
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Session as SessionModel,Vendor, VendorContactExtractsORM
 from fapi.db.schemas import CandidatePreparationMetrics
-from fapi.db.models import Session as SessionModel
 import re
 
 def get_batch_metrics(db: Session) -> Dict[str, Any]:
@@ -410,4 +409,41 @@ def get_candidate_preparation_metrics(db: Session):
         active_candidates=active_candidates,
         inactive_candidates=inactive_candidates
     )
+
+
+def get_vendor_stats(db: Session):
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday()) 
+
+    total_vendors = (
+        db.query(func.count(Vendor.id))
+        .filter(and_(Vendor.email.isnot(None), Vendor.created_at.isnot(None)))
+        .scalar()
+    )
+    today_extracted = (
+        db.query(func.count(VendorContactExtractsORM.id))
+        .filter(
+            and_(
+                VendorContactExtractsORM.email.isnot(None),
+                VendorContactExtractsORM.created_at >= today_start,
+            )
+        )
+        .scalar()
+    )
+    week_extracted = (
+        db.query(func.count(VendorContactExtractsORM.id))
+        .filter(
+            and_(
+                VendorContactExtractsORM.email.isnot(None),
+                VendorContactExtractsORM.created_at >= week_start,
+            )
+        )
+        .scalar()
+    )
+    return {
+        "total_vendors": total_vendors or 0,
+        "today_extracted": today_extracted or 0,
+        "week_extracted": week_extracted or 0,
+    }
 

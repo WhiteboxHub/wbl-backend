@@ -219,12 +219,36 @@ class LeadSchema(LeadBase):
         from_attributes = True  
 # --------------------------------------------------------candidate-------------------------------------------------------
 
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+
+class BatchCreate(BatchBase):
+    pass
+class BatchUpdate(BatchBase):
+    pass
+
 class BatchOut(BaseModel):
     batchid: int
-    batchname: str                 
+    batchname: str
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    subject: Optional[str] = None
+    courseid: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        orm_mode = True
+class PaginatedBatches(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    batches: List[BatchOut] 
+    
+    
 class CandidateBase(BaseModel):
 
     id:Optional[int]=None
@@ -453,7 +477,6 @@ class InstructorOut(BaseModel):
 class CandidatePreparationBase(BaseModel):
     id: int = Field(..., alias="id")
     candidate_id: int
-    # batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
@@ -483,8 +506,6 @@ class CandidatePreparationBase(BaseModel):
     
 
 
-# class CandidatePreparationCreate(CandidatePreparationBase):
-#     pass
 class CandidatePreparationCreate(BaseModel):
     candidate_id: int
     start_date: Optional[date] = None
@@ -506,7 +527,6 @@ class CandidatePreparationCreate(BaseModel):
     resume: Optional[str] = None
 
 class CandidatePreparationUpdate(BaseModel):
-    # batch: Optional[str] = None
     start_date: Optional[date] = None
     status: Optional[str] = None
     instructor1_id: Optional[int] = None
@@ -524,12 +544,10 @@ class CandidatePreparationUpdate(BaseModel):
     linkedin: Optional[str] = None
     github: Optional[str] = None
     resume: Optional[str] = None
-    # candidate: Optional[CandidateBase]  
     
 
 class CandidatePreparationOut(BaseModel):
     id: int
-    # batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     rating: Optional[str] = None
@@ -825,6 +843,14 @@ class VendorUpdate(BaseModel):
     intro_call: Optional[Literal['YES', 'NO']] = None
     linkedin_internal_id: Optional[str] = None
 
+class VendorMetrics(BaseModel):
+    total_vendors: int
+    today_extracted: int
+    week_extracted: int
+
+    class Config:
+        orm_mode = True
+
 # ---------------daily-vendor-activity --------------
 
 class YesNoEnum(str, Enum):
@@ -962,33 +988,6 @@ class CourseSubject(CourseSubjectBase):
     model_config = {
         "from_attributes": True  
     }
-
-# ----------------------------------batch-------------
-
-
-
-class BatchBase(BaseModel):
-    batchname: str
-    orientationdate: Optional[date] = None
-    subject: Optional[str] = "ML"
-    startdate: Optional[date] = None
-    enddate: Optional[date] = None
-    courseid: Optional[int] = None
-
-class BatchCreate(BatchBase):
-    pass
-
-class BatchUpdate(BatchBase):
-    pass
-
-
-class BatchOut(BatchBase):
-    batchid: int
-
-    class Config:
-        orm_mode = True
-
-# -----------------------------------------------------------
 
 # -----------------------------------------------------Recordings------------------------------------
 

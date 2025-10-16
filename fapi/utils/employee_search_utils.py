@@ -58,11 +58,9 @@ def get_employee_candidates(db: Session, employee_id: int) -> Dict:
 
     prep_candidates = [prep.candidate.full_name for prep in prep_records]
 
-    
+    prep_candidate_ids = [prep.candidate_id for prep in prep_records]  
     marketing_records = db.query(CandidateMarketingORM).filter(
-        (CandidateMarketingORM.instructor1_id == employee_id) |
-        (CandidateMarketingORM.instructor2_id == employee_id) |
-        (CandidateMarketingORM.instructor3_id == employee_id),
+        CandidateMarketingORM.candidate_id.in_(prep_candidate_ids),
         CandidateMarketingORM.status == "active"
     ).all()
 
