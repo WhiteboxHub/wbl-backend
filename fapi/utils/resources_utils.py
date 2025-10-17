@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
-from sqlalchemy import case, or_, literal, desc,text
+from sqlalchemy import case, or_, literal, desc,text,extract
 from fapi.db.models import (Session as SessionORM, CourseSubject , CourseMaterial, 
                             Recording, RecordingBatch, CourseSubject,
                             Course, Subject, Batch, CourseContent)
@@ -428,3 +428,33 @@ def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"Error fetching batches for {course}: {e}")
         raise HTTPException(status_code=500, detail="Unexpected server error")
+    
+    
+def fetch_kumar_recordings(
+    db: Session,
+    search: Optional[str] = None
+):
+    """
+    Fetch all recordings that contain 'Kumar' in the description or filename,
+    but only include recordings from the year 2024 onwards.
+    """
+
+    try:
+        query = db.query(Recording).filter(
+            or_(
+                Recording.description.ilike("%kumar%"),
+                Recording.filename.ilike("%kumar%")
+            )
+        )
+        if search:
+            query = query.filter(Recording.description.ilike(f"%{search}%"))
+        query = query.filter(
+            extract('year', Recording.classdate) >= 2024
+        )
+        query = query.order_by(Recording.classdate.desc())
+        recordings = query.all()
+        return {"batch_recordings": recordings}
+
+    except Exception as e:
+        logger.exception(f"Error fetching Kumar recordings: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching Kumar recordings")
