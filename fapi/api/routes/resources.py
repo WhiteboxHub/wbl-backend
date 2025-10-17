@@ -3,7 +3,8 @@ import traceback
 from typing import List, Optional
 from fapi.db.models import Session as SessionORM
 from fapi.db.schemas import CourseContentResponse, BatchMetrics, PaginatedRecordingOut, RecordingOut, Recording  
-
+from fapi.utils.resources_utils import fetch_kumar_recordings
+# from fapi.utils.resources_utils import fetch_course_batches_with_kumar
 from datetime import datetime
 import anyio
 from fastapi import (
@@ -154,7 +155,6 @@ def get_recordings(
 ):
     try:
         if batchid == 99999:
-            from fapi.utils.resources_utils import fetch_kumar_recordings
             return fetch_kumar_recordings(db, search=search)
         return fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
     
@@ -169,5 +169,4 @@ def get_batches_with_kumar(
     course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
     db: Session = Depends(get_db)
 ):
-    from fapi.utils.resources_utils import fetch_course_batches_with_kumar
     return fetch_course_batches_with_kumar(course, db)
