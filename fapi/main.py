@@ -1,54 +1,48 @@
-
-# wbl-backend/fapi/main.py
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
-from fapi.db.database import SessionLocal
+import logging
+import traceback
 
-from fapi.auth import JWTAuthorizationMiddleware
+app = FastAPI(title="WBL Backend")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("wbl")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://whitebox-learning.com",
+        "https://www.whitebox-learning.com",
+        "http://whitebox-learning.com",
+        "http://www.whitebox-learning.com",
+        "http://localhost:3000",
+        "http://localhost:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def log_exceptions(request: Request, call_next):
+    try:
+        response = await call_next(request)
+        return response
+    except Exception:
+        logger.error("Unhandled exception during request: %s %s", request.method, request.url)
+        logger.error(traceback.format_exc())
+        raise
+
+from fapi.db.database import SessionLocal
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
     vendor, vendor_activity, request_demo, unsubscribe,
-    user_dashboard, password, employee, course, subject, course_subject, 
-    course_content, course_material, batch, authuser, avatar_dashboard, 
-    session, recording, referrals,
+    user_dashboard, password, employee, course, subject, course_subject,
+    course_content, course_material, batch, authuser, avatar_dashboard,
+    session, recording, referrals
 )
-from fapi.core.config import limiter 
-
-app = FastAPI()
-
-app.add_middleware(JWTAuthorizationMiddleware)
-
-# API routes
-app.include_router(candidate.router, prefix="/api", tags=["Candidate Marketing & Placements"])
-app.include_router(unsubscribe.router, tags=["Unsubscribe"])
-app.include_router(leads.router, prefix="/api", tags=["Leads"])
-app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
-app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"])
-app.include_router(vendor.router, prefix="/api", tags=["Vendor"])
-app.include_router(vendor_activity.router, prefix="/api", tags=["DailyVendorActivity"])
-app.include_router(employee.router, prefix="/api", tags=["Employee"])
-app.include_router(talent_search.router, prefix="/api", tags=["Talent Search"])
-app.include_router(user_role.router, prefix="/api", tags=["User Role"])
-app.include_router(password.router, prefix="/api", tags=["password"])
-app.include_router(login.router, prefix="/api", tags=["Login"])
-app.include_router(contact.router, prefix="/api", tags=["Contact"])
-app.include_router(resources.router, prefix="/api", tags=["Resources"])
-app.include_router(register.router, prefix="/api", tags=["Register"])
-app.include_router(request_demo.router, prefix="/api", tags=["Request Demo"])
-app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"])
-app.include_router(avatar_dashboard.router, prefix="/api", tags=["Avatar Dashboard"])
-app.include_router(batch.router, prefix="/api", tags=["Batch"])
-app.include_router(authuser.router, prefix="/api", tags=["Authuser"])
-app.include_router(session.router, prefix="/api", tags=["Sessions"])
-app.include_router(recording.router, prefix="/api", tags=["Recordings"])
-app.include_router(course.router, prefix="/api", tags=["courses"])
-app.include_router(subject.router, prefix="/api", tags=["subjects"])
-app.include_router(course_subject.router, prefix="/api", tags=["course-subjects"])
-app.include_router(course_content.router, prefix="/api", tags=["course-contents"])
-app.include_router(course_material.router, prefix="/api", tags=["course-materials"])
-app.include_router(referrals.router, prefix="/api", tags=["Referrals"])
+from fapi.utils.permission_gate import enforce_access
 
 def get_db():
     db = SessionLocal()
@@ -57,22 +51,31 @@ def get_db():
     finally:
         db.close()
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://whitebox-learning.com", 
-        "https://www.whitebox-learning.com", 
-        "http://whitebox-learning.com", 
-        "http://www.whitebox-learning.com",
-        "http://localhost:3000",
-        "http://localhost:8000"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# OAuth2PasswordBearer instance
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
+app.include_router(candidate.router,prefix="/api", tags=["Candidate"],dependencies=[Depends(enforce_access)])
+app.include_router(leads.router,prefix="/api", tags=["Leads"],dependencies=[Depends(enforce_access)])
+app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"],dependencies=[Depends(enforce_access)])
+app.include_router(vendor.router, prefix="/api", tags=["Vendor"],dependencies=[Depends(enforce_access)])
+app.include_router(vendor_activity.router,prefix="/api", tags=["DailyVendorActivity"],       dependencies=[Depends(enforce_access)])
+app.include_router(employee.router,       prefix="/api", tags=["Employee"],                  dependencies=[Depends(enforce_access)])
+app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"],             dependencies=[Depends(enforce_access)])
+app.include_router(user_role.router,      prefix="/api", tags=["User Role"],                 dependencies=[Depends(enforce_access)])
+app.include_router(password.router,       prefix="/api", tags=["Password"],                  dependencies=[Depends(enforce_access)])
+app.include_router(request_demo.router,   prefix="/api", tags=["Request Demo"],              dependencies=[Depends(enforce_access)])
+app.include_router(user_dashboard.router, prefix="/api", tags=["User Dashboard"],            dependencies=[Depends(enforce_access)])
+app.include_router(batch.router,          prefix="/api", tags=["Batch"],                     dependencies=[Depends(enforce_access)])
+app.include_router(authuser.router,       prefix="/api", tags=["Authuser"],                  dependencies=[Depends(enforce_access)])
+app.include_router(session.router,        prefix="/api", tags=["Sessions"],                  dependencies=[Depends(enforce_access)])
+app.include_router(recording.router,      prefix="/api", tags=["Recordings"],                dependencies=[Depends(enforce_access)])
+app.include_router(course.router,         prefix="/api", tags=["Courses"],                   dependencies=[Depends(enforce_access)])
+app.include_router(subject.router,        prefix="/api", tags=["Subjects"],                  dependencies=[Depends(enforce_access)])
+app.include_router(course_subject.router, prefix="/api", tags=["Course Subjects"],           dependencies=[Depends(enforce_access)])
+app.include_router(course_content.router, prefix="/api", tags=["Course Contents"],           dependencies=[Depends(enforce_access)])
+app.include_router(course_material.router,prefix="/api", tags=["Course Materials"],          dependencies=[Depends(enforce_access)])
+app.include_router(referrals.router,      prefix="/api", tags=["Referrals"],                 dependencies=[Depends(enforce_access)])
+app.include_router(avatar_dashboard.router,prefix="/api", tags=["Avatar Dashboard"],         dependencies=[Depends(enforce_access)])
+app.include_router(contact.router,        prefix="/api", tags=["Contact"],                   dependencies=[Depends(enforce_access)])
+app.include_router(resources.router,      prefix="/api", tags=["Resources"],          dependencies=[Depends(enforce_access)])
+app.include_router(register.router,       prefix="/api", tags=["Register"])
+app.include_router(login.router,          prefix="/api", tags=["Login"])
+app.include_router(unsubscribe.router,    prefix="/api", tags=["Unsubscribe"])
+app.include_router(google_auth.router,    prefix="/api", tags=["Google Authentication"])
