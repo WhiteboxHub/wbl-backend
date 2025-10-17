@@ -104,5 +104,10 @@ def check_modify_permission(request: Request, current_user=Depends(get_current_u
 
     return True
 
+def require_admin(current_user=Depends(get_current_user)):
+    uname = (getattr(current_user, "uname", "") or "").lower()
+    if getattr(current_user, "role", None) == "admin" or getattr(current_user, "is_admin", False) or uname == "admin":
+        return current_user
+    raise HTTPException(status_code=403, detail="only admins can access")
 
 
