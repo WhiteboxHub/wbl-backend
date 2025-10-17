@@ -336,6 +336,64 @@ class CandidateInterview(Base):
     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
 
+# # -------------------------------------- Candidate Interview -------------------------------
+
+# class CandidateInterview(Base):
+#     __tablename__ = "candidate_interview"
+
+#     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+#     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+#     candidate = relationship("CandidateORM", back_populates="interviews")
+
+#     company = Column(String(200), nullable=False)
+#     company_type = Column(
+#         Enum(
+#             "client",
+#             "third-party-vendor",
+#             "implementation-partner",
+#             "sourcer",
+#             name="company_type_enum"
+#         ),
+#         nullable=True,
+#         default="client"  
+#     )
+
+#     interviewer_emails = Column(Text, nullable=True)
+#     interviewer_contact = Column(Text, nullable=True)
+#     interviewer_linkedin = Column(String(500), nullable=True)
+#     interview_date = Column(Date, nullable=False)
+
+#     mode_of_interview = Column(
+#         Enum(
+#             "Virtual", "In Person", "Phone", "Assessment", "AI Interview",
+#             name="mode_of_interview_enum"
+#         ),
+#         nullable=True,
+#         default="Virtual"  
+#     )
+
+#     type_of_interview = Column(
+#         Enum(
+#             "Recruiter Call", "Technical", "HR", "Prep Call",
+#             name="type_of_interview_enum"
+#         ),
+#         nullable=True,
+#         default="Recruiter Call"  
+#     )
+
+#     transcript = Column(String(500), nullable=True)
+#     recording_link = Column(String(500), nullable=True)
+#     backup_recording_url = Column(String(500), nullable=True)  
+#     job_posting_url = Column(String(500), nullable=True)  
+
+#     feedback = Column(
+#         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
+#         nullable=True,
+#         default="Pending"  
+#     )
+
+#     notes = Column(Text, nullable=True)
+#     last_mod_datetime = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
 
 # -------------------------------------- Candidate Placement -------------------------------
