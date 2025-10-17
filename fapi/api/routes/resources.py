@@ -1,7 +1,10 @@
 import logging
 import traceback
 from typing import List, Optional
+from fapi.db.models import Session as SessionORM
+from fapi.db.schemas import CourseContentResponse, BatchMetrics, PaginatedRecordingOut, RecordingOut, Recording  
 
+from datetime import datetime
 import anyio
 from fastapi import (
     APIRouter,
@@ -129,27 +132,6 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
-@router.get("/recording")
-def get_recordings(
-    course: str,
-    batchid: Optional[int] = None,
-    search: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-  
-    recordings = fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
-    
-    if not recordings.get("batch_recordings"):
-        msg = f"No recordings found for course '{course}'"
-        if batchid:
-            msg += f" and batch '{batchid}'"
-        if search:
-            msg += f" matching '{search}'"
-        raise HTTPException(status_code=404, detail=msg)
-
-    return recordings
-
-
 @router.get("/batches")
 def get_batches(
     course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
@@ -162,3 +144,30 @@ def get_batches(
 def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
     return get_batch_metrics(db)
 
+
+@router.get("/recording")
+def get_recordings(
+    course: str,
+    batchid: int,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        if batchid == 99999:
+            from fapi.utils.resources_utils import fetch_kumar_recordings
+            return fetch_kumar_recordings(db, search=search)
+        return fetch_subject_batch_recording(course, db, batchid=batchid, search=search)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error fetching recordings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+@router.get("/batches")
+def get_batches_with_kumar(
+    course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
+    db: Session = Depends(get_db)
+):
+    from fapi.utils.resources_utils import fetch_course_batches_with_kumar
+    return fetch_course_batches_with_kumar(course, db)
