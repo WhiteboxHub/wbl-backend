@@ -163,9 +163,9 @@ def delete_candidate(candidate_id: int):
 
 
 
-# -----------------------------------------------Marketing----------------------------
+# # -----------------------------------------------Marketing----------------------------
 
-def get_all_marketing_records(page: int, limit: int) -> Dict:
+def get_all_marketing_records(page: int, limit: int) -> dict:
     db: Session = SessionLocal()
     try:
         total = db.query(CandidateMarketingORM).count()
@@ -186,9 +186,6 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
                 .joinedload(CandidateORM.preparation_records)
                 .joinedload(CandidatePreparation.instructor3),
 
-                joinedload(CandidateMarketingORM.instructor1),
-                joinedload(CandidateMarketingORM.instructor2),
-                joinedload(CandidateMarketingORM.instructor3),
                 joinedload(CandidateMarketingORM.marketing_manager_obj),
             )
             .order_by(CandidateMarketingORM.id.desc())
@@ -197,108 +194,9 @@ def get_all_marketing_records(page: int, limit: int) -> Dict:
             .all()
         )
 
-        results_serialized = []
-        for r in records:
-            candidate = r.candidate
-            prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
-
-            record_dict = r.__dict__.copy()
-            record_dict.pop("_sa_instance_state", None)
-
-            # Candidate info
-            record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
-            if record_dict["candidate"]:
-                record_dict["candidate"].pop("_sa_instance_state", None)
-                record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
-                if record_dict["candidate"]["batch"]:
-                    record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
-
-            # Preparation instructors
-            record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
-            record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
-            record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
-
-            # Marketing manager
-            record_dict["marketing_manager_obj"] = r.marketing_manager_obj.__dict__.copy() if r.marketing_manager_obj else None
-            if record_dict["marketing_manager_obj"]:
-                record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
-
-            results_serialized.append(record_dict)
+        results_serialized = [serialize_marketing(r) for r in records]
 
         return {"page": page, "limit": limit, "total": total, "data": results_serialized}
-    finally:
-        db.close()
-
-
-def get_marketing_by_candidate_id(candidate_id: int):
-    db: Session = SessionLocal()
-    try:
-        records = (
-            db.query(CandidateMarketingORM)
-            .options(
-                # Candidate + batch
-                joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.batch),
-
-                # Candidate preparation records + instructors
-                joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor1),
-                joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor2),
-                joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
-                .joinedload(CandidatePreparation.instructor3),
-
-                # Marketing instructors & manager
-                joinedload(CandidateMarketingORM.instructor1),
-                joinedload(CandidateMarketingORM.instructor2),
-                joinedload(CandidateMarketingORM.instructor3),
-                joinedload(CandidateMarketingORM.marketing_manager_obj),
-            )
-            .filter(CandidateMarketingORM.candidate_id == candidate_id)
-            .all()
-        )
-
-        if not records:
-            raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
-
-        results_serialized = []
-        for r in records:
-            candidate = r.candidate
-            prep = candidate.preparation_records[-1] if candidate and candidate.preparation_records else None
-
-            record_dict = {
-                "id": r.id,
-                "candidate_id": r.candidate_id,
-                "candidate_name": candidate.full_name if candidate else None,
-                "candidate_batch": candidate.batch.name if candidate and candidate.batch else None,
-                "start_date": r.start_date.isoformat() if r.start_date else None,
-                "status": r.status,
-                "instructor1_name": prep.instructor1.name if prep and prep.instructor1 else None,
-                "instructor2_name": prep.instructor2.name if prep and prep.instructor2 else None,
-                "instructor3_name": prep.instructor3.name if prep and prep.instructor3 else None,
-                "marketing_manager_name": r.marketing_manager_obj.name if r.marketing_manager_obj else None,
-                "notes": r.notes,
-                "last_mod_datetime": r.last_mod_datetime.isoformat() if r.last_mod_datetime else None
-            }
-
-            results_serialized.append(record_dict)
-
-        return {"candidate_id": candidate_id, "data": results_serialized}
-    finally:
-        db.close()
-
-
-def create_marketing(payload: CandidateMarketingCreate) -> Dict:
-    db: Session = SessionLocal()
-    try:
-        new_entry = CandidateMarketingORM(**payload.dict())
-        db.add(new_entry)
-        db.commit()
-        db.refresh(new_entry)
-        return serialize_marketing(new_entry)
     finally:
         db.close()
 
@@ -315,28 +213,74 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
     if record_dict["candidate"]:
         record_dict["candidate"].pop("_sa_instance_state", None)
         record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
-        # record_dict["candidate"]["batch_name"] = candidate.batch.batchname if candidate.batch else None
         if record_dict["candidate"]["batch"]:
             record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
 
-    record_dict["marketing_manager_obj"] = (
-        record.marketing_manager_obj.__dict__.copy() if record.marketing_manager_obj else None
-    )
-    if record_dict["marketing_manager_obj"]:
-        record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+        # Get latest preparation record instructors
+        prep = candidate.preparation_records[-1] if candidate.preparation_records else None
+        record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
+        record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
+        record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+    else:
+        record_dict["instructor1_name"] = record_dict["instructor2_name"] = record_dict["instructor3_name"] = None
 
-    for i, rel in enumerate([record.instructor1, record.instructor2, record.instructor3], start=1):
-        if rel:
-            d = rel.__dict__.copy()
-            d.pop("_sa_instance_state", None)
-            record_dict[f"instructor{i}"] = d
-        else:
-            record_dict[f"instructor{i}"] = None
+    # Marketing manager
+    if record.marketing_manager_obj:
+        record_dict["marketing_manager_obj"] = record.marketing_manager_obj.__dict__.copy()
+        record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+    else:
+        record_dict["marketing_manager_obj"] = None
 
     return record_dict
 
 
-def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
+def get_marketing_by_candidate_id(candidate_id: int):
+    db: Session = SessionLocal()
+    try:
+        records = (
+            db.query(CandidateMarketingORM)
+            .options(
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.batch),
+
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3),
+
+                joinedload(CandidateMarketingORM.marketing_manager_obj),
+            )
+            .filter(CandidateMarketingORM.candidate_id == candidate_id)
+            .all()
+        )
+
+        if not records:
+            raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
+
+        results_serialized = [serialize_marketing(r) for r in records]
+        return {"candidate_id": candidate_id, "data": results_serialized}
+    finally:
+        db.close()
+
+
+def create_marketing(payload: CandidateMarketingCreate) -> dict:
+    db: Session = SessionLocal()
+    try:
+        new_entry = CandidateMarketingORM(**payload.dict())
+        db.add(new_entry)
+        db.commit()
+        db.refresh(new_entry)
+        return serialize_marketing(new_entry)
+    finally:
+        db.close()
+
+
+def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
     db: Session = SessionLocal()
     try:
         record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
@@ -371,7 +315,7 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> Dict:
         db.close()
 
 
-def delete_marketing(record_id: int) -> Dict:
+def delete_marketing(record_id: int) -> dict:
     db: Session = SessionLocal()
     try:
         record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
@@ -382,7 +326,6 @@ def delete_marketing(record_id: int) -> Dict:
         return {"message": "Marketing record deleted successfully"}
     finally:
         db.close()
-
 
 
 # ----------------------------------------------------Candidate_Placement---------------------------------
@@ -854,6 +797,7 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "Company": interview.company,
                     "Interview Date": interview.interview_date.isoformat() if interview.interview_date else None,
                     "Interview Type": interview.type_of_interview,
+                    "Mode of Interview": interview.mode_of_interview,
                     "Feedback": interview.feedback,
                     "Recording Link": interview.recording_link,
                     "Notes": interview.notes
