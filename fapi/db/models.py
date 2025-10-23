@@ -351,7 +351,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    priority = Column(Integer, default=99)
+    # priority = Column(Integer, default=99)
 
     candidate = relationship("CandidateORM", back_populates="placements")
 

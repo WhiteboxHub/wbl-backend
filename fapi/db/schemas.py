@@ -423,7 +423,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
-    priority: Optional[int] 
+    # priority: Optional[int] 
 
     class Config:
         from_attributes = True
@@ -439,7 +439,7 @@ class CandidatePlacementUpdate(BaseModel):
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
     notes: Optional[str] = None
-    priority: Optional[int] = None
+    # priority: Optional[int] = None
 
 
 # ----------------------------------------------------
