@@ -1243,7 +1243,13 @@ class CourseMaterialBase(BaseModel):
     sortorder: int = Field(default=9999)
 
 class CourseMaterialCreate(CourseMaterialBase):
-    pass
+    subjectid: int
+    courseid: int
+    name: str
+    description: Optional[str] = None
+    type: str
+    link: str
+    sortorder: int
 
 class CourseMaterialUpdate(BaseModel):
     subjectid: Optional[int] = None
@@ -1262,7 +1268,10 @@ class CourseMaterialResponse(BaseModel):
     description: Optional[str] = None
     type: str
     link: str
-    sortorder: int  
+    sortorder: int 
+    cm_subject: str
+    cm_course: str  
+    material_type: str 
 
     model_config = {
         "from_attributes": True
