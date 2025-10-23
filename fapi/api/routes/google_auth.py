@@ -69,6 +69,7 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Candidate record not found. Please register or contact support."
         )
+
     if candidate_info.status.lower() not in ("active","closed"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
