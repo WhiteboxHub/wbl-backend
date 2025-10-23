@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel,ConfigDict, EmailStr, field_validator, validator, Field
+from pydantic import BaseModel,ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl
 from typing import Optional, List, Literal, Union,Dict,Any
 from enum import Enum
 
@@ -219,11 +219,40 @@ class LeadSchema(LeadBase):
         from_attributes = True  
 # --------------------------------------------------------candidate-------------------------------------------------------
 
+class BatchBase(BaseModel):
+    batchname: str
+    courseid: int
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
 
+class BatchCreate(BatchBase):
+    pass
+class BatchUpdate(BatchBase):
+    pass
+
+class BatchOut(BaseModel):
+    batchid: int
+    batchname: str
+    orientationdate: Optional[date] = None
+    startdate: Optional[date] = None
+    enddate: Optional[date] = None
+    subject: Optional[str] = None
+    courseid: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class PaginatedBatches(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    batches: List[BatchOut] 
+    
+    
 class CandidateBase(BaseModel):
 
     id:Optional[int]=None
-    full_name: Optional[str]
+    full_name: Optional[str] = None
     name: Optional[str] = Field(None)
     enrolled_date: Optional[date] = None
     email: Optional[str] = None
@@ -238,6 +267,7 @@ class CandidateBase(BaseModel):
     secondaryphone: Optional[str] = None
     address: Optional[str] = None
     linkedin_id: Optional[str] = None
+    github_link: Optional[str] = None
     dob: Optional[date] = None
     emergcontactname: Optional[str] = None
     emergcontactemail: Optional[str] = None
@@ -246,6 +276,7 @@ class CandidateBase(BaseModel):
     fee_paid: Optional[int] = None
     notes: Optional[str] = None
     batchid: int = None
+    batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None   
     move_to_prep: Optional[bool] = False 
 
@@ -271,9 +302,47 @@ class StatusEnum(str, Enum):
     break_ = 'break'
     closed = 'closed'
 
-class CandidateUpdate(CandidateBase):
-    pass
+class CandidateUpdate(BaseModel):
+    id: Optional[int] = None
+    full_name: Optional[str] = None
+    name: Optional[str] = None
+    enrolled_date: Optional[date] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None
+    workstatus: Optional[str] = None
+    education: Optional[str] = None
+    workexperience: Optional[str] = None
+    ssn: Optional[str] = None
+    agreement: Optional[str] = None
+    secondaryemail: Optional[str] = None
+    secondaryphone: Optional[str] = None
+    address: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    dob: Optional[date] = None
+    emergcontactname: Optional[str] = None
+    emergcontactemail: Optional[str] = None
+    emergcontactphone: Optional[str] = None
+    emergcontactaddrs: Optional[str] = None
+    fee_paid: Optional[int] = None
+    notes: Optional[str] = None
+    batchid: Optional[int] = None
+    candidate_folder: Optional[str] = None
+    move_to_prep: Optional[bool] = False
 
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True
+    }
+
+    @field_validator("agreement", mode="before")
+    def normalize_agreement(cls, v):
+        if v is True:
+            return "Y"
+        if v is False:
+            return "N"
+        return v
+    
 class CandidateDelete(CandidateBase):
     id: int
 
@@ -286,44 +355,29 @@ class PaginatedCandidateResponse(BaseModel):
     total: int
     data: List[CandidateBase]
 
-# class CandidateBase(BaseModel):
-#     name: str
 
     class Config:
         orm_mode = True
 
-# -------------------------------------------------
-
-
-
+# -------------------------MARKETING-----------------------
 
 class CandidateMarketingBase(BaseModel):
-    candidate_id: int = None
+    candidate_id: int
     marketing_manager: Optional[int] = None
-    start_date: date = None
+    start_date: date
     notes: Optional[str] = None
-    status: Literal["active", "break", "not responding"] = None
-    instructor1_id: Optional[int] = None
-    instructor2_id: Optional[int] = None
-    instructor3_id: Optional[int] = None
+    status: Literal["active", "inactive"] = "active"
     email: Optional[str] = None
     password: Optional[str] = None
     google_voice_number: Optional[str] = None
-    rating: Optional[int] = None
-    priority: Optional[int] = None
-    candidate_resume: Optional[str] = None
-    move_to_placement: Optional[bool] = None
-    candidate: Optional[CandidateBase] = None
-
-    instructor1: Optional[EmployeeBase] = None
-    instructor2: Optional[EmployeeBase] = None
-    instructor3: Optional[EmployeeBase] = None
-    marketing_manager_obj: Optional[EmployeeBase] = None
-
+    priority: Optional[int] = None  # integer 1-5
+    resume_url: Optional[HttpUrl] = None
+    move_to_placement: Optional[bool] = False
+    candidate: Optional["CandidateBase"] = None
+    marketing_manager_obj: Optional["EmployeeBase"] = None
 
 class CandidateMarketingCreate(CandidateMarketingBase):
     pass
-
 
 class CandidateMarketing(CandidateMarketingBase):
     id: int
@@ -337,17 +391,15 @@ class CandidateMarketingUpdate(BaseModel):
     marketing_manager: Optional[int] = None
     start_date: Optional[date] = None
     notes: Optional[str] = None
-    status: Optional[Literal["active", "break", "not responding", "inactive"]] = None
-    instructor1_id: Optional[int] = None
-    instructor2_id: Optional[int] = None
-    instructor3_id: Optional[int] = None
+    status: Optional[Literal["active", "inactive"]] = None
     email: Optional[str] = None
     password: Optional[str] = None
     google_voice_number: Optional[str] = None
-    rating: Optional[int] = None
-    priority: Optional[int] = None
-    candidate_resume: Optional[str] = None
+    priority: Optional[int] = None  # integer 1-5
+    resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
+
+#-----------------------PLACEMENT---------------------------------
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
@@ -371,7 +423,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
-    priority: Optional[int] 
+    # priority: Optional[int] 
 
     class Config:
         from_attributes = True
@@ -387,7 +439,7 @@ class CandidatePlacementUpdate(BaseModel):
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
     notes: Optional[str] = None
-    priority: Optional[int] = None
+    # priority: Optional[int] = None
 
 
 # ----------------------------------------------------
@@ -410,7 +462,6 @@ class InstructorOut(BaseModel):
 class CandidatePreparationBase(BaseModel):
     id: int = Field(..., alias="id")
     candidate_id: int
-    batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
@@ -440,11 +491,30 @@ class CandidatePreparationBase(BaseModel):
     
 
 
-class CandidatePreparationCreate(CandidatePreparationBase):
-    pass
+# class CandidatePreparationCreate(CandidatePreparationBase):
+#     pass
+
+class CandidatePreparationCreate(BaseModel):
+    candidate_id: int
+    start_date: Optional[date] = None
+    status: str = "active"
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
+    rating: Optional[str] = None
+    tech_rating: Optional[str] = None
+    communication: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    topics_finished: Optional[str] = None
+    current_topics: Optional[str] = None
+    target_date_of_marketing: Optional[date] = None
+    notes: Optional[str] = None
+    move_to_mrkt: Optional[bool] = False
+    linkedin: Optional[str] = None
+    github: Optional[str] = None
+    resume: Optional[str] = None
 
 class CandidatePreparationUpdate(BaseModel):
-    batch: Optional[str] = None
     start_date: Optional[date] = None
     status: Optional[str] = None
     instructor1_id: Optional[int] = None
@@ -462,12 +532,10 @@ class CandidatePreparationUpdate(BaseModel):
     linkedin: Optional[str] = None
     github: Optional[str] = None
     resume: Optional[str] = None
-    # candidate: Optional[CandidateBase]  
     
 
 class CandidatePreparationOut(BaseModel):
     id: int
-    batch: Optional[str] = None
     start_date: Optional[date] = None
     status: str
     rating: Optional[str] = None
@@ -497,21 +565,20 @@ class CandidatePreparationOut(BaseModel):
 
 # ---------Interview-------------------------------
 
+# --- Updated Enums ---
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
     phone = "Phone"
     assessment = "Assessment"
+    ai_interview = "AI Interview"  
 
 
 class TypeOfInterviewEnum(str, Enum):
-    assessment = "Assessment"
     recruiter_call = "Recruiter Call"
     technical = "Technical"
-    hr_round = "HR Round"
-    in_person = "In Person"
+    hr = "HR"  
     prep_call = "Prep Call"
-    ai_interview = "AI Interview"
 
 
 class FeedbackEnum(str, Enum):
@@ -525,31 +592,49 @@ class CompanyTypeEnum(str, Enum):
     third_party_vendor = "third-party-vendor"
     implementation_partner = "implementation-partner"
     sourcer = "sourcer"
-    contact_from_ip = "contact-from-ip"
+
 
 # --- Base Schema ---
 class CandidateInterviewBase(BaseModel):
     candidate_id: int
     company: str
-    company_type: Optional[CompanyTypeEnum] = None
+    company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client 
     interviewer_emails: Optional[str] = None
     interviewer_contact: Optional[str] = None
     interviewer_linkedin: Optional[str] = None
     interview_date: date
-    mode_of_interview: Optional[ModeOfInterviewEnum] = None
-    type_of_interview: Optional[TypeOfInterviewEnum] = None
-    transcript: Optional[str] = None 
+    mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual  
+    type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call  
+    transcript: Optional[str] = None
     recording_link: Optional[str] = None
-    backup_url: Optional[str] = None
-    url: Optional[str] = None  
-    feedback: Optional[FeedbackEnum] = None
+    backup_recording_url: Optional[str] = None  
+    job_posting_url: Optional[str] = None  
+    feedback: Optional[FeedbackEnum] = FeedbackEnum.pending  
     notes: Optional[str] = None
-    candidate: Optional[CandidateBase] = None
+    candidate: Optional["CandidateBase"] = None
 
 
+# --- Create Schema ---
+class CandidateInterviewCreate(BaseModel):
+    candidate_id: int
+    company: str
+    interview_date: date
+    mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
+    type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
+    interviewer_emails: Optional[str] = None
+    interviewer_contact: Optional[str] = None
+    interviewer_linkedin: Optional[str] = None
+    recording_link: Optional[str] = None
+    backup_recording_url: Optional[str] = None 
+    job_posting_url: Optional[str] = None  
+    feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
+    notes: Optional[str] = None
+
+    class Config:
+        allow_population_by_field_name = True
 
 
-# # --- Update Schema ---
+# --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
     candidate_id: Optional[int] = None
     company: Optional[str] = None
@@ -560,13 +645,13 @@ class CandidateInterviewUpdate(BaseModel):
     interview_date: Optional[date] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
-    transcript: Optional[str] = None 
+    transcript: Optional[str] = None
     recording_link: Optional[str] = None
-    backup_url: Optional[str] = None
-    url: Optional[str] = None 
-    status: Optional[str] = None
+    backup_recording_url: Optional[str] = None  
+    job_posting_url: Optional[str] = None  
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
+
 
 
 # --- Output Schema ---
@@ -576,10 +661,93 @@ class CandidateInterviewOut(CandidateInterviewBase):
     instructor1_name: Optional[str] = None
     instructor2_name: Optional[str] = None
     instructor3_name: Optional[str] = None
-    last_mod_datetime: Optional[datetime] = None 
+    last_mod_datetime: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+# # ---------Interview-------------------------------
+
+# class ModeOfInterviewEnum(str, Enum):
+#     virtual = "Virtual"
+#     in_person = "In Person"
+#     phone = "Phone"
+#     assessment = "Assessment"
+#     ai_interview = "AI Interview"  
+
+
+# class TypeOfInterviewEnum(str, Enum):
+#     recruiter_call = "Recruiter Call"
+#     technical = "Technical"
+#     hr = "HR"  
+#     prep_call = "Prep Call"
+
+
+# class FeedbackEnum(str, Enum):
+#     pending = "Pending"
+#     positive = "Positive"
+#     negative = "Negative"
+
+
+# class CompanyTypeEnum(str, Enum):
+#     client = "client"
+#     third_party_vendor = "third-party-vendor"
+#     implementation_partner = "implementation-partner"
+#     sourcer = "sourcer"
+    
+
+
+# # --- Base Schema ---
+# class CandidateInterviewBase(BaseModel):
+#     candidate_id: int
+#     company: str
+#     company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client  
+#     interviewer_emails: Optional[str] = None
+#     interviewer_contact: Optional[str] = None
+#     interviewer_linkedin: Optional[str] = None
+#     interview_date: date
+#     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual 
+#     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call  
+#     transcript: Optional[str] = None
+#     recording_link: Optional[str] = None
+#     backup_recording_url: Optional[str] = None  
+#     job_posting_url: Optional[str] = None 
+#     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending 
+#     notes: Optional[str] = None
+#     candidate: Optional["CandidateBase"] = None
+
+
+# # --- Update Schema ---
+# class CandidateInterviewUpdate(BaseModel):
+#     candidate_id: Optional[int] = None
+#     company: Optional[str] = None
+#     company_type: Optional[CompanyTypeEnum] = None
+#     interviewer_emails: Optional[str] = None
+#     interviewer_contact: Optional[str] = None
+#     interviewer_linkedin: Optional[str] = None
+#     interview_date: Optional[date] = None
+#     mode_of_interview: Optional[ModeOfInterviewEnum] = None
+#     type_of_interview: Optional[TypeOfInterviewEnum] = None
+#     transcript: Optional[str] = None
+#     recording_link: Optional[str] = None
+#     backup_recording_url: Optional[str] = None  
+#     job_posting_url: Optional[str] = None  
+#     feedback: Optional[FeedbackEnum] = None
+#     notes: Optional[str] = None
+#     status: Optional[str] = None
+
+
+# # --- Output Schema ---
+# class CandidateInterviewOut(CandidateInterviewBase):
+#     id: int
+#     company_type: Optional[CompanyTypeEnum] = None
+#     instructor1_name: Optional[str] = None
+#     instructor2_name: Optional[str] = None
+#     instructor3_name: Optional[str] = None
+#     last_mod_datetime: Optional[datetime] = None
+
+#     class Config:
+#         from_attributes = True
 
 
 # --- Paginated Output ---
@@ -599,25 +767,6 @@ class ActiveMarketingCandidate(BaseModel):
 
     class Config:
         orm_mode = True
-
-
-class CandidateInterviewCreate(BaseModel):
-    candidate_id: int
-    company: str
-    interview_date: date
-    mode_of_interview: Optional[ModeOfInterviewEnum] = None
-    type_of_interview: Optional[TypeOfInterviewEnum] = None
-    interviewer_emails: Optional[str] = None
-    interviewer_contact: Optional[str] = None
-    interviewer_linkedin: Optional[str] = None
-    recording_link: Optional[str] = None
-    backup_url: Optional[str] = None
-    url: Optional[str] = None
-    feedback: Optional[FeedbackEnum] = None
-    notes: Optional[str] = None
-
-    class Config:
-        allow_population_by_field_name = True
 # -----------------------------------------------------------------------------------
 
 class GoogleUserCreate(BaseModel):
@@ -763,6 +912,14 @@ class VendorUpdate(BaseModel):
     intro_call: Optional[Literal['YES', 'NO']] = None
     linkedin_internal_id: Optional[str] = None
 
+class VendorMetrics(BaseModel):
+    total_vendors: int
+    today_extracted: int
+    week_extracted: int
+
+    class Config:
+        orm_mode = True
+
 # ---------------daily-vendor-activity --------------
 
 class YesNoEnum(str, Enum):
@@ -900,33 +1057,6 @@ class CourseSubject(CourseSubjectBase):
     model_config = {
         "from_attributes": True  
     }
-
-# ----------------------------------batch-------------
-
-
-
-class BatchBase(BaseModel):
-    batchname: str
-    orientationdate: Optional[date] = None
-    subject: Optional[str] = "ML"
-    startdate: Optional[date] = None
-    enddate: Optional[date] = None
-    courseid: Optional[int] = None
-
-class BatchCreate(BatchBase):
-    pass
-
-class BatchUpdate(BatchBase):
-    pass
-
-
-class BatchOut(BatchBase):
-    batchid: int
-
-    class Config:
-        orm_mode = True
-
-# -----------------------------------------------------------
 
 # -----------------------------------------------------Recordings------------------------------------
 

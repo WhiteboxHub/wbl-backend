@@ -24,7 +24,7 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
     if not candidate_info:
         return "not_a_candidate"
 
-    if candidate_info.status.lower() not in ("active","closed"):
+    if candidate_info.status.lower() not in ("active", "closed"):
         return "inactive_candidate"
 
     return {**user.__dict__, "candidateid": candidate_info.candidateid}

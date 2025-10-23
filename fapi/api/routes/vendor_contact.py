@@ -1,6 +1,6 @@
 import logging
 from typing import List
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path, Security, Body
 from fastapi.responses import JSONResponse
 from fapi.db.schemas import (
     VendorContactExtract,
@@ -12,6 +12,8 @@ from fapi.utils.vendor_contact_utils import (
     insert_vendor_contact,
     update_vendor_contact,
     delete_vendor_contact,
+
+    move_contacts_to_vendor,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,4 +52,5 @@ async def update_vendor_contact_handler(contact_id: int, update_data: VendorCont
 async def delete_vendor_contact_handler(contact_id: int):
     await delete_vendor_contact(contact_id)
     return {"message": f"Vendor contact {contact_id} deleted successfully"}
- 
+  
+  
