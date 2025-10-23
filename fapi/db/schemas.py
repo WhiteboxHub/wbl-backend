@@ -423,7 +423,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
-    priority: Optional[int] 
+    # priority: Optional[int] 
 
     class Config:
         from_attributes = True
@@ -439,7 +439,7 @@ class CandidatePlacementUpdate(BaseModel):
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
     notes: Optional[str] = None
-    priority: Optional[int] = None
+    # priority: Optional[int] = None
 
 
 # ----------------------------------------------------
@@ -490,6 +490,9 @@ class CandidatePreparationBase(BaseModel):
         from_attributes = True  
     
 
+
+# class CandidatePreparationCreate(CandidatePreparationBase):
+#     pass
 
 class CandidatePreparationCreate(BaseModel):
     candidate_id: int
@@ -662,6 +665,89 @@ class CandidateInterviewOut(CandidateInterviewBase):
 
     class Config:
         from_attributes = True
+
+# # ---------Interview-------------------------------
+
+# class ModeOfInterviewEnum(str, Enum):
+#     virtual = "Virtual"
+#     in_person = "In Person"
+#     phone = "Phone"
+#     assessment = "Assessment"
+#     ai_interview = "AI Interview"  
+
+
+# class TypeOfInterviewEnum(str, Enum):
+#     recruiter_call = "Recruiter Call"
+#     technical = "Technical"
+#     hr = "HR"  
+#     prep_call = "Prep Call"
+
+
+# class FeedbackEnum(str, Enum):
+#     pending = "Pending"
+#     positive = "Positive"
+#     negative = "Negative"
+
+
+# class CompanyTypeEnum(str, Enum):
+#     client = "client"
+#     third_party_vendor = "third-party-vendor"
+#     implementation_partner = "implementation-partner"
+#     sourcer = "sourcer"
+    
+
+
+# # --- Base Schema ---
+# class CandidateInterviewBase(BaseModel):
+#     candidate_id: int
+#     company: str
+#     company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client  
+#     interviewer_emails: Optional[str] = None
+#     interviewer_contact: Optional[str] = None
+#     interviewer_linkedin: Optional[str] = None
+#     interview_date: date
+#     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual 
+#     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call  
+#     transcript: Optional[str] = None
+#     recording_link: Optional[str] = None
+#     backup_recording_url: Optional[str] = None  
+#     job_posting_url: Optional[str] = None 
+#     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending 
+#     notes: Optional[str] = None
+#     candidate: Optional["CandidateBase"] = None
+
+
+# # --- Update Schema ---
+# class CandidateInterviewUpdate(BaseModel):
+#     candidate_id: Optional[int] = None
+#     company: Optional[str] = None
+#     company_type: Optional[CompanyTypeEnum] = None
+#     interviewer_emails: Optional[str] = None
+#     interviewer_contact: Optional[str] = None
+#     interviewer_linkedin: Optional[str] = None
+#     interview_date: Optional[date] = None
+#     mode_of_interview: Optional[ModeOfInterviewEnum] = None
+#     type_of_interview: Optional[TypeOfInterviewEnum] = None
+#     transcript: Optional[str] = None
+#     recording_link: Optional[str] = None
+#     backup_recording_url: Optional[str] = None  
+#     job_posting_url: Optional[str] = None  
+#     feedback: Optional[FeedbackEnum] = None
+#     notes: Optional[str] = None
+#     status: Optional[str] = None
+
+
+# # --- Output Schema ---
+# class CandidateInterviewOut(CandidateInterviewBase):
+#     id: int
+#     company_type: Optional[CompanyTypeEnum] = None
+#     instructor1_name: Optional[str] = None
+#     instructor2_name: Optional[str] = None
+#     instructor3_name: Optional[str] = None
+#     last_mod_datetime: Optional[datetime] = None
+
+#     class Config:
+#         from_attributes = True
 
 
 # --- Paginated Output ---

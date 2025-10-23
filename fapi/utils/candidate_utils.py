@@ -1,6 +1,6 @@
 # wbl-backend/fapi/utils/candidate_utils.py
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
-from sqlalchemy import or_
+from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
 
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
@@ -327,20 +327,34 @@ def delete_marketing(record_id: int) -> dict:
     finally:
         db.close()
 
-
 # ----------------------------------------------------Candidate_Placement---------------------------------
 
-def get_placement_by_id(placement_id: int):
-    db: Session = SessionLocal()
-    try:
-        placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
-        if not placement:
-            raise HTTPException(status_code=404, detail="Placement not found")
-        data = placement.__dict__.copy()
-        data.pop("_sa_instance_state", None)
-        return data
-    finally:
-        db.close()
+
+def get_placement_by_id(db: Session, placement_id: int):
+    result = (
+        db.query(
+            CandidatePlacementORM,
+            CandidateORM.full_name.label("candidate_name"),
+            CandidateMarketingORM.start_date.label("marketing_start_date"),
+        )
+        .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
+        .outerjoin(
+            CandidateMarketingORM,
+            CandidatePlacementORM.candidate_id == CandidateMarketingORM.candidate_id,
+        )
+        .filter(CandidatePlacementORM.id == placement_id)
+        .first()
+    )
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Placement not found")
+
+    placement, candidate_name, marketing_start_date = result
+    data = placement.__dict__.copy()
+    data.pop("_sa_instance_state", None)
+    data["candidate_name"] = candidate_name
+    data["marketing_start_date"] = marketing_start_date
+    return data
 
 
 def get_all_placements(page: int, limit: int) -> Dict:
@@ -351,20 +365,29 @@ def get_all_placements(page: int, limit: int) -> Dict:
         results = (
             db.query(
                 CandidatePlacementORM,
-                CandidateORM.full_name.label("candidate_name")
+                CandidateORM.full_name.label("candidate_name"),
+                func.coalesce(
+                    CandidateMarketingORM.start_date,
+                    # CandidatePlacementORM.placement_date  
+                ).label("marketing_start_date")
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
-            .order_by(CandidatePlacementORM.id.desc()) 
+            .outerjoin(
+                CandidateMarketingORM,
+                CandidatePlacementORM.candidate_id == CandidateMarketingORM.candidate_id
+            )
+            .order_by(CandidatePlacementORM.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
             .all()
         )
 
         data = []
-        for placement, candidate_name in results:
+        for placement, candidate_name, marketing_start_date in results:
             record = placement.__dict__.copy()
+            record.pop("_sa_instance_state", None)
             record["candidate_name"] = candidate_name
-            record.pop('_sa_instance_state', None)
+            record["marketing_start_date"] = marketing_start_date
             data.append(record)
 
         return {"page": page, "limit": limit, "total": total, "data": data}
@@ -372,25 +395,33 @@ def get_all_placements(page: int, limit: int) -> Dict:
         db.close()
 
 
-
-
 def get_placements_by_candidate(candidate_id: int) -> list:
     db: Session = SessionLocal()
     try:
         results = (
-            db.query(CandidatePlacementORM, CandidateORM.full_name.label("candidate_name"))
+            db.query(
+                CandidatePlacementORM,
+                CandidateORM.full_name.label("candidate_name"),
+                CandidateMarketingORM.start_date.label("marketing_start_date"),
+            )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
+            .outerjoin(
+                CandidateMarketingORM,
+                CandidatePlacementORM.candidate_id == CandidateMarketingORM.candidate_id
+            )
             .filter(CandidatePlacementORM.candidate_id == candidate_id)
             .all()
         )
+
         if not results:
             raise HTTPException(status_code=404, detail="No placements found for this candidate")
 
         data = []
-        for placement, candidate_name in results:
+        for placement, candidate_name, marketing_start_date in results:
             record = placement.__dict__.copy()
-            record["candidate_name"] = candidate_name
             record.pop("_sa_instance_state", None)
+            record["candidate_name"] = candidate_name
+            record["marketing_start_date"] = marketing_start_date
             data.append(record)
         return data
     finally:
