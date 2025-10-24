@@ -1,25 +1,35 @@
 import logging
 from typing import List
-from fastapi import APIRouter, HTTPException, Path, Security
+from fastapi import APIRouter, HTTPException, Path, Security, Body
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fapi.db.schemas import VendorContactExtract, VendorContactExtractCreate, VendorContactExtractUpdate
+from fapi.db.schemas import (
+    VendorContactExtract,
+    VendorContactExtractCreate,
+    VendorContactExtractUpdate,
+)
 from fapi.utils.vendor_contact_utils import (
     get_all_vendor_contacts,
     insert_vendor_contact,
     update_vendor_contact,
-    delete_vendor_contact
+    delete_vendor_contact,
+
+    move_contacts_to_vendor,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-security = HTTPBearer()
 
 @router.get("/vendor_contact_extracts", response_model=List[VendorContactExtract])
-async def read_vendor_contact_extracts(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    return await get_all_vendor_contacts()
+async def read_vendor_contact_extracts():
+    """
+    Public endpoint to fetch all vendor contact extracts.
+    Authorization removed.
+    """
+    try:
+        return await get_all_vendor_contacts()
+    except Exception as e:
+        logger.error(f"Error fetching vendor contacts: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/vendor_contact")
@@ -42,4 +52,5 @@ async def update_vendor_contact_handler(contact_id: int, update_data: VendorCont
 async def delete_vendor_contact_handler(contact_id: int):
     await delete_vendor_contact(contact_id)
     return {"message": f"Vendor contact {contact_id} deleted successfully"}
- 
+  
+  

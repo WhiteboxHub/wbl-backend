@@ -269,7 +269,9 @@ class CandidateMarketingORM(Base):
     # Relationships
     candidate = relationship("CandidateORM", back_populates="marketing_records")
     marketing_manager_obj = relationship("EmployeeORM", foreign_keys=[marketing_manager])
-# -------------------------------------- Candidate Interview -------------------------------
+
+# # -------------------------------------- Candidate Interview -------------------------------
+
 class CandidateInterview(Base):
     __tablename__ = "candidate_interview"
 
@@ -315,13 +317,13 @@ class CandidateInterview(Base):
 
     transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
-    backup_recording_url = Column(String(500), nullable=True) 
-    job_posting_url = Column(String(500), nullable=True) 
+    backup_recording_url = Column(String(500), nullable=True)  
+    job_posting_url = Column(String(500), nullable=True)  
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
         nullable=True,
-        default="Pending" 
+        default="Pending"  
     )
 
     notes = Column(Text, nullable=True)
@@ -349,7 +351,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    priority = Column(Integer, default=99)
+    # priority = Column(Integer, default=99)
 
     candidate = relationship("CandidateORM", back_populates="placements")
 
