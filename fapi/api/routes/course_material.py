@@ -15,7 +15,7 @@ def get_all_course_materials(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    materials = course_material_utils.get_all_course_materials(db)
+    materials = course_material_utils.get_all_course_materials_enriched(db)
     return materials
 
 
