@@ -818,6 +818,7 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "company": i.company,
                     "interview_date": i.interview_date.isoformat() if i.interview_date else None,
                     "interview_type": i.type_of_interview,
+                    "company_type":i.company_type,
                     "mode_of_interview": i.mode_of_interview,
                     "feedback": i.feedback,
                     "recording_link": i.recording_link,
