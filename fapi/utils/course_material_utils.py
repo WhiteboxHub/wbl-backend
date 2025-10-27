@@ -12,7 +12,8 @@ COURSE_MATERIAL_TYPE_MAPPING = {
     "I": "Installations",
     "B": "Books",
     "N": "Newsletters",
-    "M": "Materials"
+    "M": "Materials",
+    "A": "Assignments"
 }
 
 def get_type_display_name(type_code: str) -> str:
@@ -131,7 +132,7 @@ def get_course_material(db: Session, material_id: int) -> Optional[models.Course
 def create_course_material(db: Session, course_material: schemas.CourseMaterialCreate) -> dict:
     """Create a new course material and return enriched data"""
     # Validate material type
-    valid_types = ['P', 'C', 'D', 'S', 'I', 'B', 'N', 'M']
+    valid_types = ['P', 'C', 'D', 'S', 'I', 'B', 'N', 'M','A']
     if course_material.type not in valid_types:
         raise ValueError(f"Invalid material type. Must be one of: {valid_types}")
     
@@ -168,7 +169,7 @@ def update_course_material(
     
     # Validate material type if being updated
     if 'type' in update_data:
-        valid_types = ['P', 'C', 'D', 'S', 'I', 'B', 'N', 'M']
+        valid_types = ['P', 'C', 'D', 'S', 'I', 'B', 'N', 'M', 'A']
         if update_data['type'] not in valid_types:
             raise ValueError(f"Invalid material type. Must be one of: {valid_types}")
     

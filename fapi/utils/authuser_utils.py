@@ -1,9 +1,11 @@
 # wbl-backend/fapi/utils/authuser_utils.py
+import re 
 from sqlalchemy.orm import Session
 from fapi.db.models import AuthUserORM
 from fapi.db.schemas import AuthUserCreate, AuthUserUpdate
 from fapi.utils.auth_utils import hash_password
 from datetime import datetime
+from fastapi import HTTPException
 
 
 
@@ -49,6 +51,17 @@ def get_user(db: Session, user_id: int):
     user = db.query(AuthUserORM).filter(AuthUserORM.id == user_id).first()
     return clean_dates(user)
 
+def validate_password_strength(password: str):
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(status_code=400, detail="Password must include at least one uppercase letter.")
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(status_code=400, detail="Password must include at least one lowercase letter.")
+    if not re.search(r"\d", password):
+        raise HTTPException(status_code=400, detail="Password must include at least one number.")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(status_code=400, detail="Password must include at least one special character.")
 
 def create_user(db: Session, user: AuthUserCreate):
     db_user = AuthUserORM(
@@ -71,8 +84,15 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
     db_user = db.query(AuthUserORM).filter(AuthUserORM.id == user_id).first()
     if not db_user:
         return None
-    for key, value in user.dict(exclude_unset=True).items():
+
+    update_data = user.dict(exclude_unset=True)
+    if "passwd" in update_data and update_data["passwd"]:
+        validate_password_strength(update_data["passwd"])
+        update_data["passwd"] = hash_password(update_data["passwd"])
+
+    for key, value in update_data.items():
         setattr(db_user, key, value)
+
     db.commit()
     db.refresh(db_user)
     return clean_dates(db_user)

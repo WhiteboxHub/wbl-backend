@@ -127,6 +127,7 @@ class UserRegistration(BaseModel):
 
 class AuthUserBase(BaseModel):
     uname: Union[EmailStr, str] = None
+    passwd: Optional[str] = None
     fullname: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = None
