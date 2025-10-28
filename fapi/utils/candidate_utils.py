@@ -1,4 +1,4 @@
-# wbl-backend/fapi/utils/candidate_utils.py
+
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
