@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -40,7 +41,7 @@ from fapi.api.routes import (
     vendor, vendor_activity, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals, internal_documents
+    session, recording, referrals,  internal_documents
 )
 from fapi.utils.permission_gate import enforce_access
 

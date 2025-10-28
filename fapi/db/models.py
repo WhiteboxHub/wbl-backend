@@ -591,7 +591,9 @@ class Session(Base):
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
 
-    #-------------------Internal documents--------------------
+    
+#-------------------Internal documents--------------------
+    
 class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
