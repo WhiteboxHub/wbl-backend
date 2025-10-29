@@ -245,10 +245,9 @@ def delete_interview(interview_id: int, db: Session = Depends(get_db)):
 def create_prep(prep: CandidatePreparationCreate, db: Session = Depends(get_db)):
     return candidate_utils.create_candidate_preparation(db, prep)
 
-
 @router.get("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
 def get_prep(prep_id: int, db: Session = Depends(get_db)):
-    prep = candidate_utils.get_candidate_preparation(db, prep_id)
+    prep = candidate_utils.get_preparation_by_id(db, prep_id)
     if not prep:
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return prep

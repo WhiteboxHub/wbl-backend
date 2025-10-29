@@ -457,43 +457,31 @@ class InstructorOut(BaseModel):
 
 
 # ------------------hkd-------------------------
-
-
- 
 class CandidatePreparationBase(BaseModel):
-    id: int = Field(..., alias="id")
+    id: int
     candidate_id: int
     start_date: Optional[date] = None
     status: str
-    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
-    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
-    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
+    instructor1_id: Optional[int] = None
+    instructor2_id: Optional[int] = None
+    instructor3_id: Optional[int] = None
     rating: Optional[str] = None
-    tech_rating: Optional[str] = None
     communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
+    years_of_experience: Optional[int] = None
+    target_date: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = False
-    linkedin: Optional[str]
-    github: Optional[str]
-    resume: Optional[str]
+    linkedin_id: Optional[str] = None
+    github_url: Optional[str] = None
+    resume_url: Optional[str] = None
 
-    candidate: Optional[CandidateBase]  
-    instructor1: Optional[EmployeeBase]  
-    instructor2: Optional[EmployeeBase]
-    instructor3: Optional[EmployeeBase]
-
+    candidate: Optional["CandidateBase"]
+    instructor1: Optional["EmployeeBase"]
+    instructor2: Optional["EmployeeBase"]
+    instructor3: Optional["EmployeeBase"]
 
     class Config:
-        from_attributes = True  
-    
-
-
-# class CandidatePreparationCreate(CandidatePreparationBase):
-#     pass
+        from_attributes = True
 
 class CandidatePreparationCreate(BaseModel):
     candidate_id: int
@@ -503,17 +491,14 @@ class CandidatePreparationCreate(BaseModel):
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
     rating: Optional[str] = None
-    tech_rating: Optional[str] = None
     communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
+    years_of_experience: Optional[int] = None
+    target_date: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = False
-    linkedin: Optional[str] = None
-    github: Optional[str] = None
-    resume: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    github_url: Optional[str] = None
+    resume_url: Optional[str] = None
 
 class CandidatePreparationUpdate(BaseModel):
     start_date: Optional[date] = None
@@ -522,43 +507,34 @@ class CandidatePreparationUpdate(BaseModel):
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
     rating: Optional[str] = None
-    tech_rating: Optional[str] = None
     communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
+    years_of_experience: Optional[int] = None
+    target_date: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = None
-    linkedin: Optional[str] = None
-    github: Optional[str] = None
-    resume: Optional[str] = None
-    
+    linkedin_id: Optional[str] = None
+    github_url: Optional[str] = None
+    resume_url: Optional[str] = None
 
 class CandidatePreparationOut(BaseModel):
     id: int
     start_date: Optional[date] = None
     status: str
     rating: Optional[str] = None
-    tech_rating: Optional[str] = None
     communication: Optional[str] = None
-    years_of_experience: Optional[str] = None
-    topics_finished: Optional[str] = None
-    current_topics: Optional[str] = None
-    target_date_of_marketing: Optional[date] = None
+    years_of_experience: Optional[int] = None
+    target_date: Optional[date] = None
     notes: Optional[str] = None
-    last_mod_datetime: Optional[datetime]
+    last_mod_datetime: Optional[datetime] = None
     move_to_mrkt: Optional[bool] = None
-    linkedin: Optional[str] = None
-    github: Optional[str] = None
-    resume: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    github_url: Optional[str] = None
+    resume_url: Optional[str] = None
 
-    candidate: Optional[CandidateBase]
-
-    instructor1: Optional[EmployeeBase]
-    instructor2: Optional[EmployeeBase]
-    instructor3: Optional[EmployeeBase]
-
+    candidate: Optional["CandidateBase"]
+    instructor1: Optional["EmployeeBase"]
+    instructor2: Optional["EmployeeBase"]
+    instructor3: Optional["EmployeeBase"]
 
     class Config:
         from_attributes = True
