@@ -391,7 +391,7 @@ class CandidatePreparation(Base):
 
     target_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    linkedin_id = Column(String(255), nullable=True)
+    # linkedin_id = Column(String(255), nullable=True)
     github_url = Column(String(255), nullable=True)
     resume_url = Column(String(255), nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
