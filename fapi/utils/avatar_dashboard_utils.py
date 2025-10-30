@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, extract, or_, and_, case
+from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Session as SessionModel,Vendor, VendorContactExtractsORM
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Session as SessionModel,Vendor, VendorContactExtractsORM,EmailActivityLogORM
 from fapi.db.schemas import CandidatePreparationMetrics
 import re
 
@@ -182,7 +182,7 @@ def get_placement_metrics(db: Session) -> Dict[str, Any]:
         }
     # Currently Active Placements
     active_placements = db.query(CandidatePlacementORM).filter(
-        CandidatePlacementORM.status == "scheduled"
+        CandidatePlacementORM.status == "Active"
     ).count()
     return {
         "total_placements": total_placements,
@@ -378,6 +378,7 @@ def candidate_interview_performance(db: Session):
         .join(CandidateMarketingORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
         .outerjoin(CandidateInterview, CandidateInterview.candidate_id == CandidateORM.id)
         .group_by(CandidateORM.id, CandidateORM.full_name)
+        .having(func.count(CandidateInterview.id) > 0)  
         .all()
     )
 
@@ -390,7 +391,6 @@ def candidate_interview_performance(db: Session):
         }
         for row in results
     ]
-
 
 
 
@@ -447,3 +447,76 @@ def get_vendor_stats(db: Session):
         "week_extracted": week_extracted or 0,
     }
 
+
+
+
+def get_combined_email_extraction_summary(db: Session):
+    today = date.today()
+    week_start = today - timedelta(days=7)
+
+    reads_today_subq = (
+        db.query(
+            CandidateORM.id.label("candidate_id"),
+            func.sum(EmailActivityLogORM.emails_read).label("emails_read_today")
+        )
+        .join(CandidateMarketingORM, CandidateMarketingORM.id == EmailActivityLogORM.candidate_marketing_id)
+        .join(CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id)
+        .filter(EmailActivityLogORM.activity_date == today)
+        .group_by(CandidateORM.id)
+        .subquery()
+    )
+
+    extraction_subq = (
+        db.query(
+            CandidateORM.id.label("candidate_id"),
+            CandidateORM.full_name.label("candidate_name"),
+            CandidateMarketingORM.email.label("source_email"),
+            func.sum(
+                case(
+                    (func.date(VendorContactExtractsORM.extraction_date) == today, 1),
+                    else_=0
+                )
+            ).label("emails_extracted_today"),
+            func.sum(
+                case(
+                    (VendorContactExtractsORM.extraction_date >= week_start, 1),
+                    else_=0
+                )
+            ).label("emails_extracted_week")
+        )
+        .join(
+            CandidateMarketingORM,
+            VendorContactExtractsORM.source_email.collate("utf8mb4_unicode_ci")
+            == CandidateMarketingORM.email.collate("utf8mb4_unicode_ci")
+        )
+        .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+        .filter(VendorContactExtractsORM.extraction_date.isnot(None))
+        .group_by(CandidateORM.id, CandidateMarketingORM.email)
+        .subquery()
+    )
+
+  
+    results = (
+        db.query(
+            extraction_subq.c.candidate_name,
+            extraction_subq.c.source_email,
+            extraction_subq.c.emails_extracted_today,
+            extraction_subq.c.emails_extracted_week,
+            func.coalesce(reads_today_subq.c.emails_read_today, 0).label("emails_read_today")
+        )
+        .outerjoin(reads_today_subq, reads_today_subq.c.candidate_id == extraction_subq.c.candidate_id)
+        .order_by(extraction_subq.c.emails_extracted_week.desc())
+        .all()
+    )
+
+    return [
+        {
+            "candidate_name": r.candidate_name,
+            "source_email": r.source_email,
+            "emails_read_today": r.emails_read_today,
+            "emails_extracted_today": r.emails_extracted_today,
+            "emails_extracted_week": r.emails_extracted_week,
+          
+        }
+        for r in results
+    ]

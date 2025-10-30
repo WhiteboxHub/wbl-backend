@@ -164,9 +164,9 @@ def get_recordings(
         logging.error(f"Error fetching recordings: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
-@router.get("/batches")
-def get_batches_with_kumar(
-    course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
-    db: Session = Depends(get_db)
-):
-    return fetch_course_batches_with_kumar(course, db)
+# @router.get("/batches")
+# def get_batches_with_kumar(
+#     course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
+#     db: Session = Depends(get_db)
+# ):
+#     return fetch_course_batches_with_kumar(course, db)
