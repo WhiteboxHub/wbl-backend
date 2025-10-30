@@ -24,7 +24,7 @@ async def login_for_access_token(
     if user == "inactive_authuser":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account is inactive in the system. Please contact Recruiting at +1 925-557-1053.",
+            detail="Account is inactive. Please contact Recruiting at +1 925-557-1053.",
         )
     elif user == "inactive_candidate":
         raise HTTPException(
