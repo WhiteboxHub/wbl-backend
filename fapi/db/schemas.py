@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Enum,UniqueConstraint,BigInteger, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
 from pydantic import BaseModel,ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl
@@ -948,7 +948,36 @@ class VendorResponse(BaseModel):
     message: str
     
     
+# -------------------- Email Activity Log Schemas --------------------
 
+class EmailActivityLogBase(BaseModel):
+    candidate_marketing_id: int
+    email: str
+    activity_date: Optional[date] = None
+    emails_read: Optional[int] = 0
+
+class EmailActivityLogCreate(EmailActivityLogBase):
+    pass
+
+class EmailActivityLogUpdate(BaseModel):
+    emails_read: Optional[int] = None
+    activity_date: Optional[date] = None
+
+class EmailActivityLogOut(EmailActivityLogBase):
+    id: int
+    activity_date: date
+    emails_read: int
+    last_updated: Optional[datetime] = None
+    candidate_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class PaginatedEmailActivityLogs(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    logs: List[EmailActivityLogOut]
 
 
 
@@ -1529,7 +1558,5 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-
-
 
 
