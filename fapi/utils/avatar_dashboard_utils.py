@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Session as SessionModel,Vendor, VendorContactExtractsORM,EmailActivityLogORM
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,EmailActivityLogORM,Recording
 from fapi.db.schemas import CandidatePreparationMetrics
 import re
 
@@ -416,11 +416,7 @@ def get_vendor_stats(db: Session):
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=today_start.weekday()) 
 
-    total_vendors = (
-        db.query(func.count(Vendor.id))
-        .filter(and_(Vendor.email.isnot(None), Vendor.created_at.isnot(None)))
-        .scalar()
-    )
+    total_vendors = db.query(func.count(Vendor.id)).scalar()
     today_extracted = (
         db.query(func.count(VendorContactExtractsORM.id))
         .filter(
@@ -490,12 +486,14 @@ def get_combined_email_extraction_summary(db: Session):
             == CandidateMarketingORM.email.collate("utf8mb4_unicode_ci")
         )
         .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
-        .filter(VendorContactExtractsORM.extraction_date.isnot(None))
+
+        .filter(
+            VendorContactExtractsORM.extraction_date.isnot(None),
+            CandidateMarketingORM.status == "active"
+        )
         .group_by(CandidateORM.id, CandidateMarketingORM.email)
         .subquery()
     )
-
-  
     results = (
         db.query(
             extraction_subq.c.candidate_name,
@@ -516,7 +514,35 @@ def get_combined_email_extraction_summary(db: Session):
             "emails_read_today": r.emails_read_today,
             "emails_extracted_today": r.emails_extracted_today,
             "emails_extracted_week": r.emails_extracted_week,
-          
         }
         for r in results
+    ]
+
+def get_classes_per_latest_batches(db: Session, limit: int = 5):
+    latest_batches_subq = (
+        db.query(Batch.batchname)
+        .order_by(desc(Batch.startdate), desc(Batch.batchid))
+        .limit(limit)
+        .subquery()
+    )
+
+    result = (
+        db.query(
+            Batch.batchname,
+            func.count(Recording.id).label("classes_count"),
+            func.max(Batch.startdate).label("max_startdate")
+        )
+        .join(Recording, Recording.batchname == Batch.batchname)
+        .filter(Batch.batchname.in_(latest_batches_subq))
+        .group_by(Batch.batchname)
+        .order_by(desc(func.max(Batch.startdate)))
+        .all()
+    )
+
+    return [
+        {
+            "batchname": r.batchname,
+            "classes_count": r.classes_count
+        }
+        for r in result
     ]

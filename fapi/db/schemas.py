@@ -1458,16 +1458,9 @@ class CandidatePreparationMetrics(BaseModel):
     inactive_candidates: int
 
 
-# class CandidateEmailRead(BaseModel):
-#     candidate_name: str
-#     emails_read_today: int
-# class EmailExtractionSummary(BaseModel):
-#     candidate_name: str
-#     source_email: str
-#     total_emails_extracted: int
-
-#     class Config:
-#         orm_mode = True
+class BatchClassSummary(BaseModel):
+    batchname: str
+    classes_count: int
 
 class CombinedEmailExtractionSummary(BaseModel):
     candidate_name: str
@@ -1475,8 +1468,6 @@ class CombinedEmailExtractionSummary(BaseModel):
     emails_read_today: int
     emails_extracted_today: int
     emails_extracted_week: int
-    # total_emails_extracted: int
-
     class Config:
         orm_mode = True
 
