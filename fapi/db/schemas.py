@@ -1457,6 +1457,23 @@ class CandidatePreparationMetrics(BaseModel):
     total_preparation_candidates: int
     active_candidates: int
     inactive_candidates: int
+
+
+class BatchClassSummary(BaseModel):
+    batchname: str
+    classes_count: int
+
+class CombinedEmailExtractionSummary(BaseModel):
+    candidate_name: str
+    source_email: str
+    emails_read_today: int
+    emails_extracted_today: int
+    emails_extracted_week: int
+    class Config:
+        orm_mode = True
+
+
+
 # =====================================employee========================
 class EmployeeBase(BaseModel):
     name: str
