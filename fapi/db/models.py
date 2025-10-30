@@ -385,7 +385,7 @@ class CandidatePreparation(Base):
     )
 
     start_date = Column(Date, nullable=True)
-    status = Column(Enum("active", "break", "not responding", "inactive"), nullable=False)
+    status = Column(Enum("active", "inactive"), nullable=False, default="active")
 
     rating = Column(String(50), nullable=True)
     tech_rating = Column(String(50), nullable=True)

@@ -1057,3 +1057,6 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         
     except Exception as e:
         return {"error": str(e), "sessions": []}
+    
+
+
