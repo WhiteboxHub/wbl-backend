@@ -1541,29 +1541,55 @@ class ResetPassword(BaseModel):
 
 #---------------------------------------------internal documents----------------------------
 
+# class InternalDocumentBase(BaseModel):
+#     title: str
+#     description: Optional[str] = None
+#     filename: str
+#     link: Optional[str] = None
+
+# # Schema for creation
+# class InternalDocumentCreate(InternalDocumentBase):
+#     pass
+
+# # Schema for updating
+# class InternalDocumentUpdate(BaseModel):
+#     title: Optional[str] = None
+#     description: Optional[str] = None
+#     filename: Optional[str] = None
+#     link: Optional[str] = None 
+
+# # Output schema (matches SQLAlchemy model)
+# class InternalDocumentOut(InternalDocumentBase):
+#     id: int
+#     created_at: datetime
+#     updated_at: datetime
+
+#     # Use Pydantic v2 config that matches your project
+#     model_config = {
+#         "from_attributes": True
+#     }
+
+from pydantic import BaseModel
+from typing import Optional
+
 class InternalDocumentBase(BaseModel):
     title: str
     description: Optional[str] = None
     filename: str
+    link: Optional[str] = None
 
-# Schema for creation
 class InternalDocumentCreate(InternalDocumentBase):
     pass
 
-# Schema for updating
 class InternalDocumentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     filename: Optional[str] = None
+    link: Optional[str] = None
 
-# Output schema (matches SQLAlchemy model)
 class InternalDocumentOut(InternalDocumentBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
 
-    # Use Pydantic v2 config that matches your project
     model_config = {
         "from_attributes": True
     }
-

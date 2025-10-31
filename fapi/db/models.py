@@ -592,8 +592,28 @@ class Session(Base):
     subject = Column(String(45))
 
     
-#-------------------Internal documents--------------------
+# #-------------------Internal documents--------------------
     
+# class InternalDocument(Base):
+#     __tablename__ = "internal_documents"
+
+#     id = Column(Integer, primary_key=True, index=True)
+#     title = Column(String(150), nullable=False)
+#     description = Column(String(500), nullable=True)
+#     filename = Column(String(300), nullable=False)
+#     link = Column(String(1024), nullable=True)
+#     created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
+#     updated_at = Column(
+#         TIMESTAMP,
+#         server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
+#     )
+
+
+from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+
 class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
@@ -601,8 +621,4 @@ class InternalDocument(Base):
     title = Column(String(150), nullable=False)
     description = Column(String(500), nullable=True)
     filename = Column(String(300), nullable=False)
-    created_at = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
-    updated_at = Column(
-        TIMESTAMP,
-        server_default=text("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"),
-    )
+    link = Column(String(1024), nullable=True)
