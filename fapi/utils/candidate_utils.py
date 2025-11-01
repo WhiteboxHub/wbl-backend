@@ -617,8 +617,8 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     # Return the full object so it matches the response_model
     return candidate
 
-def get_preparations_by_candidate(db: Session, candidate_id: int):
-    results = (
+def get_preparation_by_id(db: Session, prep_id: int):
+    prep = (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate),
@@ -626,14 +626,11 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
             joinedload(CandidatePreparation.instructor2),
             joinedload(CandidatePreparation.instructor3),
         )
-        .filter(CandidatePreparation.candidate_id == candidate_id)
-        .all()
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
     )
 
-    if not results:
-        raise HTTPException(status_code=404, detail="No preparations found for this candidate")
-
-    return results
+    return prep
 
 
 def get_all_preparations(db: Session):
