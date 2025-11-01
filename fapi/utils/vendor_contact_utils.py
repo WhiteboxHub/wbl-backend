@@ -1,3 +1,4 @@
+
 import asyncio
 import mysql.connector
 from mysql.connector import Error
@@ -12,6 +13,7 @@ async def get_all_vendor_contacts():
     try:
         cursor = conn.cursor(dictionary=True)
         query = "SELECT * FROM vendor_contact_extracts ORDER BY id DESC"
+
         await loop.run_in_executor(None, cursor.execute, query)
         rows = cursor.fetchall()
         return rows
