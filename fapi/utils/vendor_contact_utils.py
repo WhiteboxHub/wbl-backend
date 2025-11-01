@@ -4,6 +4,7 @@ from mysql.connector import Error
 from fastapi import HTTPException
 from fapi.db.database import db_config
 from fapi.db.schemas import VendorContactExtractCreate
+from typing import List, Optional
 
 async def get_all_vendor_contacts():
     loop = asyncio.get_event_loop()
@@ -101,7 +102,58 @@ async def delete_vendor_contact(contact_id: int):
         cursor.close()
         conn.close()
 
-from typing import List, Optional
+async def bulk_delete_vendor_contacts(contact_ids: List[int]):
+    """
+    Bulk delete vendor contacts by IDs
+    """
+    if not contact_ids:
+        raise HTTPException(status_code=400, detail="No contact IDs provided")
+    
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        
+        # Create placeholders for the IN clause
+        placeholders = ','.join(['%s'] * len(contact_ids))
+        query = f"DELETE FROM vendor_contact_extracts WHERE id IN ({placeholders})"
+        
+        await loop.run_in_executor(None, cursor.execute, query, tuple(contact_ids))
+        deleted_count = cursor.rowcount
+        conn.commit()
+        
+        return deleted_count
+        
+    except Error as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Bulk delete error: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+async def bulk_delete_moved_contacts():
+    """
+    Bulk delete all contacts where moved_to_vendor = 1 (Yes)
+    """
+    loop = asyncio.get_event_loop()
+    conn = await loop.run_in_executor(None, lambda: mysql.connector.connect(**db_config))
+    try:
+        cursor = conn.cursor()
+        
+        query = "DELETE FROM vendor_contact_extracts WHERE moved_to_vendor = 1"
+        
+        await loop.run_in_executor(None, cursor.execute, query)
+        deleted_count = cursor.rowcount
+        conn.commit()
+        
+        return deleted_count
+        
+    except Error as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Bulk delete moved contacts error: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
 async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None):
     loop = asyncio.get_event_loop()
@@ -191,3 +243,5 @@ async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None):
         if cur_exec:
             cur_exec.close()
         conn.close()
+
+

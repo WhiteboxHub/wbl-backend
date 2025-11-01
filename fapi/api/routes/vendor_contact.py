@@ -12,7 +12,8 @@ from fapi.utils.vendor_contact_utils import (
     insert_vendor_contact,
     update_vendor_contact,
     delete_vendor_contact,
-
+    bulk_delete_vendor_contacts,
+    bulk_delete_moved_contacts,
     move_contacts_to_vendor,
 )
 
@@ -32,13 +33,13 @@ async def read_vendor_contact_extracts():
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.post("/vendor_contact")
+@router.post("/vendor_contact_extracts")
 async def create_vendor_contact_handler(contact: VendorContactExtractCreate):
     await insert_vendor_contact(contact)
     return JSONResponse(content={"message": "Vendor contact inserted successfully"})
 
 
-@router.put("/vendor_contact/{contact_id}")
+@router.put("/vendor_contact_extracts/{contact_id}")
 async def update_vendor_contact_handler(contact_id: int, update_data: VendorContactExtractUpdate):
     fields = update_data.dict(exclude_unset=True)
     if not fields:
@@ -48,9 +49,25 @@ async def update_vendor_contact_handler(contact_id: int, update_data: VendorCont
     return {"message": f"Vendor contact with ID {contact_id} updated successfully"}
 
 
-@router.delete("/vendor_contact/{contact_id}")
+@router.delete("/vendor_contact_extracts/{contact_id}")
 async def delete_vendor_contact_handler(contact_id: int):
     await delete_vendor_contact(contact_id)
     return {"message": f"Vendor contact {contact_id} deleted successfully"}
-  
+
+
+
+@router.delete("/vendor_contact_extracts/bulk-delete/moved")
+async def bulk_delete_moved_contacts_handler():
+    """
+    Bulk delete all contacts where moved_to_vendor = 1 (Yes)
+    """
+    try:
+        deleted_count = await bulk_delete_moved_contacts()
+        return {"message": f"Successfully deleted {deleted_count} contacts that were moved to vendor", "deleted_count": deleted_count}
+    except Exception as e:
+        logger.error(f"Error in bulk delete moved contacts: {e}")
+        raise
+
+
+
   
