@@ -188,21 +188,6 @@ class Vendor(Base):
 
 
 
-class EmailActivityLogORM(Base):
-    __tablename__ = "email_activity_log"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id"), nullable=False)
-    email = Column(String(100), nullable=False)
-    activity_date = Column(Date, nullable=False, default=func.curdate())
-    emails_read = Column(Integer, default=0)
-    last_updated = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    marketing = relationship("CandidateMarketingORM", back_populates="email_logs")
-
-
-
-
 # ------------------------------------------
 
 
@@ -482,15 +467,20 @@ class EmailActivityLogORM(Base):
     __tablename__ = "email_activity_log"
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=False)
+    candidate_marketing_id = Column(
+        Integer,
+        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),  
+        nullable=False,
+    )
     email = Column(String(100), nullable=False)
     activity_date = Column(Date, nullable=False, server_default=func.curdate())
-    emails_read = Column(Integer, nullable=True, server_default="0")
+    emails_read = Column(Integer, nullable=False, server_default="0")
     last_updated = Column(
         TIMESTAMP,
         server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp(),
+        onupdate=func.current_timestamp(),  
     )
+    marketing = relationship("CandidateMarketingORM", back_populates="email_logs")
 
     __table_args__ = (
         UniqueConstraint("email", "activity_date", name="uniq_email_day"),
