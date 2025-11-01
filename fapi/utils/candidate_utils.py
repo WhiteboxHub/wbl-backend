@@ -798,8 +798,7 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "instructor_1_name": prep.instructor1.name if prep.instructor1 else None,
                     "instructor_2_name": prep.instructor2.name if prep.instructor2 else None,
                     "instructor_3_name": prep.instructor3.name if prep.instructor3 else None,
-                    "tech_rating": prep.tech_rating,
-                    "topics_finished": prep.topics_finished,
+                    "rating": prep.rating,
                     "last_modified": prep.last_mod_datetime.isoformat() if getattr(prep, "last_mod_datetime", None) else None
                 }
                 for prep in candidate.preparations
@@ -1057,6 +1056,3 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         
     except Exception as e:
         return {"error": str(e), "sessions": []}
-    
-
-

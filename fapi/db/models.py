@@ -260,8 +260,8 @@ class CandidateMarketingORM(Base):
 
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
+    priority = Column(Integer, nullable=True)
     google_voice_number = Column(String(100), nullable=True)
-    priority = Column(Integer, nullable=True)  # integer 1-5
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
@@ -344,6 +344,7 @@ class CandidatePlacementORM(Base):
     type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
     
     status = Column(Enum('Active', 'Inactive'), nullable=False)
+    priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -351,13 +352,10 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    # priority = Column(Integer, default=99)
 
     candidate = relationship("CandidateORM", back_populates="placements")
 
 # -------------------------------------- Candidate Preparation -------------------------------
-
-
 class CandidatePreparation(Base):
     __tablename__ = "candidate_preparation"
 
@@ -384,20 +382,19 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
-    start_date = Column(Date, nullable=True)
+
+    start_date = Column(Date, nullable=False, server_default="CURRENT_DATE")
     status = Column(Enum("active", "inactive"), nullable=False, default="active")
 
-    rating = Column(String(50), nullable=True)
-    tech_rating = Column(String(50), nullable=True)
-    communication = Column(String(50), nullable=True)
-    years_of_experience = Column(String(50), nullable=True)
-    topics_finished = Column(Text, nullable=True)
-    current_topics = Column(Text, nullable=True)
-    target_date_of_marketing = Column(Date, nullable=True)
+    rating = Column(Enum("excellent","very good","good","average","need to improve"), nullable=True)
+    communication = Column(Enum("excellent","very good","good","average","need to improve"), nullable=True)
+    years_of_experience = Column(Integer, nullable=True)
+
+    target_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    linkedin = Column(String(255), nullable=True)
-    github = Column(String(255), nullable=True)
-    resume = Column(String(255), nullable=True)
+    linkedin_id = Column(String(255), nullable=True)
+    github_url = Column(String(255), nullable=True)
+    resume_url = Column(String(255), nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
     move_to_mrkt = Column(Boolean, default=False, nullable=False)
 

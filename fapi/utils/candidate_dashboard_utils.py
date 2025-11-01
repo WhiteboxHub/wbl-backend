@@ -162,7 +162,7 @@ def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
             "completed": not is_active,
             "active": is_active,
             "start_date": active_prep.start_date.isoformat() if active_prep.start_date else None,
-            "end_date": active_prep.target_date_of_marketing.isoformat() if active_prep.target_date_of_marketing else None,
+            "end_date": active_prep.target_date.isoformat() if active_prep.target_date else None,
             "duration_days": _calculate_duration_days(active_prep.start_date),
         }
 
@@ -214,14 +214,12 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "id": prep.id,
             "status": prep.status,
             "start_date": prep.start_date.isoformat() if prep.start_date else None,
-            "target_marketing_date": prep.target_date_of_marketing.isoformat() if prep.target_date_of_marketing else None,
+            "target_marketing_date": prep.target_date.isoformat() if prep.target_date else None,
             "duration_days": _calculate_duration_days(prep.start_date),
-            "tech_rating": prep.tech_rating,
+            "rating": prep.rating,
             "communication": prep.communication,
             "rating": prep.rating,
             "years_of_experience": prep.years_of_experience,
-            "topics_finished_count": len(prep.topics_finished.split(",")) if prep.topics_finished else 0,
-            "current_topics_count": len(prep.current_topics.split(",")) if prep.current_topics else 0,
         }
 
     # Marketing metrics
@@ -342,12 +340,12 @@ def _generate_candidate_alerts(candidate: CandidateORM, db: Session) -> List[Dic
 
     # Check if preparation is overdue
     prep = _get_active_or_latest(candidate.preparations, "status", "active")
-    if prep and prep.status == "active" and prep.target_date_of_marketing:
-        if prep.target_date_of_marketing < datetime.now().date():
+    if prep and prep.status == "active" and prep.target_date:
+        if prep.target_date < datetime.now().date():
             alerts.append({
                 "type": "warning",
                 "phase": "preparation",
-                "message": f"Preparation target date ({prep.target_date_of_marketing}) has passed",
+                "message": f"Preparation target date ({prep.target_date}) has passed",
             })
 
     # Check for pending interview feedback
@@ -500,14 +498,8 @@ def get_preparation_phase_details(
     current_prep = prep_records[0]
 
     # Parse topics
-    topics_finished = []
-    if current_prep.topics_finished:
-        topics_finished = [t.strip() for t in current_prep.topics_finished.split(",") if t.strip()]
 
-    current_topics = []
-    if current_prep.current_topics:
-        current_topics = [t.strip() for t in current_prep.current_topics.split(",") if t.strip()]
-
+   
     # Build result
     result = {
         "id": current_prep.id,
@@ -518,14 +510,12 @@ def get_preparation_phase_details(
         "start_date": current_prep.start_date.isoformat() if current_prep.start_date else None,
         "status": current_prep.status,
         "rating": current_prep.rating,
-        "tech_rating": current_prep.tech_rating,
+        "rating": current_prep.rating,
         "communication": current_prep.communication,
         "years_of_experience": current_prep.years_of_experience,
-        "topics_finished": topics_finished,
-        "topics_finished_count": len(topics_finished),
-        "current_topics": current_topics,
-        "current_topics_count": len(current_topics),
-        "target_date_of_marketing": current_prep.target_date_of_marketing.isoformat() if current_prep.target_date_of_marketing else None,
+
+
+        "target_date": current_prep.target_date.isoformat() if current_prep.target_date else None,
         "notes": current_prep.notes,
         "linkedin": current_prep.linkedin,
         "github": current_prep.github,
@@ -1194,7 +1184,7 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     # Calculate days in each phase
     for prep in candidate.preparations:
         if prep.start_date:
-            end_date = prep.target_date_of_marketing or datetime.now().date()
+            end_date = prep.target_date or datetime.now().date()
             stats["days_in_preparation"] += _calculate_duration_days(prep.start_date, end_date) or 0
 
     for marketing in candidate.marketing_records:
