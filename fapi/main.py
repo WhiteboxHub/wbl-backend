@@ -40,7 +40,9 @@ from fapi.api.routes import (
     vendor, vendor_activity, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals,candidate_dashboard
+
+    session, recording, referrals,candidate_dashboard,email_activity_log
+
 )
 from fapi.utils.permission_gate import enforce_access
 
@@ -49,13 +51,12 @@ def get_db():
     try:
         yield db
     finally:
-        db.close()
-
+        db.close()  
+app.include_router(email_activity_log.router, prefix="/api", tags=["Email Activity Log"], dependencies=[Depends(enforce_access)])              
 app.include_router(candidate.router,prefix="/api", tags=["Candidate"])
 app.include_router(leads.router,prefix="/api", tags=["Leads"],dependencies=[Depends(enforce_access)])
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"],dependencies=[Depends(enforce_access)])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"],dependencies=[Depends(enforce_access)])
-app.include_router(vendor_activity.router,prefix="/api", tags=["DailyVendorActivity"],dependencies=[Depends(enforce_access)])
 app.include_router(employee.router, prefix="/api", tags=["Employee"],dependencies=[Depends(enforce_access)])
 app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"], dependencies=[Depends(enforce_access)])
 app.include_router(user_role.router,prefix="/api", tags=["User Role"])
@@ -71,7 +72,7 @@ app.include_router(subject.router, prefix="/api", tags=["Subjects"], dependencie
 app.include_router(course_subject.router, prefix="/api", tags=["Course Subjects"])
 app.include_router(course_content.router, prefix="/api", tags=["Course Contents"])
 app.include_router(course_material.router,prefix="/api", tags=["Course Materials"])
-app.include_router(referrals.router, prefix="/api", tags=["Referrals"], dependencies=[Depends(enforce_access)])
+app.include_router(referrals.router, prefix="/api", tags=["Referrals"])
 app.include_router(avatar_dashboard.router,prefix="/api", tags=["Avatar Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api", tags=["Resources"])
