@@ -8,9 +8,6 @@ from datetime import datetime
 from fastapi import HTTPException
 
 
-
-
-
 def clean_dates(user):
     if not user:
         return None
