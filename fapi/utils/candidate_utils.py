@@ -608,8 +608,8 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     return db_prep
 
 
-def get_preparations_by_candidate(db: Session, candidate_id: int):
-    results = (
+def get_preparation_by_id(db: Session, prep_id: int):
+    prep = (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate),
@@ -617,14 +617,11 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
             joinedload(CandidatePreparation.instructor2),
             joinedload(CandidatePreparation.instructor3),
         )
-        .filter(CandidatePreparation.candidate_id == candidate_id)
-        .all()
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
     )
 
-    if not results:
-        raise HTTPException(status_code=404, detail="No preparations found for this candidate")
-
-    return results
+    return prep
 
 
 def get_all_preparations(db: Session):
@@ -726,19 +723,20 @@ def get_candidate_suggestions(search_term: str, db: Session):
         return {"error": str(e)}
 
 
-# ------------------------------------------------------ search------------------------------------------------------
+
+# ------------------------------------------------------ Candidate Search ------------------------------------------------------
 
 def get_candidate_details(candidate_id: int, db: Session):
     try:
         candidate = (
             db.query(CandidateORM)
             .options(
-                selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor1),
-                selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor2),
-                selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor3),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2),
+                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3),
                 selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_obj),
                 selectinload(CandidateORM.interviews),
-                selectinload(CandidateORM.placements)
+                selectinload(CandidateORM.placements),
             )
             .filter(CandidateORM.id == candidate_id)
             .first()
@@ -747,7 +745,7 @@ def get_candidate_details(candidate_id: int, db: Session):
         if not candidate:
             return {"error": "Candidate not found"}
 
-        
+        # Batch name
         batch_name = f"Batch ID: {candidate.batchid}"
         batch = db.query(Batch).filter(Batch.batchid == candidate.batchid).first()
         if batch:
@@ -768,29 +766,29 @@ def get_candidate_details(candidate_id: int, db: Session):
                 "secondary_phone": getattr(candidate, "secondaryphone", None),
                 "linkedin_id": candidate.linkedin_id,
                 "status": candidate.status,
-                "work_status": getattr(candidate, "workstatus", None),
+                "work_status": candidate.workstatus,
                 "education": candidate.education,
-                "work_experience": getattr(candidate, "workexperience", None),
+                "work_experience": candidate.workexperience,
                 "ssn": f"-*-{str(candidate.ssn)[-4:]}" if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
                 "dob": candidate.dob.isoformat() if candidate.dob else None,
                 "address": candidate.address,
                 "agreement": candidate.agreement,
                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                 "batch_name": batch_name,
-                "candidate_folder": getattr(candidate, "candidate_folder", None),
-                "github_link": getattr(candidate, "github_link", None),
-                "notes": candidate.notes
+                "candidate_folder": candidate.candidate_folder,
+                "github_link": candidate.github_link,
+                "notes": candidate.notes,
             },
             "emergency_contact": {
-                "emergency_contact_name": getattr(candidate, "emergcontactname", None),
-                "emergency_contact_phone": getattr(candidate, "emergcontactphone", None),
-                "emergency_contact_email": getattr(candidate, "emergcontactemail", None),
-                "emergency_contact_address": getattr(candidate, "emergcontactaddrs", None)
+                "emergency_contact_name": candidate.emergcontactname,
+                "emergency_contact_phone": candidate.emergcontactphone,
+                "emergency_contact_email": candidate.emergcontactemail,
+                "emergency_contact_address": candidate.emergcontactaddrs,
             },
             "fee_financials": {
-                "fee_paid": getattr(candidate, "fee_paid", None),
+                "fee_paid": candidate.fee_paid,
                 "payment_status": "Paid" if candidate.fee_paid and candidate.fee_paid > 0 else "Pending",
-                "notes": candidate.notes
+                "notes": candidate.notes,
             },
             "preparation_records": [
                 {
@@ -798,18 +796,23 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "instructor_1_name": prep.instructor1.name if prep.instructor1 else None,
                     "instructor_2_name": prep.instructor2.name if prep.instructor2 else None,
                     "instructor_3_name": prep.instructor3.name if prep.instructor3 else None,
-                    "tech_rating": prep.tech_rating,
-                    "topics_finished": prep.topics_finished,
-                    "last_modified": prep.last_mod_datetime.isoformat() if getattr(prep, "last_mod_datetime", None) else None
+                    "rating": prep.rating,
+                    "communication": prep.communication,
+                    "years_of_experience": prep.years_of_experience,
+                    "last_modified": prep.last_mod_datetime.isoformat()
+                    if getattr(prep, "last_mod_datetime", None)
+                    else None,
                 }
-                for prep in candidate.preparations
+                for prep in candidate.preparation_records
             ],
             "marketing_records": [
                 {
                     "start_date": m.start_date.isoformat() if m.start_date else None,
                     "marketing_manager_name": m.marketing_manager_obj.name if m.marketing_manager_obj else None,
                     "notes": m.notes,
-                    "last_modified": m.last_mod_datetime.isoformat() if getattr(m, "last_mod_datetime", None) else None
+                    "last_modified": m.last_mod_datetime.isoformat()
+                    if getattr(m, "last_mod_datetime", None)
+                    else None,
                 }
                 for m in candidate.marketing_records
             ],
@@ -818,11 +821,11 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "company": i.company,
                     "interview_date": i.interview_date.isoformat() if i.interview_date else None,
                     "interview_type": i.type_of_interview,
-                    "company_type":i.company_type,
+                    "company_type": i.company_type,
                     "mode_of_interview": i.mode_of_interview,
                     "feedback": i.feedback,
                     "recording_link": i.recording_link,
-                    "notes": i.notes
+                    "notes": i.notes,
                 }
                 for i in candidate.interviews
             ],
@@ -836,29 +839,34 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "base_salary_offered": float(p.base_salary_offered) if p.base_salary_offered else None,
                     "benefits": p.benefits,
                     "placement_fee_paid": float(p.fee_paid) if p.fee_paid else None,
-                    "last_modified": p.last_mod_datetime.isoformat() if getattr(p, "last_mod_datetime", None) else None,
-                    "notes": p.notes
+                    "last_modified": p.last_mod_datetime.isoformat()
+                    if getattr(p, "last_mod_datetime", None)
+                    else None,
+                    "notes": p.notes,
                 }
                 for p in candidate.placements
             ],
             "login_access": {
                 "login_count": getattr(authuser, "logincount", 0) if authuser else 0,
-                "last_login": authuser.lastlogin.isoformat() if authuser and getattr(authuser, "lastlogin", None) else None,
-                "registered_date": authuser.registereddate.isoformat() if authuser and getattr(authuser, "registereddate", None) else None,
+                "last_login": authuser.lastlogin.isoformat()
+                if authuser and getattr(authuser, "lastlogin", None)
+                else None,
+                "registered_date": authuser.registereddate.isoformat()
+                if authuser and getattr(authuser, "registereddate", None)
+                else None,
                 "status": getattr(authuser, "status", "No Account") if authuser else "No Account",
-                "google_id": getattr(authuser, "googleId", None) if authuser else None
+                "google_id": getattr(authuser, "googleId", None) if authuser else None,
             },
             "miscellaneous": {
                 "notes": candidate.notes,
-                "preparation_active": bool(candidate.preparations),
+                "preparation_active": bool(candidate.preparation_records),
                 "marketing_active": bool(candidate.marketing_records),
-                "placement_active": bool(candidate.placements)
-            }
+                "placement_active": bool(candidate.placements),
+            },
         }
 
     except Exception as e:
         return {"error": str(e)}
-
 
 
 
@@ -871,10 +879,10 @@ def search_candidates_comprehensive(search_term: str, db: Session):
             db.query(CandidateORM)
             .filter(CandidateORM.full_name.ilike(f"%{search_term}%"))
             .options(
-                selectinload(CandidateORM.preparations),
+                selectinload(CandidateORM.preparation_records),
                 selectinload(CandidateORM.marketing_records),
                 selectinload(CandidateORM.interviews),
-                selectinload(CandidateORM.placements)
+                selectinload(CandidateORM.placements),
             )
             .all()
         )
@@ -890,26 +898,29 @@ def search_candidates_comprehensive(search_term: str, db: Session):
 
             authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(c.email)).first() if c.email else None
 
-            results.append({
-                "candidate_id": c.id,
-                "full_name": c.full_name,
-                "email": c.email,
-                "phone": c.phone,
-                "status": c.status,
-                "batch_name": batch_name,
-                "preparation_count": len(c.preparations),
-                "marketing_count": len(c.marketing_records),
-                "interview_count": len(c.interviews),
-                "placement_count": len(c.placements),
-                "registered_date": authuser.registereddate.isoformat() if authuser and getattr(authuser, "registereddate", None) else None,
-                "login_count": getattr(authuser, "logincount", 0) if authuser else 0
-            })
+            results.append(
+                {
+                    "candidate_id": c.id,
+                    "full_name": c.full_name,
+                    "email": c.email,
+                    "phone": c.phone,
+                    "status": c.status,
+                    "batch_name": batch_name,
+                    "preparation_count": len(c.preparation_records),
+                    "marketing_count": len(c.marketing_records),
+                    "interview_count": len(c.interviews),
+                    "placement_count": len(c.placements),
+                    "registered_date": authuser.registereddate.isoformat()
+                    if authuser and getattr(authuser, "registereddate", None)
+                    else None,
+                    "login_count": getattr(authuser, "logincount", 0) if authuser else 0,
+                }
+            )
 
         return results
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
 
 
 
