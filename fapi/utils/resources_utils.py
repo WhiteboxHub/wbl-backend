@@ -126,6 +126,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
     result = db.execute(query)
     return result.scalars().all()
 
+
 def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
     if team in ["admin", "instructor"]:
         result = db.execute(
