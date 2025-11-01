@@ -370,8 +370,8 @@ class CandidateMarketingBase(BaseModel):
     status: Literal["active", "inactive"] = "active"
     email: Optional[str] = None
     password: Optional[str] = None
+    priority: Optional[int] = None
     google_voice_number: Optional[str] = None
-    priority: Optional[int] = None  # integer 1-5
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
     candidate: Optional["CandidateBase"] = None
@@ -395,8 +395,8 @@ class CandidateMarketingUpdate(BaseModel):
     status: Optional[Literal["active", "inactive"]] = None
     email: Optional[str] = None
     password: Optional[str] = None
+    priority: Optional[int] = None
     google_voice_number: Optional[str] = None
-    priority: Optional[int] = None  # integer 1-5
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 
@@ -409,7 +409,7 @@ class CandidatePlacementBase(BaseModel):
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
-
+    priority: Optional[int] = None
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -424,7 +424,6 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 class CandidatePlacement(CandidatePlacementBase):
     id: int
     last_mod_datetime: Optional[datetime]
-    # priority: Optional[int] 
 
     class Config:
         from_attributes = True
@@ -440,7 +439,6 @@ class CandidatePlacementUpdate(BaseModel):
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
     notes: Optional[str] = None
-    # priority: Optional[int] = None
 
 
 # ----------------------------------------------------

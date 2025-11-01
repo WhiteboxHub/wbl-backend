@@ -608,8 +608,8 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     return db_prep
 
 
-def get_preparation_by_id(db: Session, prep_id: int):
-    prep = (
+def get_preparations_by_candidate(db: Session, candidate_id: int):
+    results = (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate),
@@ -617,11 +617,14 @@ def get_preparation_by_id(db: Session, prep_id: int):
             joinedload(CandidatePreparation.instructor2),
             joinedload(CandidatePreparation.instructor3),
         )
-        .filter(CandidatePreparation.id == prep_id)
-        .first()
+        .filter(CandidatePreparation.candidate_id == candidate_id)
+        .all()
     )
 
-    return prep
+    if not results:
+        raise HTTPException(status_code=404, detail="No preparations found for this candidate")
+
+    return results
 
 
 def get_all_preparations(db: Session):
@@ -797,6 +800,7 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "instructor_2_name": prep.instructor2.name if prep.instructor2 else None,
                     "instructor_3_name": prep.instructor3.name if prep.instructor3 else None,
                     "rating": prep.rating,
+
                     "communication": prep.communication,
                     "years_of_experience": prep.years_of_experience,
                     "last_modified": prep.last_mod_datetime.isoformat()
