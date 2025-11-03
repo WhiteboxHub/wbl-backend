@@ -264,6 +264,8 @@ class CandidateMarketingORM(Base):
     password = Column(String(100), nullable=True)
     priority = Column(Integer, nullable=True)
     google_voice_number = Column(String(100), nullable=True)
+    linkedin_username = Column(String(100), nullable=True)
+    linkedin_passwd = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
