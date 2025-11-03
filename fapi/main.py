@@ -41,7 +41,10 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
 
-    session, recording, referrals,candidate_dashboard,email_activity_log
+
+    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,
+
+
 
 )
 from fapi.utils.permission_gate import enforce_access
@@ -82,3 +85,6 @@ app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
 app.include_router(candidate.router, prefix="/api", tags=["Candidates"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
+
+app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
+
