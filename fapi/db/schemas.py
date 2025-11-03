@@ -405,7 +405,7 @@ class CandidateMarketingUpdate(BaseModel):
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
-    company: str
+    company: str  
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
