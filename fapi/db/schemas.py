@@ -372,6 +372,8 @@ class CandidateMarketingBase(BaseModel):
     password: Optional[str] = None
     priority: Optional[int] = None
     google_voice_number: Optional[str] = None
+    linkedin_username: Optional[str] = None
+    linkedin_passwd: Optional[str] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
     candidate: Optional["CandidateBase"] = None
@@ -397,6 +399,8 @@ class CandidateMarketingUpdate(BaseModel):
     password: Optional[str] = None
     priority: Optional[int] = None
     google_voice_number: Optional[str] = None
+    linkedin_username: Optional[str] = None
+    linkedin_passwd: Optional[str] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 
