@@ -8,6 +8,7 @@ ALLOWED_GET_PREFIXES = {
     "/api/materials",
     "/api/recording",
     "/api/batches",
+    "/api/referrals",
 
 }
 
