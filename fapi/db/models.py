@@ -461,6 +461,8 @@ class DailyVendorActivityORM(Base):
     vendor_id = Column(Integer, ForeignKey("vendor.id"), nullable=False)
     application_date = Column(Date, nullable=True)
     linkedin_connected = Column(SQLAEnum(YesNoEnum), nullable=True)
+    extraction_date = Column(DateTime, nullable=True)
+    source_email = Column(String(255), nullable=True)
     contacted_on_linkedin = Column(SQLAEnum(YesNoEnum), nullable=True)
     notes = Column(String(1000), nullable=True)
     employee_id = Column(Integer, nullable=True)
