@@ -449,6 +449,7 @@ class VendorContactExtractsORM(Base):
     linkedin_internal_id = Column(String(255))
     extraction_date = Column(DateTime, nullable=True) 
     source_email = Column(String(255), nullable=True)
+    
 # -------------------- ORM: vendor-daily-activity --------------------
 class YesNoEnum(str, enum.Enum):
     YES = "YES"

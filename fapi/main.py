@@ -37,7 +37,7 @@ from fapi.db.database import SessionLocal
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
     contact, login, register, resources, vendor_contact,
-    vendor, vendor_activity, request_demo, unsubscribe,
+    vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,
