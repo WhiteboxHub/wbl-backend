@@ -17,6 +17,7 @@ ALLOWED_GET_PREFIXES = {
     "/api/recording",
     "/api/materials",
     "/api/course-contents",
+    "/api/referrals",
 
 }
 
