@@ -1200,3 +1200,153 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     stats["interview_success_rate"] = interview_stats["success_rate"]
 
     return stats
+
+
+
+
+def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
+    """
+    Get sessions with smart name matching - handles common names like 'Sai'
+    """
+    try:
+        from fapi.db.models import Session as SessionModel
+        from datetime import datetime, timedelta
+        import re
+        
+        
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            return {"error": "Candidate not found", "sessions": []}
+        
+
+        all_words = [word for word in candidate.full_name.split() if len(word) >= 3]
+        
+    
+        common_names = ['sai', 'sri', 'kumar', 'reddy', 'rao', 'prasad']
+        
+     
+        priority_words = []
+        common_words = []
+        
+        for word in all_words:
+            if word.lower() in common_names:
+                common_words.append(word)
+            else:
+                priority_words.append(word)
+        
+        
+        search_words = priority_words if priority_words else all_words
+        
+        if not search_words:
+            return {"candidate_id": candidate_id, "candidate_name": candidate.full_name, "sessions": []}
+        
+        
+        one_year_ago = datetime.now() - timedelta(days=365)
+        
+
+        recent_sessions = (
+            db.query(SessionModel)
+            .filter(SessionModel.sessiondate >= one_year_ago)
+            .all()
+        )
+        
+        
+        matched_sessions = []
+        for session in recent_sessions:
+            title_text = (session.title or "").lower()
+            subject_text = (session.subject or "").lower()
+            combined_text = f"{title_text} {subject_text}"
+            
+            word_found = False
+            
+          
+            for word in priority_words:
+                word_lower = word.lower()
+                
+         
+                pattern = r'\b' + re.escape(word_lower) + r'\b'
+                if re.search(pattern, combined_text):
+                    word_found = True
+                    break
+                
+       
+                if len(word_lower) >= 4 and word_lower in combined_text:
+                    word_found = True
+                    break
+            
+        
+            if not word_found and common_words and not priority_words:
+                for word in common_words:
+                    word_lower = word.lower()
+                    
+            
+                    pattern = r'\b' + re.escape(word_lower) + r'\b'
+                    if re.search(pattern, combined_text):
+                        word_found = True
+                        break
+            
+            
+            if not word_found and priority_words and common_words:
+                priority_matches = 0
+                common_matches = 0
+                
+                
+                for word in priority_words:
+                    word_lower = word.lower()
+                    pattern = r'\b' + re.escape(word_lower) + r'\b'
+                    if re.search(pattern, combined_text):
+                        priority_matches += 1
+                
+                
+                for word in common_words:
+                    word_lower = word.lower()
+                    pattern = r'\b' + re.escape(word_lower) + r'\b'
+                    if re.search(pattern, combined_text):
+                        common_matches += 1
+                
+                
+                if priority_matches >= 1 or (priority_matches + common_matches >= 2):
+                    word_found = True
+            
+            if word_found:
+                matched_sessions.append(session)
+        
+        
+        matched_sessions.sort(key=lambda x: x.sessiondate or datetime.min, reverse=True)
+        
+        
+        session_list = []
+        for session in matched_sessions:
+            session_date_str = None
+            if session.sessiondate:
+                if isinstance(session.sessiondate, str):
+                    session_date_str = session.sessiondate
+                else:
+                    session_date_str = session.sessiondate.isoformat()
+            
+            session_data = {
+                "session_id": session.sessionid,
+                "title": session.title,
+                "session_date": session_date_str,
+                "type": session.type,
+                "subject": session.subject,
+                "link": session.link
+            }
+            session_list.append(session_data)
+        
+        return {
+            "candidate_id": candidate_id,
+            "candidate_name": candidate.full_name,
+            "sessions": session_list,
+            "debug_info": {
+                "all_words": all_words,
+                "priority_words": priority_words,
+                "common_words": common_words,
+                "search_strategy": "priority_first" if priority_words else "all_words"
+            }
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "sessions": []}
+
+
