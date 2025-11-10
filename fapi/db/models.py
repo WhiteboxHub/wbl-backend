@@ -10,6 +10,8 @@ import enum
 
 
 
+
+
 Base = declarative_base()
 
 
@@ -266,6 +268,8 @@ class CandidateMarketingORM(Base):
     google_voice_number = Column(String(100), nullable=True)
     linkedin_username = Column(String(100), nullable=True)
     linkedin_passwd = Column(String(100), nullable=True)
+    linkedin_last_run = Column(DateTime, nullable=True)
+    linkedin_status = Column(Enum("idle", "running", "error", "completed"), default="idle")
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
@@ -488,6 +492,26 @@ class EmailActivityLogORM(Base):
     __table_args__ = (
         UniqueConstraint("email", "activity_date", name="uniq_email_day"),
     )
+
+# ---------linkedin_activity_log----------------------
+class LinkedInActivityLogORM(Base):
+    __tablename__ = "linkedin_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_email = Column(String(100), nullable=True)
+    activity_type = Column(Enum('extraction', 'connection', name='activity_type'), nullable=False)
+    linkedin_profile_url = Column(String(255), nullable=True)
+    full_name = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    status = Column(Enum('success', 'failed', name='status'), server_default='success')
+    message = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
 #---------------------------------------------------------------------
 class CourseContent(Base):
     __tablename__ = "course_content"

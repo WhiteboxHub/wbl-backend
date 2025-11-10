@@ -37,6 +37,24 @@ from fapi.utils.avatar_dashboard_utils import get_batch_metrics
 router = APIRouter()
 security = HTTPBearer() 
 
+import jwt
+import os
+
+def extract_role_and_team_from_token(token: str):
+    """
+    Extract role and team from JWT token.
+    """
+    try:
+        # Use the same SECRET_KEY from your config
+        from fapi.core.config import SECRET_KEY
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        role = payload.get("role")
+        team = payload.get("team")
+        return role, team
+    except Exception as e:
+        logging.error(f"Error extracting role and team from token: {e}")
+        return None, None
+
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
@@ -57,9 +75,12 @@ async def get_session_types(
     db: Session = Depends(get_db),
 ):
     token = credentials.credentials
-  
+    
+    # Extract role and team from token
+    role, user_team = extract_role_and_team_from_token(token)
+    
     async def _get_types():
-        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team)
+        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, role, user_team)
 
     try:
         types = await _get_types()
@@ -79,7 +100,10 @@ async def get_sessions(
     db: Session = Depends(get_db),
 ):
     token = credentials.credentials
-
+    
+    # Extract role and team from token
+    role, user_team = extract_role_and_team_from_token(token)
+    
     async def _get_sessions():
         course_name_to_id = {"QA": 1, "UI": 2, "ML": 3}
         course_id = None
@@ -91,7 +115,7 @@ async def get_sessions(
                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
                 )
         return await anyio.to_thread.run_sync(
-            fetch_sessions_by_type_orm, db, course_id, session_type, team
+            fetch_sessions_by_type_orm, db, course_id, session_type, team, role, user_team
         )
 
     try:
@@ -113,9 +137,7 @@ async def get_sessions(
 
 
 @router.get("/materials")
-
 @limiter.limit("15/minute")
-
 async def get_materials(
     request: Request, 
     course: str = Query(..., description="Course name: QA, UI, or ML"),
@@ -162,4 +184,3 @@ def get_recordings(
     except Exception as e:
         logging.error(f"Error fetching recordings: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
-

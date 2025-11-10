@@ -42,7 +42,7 @@ from fapi.api.routes import (
     course_content, course_material, batch, authuser, avatar_dashboard,
 
 
-    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,
+    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,linkedin_activity_log
 
 
 
@@ -87,4 +87,6 @@ app.include_router(candidate.router, prefix="/api", tags=["Candidates"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
+# app.include_router(linkedin_activity_log.router, prefix="/api", tags=["LinkedIn Activity Log"], dependencies=[Depends(enforce_access)]) 
+app.include_router(linkedin_activity_log.router, prefix="/api", tags=["LinkedIn Activity Log"])
 
