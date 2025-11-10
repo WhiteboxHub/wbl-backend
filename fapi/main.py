@@ -39,7 +39,9 @@ from fapi.api.routes import (
     contact, login, register, resources, vendor_contact,
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
-    course_content, course_material, batch, authuser, avatar_dashboard,
+
+    course_content, course_material, batch, authuser, avatar_dashboard,indexed_DB,
+
     session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,
 
 
@@ -84,6 +86,6 @@ app.include_router(google_auth.router, prefix="/api", tags=["Google Authenticati
 app.include_router(candidate.router, prefix="/api", tags=["Candidates"], dependencies=[Depends(enforce_access)])
 
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
-
+app.include_router(indexed_DB.router, prefix="/api",tags=["Indexed DB"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 
