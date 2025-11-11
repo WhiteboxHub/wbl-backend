@@ -409,7 +409,7 @@ class CandidateMarketingUpdate(BaseModel):
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
-    company: str
+    company: str  
     placement_date: date
     type: Optional[Literal['Company', 'Client', 'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
@@ -827,6 +827,8 @@ class DailyVendorActivity(BaseModel):
     activity_id: int
     vendor_id: int
     application_date: Optional[date]
+    source_email: Optional[str] = None  
+    extraction_date: Optional[datetime] = None
     linkedin_connected: Optional[YesNoEnum]
     contacted_on_linkedin: Optional[YesNoEnum]
     notes: Optional[str]
@@ -888,6 +890,7 @@ class EmailActivityLogOut(EmailActivityLogBase):
     emails_read: int
     last_updated: Optional[datetime] = None
     candidate_name: Optional[str] = None
+    total_extracted: Optional[int]= 0
 
     class Config:
         from_attributes = True
