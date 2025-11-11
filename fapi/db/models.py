@@ -188,21 +188,6 @@ class Vendor(Base):
 
 
 
-class EmailActivityLogORM(Base):
-    __tablename__ = "email_activity_log"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id"), nullable=False)
-    email = Column(String(100), nullable=False)
-    activity_date = Column(Date, nullable=False, default=func.curdate())
-    emails_read = Column(Integer, default=0)
-    last_updated = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    marketing = relationship("CandidateMarketingORM", back_populates="email_logs")
-
-
-
-
 # ------------------------------------------
 
 
@@ -277,8 +262,10 @@ class CandidateMarketingORM(Base):
 
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
+    priority = Column(Integer, nullable=True)
     google_voice_number = Column(String(100), nullable=True)
-    priority = Column(Integer, nullable=True)  # integer 1-5
+    linkedin_username = Column(String(100), nullable=True)
+    linkedin_passwd = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
@@ -361,6 +348,7 @@ class CandidatePlacementORM(Base):
     type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
     
     status = Column(Enum('Active', 'Inactive'), nullable=False)
+    priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -368,7 +356,6 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    # priority = Column(Integer, default=99)
 
     candidate = relationship("CandidateORM", back_populates="placements")
 
@@ -399,6 +386,7 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
+
     start_date = Column(Date, nullable=False, server_default="CURRENT_DATE")
     status = Column(Enum("active", "inactive"), nullable=False, default="active")
 
@@ -408,7 +396,7 @@ class CandidatePreparation(Base):
 
     target_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    linkedin_id = Column(String(255), nullable=True)
+    # linkedin_id = Column(String(255), nullable=True)
     github_url = Column(String(255), nullable=True)
     resume_url = Column(String(255), nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
@@ -482,15 +470,20 @@ class EmailActivityLogORM(Base):
     __tablename__ = "email_activity_log"
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=False)
+    candidate_marketing_id = Column(
+        Integer,
+        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),  
+        nullable=False,
+    )
     email = Column(String(100), nullable=False)
     activity_date = Column(Date, nullable=False, server_default=func.curdate())
-    emails_read = Column(Integer, nullable=True, server_default="0")
+    emails_read = Column(Integer, nullable=False, server_default="0")
     last_updated = Column(
         TIMESTAMP,
         server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp(),
+        onupdate=func.current_timestamp(),  
     )
+    marketing = relationship("CandidateMarketingORM", back_populates="email_logs")
 
     __table_args__ = (
         UniqueConstraint("email", "activity_date", name="uniq_email_day"),
@@ -621,10 +614,9 @@ class Session(Base):
     subject_id = Column(Integer, nullable=False, default=0)
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
+    
+ #-------------------Internal documents--------------------
 
-    
-# #-------------------Internal documents--------------------
-    
 class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
