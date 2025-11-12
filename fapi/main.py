@@ -40,7 +40,7 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,
+    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents, chatbot
 
 
 
@@ -86,4 +86,4 @@ app.include_router(candidate.router, prefix="/api", tags=["Candidates"], depende
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
-
+app.include_router(chatbot.router, prefix="/api", tags=["Chatbot"])
