@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
 
-from fapi.db.models import EmailActivityLogORM, CandidateMarketingORM, CandidateORM
+from fapi.db.models import EmailActivityLogORM, CandidateMarketingORM, CandidateORM,VendorContactExtractsORM
 from fapi.db.schemas import EmailActivityLogCreate, EmailActivityLogUpdate
 
 logger = logging.getLogger(__name__)
@@ -19,13 +19,11 @@ logger = logging.getLogger(__name__)
 def get_all_email_activity_logs(db: Session) -> List[Dict[str, Any]]:
     """Get all email activity logs with candidate name and total extracted count"""
     try:
-        from fapi.db.models import DailyVendorActivityORM
-        
         logs = (
             db.query(
                 EmailActivityLogORM,
                 CandidateORM.full_name.label("candidate_name"),
-                func.count(DailyVendorActivityORM.activity_id).label("total_extracted")
+                func.count(VendorContactExtractsORM.id).label("total_extracted")  
             )
             .join(
                 CandidateMarketingORM,
@@ -36,10 +34,11 @@ def get_all_email_activity_logs(db: Session) -> List[Dict[str, Any]]:
                 CandidateMarketingORM.candidate_id == CandidateORM.id
             )
             .outerjoin(
-                DailyVendorActivityORM,
+                VendorContactExtractsORM,
                 and_(
-                    EmailActivityLogORM.email == DailyVendorActivityORM.source_email,
-                    EmailActivityLogORM.activity_date == func.date(DailyVendorActivityORM.extraction_date)
+                    EmailActivityLogORM.email.collate("utf8mb4_unicode_ci") == 
+                    VendorContactExtractsORM.source_email.collate("utf8mb4_unicode_ci"),  
+                    EmailActivityLogORM.activity_date == VendorContactExtractsORM.extraction_date  
                 )
             )
             .group_by(EmailActivityLogORM.id, CandidateORM.full_name)
