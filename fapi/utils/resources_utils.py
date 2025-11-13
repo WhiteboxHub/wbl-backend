@@ -96,16 +96,24 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
     return {"recordings": recordings}
 
 
-def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str):
+def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None):
     if not course_id or not session_type:
         return []
 
+    # Normalize session type for database query
+    db_session_type = "Internal Session" if session_type == "Internal Sessions" else session_type
+        
+    # Check if user is allowed to access Internal Sessions
+    if db_session_type == "Internal Session":
+        if role != "admin" or user_team != "admin":
+            return []  # Non-admin users get empty results for Internal Sessions
+
     allowed_types = [
         "Resume Session", "Job Help", "Interview Prep",
-        "Individual Mock", "Group Mock", "Misc", "Internal Sessions"
+        "Individual Mock", "Group Mock", "Misc", "Internal Session"
     ]
 
-    if team not in ["admin", "instructor"] and session_type not in allowed_types:
+    if team not in ["admin", "instructor"] and db_session_type not in allowed_types:
         return []
 
     query = (
@@ -114,7 +122,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
         .where(
             SessionORM.subject_id != 0,
             CourseSubject.course_id == course_id,
-            SessionORM.type == session_type,
+            SessionORM.type == db_session_type,
             or_(
                 CourseSubject.course_id != 3,
                 SessionORM.sessiondate >= "2024-01-01"
@@ -124,17 +132,21 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
     )
 
     result = db.execute(query)
-    return result.scalars().all()
+    sessions = result.scalars().all()
+    return sessions
 
 
-def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
-    if team in ["admin", "instructor"]:
+def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None) -> List[str]:
+    
+    if role == "admin" and user_team == "admin":
+        # Admin user sees all types including Internal Sessions
         result = db.execute(
             select(SessionORM.type).distinct().order_by(SessionORM.type))
     else:
+        # Non-admin users don't see Internal Sessions
         allowed_types = [
             "Resume Session", "Job Help", "Interview Prep",
-            "Individual Mock", "Group Mock", "Misc", "Internal Session"
+            "Individual Mock", "Group Mock", "Misc"
         ]
         result = db.execute(
             select(SessionORM.type).distinct()
@@ -143,8 +155,10 @@ def fetch_session_types_by_team(db: Session, team: str) -> List[str]:
         )
 
     session_types = [row[0] for row in result.fetchall()]
+    # Normalize "Internal Session" to "Internal Sessions" for UI consistency
+    normalized_types = ["Internal Sessions" if t == "Internal Session" else t for t in session_types]
 
-    return ["Internal Sessions" if t == "Internal Session" else t for t in session_types]
+    return normalized_types
 
 
 def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
@@ -208,7 +222,6 @@ def fetch_subject_batch_recording(
     ).scalar_one_or_none()
 
     if not course_obj:
-        print(f"[DEBUG] Course '{course}' not found in DB")
         raise HTTPException(
             status_code=404, detail=f"Course '{course}' not found")
 
@@ -230,7 +243,6 @@ def fetch_subject_batch_recording(
 
     if search:
         like_str = f"%{search}%"
-        print(f"[DEBUG] Applying search filter: {like_str}")
         query = (db.query(
             Recording,
             Batch.batchname,
@@ -277,7 +289,6 @@ def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error fetching batches for {course}: {e}")
         raise HTTPException(status_code=500, detail="Unexpected server error")
 
 

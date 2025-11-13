@@ -597,16 +597,25 @@ def get_active_marketing_candidates(db: Session):
 
 
 # -------------------Candidate_Preparation-------------
-
+from datetime import datetime
+def is_valid_date(date_str):
+    if not date_str:
+        return False
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
     if prep_data.email:
         prep_data.email = prep_data.email.lower()
     db_prep = CandidatePreparation(**prep_data.dict(exclude_unset=True))
     db.add(db_prep)
     db.commit()
-    db.refresh(db_prep)
-    return db_prep
+    db.refresh(candidate)
 
+    # Return the full object so it matches the response_model
+    return candidate
 
 def get_preparations_by_candidate(db: Session, candidate_id: int):
     results = (
