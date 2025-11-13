@@ -9,6 +9,7 @@ from sqlalchemy.orm import declarative_base, relationship
 import enum
 
 
+
 Base = declarative_base()
 
 
@@ -274,9 +275,9 @@ class CandidateMarketingORM(Base):
     google_voice_number = Column(String(100), nullable=True)
     linkedin_username = Column(String(100), nullable=True)
     linkedin_passwd = Column(String(100), nullable=True)
+    linkedin_premium_end_date = Column(Date, nullable=True)
     # linkedin_last_run = Column(DateTime, nullable=True)
     # linkedin_status = Column(Enum("idle", "running", "error", "completed"), default="idle")
-    linkedin_premium_end_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
@@ -517,6 +518,7 @@ class EmailActivityLogORM(Base):
         UniqueConstraint("email", "activity_date", name="uniq_email_day"),
     )
 
+
 # ---------linkedin_activity_log----------------------
 class LinkedInActivityLogORM(Base):
     __tablename__ = "linkedin_activity_log"
@@ -674,3 +676,39 @@ class InternalDocument(Base):
     description = Column(String(500), nullable=True)
     filename = Column(String(300), nullable=False)
     link = Column(String(1024), nullable=True)
+
+
+# -------------------- Job Types --------------------
+class JobTypeORM(Base):
+    __tablename__ = "job_types"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    job_name = Column(String(255), nullable=False)
+    job_description = Column(Text, nullable=True)
+    created_date = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+
+# -------------------- Job Activity Log --------------------
+class JobActivityLogORM(Base):
+    __tablename__ = "job_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    job_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
+    employee_id = Column(Integer, ForeignKey("employee.id"), nullable=False)
+    activity_date = Column(Date, nullable=False)
+    activity_count = Column(Integer, default=0)
+    last_mod_date = Column(
+        TIMESTAMP,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp()
+    )
+    json_downloaded = Column(
+        Enum('yes', 'no', name='json_downloaded_enum'), default='no')
+    sql_downloaded = Column(
+        Enum('yes', 'no', name='sql_downloaded_enum'), default='no')
+
+    # Relationships
+    job_type = relationship("JobTypeORM")
+    candidate = relationship("CandidateORM")
+    employee = relationship("EmployeeORM")
