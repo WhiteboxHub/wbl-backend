@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, Boolean, Date ,DECIMAL, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func, text
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint,Boolean, Date ,DECIMAL,BigInteger, Text, ForeignKey, TIMESTAMP,Enum as SQLAEnum, func, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -186,6 +186,8 @@ class Vendor(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     linkedin_internal_id = Column(String(255))
 
+
+
 # ------------------------------------------
 
 
@@ -260,8 +262,10 @@ class CandidateMarketingORM(Base):
 
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
+    priority = Column(Integer, nullable=True)
     google_voice_number = Column(String(100), nullable=True)
-    priority = Column(Integer, nullable=True)  # integer 1-5
+    linkedin_username = Column(String(100), nullable=True)
+    linkedin_passwd = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
@@ -269,7 +273,7 @@ class CandidateMarketingORM(Base):
     # Relationships
     candidate = relationship("CandidateORM", back_populates="marketing_records")
     marketing_manager_obj = relationship("EmployeeORM", foreign_keys=[marketing_manager])
-
+    email_logs = relationship("EmailActivityLogORM", back_populates="marketing", cascade="all, delete-orphan")
 # # -------------------------------------- Candidate Interview -------------------------------
 
 class CandidateInterview(Base):
@@ -344,6 +348,7 @@ class CandidatePlacementORM(Base):
     type = Column(Enum('Company', 'Client', 'Vendor', 'Implementation Partner'), nullable=True)
     
     status = Column(Enum('Active', 'Inactive'), nullable=False)
+    priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -351,7 +356,6 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    # priority = Column(Integer, default=99)
 
     candidate = relationship("CandidateORM", back_populates="placements")
 
@@ -382,6 +386,7 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
+
     start_date = Column(Date, nullable=False, server_default="CURRENT_DATE")
     status = Column(Enum("active", "inactive"), nullable=False, default="active")
 
@@ -391,7 +396,7 @@ class CandidatePreparation(Base):
 
     target_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    linkedin_id = Column(String(255), nullable=True)
+    # linkedin_id = Column(String(255), nullable=True)
     github_url = Column(String(255), nullable=True)
     resume_url = Column(String(255), nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
@@ -442,7 +447,9 @@ class VendorContactExtractsORM(Base):
     moved_to_vendor = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
     linkedin_internal_id = Column(String(255))
-
+    extraction_date = Column(DateTime, nullable=True) 
+    source_email = Column(String(255), nullable=True)
+    
 # -------------------- ORM: vendor-daily-activity --------------------
 class YesNoEnum(str, enum.Enum):
     YES = "YES"
@@ -455,12 +462,36 @@ class DailyVendorActivityORM(Base):
     vendor_id = Column(Integer, ForeignKey("vendor.id"), nullable=False)
     application_date = Column(Date, nullable=True)
     linkedin_connected = Column(SQLAEnum(YesNoEnum), nullable=True)
+    extraction_date = Column(DateTime, nullable=True)
+    source_email = Column(String(255), nullable=True)
     contacted_on_linkedin = Column(SQLAEnum(YesNoEnum), nullable=True)
     notes = Column(String(1000), nullable=True)
     employee_id = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class EmailActivityLogORM(Base):
+    __tablename__ = "email_activity_log"
 
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    candidate_marketing_id = Column(
+        Integer,
+        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),  
+        nullable=False,
+    )
+    email = Column(String(100), nullable=False)
+    activity_date = Column(Date, nullable=False, server_default=func.curdate())
+    emails_read = Column(Integer, nullable=False, server_default="0")
+    last_updated = Column(
+        TIMESTAMP,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),  
+    )
+    marketing = relationship("CandidateMarketingORM", back_populates="email_logs")
+
+    __table_args__ = (
+        UniqueConstraint("email", "activity_date", name="uniq_email_day"),
+    )
+#---------------------------------------------------------------------
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -586,3 +617,14 @@ class Session(Base):
     subject_id = Column(Integer, nullable=False, default=0)
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
+    
+ #-------------------Internal documents--------------------
+
+class InternalDocument(Base):
+    __tablename__ = "internal_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(150), nullable=False)
+    description = Column(String(500), nullable=True)
+    filename = Column(String(300), nullable=False)
+    link = Column(String(1024), nullable=True)
