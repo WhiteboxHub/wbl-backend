@@ -21,3 +21,4 @@ EXPOSE 8000
 
 # Run the FastAPI server with reload option
 CMD ["uvicorn", "fapi.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
