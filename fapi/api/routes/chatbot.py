@@ -4,7 +4,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 router = APIRouter()
 
-# ✅ Initialize your local Ollama model
+#  Initialize your local Ollama model
 llm = ChatOllama(
     model="qwen2.5:1.5b",  # or llama3, phi3, etc.
     temperature=0.3,
@@ -42,4 +42,4 @@ async def chatbot_response(request: Request):
         response = llm.invoke(messages)
         return {"reply": response.content}
     except Exception as e:
-        return {"reply": f"⚠️ Error processing message: {str(e)}"}
+        return {"reply": f" Error processing message: {str(e)}"}
