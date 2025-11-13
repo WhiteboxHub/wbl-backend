@@ -83,8 +83,8 @@ app.include_router(login.router,  prefix="/api", tags=["Login"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
 app.include_router(candidate.router, prefix="/api", tags=["Candidates"], dependencies=[Depends(enforce_access)])
-
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
+
 
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 

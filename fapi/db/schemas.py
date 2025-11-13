@@ -912,7 +912,6 @@ class ContactForm(BaseModel):
     phone: str
     message: str
 
-
 # -----------------------------------------------------unsubscribe-------------------------
 class UnsubscribeRequest(BaseModel):
     email: EmailStr
@@ -1484,12 +1483,13 @@ class ResetPassword(BaseModel):
 
 
 
+
 #---------------------------------------------internal documents----------------------------
+
 class InternalDocumentBase(BaseModel):
     title: str
     description: Optional[str] = None
-    filename: str
-    link: Optional[str] = None
+    file: Optional[str] = None    
 
 class InternalDocumentCreate(InternalDocumentBase):
     pass
@@ -1497,8 +1497,7 @@ class InternalDocumentCreate(InternalDocumentBase):
 class InternalDocumentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    filename: Optional[str] = None
-    link: Optional[str] = None
+    file: Optional[str] = None   
 
 class InternalDocumentOut(InternalDocumentBase):
     id: int
