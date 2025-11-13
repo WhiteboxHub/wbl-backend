@@ -821,6 +821,10 @@ def get_candidate_details(candidate_id: int, db: Session):
             "marketing_records": [
                 {
                     "start_date": m.start_date.isoformat() if m.start_date else None,
+                    "Marketing Email": m.email,
+                    "Email Password": m.password,
+                    "Linkedin Username": m.linkedin_username,
+                    "Linkedin Password": m.linkedin_passwd,
                     "marketing_manager_name": m.marketing_manager_obj.name if m.marketing_manager_obj else None,
                     "notes": m.notes,
                     "last_modified": m.last_mod_datetime.isoformat()

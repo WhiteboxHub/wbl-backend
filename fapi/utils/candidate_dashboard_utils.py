@@ -78,29 +78,23 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    # Get basic info
     basic_info = _get_basic_candidate_info(candidate)
 
-    # Get journey timeline
     journey = _build_journey_timeline(candidate)
 
-    # Get phase metrics
+    #
     phase_metrics = _build_phase_metrics(candidate, db)
 
-    # Get team information
     team_info = _build_team_info(candidate)
 
-    # Get interview statistics
     interview_stats = _calculate_interview_stats(candidate.interviews)
 
-    # Get recent interviews (last 5)
     recent_interviews = sorted(
         candidate.interviews,
         key=lambda x: x.interview_date or date.min,
         reverse=True
     )[:5]
 
-    # Get quick notes/alerts
     alerts = _generate_candidate_alerts(candidate, db)
 
     return {
@@ -154,7 +148,6 @@ def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
         "placement": {"completed": False, "active": False, "date": None},
     }
 
-    # Preparation phase
     active_prep = _get_active_or_latest(candidate.preparations, "status", "active")
     if active_prep:
         is_active = active_prep.status == "active"
@@ -166,7 +159,6 @@ def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
             "duration_days": _calculate_duration_days(active_prep.start_date),
         }
 
-    # Marketing phase
     active_marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
     if active_marketing:
         is_active = active_marketing.status == "active"
@@ -177,7 +169,6 @@ def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
             "duration_days": _calculate_duration_days(active_marketing.start_date),
         }
 
-    # Placement phase
     active_placement = _get_active_or_latest(candidate.placements, "status", "Active")
     if active_placement:
         journey["placement"] = {
@@ -207,7 +198,6 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
         "placement": None,
     }
 
-    # Preparation metrics
     prep = _get_active_or_latest(candidate.preparations, "status", "active")
     if prep:
         metrics["preparation"] = {
@@ -222,7 +212,6 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "years_of_experience": prep.years_of_experience,
         }
 
-    # Marketing metrics
     marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
     if marketing:
         interview_counts = _calculate_interview_stats(candidate.interviews)
@@ -231,7 +220,6 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "status": marketing.status,
             "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
             "duration_days": _calculate_duration_days(marketing.start_date),
-            # "rating": marketing.rating,
             "priority": marketing.priority,
             "total_interviews": interview_counts["total"],
             "positive_interviews": interview_counts["positive"],
@@ -240,7 +228,6 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "success_rate": interview_counts["success_rate"],
         }
 
-    # Placement metrics
     placement = _get_active_or_latest(candidate.placements, "status", "Active")
     if placement:
         metrics["placement"] = {
@@ -265,7 +252,6 @@ def _build_team_info(candidate: CandidateORM) -> Dict[str, Any]:
         "marketing": {"manager": None, "support": []},
     }
 
-    # Preparation team
     prep = _get_active_or_latest(candidate.preparations, "status", "active")
     if prep:
         if prep.instructor1:
@@ -284,7 +270,6 @@ def _build_team_info(candidate: CandidateORM) -> Dict[str, Any]:
                 "role": "Assistant Instructor"
             })
 
-    # Marketing team
     marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
     if marketing and marketing.marketing_manager_obj:
         team["marketing"]["manager"] = _serialize_employee(marketing.marketing_manager_obj)
@@ -338,7 +323,6 @@ def _generate_candidate_alerts(candidate: CandidateORM, db: Session) -> List[Dic
     """Generate alerts/notifications for candidate"""
     alerts = []
 
-    # Check if preparation is overdue
     prep = _get_active_or_latest(candidate.preparations, "status", "active")
     if prep and prep.status == "active" and prep.target_date:
         if prep.target_date < datetime.now().date():
@@ -348,7 +332,6 @@ def _generate_candidate_alerts(candidate: CandidateORM, db: Session) -> List[Dic
                 "message": f"Preparation target date ({prep.target_date}) has passed",
             })
 
-    # Check for pending interview feedback
     pending_count = sum(1 for i in candidate.interviews if i.feedback == "Pending")
     if pending_count > 5:
         alerts.append({
@@ -357,7 +340,6 @@ def _generate_candidate_alerts(candidate: CandidateORM, db: Session) -> List[Dic
             "message": f"{pending_count} interviews have pending feedback",
         })
 
-    # Check if no recent interviews (marketing phase)
     marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
     if marketing and marketing.status == "active":
         recent_interviews = [
@@ -415,7 +397,6 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
-    # Get auth user info
     authuser = None
     if candidate.email:
         authuser = db.query(AuthUserORM).filter(
@@ -494,13 +475,10 @@ def get_preparation_phase_details(
     if not prep_records:
         raise HTTPException(status_code=404, detail="No preparation records found")
 
-    # Get active or latest
     current_prep = prep_records[0]
 
-    # Parse topics
 
    
-    # Build result
     result = {
         "id": current_prep.id,
         "candidate_id": current_prep.candidate_id,
@@ -526,7 +504,6 @@ def get_preparation_phase_details(
         "last_modified": current_prep.last_mod_datetime.isoformat() if current_prep.last_mod_datetime else None,
     }
 
-    # Add instructors
     if current_prep.instructor1:
         result["instructors"].append({
             **_serialize_employee(current_prep.instructor1),
@@ -546,7 +523,6 @@ def get_preparation_phase_details(
             "position": 3,
         })
 
-    # Include historical records if requested
     if include_inactive and len(prep_records) > 1:
         result["historical_records"] = [
             {
@@ -588,7 +564,6 @@ def get_marketing_phase_details(
 
     current_marketing = marketing_records[0]
 
-    # Get interview statistics
     interviews = (
         db.query(CandidateInterview)
         .filter(CandidateInterview.candidate_id == candidate_id)
@@ -598,7 +573,6 @@ def get_marketing_phase_details(
     interview_stats = _calculate_interview_stats(interviews)
     interview_breakdown = _calculate_interview_breakdown(interviews)
 
-    # Get top companies
     top_companies = _get_top_companies_for_candidate(db, candidate_id)
 
     result = {
@@ -610,7 +584,6 @@ def get_marketing_phase_details(
         "email": current_marketing.email,
         "password": "***********" if current_marketing.password else None,  # Masked
         "google_voice_number": current_marketing.google_voice_number,
-        # "rating": current_marketing.rating,
         "priority": current_marketing.priority,
         "notes": current_marketing.notes,
         "move_to_placement": current_marketing.move_to_placement,
@@ -623,7 +596,6 @@ def get_marketing_phase_details(
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
     }
 
-    # Include historical records if requested
     if include_inactive and len(marketing_records) > 1:
         result["historical_records"] = [
             {
@@ -648,19 +620,16 @@ def _calculate_interview_breakdown(interviews: List[CandidateInterview]) -> Dict
     }
 
     for interview in interviews:
-        # By company type
         ct = interview.company_type or "Unknown"
         breakdown["by_company_type"][ct] = breakdown["by_company_type"].get(ct, 0) + 1
 
-        # By interview type
         it = interview.type_of_interview or "Unknown"
         breakdown["by_interview_type"][it] = breakdown["by_interview_type"].get(it, 0) + 1
 
-        # By mode
+        
         mode = interview.mode_of_interview or "Unknown"
         breakdown["by_mode"][mode] = breakdown["by_mode"].get(mode, 0) + 1
 
-        # By feedback
         feedback = interview.feedback or "Unknown"
         breakdown["by_feedback"][feedback] = breakdown["by_feedback"].get(feedback, 0) + 1
 
@@ -777,34 +746,26 @@ def get_candidate_interview_analytics(db: Session, candidate_id: int) -> Dict[st
             "summary": {"total": 0, "positive": 0, "pending": 0, "negative": 0, "success_rate": 0.0},
         }
 
-    # Basic stats
     summary = _calculate_interview_stats(interviews)
 
-    # Breakdown by various dimensions
     breakdown = _calculate_interview_breakdown(interviews)
 
-    # Success rates by company type
     success_by_company_type = _calculate_success_rates_by_dimension(
         interviews, "company_type"
     )
 
-    # Success rates by interview type
     success_by_interview_type = _calculate_success_rates_by_dimension(
         interviews, "type_of_interview"
     )
 
-    # Success rates by mode
     success_by_mode = _calculate_success_rates_by_dimension(
         interviews, "mode_of_interview"
     )
 
-    # Weekly activity (last 12 weeks)
     weekly_activity = _calculate_weekly_activity(interviews, weeks=12)
 
-    # Top companies
     top_companies = _get_top_companies_for_candidate(db, candidate_id, limit=10)
 
-    # Conversion funnel (if applicable)
     funnel = _calculate_conversion_funnel(interviews)
 
     return {
@@ -838,7 +799,6 @@ def _calculate_success_rates_by_dimension(
         if interview.feedback == "Positive":
             grouped[key]["positive"] += 1
 
-    # Calculate success rates
     result = {}
     for key, counts in grouped.items():
         total = counts["total"]
@@ -862,13 +822,12 @@ def _calculate_weekly_activity(interviews: List[CandidateInterview], weeks: int 
         if i.interview_date and i.interview_date >= cutoff_date
     ]
 
-    # Group by week
+
     weekly_counts = {}
     for interview in recent_interviews:
         if not interview.interview_date:
             continue
 
-        # Get the Monday of the week
         week_start = interview.interview_date - timedelta(days=interview.interview_date.weekday())
         week_key = week_start.isoformat()
 
@@ -877,7 +836,6 @@ def _calculate_weekly_activity(interviews: List[CandidateInterview], weeks: int 
 
         weekly_counts[week_key] += 1
 
-    # Convert to list and sort
     activity = [
         {"week_start": week, "count": count}
         for week, count in sorted(weekly_counts.items())
@@ -931,7 +889,6 @@ def get_candidate_interviews_with_filters(
         .filter(CandidateInterview.candidate_id == candidate_id)
     )
 
-    # Apply filters
     if company_type:
         query = query.filter(CandidateInterview.company_type == company_type)
 
@@ -953,7 +910,6 @@ def get_candidate_interviews_with_filters(
     if end_date:
         query = query.filter(CandidateInterview.interview_date <= end_date)
 
-    # Order and paginate
     interviews = (
         query.order_by(desc(CandidateInterview.interview_date))
         .offset(offset)
@@ -1046,7 +1002,6 @@ def update_candidate_phase_status(
         raise HTTPException(status_code=404, detail="Candidate not found")
 
     if phase == "preparation" and action == "activate":
-        # Check if already exists
         existing = (
             db.query(CandidatePreparation)
             .filter(
@@ -1059,7 +1014,6 @@ def update_candidate_phase_status(
         if existing:
             raise HTTPException(status_code=400, detail="Candidate already has an active preparation record")
 
-        # Create new preparation record
         new_prep = CandidatePreparation(
             candidate_id=candidate_id,
             start_date=datetime.now().date(),
@@ -1072,7 +1026,6 @@ def update_candidate_phase_status(
         return {"message": "Candidate moved to preparation phase", "preparation_id": new_prep.id}
 
     elif phase == "marketing" and action == "activate":
-        # Mark preparation as inactive
         active_prep = (
             db.query(CandidatePreparation)
             .filter(
@@ -1085,7 +1038,6 @@ def update_candidate_phase_status(
         if active_prep:
             active_prep.status = "inactive"
 
-        # Check if marketing already exists
         existing = (
             db.query(CandidateMarketingORM)
             .filter(
@@ -1098,7 +1050,6 @@ def update_candidate_phase_status(
         if existing:
             raise HTTPException(status_code=400, detail="Candidate already has an active marketing record")
 
-        # Create new marketing record
         new_marketing = CandidateMarketingORM(
             candidate_id=candidate_id,
             start_date=datetime.now().date(),
@@ -1111,7 +1062,6 @@ def update_candidate_phase_status(
         return {"message": "Candidate moved to marketing phase", "marketing_id": new_marketing.id}
 
     elif phase == "placement" and action == "activate":
-        # Mark marketing as inactive
         active_marketing = (
             db.query(CandidateMarketingORM)
             .filter(
@@ -1124,7 +1074,6 @@ def update_candidate_phase_status(
         if active_marketing:
             active_marketing.status = "inactive"
 
-        # Check if placement already exists
         existing = (
             db.query(CandidatePlacementORM)
             .filter(
@@ -1137,7 +1086,6 @@ def update_candidate_phase_status(
         if existing:
             raise HTTPException(status_code=400, detail="Candidate already has an active placement record")
 
-        # Create new placement record
         new_placement = CandidatePlacementORM(
             candidate_id=candidate_id,
             placement_date=datetime.now().date(),
@@ -1181,7 +1129,6 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_success_rate": 0.0,
     }
 
-    # Calculate days in each phase
     for prep in candidate.preparations:
         if prep.start_date:
             end_date = prep.target_date or datetime.now().date()
@@ -1195,8 +1142,11 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     if active_placement and active_placement.placement_date:
         stats["days_since_placement"] = _calculate_duration_days(active_placement.placement_date)
 
-    # Interview success rate
     interview_stats = _calculate_interview_stats(candidate.interviews)
     stats["interview_success_rate"] = interview_stats["success_rate"]
 
     return stats
+
+
+
+
