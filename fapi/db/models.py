@@ -577,7 +577,7 @@ class Batch(Base):
 class Recording(Base):
     __tablename__ = "recording"
     id = Column(Integer, primary_key=True, index=True)
-    batchname = Column(String(255))
+    # batchname = Column(String(255))
     description = Column(Text)
     type = Column(String(50))
     classdate = Column(DateTime, nullable=True)

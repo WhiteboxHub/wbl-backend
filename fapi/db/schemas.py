@@ -990,7 +990,7 @@ class CourseSubject(CourseSubjectBase):
 # -----------------------------------------------------Recordings------------------------------------
 
 class RecordingBase(BaseModel):
-    batchname: str
+    #batchname: str
     description: Optional[str] = None
     type: Optional[str] = "class"
     classdate: Optional[datetime] = None

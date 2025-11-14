@@ -14,7 +14,7 @@ def get_all_recordings(db: Session, search: Optional[str] = None):
         filters = []
 
         # Partial match on batchname, subject, description
-        filters.append(Recording.batchname.ilike(f"%{search}%"))
+        # filters.append(Recording.batchname.ilike(f"%{search}%"))
         filters.append(Recording.subject.ilike(f"%{search}%"))
         filters.append(Recording.description.ilike(f"%{search}%"))
 
