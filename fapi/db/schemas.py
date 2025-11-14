@@ -1106,6 +1106,7 @@ class RecordingBase(BaseModel):
     videoid: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
+    backup_url: Optional[str] = None
     new_subject_id: Optional[int] = None
     backup_url: Optional[str] = None 
 
