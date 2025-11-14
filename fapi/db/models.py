@@ -516,6 +516,26 @@ class EmailActivityLogORM(Base):
     )
 # ---------------------------------------------------------------------
 
+# ---------linkedin_activity_log----------------------
+class LinkedInActivityLogORM(Base):
+    __tablename__ = "linkedin_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_email = Column(String(100), nullable=True)
+    activity_type = Column(Enum('extraction', 'connection', name='activity_type'), nullable=False)
+    linkedin_profile_url = Column(String(255), nullable=True)
+    full_name = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    status = Column(Enum('success', 'failed', name='status'), server_default='success')
+    message = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+
 
 class CourseContent(Base):
     __tablename__ = "course_content"

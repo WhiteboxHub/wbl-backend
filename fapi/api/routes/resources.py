@@ -30,7 +30,7 @@ from fapi.utils.resources_utils import (
     fetch_subject_batch_recording,
     fetch_course_batches,
     fetch_session_types_by_team,
-    fetch_sessions_by_type_orm,  # This should work now
+    fetch_sessions_by_type_orm,
     fetch_keyword_presentation,
 )
 from fapi.utils.avatar_dashboard_utils import get_batch_metrics
@@ -38,18 +38,24 @@ from fapi.utils.avatar_dashboard_utils import get_batch_metrics
 router = APIRouter()
 security = HTTPBearer() 
 
-def get_username_from_token(token: str) -> str:
+import jwt
+import os
+
+def extract_role_and_team_from_token(token: str):
     """
-    Extract username from JWT token.
-    This is a simplified version - adapt it to your actual token structure.
+    Extract role and team from JWT token.
     """
     try:
-        # For now, return a default username
-        # You need to implement proper JWT decoding based on your auth system
-        # This should return the actual username from your token
-        return "user"  # Default username
-    except Exception:
-        return "user"
+        # Use the same SECRET_KEY from your config
+        from fapi.core.config import SECRET_KEY
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        role = payload.get("role")
+        team = payload.get("team")
+        return role, team
+    except Exception as e:
+        logging.error(f"Error extracting role and team from token: {e}")
+        return None, None
+
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
@@ -70,19 +76,12 @@ async def get_session_types(
     db: Session = Depends(get_db),
 ):
     token = credentials.credentials
-  
-    # Get username from token
-    username = get_username_from_token(token)
+    
+    # Extract role and team from token
+    role, user_team = extract_role_and_team_from_token(token)
     
     async def _get_types():
-        # Pass the username to the function so it can filter internally
-        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, username)
-        
-        if username == "admin":
-            return all_types
-        else:
-            # Filter out "Internal Sessions" for non-admin users
-            return [t for t in all_types if t != "Internal Sessions"]
+        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, role, user_team)
 
     try:
         types = await _get_types()
@@ -91,6 +90,7 @@ async def get_session_types(
         return {"types": types}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/sessions")
 async def get_sessions(
@@ -101,10 +101,10 @@ async def get_sessions(
     db: Session = Depends(get_db),
 ):
     token = credentials.credentials
-
-    # Get username from token
-    username = get_username_from_token(token)
-
+    
+    # Extract role and team from token
+    role, user_team = extract_role_and_team_from_token(token)
+    
     async def _get_sessions():
         course_name_to_id = {"QA": 1, "UI": 2, "ML": 3}
         course_id = None
@@ -115,13 +115,8 @@ async def get_sessions(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
                 )
-        
-        # If user is not admin and trying to access Internal Sessions, return empty
-        if username != "admin" and session_type == "Internal Sessions":
-            return []
-            
         return await anyio.to_thread.run_sync(
-            fetch_sessions_by_type_orm, db, course_id, session_type, team
+            fetch_sessions_by_type_orm, db, course_id, session_type, team, role, user_team
         )
 
     try:
@@ -141,10 +136,9 @@ async def get_sessions(
             detail=f"Internal error: {str(e)}"
         )
 
+
 @router.get("/materials")
-
 @limiter.limit("15/minute")
-
 async def get_materials(
     request: Request, 
     course: str = Query(..., description="Course name: QA, UI, or ML"),
@@ -191,13 +185,3 @@ def get_recordings(
     except Exception as e:
         logging.error(f"Error fetching recordings: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
-
-@router.get("/batches")
-def get_batches_with_kumar(
-    course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
-    db: Session = Depends(get_db)
-):
-    return fetch_course_batches_with_kumar(course, db)
-
-
-
