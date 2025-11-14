@@ -610,6 +610,7 @@ class Recording(Base):
     subject = Column(String(255))
     filename = Column(String(255))
     # lastmoddatetime = Column(DateTime)
+    backup_url = Column(String(400))
     new_subject_id = Column(Integer, ForeignKey("subject.id"))
 
     subject_rel = relationship("Subject", back_populates="recordings")

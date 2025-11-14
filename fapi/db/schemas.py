@@ -405,6 +405,15 @@ class CandidateMarketingBase(BaseModel):
 class CandidateMarketingCreate(CandidateMarketingBase):
     pass
 
+# class CandidateBase(BaseModel):
+    # id: int
+
+# class MarketingCreate(BaseModel):
+#     candidate_id: Optional[int] = None
+#     instructor1_id: Optional[int] = None
+#     instructor2_id: Optional[int] = None
+#     instructor3_id: Optional[int] = None
+
 
 class CandidateMarketing(CandidateMarketingBase):
     id: int
@@ -515,23 +524,21 @@ class CandidatePreparationBase(BaseModel):
         from_attributes = True
 
 
-class CandidatePreparationCreate(BaseModel):
+
+class CandidatePreparationCreate(CandidatePreparationBase):
+    id: int = Field(..., alias="id")
     candidate_id: int
     start_date: Optional[date] = None
-    status: str = "active"
-    instructor1_id: Optional[int] = None
-    instructor2_id: Optional[int] = None
-    instructor3_id: Optional[int] = None
+    status: str
+    instructor1_id: Optional[int] = Field(None, alias="instructor_1id")
+    instructor2_id: Optional[int] = Field(None, alias="instructor_2id")
+    instructor3_id: Optional[int] = Field(None, alias="instructor_3id")
     rating: Optional[str] = None
     communication: Optional[str] = None
     years_of_experience: Optional[int] = None
     target_date: Optional[date] = None
     notes: Optional[str] = None
-    move_to_mrkt: Optional[bool] = False
-    # linkedin_id: Optional[str] = None
-    github_url: Optional[str] = None
-    resume_url: Optional[str] = None
-
+    candidate: Optional[CandidateBase]  # added line
 
 class CandidatePreparationUpdate(BaseModel):
     start_date: Optional[date] = None
@@ -1049,6 +1056,7 @@ class RecordingBase(BaseModel):
     subject: Optional[str] = None
     filename: Optional[str] = None
     new_subject_id: Optional[int] = None
+    backup_url: Optional[str] = None 
 
 
 class RecordingCreate(RecordingBase):
