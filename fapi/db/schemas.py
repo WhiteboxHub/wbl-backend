@@ -396,8 +396,8 @@ class CandidateMarketingBase(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
-    linkedin_last_run: Optional[datetime] = None
-    linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = "idle"
+    # linkedin_last_run: Optional[datetime] = None
+    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = "idle"
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
     candidate: Optional["CandidateBase"] = None
@@ -429,8 +429,8 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
-    linkedin_last_run: Optional[datetime] = None
-    linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = None
+    # linkedin_last_run: Optional[datetime] = None
+    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 
