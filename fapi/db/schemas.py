@@ -405,15 +405,6 @@ class CandidateMarketingBase(BaseModel):
 class CandidateMarketingCreate(CandidateMarketingBase):
     pass
 
-# class CandidateBase(BaseModel):
-    # id: int
-
-# class MarketingCreate(BaseModel):
-#     candidate_id: Optional[int] = None
-#     instructor1_id: Optional[int] = None
-#     instructor2_id: Optional[int] = None
-#     instructor3_id: Optional[int] = None
-
 
 class CandidateMarketing(CandidateMarketingBase):
     id: int
@@ -436,8 +427,6 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
-    # linkedin_last_run: Optional[datetime] = None
-    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 
@@ -541,6 +530,7 @@ class CandidatePreparationCreate(CandidatePreparationBase):
     target_date: Optional[date] = None
     notes: Optional[str] = None
     candidate: Optional[CandidateBase]  # added line
+
 
 class CandidatePreparationUpdate(BaseModel):
     start_date: Optional[date] = None
@@ -1000,7 +990,6 @@ class PaginatedLinkedInActivityLogs(BaseModel):
 
 
 
-
 # ================================================contact====================================
 
 class ContactForm(BaseModel):
@@ -1109,6 +1098,7 @@ class RecordingBase(BaseModel):
     backup_url: Optional[str] = None
     new_subject_id: Optional[int] = None
     backup_url: Optional[str] = None 
+
 
 
 class RecordingCreate(RecordingBase):

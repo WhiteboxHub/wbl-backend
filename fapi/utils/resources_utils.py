@@ -370,5 +370,7 @@ def fetch_kumar_recordings(
 
     except Exception as e:
         logger.exception(f"Error fetching Kumar recordings: {e}")
+
         raise HTTPException(status_code=500, detail="Error fetching Kumar recordings")
+
 

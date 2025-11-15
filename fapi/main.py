@@ -40,9 +40,8 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-
-
     session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents,linkedin_activity_log
+
 
 
 

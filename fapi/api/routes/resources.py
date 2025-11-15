@@ -185,3 +185,4 @@ def get_recordings(
     except Exception as e:
         logging.error(f"Error fetching recordings: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+

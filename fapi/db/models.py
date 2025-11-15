@@ -514,7 +514,6 @@ class EmailActivityLogORM(Base):
     __table_args__ = (
         UniqueConstraint("email", "activity_date", name="uniq_email_day"),
     )
-# ---------------------------------------------------------------------
 
 # ---------linkedin_activity_log----------------------
 class LinkedInActivityLogORM(Base):
@@ -534,7 +533,6 @@ class LinkedInActivityLogORM(Base):
     status = Column(Enum('success', 'failed', name='status'), server_default='success')
     message = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
 
 
 class CourseContent(Base):
