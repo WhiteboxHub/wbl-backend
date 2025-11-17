@@ -1092,7 +1092,7 @@ class CourseSubject(CourseSubjectBase):
 
 
 class RecordingBase(BaseModel):
-    batchname: str
+    #batchname: str
     description: Optional[str] = None
     type: Optional[str] = "class"
     classdate: Optional[datetime] = None
@@ -1101,6 +1101,7 @@ class RecordingBase(BaseModel):
     subject: Optional[str] = None
     filename: Optional[str] = None
     new_subject_id: Optional[int] = None
+    backup_url: Optional[str] = None
 
 
 class RecordingCreate(RecordingBase):

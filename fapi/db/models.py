@@ -623,7 +623,7 @@ class Batch(Base):
 class Recording(Base):
     __tablename__ = "recording"
     id = Column(Integer, primary_key=True, index=True)
-    batchname = Column(String(255))
+    #batchname = Column(String(255))
     description = Column(Text)
     type = Column(String(50))
     classdate = Column(DateTime, nullable=True)
@@ -632,6 +632,7 @@ class Recording(Base):
     subject = Column(String(255))
     filename = Column(String(255))
     # lastmoddatetime = Column(DateTime)
+    backup_url = Column(String(400))
     new_subject_id = Column(Integer, ForeignKey("subject.id"))
 
     subject_rel = relationship("Subject", back_populates="recordings")
