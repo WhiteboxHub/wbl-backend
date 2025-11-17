@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,EmailActivityLogORM,Recording
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,EmailActivityLogORM,Recording,RecordingBatch
 from fapi.db.schemas import CandidatePreparationMetrics
 import re
 
@@ -545,8 +545,8 @@ def get_combined_email_extraction_summary(db: Session):
 
 def get_classes_per_latest_batches(db: Session, limit: int = 5):
     latest_batches_subq = (
-        db.query(Batch.batchname)
-        .order_by(desc(Batch.startdate), desc(Batch.batchid))
+        db.query(Batch.batchid)
+        .order_by(desc(Batch.startdate))
         .limit(limit)
         .subquery()
     )
@@ -557,17 +557,12 @@ def get_classes_per_latest_batches(db: Session, limit: int = 5):
             func.count(Recording.id).label("classes_count"),
             func.max(Batch.startdate).label("max_startdate")
         )
-        .join(Recording, Recording.batchname == Batch.batchname)
-        .filter(Batch.batchname.in_(latest_batches_subq))
+        .join(RecordingBatch, RecordingBatch.batch_id == Batch.batchid)
+        .join(Recording, Recording.id == RecordingBatch.recording_id)
+        .filter(Batch.batchid.in_(latest_batches_subq))
         .group_by(Batch.batchname)
         .order_by(desc(func.max(Batch.startdate)))
         .all()
     )
 
-    return [
-        {
-            "batchname": r.batchname,
-            "classes_count": r.classes_count
-        }
-        for r in result
-    ]
+    return result
