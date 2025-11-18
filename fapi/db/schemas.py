@@ -946,54 +946,6 @@ class PaginatedEmailActivityLogs(BaseModel):
     per_page: int
     logs: List[EmailActivityLogOut]
 
-# ---------------linkedin_activity_log---------------------
-
-class ActivityType(str, Enum):
-    extraction = "extraction"
-    connection = "connection"
-
-class Status(str, Enum):
-    success = "success"
-    failed = "failed"
-
-class LinkedInActivityLogBase(BaseModel):
-    candidate_id: int
-    source_email: Optional[str] = None
-    activity_type: ActivityType
-    linkedin_profile_url: Optional[str] = None
-    full_name: Optional[str] = None
-    company_name: Optional[str] = None
-    status: Status = Status.success
-    message: Optional[str] = None
-
-class LinkedInActivityLogCreate(LinkedInActivityLogBase):
-    pass
-
-class LinkedInActivityLogUpdate(BaseModel):
-    source_email: Optional[str] = None
-    activity_type: Optional[ActivityType] = None
-    linkedin_profile_url: Optional[str] = None
-    full_name: Optional[str] = None
-    company_name: Optional[str] = None
-    status: Optional[Status] = None
-    message: Optional[str] = None
-
-class LinkedInActivityLogOut(LinkedInActivityLogBase):
-    id: int
-    created_at: datetime
-    candidate_name: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-class PaginatedLinkedInActivityLogs(BaseModel):
-    total: int
-    page: int
-    per_page: int
-    logs: List[LinkedInActivityLogOut]
-
-
-
 
 # ================================================contact====================================
 
