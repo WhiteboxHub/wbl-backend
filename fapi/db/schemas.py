@@ -374,8 +374,6 @@ class CandidateMarketingBase(BaseModel):
     google_voice_number: Optional[str] = None
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
-    # linkedin_last_run: Optional[datetime] = None
-    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = "idle"
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
     candidate: Optional["CandidateBase"] = None
@@ -403,8 +401,6 @@ class CandidateMarketingUpdate(BaseModel):
     google_voice_number: Optional[str] = None
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
-    # linkedin_last_run: Optional[datetime] = None
-    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 

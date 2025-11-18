@@ -1,13 +1,10 @@
 # linkedin_activity_log_utils.py
-
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
-
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
-
 from fapi.db.models import LinkedInActivityLogORM, CandidateMarketingORM, CandidateORM
 from fapi.db.schemas import LinkedInActivityLogCreate, LinkedInActivityLogUpdate
 

@@ -1,12 +1,9 @@
 # routes.py
-
 import logging
 from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Security
 # from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from fapi.db.database import get_db
 from fapi.db.schemas import (
     LinkedInActivityLogCreate,

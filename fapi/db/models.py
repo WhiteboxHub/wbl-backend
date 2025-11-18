@@ -268,8 +268,6 @@ class CandidateMarketingORM(Base):
     google_voice_number = Column(String(100), nullable=True)
     linkedin_username = Column(String(100), nullable=True)
     linkedin_passwd = Column(String(100), nullable=True)
-    # linkedin_last_run = Column(DateTime, nullable=True)
-    # linkedin_status = Column(Enum("idle", "running", "error", "completed"), default="idle")
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
