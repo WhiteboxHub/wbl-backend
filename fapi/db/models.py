@@ -647,14 +647,13 @@ class Session(Base):
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
 
- # -------------------Internal documents--------------------
 
-
+  #-------------------Internal documents--------------------
 class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(150), nullable=False)
-    description = Column(String(500), nullable=True)
-    filename = Column(String(300), nullable=False)
-    link = Column(String(1024), nullable=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    file = Column(String(255))
+
