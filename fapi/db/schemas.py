@@ -1579,24 +1579,20 @@ class ResetPassword(BaseModel):
     new_password: str
 
 
-# ---------------------------------------------internal documents----------------------------
+#---------------------------------------------internal documents----------------------------
+
 class InternalDocumentBase(BaseModel):
     title: str
     description: Optional[str] = None
-    filename: str
-    link: Optional[str] = None
-
+    file: Optional[str] = None    
 
 class InternalDocumentCreate(InternalDocumentBase):
     pass
 
-
 class InternalDocumentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    filename: Optional[str] = None
-    link: Optional[str] = None
-
+    file: Optional[str] = None   
 
 class InternalDocumentOut(InternalDocumentBase):
     id: int
@@ -1604,3 +1600,4 @@ class InternalDocumentOut(InternalDocumentBase):
     model_config = {
         "from_attributes": True
     }
+
