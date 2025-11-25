@@ -133,7 +133,6 @@ def _get_basic_candidate_info(candidate: CandidateORM) -> Dict[str, Any]:
         "notes": candidate.notes,
     }
 
-
 def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
     """Build journey timeline showing progression through phases"""
     journey = {
@@ -155,7 +154,7 @@ def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
             "completed": not is_active,
             "active": is_active,
             "start_date": active_prep.start_date.isoformat() if active_prep.start_date else None,
-            "end_date": active_prep.target_date.isoformat() if active_prep.target_date else None,
+            "end_date": active_prep.target_date.isoformat() if active_prep.target_date else None,  # ✅ Correct
             "duration_days": _calculate_duration_days(active_prep.start_date),
         }
 
@@ -182,7 +181,6 @@ def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
 
     return journey
 
-
 def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]:
     """Build metrics for each phase"""
     metrics = {
@@ -204,11 +202,10 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "id": prep.id,
             "status": prep.status,
             "start_date": prep.start_date.isoformat() if prep.start_date else None,
-            "target_marketing_date": prep.target_date.isoformat() if prep.target_date else None,
+            "target_marketing_date": prep.target_date.isoformat() if prep.target_date else None,  # ✅ This is correct
             "duration_days": _calculate_duration_days(prep.start_date),
             "rating": prep.rating,
             "communication": prep.communication,
-            "rating": prep.rating,
             "years_of_experience": prep.years_of_experience,
         }
 
@@ -243,7 +240,6 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
         }
 
     return metrics
-
 
 def _build_team_info(candidate: CandidateORM) -> Dict[str, Any]:
     """Build team information from candidate relationships"""
@@ -448,14 +444,31 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
     }
 
 
-# ==================== PREPARATION PHASE ====================
+
+
+
+# ==================== PREPARATION PHASE (FIXED) ====================
+
 
 def get_preparation_phase_details(
     db: Session, 
     candidate_id: int, 
     include_inactive: bool = False
 ) -> Dict[str, Any]:
-    """Get preparation phase details"""
+    """Get preparation phase details - returns empty structure if no records"""
+    
+    # First check if candidate exists
+    candidate = (
+        db.query(CandidateORM)
+        .options(joinedload(CandidateORM.batch))
+        .filter(CandidateORM.id == candidate_id)
+        .first()
+    )
+    
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    # Build query for preparation records
     query = (
         db.query(CandidatePreparation)
         .options(
@@ -472,38 +485,47 @@ def get_preparation_phase_details(
 
     prep_records = query.order_by(desc(CandidatePreparation.start_date)).all()
 
+    # Return default structure if no preparation records exist
     if not prep_records:
-        raise HTTPException(status_code=404, detail="No preparation records found")
+        return {
+            "status": "Not Started",
+            "start_date": None,
+            "duration_days": 0,
+            "rating": "N/A",
+            "communication": "N/A",
+            "batch_name": candidate.batch.batchname if candidate.batch else "N/A",
+            "instructors": [],
+            "notes": None,
+            "github": None,
+            "resume": None
+        }
 
     current_prep = prep_records[0]
 
-
-   
+    # Build result with actual preparation data
     result = {
         "id": current_prep.id,
         "candidate_id": current_prep.candidate_id,
         "candidate_name": current_prep.candidate.full_name if current_prep.candidate else None,
-        "batch": current_prep.batch,
-        "batch_name": current_prep.candidate.batch.batchname if current_prep.candidate and current_prep.candidate.batch else None,
+        # REMOVED: "batch": current_prep.batch,  # ❌ This doesn't exist
+        "batch_name": current_prep.candidate.batch.batchname if current_prep.candidate and current_prep.candidate.batch else "N/A",
         "start_date": current_prep.start_date.isoformat() if current_prep.start_date else None,
         "status": current_prep.status,
         "rating": current_prep.rating,
-        "rating": current_prep.rating,
         "communication": current_prep.communication,
         "years_of_experience": current_prep.years_of_experience,
-
-
         "target_date": current_prep.target_date.isoformat() if current_prep.target_date else None,
         "notes": current_prep.notes,
-        "linkedin": current_prep.linkedin,
-        "github": current_prep.github,
-        "resume": current_prep.resume,
+        # FIX: Use correct field names from your model
+        "github": current_prep.github_url,  # Changed from github to github_url
+        "resume": current_prep.resume_url,  # Changed from resume to resume_url
         "move_to_mrkt": current_prep.move_to_mrkt,
         "duration_days": _calculate_duration_days(current_prep.start_date),
         "instructors": [],
         "last_modified": current_prep.last_mod_datetime.isoformat() if current_prep.last_mod_datetime else None,
     }
 
+    # Add instructors
     if current_prep.instructor1:
         result["instructors"].append({
             **_serialize_employee(current_prep.instructor1),
@@ -523,6 +545,7 @@ def get_preparation_phase_details(
             "position": 3,
         })
 
+    # Add historical records if requested
     if include_inactive and len(prep_records) > 1:
         result["historical_records"] = [
             {
@@ -536,15 +559,22 @@ def get_preparation_phase_details(
 
     return result
 
-
-# ==================== MARKETING PHASE ====================
+# ==================== MARKETING PHASE (FIXED) ====================
 
 def get_marketing_phase_details(
     db: Session, 
     candidate_id: int, 
     include_inactive: bool = False
 ) -> Dict[str, Any]:
-    """Get marketing phase details with interview statistics"""
+    """Get marketing phase details - returns empty structure if no records"""
+    
+    # First check if candidate exists
+    candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    # Build query for marketing records
     query = (
         db.query(CandidateMarketingORM)
         .options(
@@ -559,11 +589,7 @@ def get_marketing_phase_details(
 
     marketing_records = query.order_by(desc(CandidateMarketingORM.start_date)).all()
 
-    if not marketing_records:
-        raise HTTPException(status_code=404, detail="No marketing records found")
-
-    current_marketing = marketing_records[0]
-
+    # Get interviews for stats (even if no marketing record)
     interviews = (
         db.query(CandidateInterview)
         .filter(CandidateInterview.candidate_id == candidate_id)
@@ -571,10 +597,25 @@ def get_marketing_phase_details(
     )
 
     interview_stats = _calculate_interview_stats(interviews)
-    interview_breakdown = _calculate_interview_breakdown(interviews)
 
+    # Return default structure if no marketing records exist
+    if not marketing_records:
+        return {
+            "status": "Not Started",
+            "start_date": None,
+            "duration_days": 0,
+            "interview_stats": interview_stats,
+            "interview_breakdown": _calculate_interview_breakdown(interviews) if interviews else {},
+            "top_companies": _get_top_companies_for_candidate(db, candidate_id) if interviews else [],
+        }
+
+    current_marketing = marketing_records[0]
+
+    # Calculate detailed stats
+    interview_breakdown = _calculate_interview_breakdown(interviews)
     top_companies = _get_top_companies_for_candidate(db, candidate_id)
 
+    # Build result with actual marketing data
     result = {
         "id": current_marketing.id,
         "candidate_id": current_marketing.candidate_id,
@@ -587,7 +628,7 @@ def get_marketing_phase_details(
         "priority": current_marketing.priority,
         "notes": current_marketing.notes,
         "move_to_placement": current_marketing.move_to_placement,
-        "resume_url": current_marketing.resume_url,
+        "candidate_resume": current_marketing.candidate_resume,
         "duration_days": _calculate_duration_days(current_marketing.start_date),
         "marketing_manager": _serialize_employee(current_marketing.marketing_manager_obj),
         "interview_stats": interview_stats,
@@ -596,6 +637,7 @@ def get_marketing_phase_details(
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
     }
 
+    # Add historical records if requested
     if include_inactive and len(marketing_records) > 1:
         result["historical_records"] = [
             {
@@ -746,6 +788,7 @@ def get_candidate_interview_analytics(db: Session, candidate_id: int) -> Dict[st
             "summary": {"total": 0, "positive": 0, "pending": 0, "negative": 0, "success_rate": 0.0},
         }
 
+    # Basic stats
     summary = _calculate_interview_stats(interviews)
 
     breakdown = _calculate_interview_breakdown(interviews)
@@ -1150,3 +1193,41 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
 
 
 
+def _get_login_info(db: Session, email: str) -> Dict[str, Any]:
+    """Get login information from authuser table"""
+    if not email:
+        return {
+            "has_account": False,
+            "login_count": 0,
+            "last_login": None,
+            "registered_date": None,
+            "status": "No Account",
+            "total_days_registered": 0
+        }
+    
+    authuser = db.query(AuthUserORM).filter(
+        func.lower(AuthUserORM.uname) == email.lower()
+    ).first()
+    
+    if not authuser:
+        return {
+            "has_account": False,
+            "login_count": 0,
+            "last_login": None,
+            "registered_date": None,
+            "status": "No Account",
+            "total_days_registered": 0
+        }
+    
+    total_days = 0
+    if authuser.registereddate:
+        total_days = (datetime.now().date() - authuser.registereddate.date()).days
+    
+    return {
+        "has_account": True,
+        "login_count": authuser.logincount or 0,
+        "last_login": authuser.lastlogin.isoformat() if authuser.lastlogin else None,
+        "registered_date": authuser.registereddate.isoformat() if authuser.registereddate else None,
+        "status": authuser.status or "active",
+        "total_days_registered": total_days
+    }

@@ -1,4 +1,4 @@
-# wbl-backend/fapi/api/routes/login.py
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -7,10 +7,10 @@ from fapi.utils.auth import authenticate_user
 from fapi.auth import create_access_token
 from fapi.db.schemas import Token
 from fapi.core.config import limiter 
+from fapi.db.models import AuthUserORM
+from fapi.utils.user_utils import get_user_by_username
 
 router = APIRouter()
-
-
 
 @router.post("/login", response_model=Token)
 @limiter.limit("15/minute")
@@ -42,6 +42,16 @@ async def login_for_access_token(
             detail="Invalid username or password.",
         )
 
+    db_user = get_user_by_username(db, user.get("uname"))
+    if db_user:
+
+        db_user.logincount += 1
+        db.commit()
+        db.refresh(db_user)
+        login_count = db_user.logincount
+    else:
+        login_count = 0
+
     access_token = create_access_token(
         data={
             "sub": user.get("uname"),
@@ -52,5 +62,6 @@ async def login_for_access_token(
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "team": user.get("team", "default_team")
+        "team": user.get("team", "default_team"),
+        "login_count": login_count  
     }
