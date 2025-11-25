@@ -367,7 +367,7 @@ class CandidatePlacementORM(Base):
                   'Implementation Partner'), nullable=True)
 
     status = Column(Enum('Active', 'Inactive'), nullable=False)
-    priority = Column(Integer, nullable=True)
+    # priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
