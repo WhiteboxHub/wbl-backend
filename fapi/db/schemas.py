@@ -444,8 +444,8 @@ class CandidatePlacementBase(BaseModel):
     placement_date: date
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
-    status: Literal['Active', 'Inactive']
-    # priority: Optional[int] = 
+    status: Literal['Active', 'Inactive', "Complete", "Fired"]
+    priority: Optional[int] = None
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -471,13 +471,11 @@ class CandidatePlacementUpdate(BaseModel):
     placement_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
-    status: Optional[Literal['Active', 'Inactive']]
+    status: Optional[Literal['Active', 'Inactive', "complete", "fired"]]
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
     notes: Optional[str] = None
-
-
 # ----------------------------------------------------
 
 class InstructorOut(BaseModel):
@@ -1600,4 +1598,3 @@ class InternalDocumentOut(InternalDocumentBase):
     model_config = {
         "from_attributes": True
     }
-

@@ -78,8 +78,7 @@ def get_all_candidates_paginated(
     return {"data": data, "total": total, "page": page, "limit": limit}
 
 
-def get_candidate_by_id(candidate_id: int) -> Dict:
-    db: Session = SessionLocal()
+def get_candidate_by_id(db: Session, candidate_id: int) -> Dict:
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
@@ -87,8 +86,10 @@ def get_candidate_by_id(candidate_id: int) -> Dict:
         data = candidate.__dict__.copy()
         data.pop('_sa_instance_state', None)
         return data
-    finally:
-        db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -268,6 +269,38 @@ def get_marketing_by_candidate_id(candidate_id: int):
         db.close()
 
 
+def get_marketing_by_id(record_id: int):
+    """Get a single marketing record by ID"""
+    db: Session = SessionLocal()
+    try:
+        record = (
+            db.query(CandidateMarketingORM)
+            .options(
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.batch),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3),
+                joinedload(CandidateMarketingORM.marketing_manager_obj),
+            )
+            .filter(CandidateMarketingORM.id == record_id)
+            .first()
+        )
+        
+        if not record:
+            raise HTTPException(status_code=404, detail="Marketing record not found")
+        
+        return serialize_marketing(record)
+    finally:
+        db.close()
+
+
 def create_marketing(payload: CandidateMarketingCreate) -> dict:
     db: Session = SessionLocal()
     try:
@@ -327,7 +360,7 @@ def delete_marketing(record_id: int) -> dict:
     finally:
         db.close()
 
-# ----------------------------------------------------Candidate_Placement---------------------------------
+# # ----------------------------------------------------Candidate_Placement---------------------------------
 
 
 def get_placement_by_id(db: Session, placement_id: int):
@@ -472,6 +505,11 @@ def delete_placement(placement_id: int) -> Dict:
     finally:
         db.close()
 
+
+
+
+
+
 # ----------------------------------------Candidate_Interviews-------------------------------------
 
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
@@ -612,10 +650,10 @@ def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCre
     db_prep = CandidatePreparation(**prep_data.dict(exclude_unset=True))
     db.add(db_prep)
     db.commit()
-    db.refresh(candidate)
+    db.refresh(db_prep)
 
     # Return the full object so it matches the response_model
-    return candidate
+    return db_prep
 
 def get_preparations_by_candidate(db: Session, candidate_id: int):
     results = (
@@ -648,6 +686,27 @@ def get_all_preparations(db: Session):
         )
         .all()
     )
+
+
+def get_preparation_by_id(db: Session, prep_id: int):
+    """Get a single preparation record by ID"""
+    prep = (
+        db.query(CandidatePreparation)
+        .options(
+            joinedload(CandidatePreparation.candidate)
+            .joinedload(CandidateORM.batch),
+            joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidatePreparation.instructor3),
+        )
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
+    )
+    
+    if not prep:
+        raise HTTPException(status_code=404, detail="Preparation record not found")
+    
+    return prep
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()

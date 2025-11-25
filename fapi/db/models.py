@@ -271,6 +271,7 @@ class CandidateMarketingORM(Base):
 
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
+    imap_password = Column(String(100), nullable=True)
     priority = Column(Integer, nullable=True)
     google_voice_number = Column(String(100), nullable=True)
     linkedin_username = Column(String(100), nullable=True)
@@ -362,12 +363,13 @@ class CandidatePlacementORM(Base):
 
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
+    joining_date = Column(Date, nullable=True) 
     placement_date = Column(Date, nullable=False)
     type = Column(Enum('Company', 'Client', 'Vendor',
                   'Implementation Partner'), nullable=True)
 
-    status = Column(Enum('Active', 'Inactive'), nullable=False)
-    # priority = Column(Integer, nullable=True)
+    status = Column(Enum('Active', 'Inactive', 'Complete', 'Fired'), nullable=False) 
+    priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -376,6 +378,8 @@ class CandidatePlacementORM(Base):
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
     candidate = relationship("CandidateORM", back_populates="placements")
+
+
 
 # -------------------------------------- Candidate Preparation -------------------------------
 
@@ -441,8 +445,7 @@ class EmployeeORM(Base):
     instructor = Column(Integer, nullable=True)
     enddate = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    # status = Column(Integer, nullable=True)
-    status = Column(Integer) 
+    status = Column(Integer, nullable=True)
     aadhaar = Column(String(20), nullable=True, unique=True)
 
 
