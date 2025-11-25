@@ -367,7 +367,7 @@ class CandidatePlacementORM(Base):
                   'Implementation Partner'), nullable=True)
 
     status = Column(Enum('Active', 'Inactive'), nullable=False)
-    priority = Column(Integer, nullable=True)
+    # priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -517,6 +517,7 @@ class EmailActivityLogORM(Base):
     __table_args__ = (
         UniqueConstraint("email", "activity_date", name="uniq_email_day"),
     )
+
 
 #---------------------------------------------------------------------
 class CourseContent(Base):

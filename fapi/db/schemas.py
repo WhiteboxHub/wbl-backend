@@ -445,7 +445,7 @@ class CandidatePlacementBase(BaseModel):
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
-    priority: Optional[int] = None
+    # priority: Optional[int] = None
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -945,6 +945,7 @@ class PaginatedEmailActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[EmailActivityLogOut]
+
 
 # ================================================contact====================================
 

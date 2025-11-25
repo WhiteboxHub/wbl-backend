@@ -41,6 +41,7 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents
+    # session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents
 )
 from fapi.utils.permission_gate import enforce_access
 
