@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,EmailActivityLogORM,Recording
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,EmailActivityLogORM,Recording,RecordingBatch
 from fapi.db.schemas import CandidatePreparationMetrics
 import re
 
@@ -80,6 +80,8 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
 
 def get_financial_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
+
+    # Current batch
     current_batch = (
         db.query(Batch)
         .filter(Batch.startdate <= today, Batch.enddate >= today)
@@ -95,12 +97,13 @@ def get_financial_metrics(db: Session) -> Dict[str, Any]:
             .scalar()
             or 0
         )
-    # fee collected in last batch
+
+    # Previous batch
     previous_batch = (
         db.query(Batch)
-        .filter(Batch.startdate < today) 
+        .filter(Batch.startdate < today)
         .order_by(desc(Batch.startdate))
-        .offset(1) 
+        .offset(1)
         .first()
     )
 
@@ -112,21 +115,43 @@ def get_financial_metrics(db: Session) -> Dict[str, Any]:
             .scalar()
             or 0
         )
+        
+    # Top 5 Batches (Zig-Zag Pattern)
+    top_batches = (
+        db.query(
+            Batch.batchname,
+            func.sum(CandidateORM.fee_paid).label("total_fee")
+        )
+        .join(CandidateORM, CandidateORM.batchid == Batch.batchid)
+        .group_by(Batch.batchid)
+        .order_by(desc("total_fee"))
+        .limit(5)
+        .all()
+    )
 
-    # Top 5 Batches by Fee Collection
-    top_batches = db.query(
-        Batch.batchname,
-        func.sum(CandidateORM.fee_paid).label("total_fee")
-    ).join(
-        CandidateORM,
-        CandidateORM.batchid == Batch.batchid
-    ).group_by(Batch.batchid).order_by(
-        desc("total_fee")
-    ).limit(5).all()
+    sorted_batches = list(top_batches) 
+
+    # Zig-Zag: High → Low → High → Low → High
+    pattern_result = []
+    left = 0
+    right = len(sorted_batches) - 1
+    take_high = True
+
+    while left <= right:
+        if take_high:
+            pattern_result.append(sorted_batches[left])
+            left += 1
+        else:
+            pattern_result.append(sorted_batches[right])
+            right -= 1
+        take_high = not take_high
+
     top_batches_list = [
         {"batch_name": name, "total_fee": float(total_fee)}
-        for name, total_fee in top_batches
+        for name, total_fee in pattern_result
     ]
+
+    # Final output
     return {
         "total_fee_current_batch": total_fee_current_batch,
         "fee_collected_previous_batch": total_fee_previous_batch,
@@ -520,8 +545,8 @@ def get_combined_email_extraction_summary(db: Session):
 
 def get_classes_per_latest_batches(db: Session, limit: int = 5):
     latest_batches_subq = (
-        db.query(Batch.batchname)
-        .order_by(desc(Batch.startdate), desc(Batch.batchid))
+        db.query(Batch.batchid)
+        .order_by(desc(Batch.startdate))
         .limit(limit)
         .subquery()
     )
@@ -532,17 +557,12 @@ def get_classes_per_latest_batches(db: Session, limit: int = 5):
             func.count(Recording.id).label("classes_count"),
             func.max(Batch.startdate).label("max_startdate")
         )
-        .join(Recording, Recording.batchname == Batch.batchname)
-        .filter(Batch.batchname.in_(latest_batches_subq))
+        .join(RecordingBatch, RecordingBatch.batch_id == Batch.batchid)
+        .join(Recording, Recording.id == RecordingBatch.recording_id)
+        .filter(Batch.batchid.in_(latest_batches_subq))
         .group_by(Batch.batchname)
         .order_by(desc(func.max(Batch.startdate)))
         .all()
     )
 
-    return [
-        {
-            "batchname": r.batchname,
-            "classes_count": r.classes_count
-        }
-        for r in result
-    ]
+    return result

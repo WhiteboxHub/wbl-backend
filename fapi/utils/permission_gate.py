@@ -6,8 +6,17 @@ ALLOWED_GET_PREFIXES = {
     "/api/session-types",
     "/api/sessions",
     "/api/materials",
-    "/api/recording",
+    "/api/recordings",
     "/api/batches",
+    "/api/referrals",
+    "/api/candidate/placements",
+    "/api/user_dashboard",
+    "/api/candidates/search-names",
+    "/api/interviews",
+    "/api/session",
+    "/api/recording",
+    "/api/materials",
+    "/api/course-contents",
     "/api/referrals",
 
 }
