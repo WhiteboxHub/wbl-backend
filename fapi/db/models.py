@@ -354,6 +354,7 @@ class CandidateInterview(Base):
 
 # -------------------------------------- Candidate Placement -------------------------------
 
+
 class CandidatePlacementORM(Base):
     __tablename__ = "candidate_placement"
 

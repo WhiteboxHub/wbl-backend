@@ -436,7 +436,6 @@ class CandidateMarketingUpdate(BaseModel):
 
 # -----------------------PLACEMENT---------------------------------
 
-
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
