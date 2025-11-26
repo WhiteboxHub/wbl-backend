@@ -520,6 +520,25 @@ class EmailActivityLogORM(Base):
     )
 
 
+# ---------linkedin_activity_log----------------------
+class LinkedInActivityLogORM(Base):
+    __tablename__ = "linkedin_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    candidate_id = Column(
+        Integer,
+        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_email = Column(String(100), nullable=True)
+    activity_type = Column(Enum('extraction', 'connection', name='activity_type'), nullable=False)
+    linkedin_profile_url = Column(String(255), nullable=True)
+    full_name = Column(String(255), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    status = Column(Enum('success', 'failed', name='status'), server_default='success')
+    message = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
 #---------------------------------------------------------------------
 class CourseContent(Base):
     __tablename__ = "course_content"
@@ -654,6 +673,46 @@ class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
     id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(150), nullable=False)
+    description = Column(String(500), nullable=True)
+    filename = Column(String(300), nullable=False)
+    link = Column(String(1024), nullable=True)
+
+
+# -------------------- Job Types --------------------
+class JobTypeORM(Base):
+    __tablename__ = "job_types"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    job_name = Column(String(255), nullable=False)
+    job_description = Column(Text, nullable=True)
+    created_date = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+
+# -------------------- Job Activity Log --------------------
+class JobActivityLogORM(Base):
+    __tablename__ = "job_activity_log"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    job_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
+    employee_id = Column(Integer, ForeignKey("employee.id"), nullable=False)
+    activity_date = Column(Date, nullable=False)
+    activity_count = Column(Integer, default=0)
+    last_mod_date = Column(
+        TIMESTAMP,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp()
+    )
+    json_downloaded = Column(
+        Enum('yes', 'no', name='json_downloaded_enum'), default='no')
+    sql_downloaded = Column(
+        Enum('yes', 'no', name='sql_downloaded_enum'), default='no')
+
+    # Relationships
+    job_type = relationship("JobTypeORM")
+    candidate = relationship("CandidateORM")
+    employee = relationship("EmployeeORM")
     title = Column(String(255), nullable=False)
     description = Column(Text)
     file = Column(String(255))
