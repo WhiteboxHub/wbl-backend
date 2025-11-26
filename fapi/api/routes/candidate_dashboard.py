@@ -302,7 +302,7 @@ def get_candidate_phase_summary_endpoint(
     Returns condensed metrics for:
     - Enrolled phase (date, batch, fee)
     - Preparation phase (duration, ratings, status)
-    - Marketing phase (duration, interview counts, priority)
+    - Marketing phase (duration, interview counts)
     - Placement phase (company, salary, date)
     """
     try:

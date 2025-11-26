@@ -217,7 +217,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "status": marketing.status,
             "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
             "duration_days": _calculate_duration_days(marketing.start_date),
-            "priority": marketing.priority,
+            "priority": getattr(marketing, "priority", None),
             "total_interviews": interview_counts["total"],
             "positive_interviews": interview_counts["positive"],
             "pending_interviews": interview_counts["pending"],
@@ -236,7 +236,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "days_since": _calculate_duration_days(placement.placement_date),
             "base_salary": float(placement.base_salary_offered) if placement.base_salary_offered else None,
             "type": placement.type,
-            "priority": placement.priority,
+           
         }
 
     return metrics
@@ -625,7 +625,7 @@ def get_marketing_phase_details(
         "email": current_marketing.email,
         "password": "***********" if current_marketing.password else None,  # Masked
         "google_voice_number": current_marketing.google_voice_number,
-        "priority": current_marketing.priority,
+        "priority": getattr(current_marketing, "priority", None),
         "notes": current_marketing.notes,
         "move_to_placement": current_marketing.move_to_placement,
         "candidate_resume": current_marketing.candidate_resume,
@@ -750,7 +750,6 @@ def get_placement_phase_details(
             "benefits": active_placement.benefits,
             "fee_paid": float(active_placement.fee_paid) if active_placement.fee_paid else None,
             "notes": active_placement.notes,
-            "priority": active_placement.priority,
             "days_since_placement": _calculate_duration_days(active_placement.placement_date),
             "last_modified": active_placement.last_mod_datetime.isoformat() if active_placement.last_mod_datetime else None,
         },
