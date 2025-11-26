@@ -273,8 +273,7 @@ class CandidateBase(BaseModel):
     enrolled_date: Optional[date] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    status: Optional[Literal['active', 'inactive',
-                             'discontinued', 'break', 'closed']] = None
+    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None
     workstatus: Optional[str] = None
     education: Optional[str] = None
     workexperience: Optional[str] = None
@@ -447,7 +446,7 @@ class CandidatePlacementBase(BaseModel):
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
-    priority: Optional[int] = None
+    # priority: Optional[int] = 
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -947,6 +946,7 @@ class PaginatedEmailActivityLogs(BaseModel):
     per_page: int
     logs: List[EmailActivityLogOut]
 
+
 # ---------------linkedin_activity_log---------------------
 
 class ActivityType(str, Enum):
@@ -993,7 +993,6 @@ class PaginatedLinkedInActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[LinkedInActivityLogOut]
-
 
 
 
@@ -1094,7 +1093,7 @@ class CourseSubject(CourseSubjectBase):
 
 
 class RecordingBase(BaseModel):
-    batchname: str
+    #batchname: str
     description: Optional[str] = None
     type: Optional[str] = "class"
     classdate: Optional[datetime] = None
@@ -1103,6 +1102,8 @@ class RecordingBase(BaseModel):
     subject: Optional[str] = None
     filename: Optional[str] = None
     new_subject_id: Optional[int] = None
+    backup_url: Optional[str] = None
+
 
 
 class RecordingCreate(RecordingBase):
@@ -1628,12 +1629,10 @@ class ResetPassword(BaseModel):
     new_password: str
 
 
-# ---------------------------------------------internal documents----------------------------
 class InternalDocumentBase(BaseModel):
     title: str
     description: Optional[str] = None
-    filename: str
-    link: Optional[str] = None
+    file: Optional[str] = None    
 
 
 class InternalDocumentCreate(InternalDocumentBase):
@@ -1643,8 +1642,7 @@ class InternalDocumentCreate(InternalDocumentBase):
 class InternalDocumentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    filename: Optional[str] = None
-    link: Optional[str] = None
+    file: Optional[str] = None   
 
 
 class InternalDocumentOut(InternalDocumentBase):
@@ -1729,3 +1727,4 @@ class PaginatedJobActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[JobActivityLogOut]
+

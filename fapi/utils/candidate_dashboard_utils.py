@@ -239,7 +239,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "days_since": _calculate_duration_days(placement.placement_date),
             "base_salary": float(placement.base_salary_offered) if placement.base_salary_offered else None,
             "type": placement.type,
-            "priority": placement.priority,
+            # "priority": placement.priority,
         }
 
     return metrics

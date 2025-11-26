@@ -367,7 +367,7 @@ class CandidatePlacementORM(Base):
                   'Implementation Partner'), nullable=True)
 
     status = Column(Enum('Active', 'Inactive'), nullable=False)
-    priority = Column(Integer, nullable=True)
+    # priority = Column(Integer, nullable=True)
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -441,7 +441,8 @@ class EmployeeORM(Base):
     instructor = Column(Integer, nullable=True)
     enddate = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    status = Column(Integer, nullable=True)
+    # status = Column(Integer, nullable=True)
+    status = Column(Integer) 
     aadhaar = Column(String(20), nullable=True, unique=True)
 
 
@@ -623,7 +624,7 @@ class Batch(Base):
 class Recording(Base):
     __tablename__ = "recording"
     id = Column(Integer, primary_key=True, index=True)
-    batchname = Column(String(255))
+    #batchname = Column(String(255))
     description = Column(Text)
     type = Column(String(50))
     classdate = Column(DateTime, nullable=True)
@@ -632,6 +633,7 @@ class Recording(Base):
     subject = Column(String(255))
     filename = Column(String(255))
     # lastmoddatetime = Column(DateTime)
+    backup_url = Column(String(400))
     new_subject_id = Column(Integer, ForeignKey("subject.id"))
 
     subject_rel = relationship("Subject", back_populates="recordings")
@@ -665,9 +667,8 @@ class Session(Base):
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
 
-# -------------------Internal documents--------------------
 
-
+  #-------------------Internal documents--------------------
 class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
@@ -712,3 +713,7 @@ class JobActivityLogORM(Base):
     job_type = relationship("JobTypeORM")
     candidate = relationship("CandidateORM")
     employee = relationship("EmployeeORM")
+    title = Column(String(255), nullable=False)
+    description = Column(Text)
+    file = Column(String(255))
+
