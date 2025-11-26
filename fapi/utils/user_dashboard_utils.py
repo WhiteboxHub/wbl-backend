@@ -1,3 +1,5 @@
+
+
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -7,7 +9,6 @@ from fapi.db.database import SessionLocal, get_db
 from fapi.utils.user_utils import get_user_by_username
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
 
 def get_current_user(
     db: Session = Depends(get_db), 
