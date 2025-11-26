@@ -445,7 +445,8 @@ class EmployeeORM(Base):
     instructor = Column(Integer, nullable=True)
     enddate = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
-    status = Column(Integer, nullable=True)
+    # status = Column(Integer, nullable=True)
+    status = Column(Integer) 
     aadhaar = Column(String(20), nullable=True, unique=True)
 
 

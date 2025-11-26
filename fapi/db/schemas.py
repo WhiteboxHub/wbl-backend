@@ -643,8 +643,11 @@ class CandidateInterviewCreate(BaseModel):
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
 
-    class Config:
-        allow_population_by_field_name = True
+model_config = {
+    "from_attributes": True,
+    "validate_by_name": True
+}
+
 
 
 # --- Update Schema ---
