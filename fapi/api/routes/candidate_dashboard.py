@@ -9,7 +9,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from datetime import date
-
+from fapi.db.models import CandidateORM, AuthUserORM
+from fapi.api.routes import login
+from datetime import datetime
+from sqlalchemy import func
 from fapi.db.database import get_db
 from fapi.db.schemas import (
     CandidateInterviewOut,
@@ -299,7 +302,7 @@ def get_candidate_phase_summary_endpoint(
     Returns condensed metrics for:
     - Enrolled phase (date, batch, fee)
     - Preparation phase (duration, ratings, status)
-    - Marketing phase (duration, interview counts, priority)
+    - Marketing phase (duration, interview counts)
     - Placement phase (company, salary, date)
     """
     try:
@@ -442,3 +445,63 @@ def get_candidate_statistics_endpoint(
     except Exception as e:
         logger.error(f"Error fetching statistics for candidate {candidate_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch statistics: {str(e)}")
+    
+
+
+
+
+@router.get("/{candidate_id}/test-basic")
+def test_basic_candidate_data(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    db: Session = Depends(get_db),
+):
+    """
+    Simple test endpoint to check basic candidate data without complex joins
+    """
+    try:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        
+        if not candidate:
+            return {"error": "Candidate not found"}
+            
+        # Test basic data
+        basic_data = {
+            "success": True,
+            "candidate_id": candidate.id,
+            "full_name": candidate.full_name,
+            "email": candidate.email,
+            "status": candidate.status,
+            "batch_id": candidate.batchid,
+        }
+        
+        # Test relationships one by one
+        try:
+            preparations = candidate.preparations
+            basic_data["preparations_count"] = len(preparations)
+        except Exception as e:
+            basic_data["preparations_error"] = str(e)
+            
+        try:
+            marketing_records = candidate.marketing_records
+            basic_data["marketing_count"] = len(marketing_records)
+        except Exception as e:
+            basic_data["marketing_error"] = str(e)
+            
+        try:
+            placements = candidate.placements
+            basic_data["placements_count"] = len(placements)
+        except Exception as e:
+            basic_data["placements_error"] = str(e)
+            
+        try:
+            interviews = candidate.interviews
+            basic_data["interviews_count"] = len(interviews)
+        except Exception as e:
+            basic_data["interviews_error"] = str(e)
+            
+        return basic_data
+        
+    except Exception as e:
+        logger.error(f"Test endpoint error: {str(e)}", exc_info=True)
+        return {"error": str(e)}
+    
