@@ -392,6 +392,7 @@ class CandidateMarketingBase(BaseModel):
     status: Literal["active", "inactive"] = "active"
     email: Optional[str] = None
     password: Optional[str] = None
+    imap_password: Optional[str] = None
     priority: Optional[int] = None
     google_voice_number: Optional[str] = None
     linkedin_username: Optional[str] = None
@@ -425,6 +426,7 @@ class CandidateMarketingUpdate(BaseModel):
     status: Optional[Literal["active", "inactive"]] = None
     email: Optional[str] = None
     password: Optional[str] = None
+    imap_password: Optional[str] = None
     priority: Optional[int] = None
     google_voice_number: Optional[str] = None
     linkedin_username: Optional[str] = None
