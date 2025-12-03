@@ -691,32 +691,6 @@ class JobTypeORM(Base):
 
 
 # -------------------- Job Activity Log --------------------
-# class JobActivityLogORM(Base):
-#     __tablename__ = "job_activity_log"
-
-#     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-#     job_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
-#     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
-#     employee_id = Column(Integer, ForeignKey("employee.id"), nullable=False)
-#     activity_date = Column(Date, nullable=False)
-#     activity_count = Column(Integer, default=0)
-#     last_mod_date = Column(
-#         TIMESTAMP,
-#         server_default=func.current_timestamp(),
-#         onupdate=func.current_timestamp()
-#     )
-#     json_downloaded = Column(
-#         Enum('yes', 'no', name='json_downloaded_enum'), default='no')
-#     sql_downloaded = Column(
-#         Enum('yes', 'no', name='sql_downloaded_enum'), default='no')
-
-#     # Relationships
-#     job_type = relationship("JobTypeORM")
-#     candidate = relationship("CandidateORM")
-#     employee = relationship("EmployeeORM")
-#     title = Column(String(255), nullable=False)
-#     description = Column(Text)
-#     file = Column(String(255))
 class JobActivityLogORM(Base):
     __tablename__ = "job_activity_log"
 
