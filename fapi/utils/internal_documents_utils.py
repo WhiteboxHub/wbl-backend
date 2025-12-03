@@ -1,4 +1,3 @@
-
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fapi.db.models import InternalDocument
@@ -49,3 +48,4 @@ def delete_document(db: Session, doc_id: int):
     except SQLAlchemyError:
         db.rollback()
         return False
+
