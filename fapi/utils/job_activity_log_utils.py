@@ -314,7 +314,7 @@ def update_job_activity_log(
         db.commit()
         db.refresh(log)
 
-        # Get updated log with related names
+        
         response_data = get_job_activity_log_by_id(db, log_id)
         return response_data
     except SQLAlchemyError as e:
@@ -358,29 +358,31 @@ def get_job_type_by_id(db: Session, job_type_id: int) -> JobTypeORM:
         raise HTTPException(status_code=404, detail="Job type not found")
     return job_type
 
-def create_job_type(db: Session, job_type_data: JobTypeCreate) -> JobTypeORM:
+# def create_job_type(db: Session, job_type_data: JobTypeCreate) -> JobTypeORM:
+#     """Create new job type"""
+#     try:
+#         new_job_type = JobTypeORM(**job_type_data.dict())
+#         db.add(new_job_type)
+#         db.commit()
+#         db.refresh(new_job_type)
+#         return new_job_type
+#     except IntegrityError as e:
+#         db.rollback()
+#         logger.error(f"Integrity error creating job type: {str(e)}")
+#         raise HTTPException(
+#             status_code=400, detail="Job type already exists or constraint violation")
+#     except SQLAlchemyError as e:
+#         db.rollback()
+#         logger.error(f"Failed to create job type: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
+
+def create_job_type(db: Session, job_type_data: JobTypeCreate, employee_name: str) -> JobTypeORM:
     """Create new job type"""
     try:
-        # Auto-generate uid if not provided
         job_type_dict = job_type_data.dict()
-        if not job_type_dict.get('uid'):
-            # Find the next available job code
-            last_job = db.query(JobTypeORM).order_by(JobTypeORM.id.desc()).first()
-            if last_job and last_job.uid:
-                try:
-                    # Extract number from existing uid format like JOB_001
-                    last_num = int(last_job.uid.split('_')[-1])
-                    new_num = last_num + 1
-                except:
-                    new_num = last_job.id + 1
-            else:
-                new_num = 1
-            
-            job_type_dict['uid'] = f"JOB_{new_num:03d}"
         
-        # Set default values
-        if not job_type_dict.get('lmuid'):
-            job_type_dict['lmuid'] = 'System'
+        # Set lmuid to employee name (from current_user.fullname)
+        job_type_dict['lmuid'] = employee_name
         
         new_job_type = JobTypeORM(**job_type_dict)
         db.add(new_job_type)
@@ -397,7 +399,32 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate) -> JobTypeORM:
         logger.error(f"Failed to create job type: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
 
-def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate) -> JobTypeORM:
+
+# def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate) -> JobTypeORM:
+#     """Update job type"""
+#     fields = update_data.dict(exclude_unset=True)
+
+#     if not fields:
+#         raise HTTPException(status_code=400, detail="No data to update")
+
+#     job_type = db.query(JobTypeORM).filter(
+#         JobTypeORM.id == job_type_id).first()
+#     if not job_type:
+#         raise HTTPException(status_code=404, detail="Job type not found")
+
+#     try:
+#         for key, value in fields.items():
+#             setattr(job_type, key, value)
+
+#         db.commit()
+#         db.refresh(job_type)
+#         return job_type
+#     except SQLAlchemyError as e:
+#         db.rollback()
+#         logger.error(f"Failed to update job type: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, employee_name: str) -> JobTypeORM:
     """Update job type"""
     fields = update_data.dict(exclude_unset=True)
 
@@ -410,9 +437,8 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate) -
         raise HTTPException(status_code=404, detail="Job type not found")
 
     try:
-        # Update lmuid if not provided in update
-        if 'lmuid' not in fields:
-            fields['lmuid'] = 'System'
+        # Always update lmuid to current employee name
+        job_type.lmuid = employee_name
         
         for key, value in fields.items():
             setattr(job_type, key, value)
@@ -432,8 +458,6 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         JobTypeORM.id == job_type_id).first()
     if not job_type:
         raise HTTPException(status_code=404, detail="Job type not found")
-
-    # Check if job type is being used in job activity logs
     logs_count = db.query(JobActivityLogORM).filter(
         JobActivityLogORM.job_id == job_type_id).count()
     if logs_count > 0:

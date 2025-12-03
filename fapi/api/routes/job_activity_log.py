@@ -16,6 +16,9 @@ from fapi.db.schemas import (
 )
 from fapi.utils import job_activity_log_utils
 
+from fapi.utils.user_dashboard_utils import get_current_user
+from fapi.db.models import AuthUserORM
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -113,25 +116,44 @@ def get_job_type(
     return job_activity_log_utils.get_job_type_by_id(db, job_type_id)
 
 
+# @router.post("/job-types", response_model=JobTypeOut)
+# def create_job_type(
+#     job_type_data: JobTypeCreate,
+#     db: Session = Depends(get_db),
+#     credentials: HTTPAuthorizationCredentials = Security(security)
+# ):
+#     """Create new job type"""
+#     return job_activity_log_utils.create_job_type(db, job_type_data)
+
 @router.post("/job-types", response_model=JobTypeOut)
 def create_job_type(
     job_type_data: JobTypeCreate,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Create new job type"""
-    return job_activity_log_utils.create_job_type(db, job_type_data)
+    return job_activity_log_utils.create_job_type(db, job_type_data, current_user.fullname)
 
+
+# @router.put("/job-types/{job_type_id}", response_model=JobTypeOut)
+# def update_job_type(
+#     job_type_id: int = Path(..., gt=0),
+#     update_data: JobTypeUpdate = ...,
+#     db: Session = Depends(get_db),
+#     credentials: HTTPAuthorizationCredentials = Security(security)
+# ):
+#     """Update job type"""
+#     return job_activity_log_utils.update_job_type(db, job_type_id, update_data)
 
 @router.put("/job-types/{job_type_id}", response_model=JobTypeOut)
 def update_job_type(
     job_type_id: int = Path(..., gt=0),
     update_data: JobTypeUpdate = ...,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Update job type"""
-    return job_activity_log_utils.update_job_type(db, job_type_id, update_data)
+    return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user.fullname)
 
 
 @router.delete("/job-types/{job_type_id}")
