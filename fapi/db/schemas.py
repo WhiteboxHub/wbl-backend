@@ -1660,7 +1660,6 @@ class JobTypeBase(BaseModel):
     job_name: str
     job_owner: Optional[str] = None
     job_description: Optional[str] = None
-    # lmuid: Optional[str] = None
     lmuid: Optional[int] = None
     notes: Optional[str] = None
 
@@ -1681,7 +1680,9 @@ class JobTypeUpdate(BaseModel):
 class JobTypeOut(JobTypeBase):
     id: int
     created_date: Optional[str] = None
-    lmdt: Optional[str] = None
+    lmdt: Optional[str] = None    
+    lmuid_name: Optional[str] = None
+
 
     @field_validator("created_date", "lmdt", mode="before")
     def format_timestamp(cls, v):

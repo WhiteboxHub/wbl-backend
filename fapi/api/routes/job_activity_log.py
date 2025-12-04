@@ -120,7 +120,6 @@ def create_job_type(
     current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Create new job type"""
-    # return job_activity_log_utils.create_job_type(db, job_type_data, current_user.fullname)
     return job_activity_log_utils.create_job_type(db, job_type_data, current_user)
 
 
@@ -133,7 +132,6 @@ def update_job_type(
     current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Update job type"""
-    # return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user.fullname)
     return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user)
 
 

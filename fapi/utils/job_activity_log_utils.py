@@ -342,14 +342,39 @@ def delete_job_activity_log(db: Session, log_id: int) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
-def get_all_job_types(db: Session) -> List[JobTypeORM]:
-    """Get all job types"""
+# def get_all_job_types(db: Session) -> List[JobTypeORM]:
+#     """Get all job types"""
+#     try:
+#         return db.query(JobTypeORM).order_by(JobTypeORM.id).all()
+#     except SQLAlchemyError as e:
+#         logger.error(f"Failed to fetch job types: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
+
+def get_all_job_types(db: Session):
+    """Get all job types with employee name (lmuid_name)"""
     try:
-        return db.query(JobTypeORM).order_by(JobTypeORM.id).all()
+        rows = (
+            db.query(
+                JobTypeORM,
+                EmployeeORM.name.label("lmuid_name")
+            )
+            .outerjoin(EmployeeORM, EmployeeORM.id == JobTypeORM.lmuid)
+            .order_by(JobTypeORM.id)
+            .all()
+        )
+
+        result = []
+        for job_type, lmuid_name in rows:
+            item = job_type.__dict__.copy()
+            item.pop("_sa_instance_state", None)
+            item["lmuid_name"] = lmuid_name
+            result.append(item)
+
+        return result
+
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch job types: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
-
 
 def get_job_type_by_id(db: Session, job_type_id: int) -> JobTypeORM:
     """Get single job type by ID"""
@@ -386,11 +411,16 @@ from fapi.db.models import EmployeeORM  # ensure imported
 
 def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
     """Create new job type with employee.id stored in lmuid"""
+    print("Current user uname:", current_user.uname)
 
     # 1️⃣ Find employee in employee table
     employee = db.query(EmployeeORM).filter(
-        EmployeeORM.name == current_user.fullname
+        # EmployeeORM.name == current_user.fullname
+        EmployeeORM.email == current_user.uname
+
     ).first()
+    print("Matched employee:", employee)
+
 
     if not employee:
         raise HTTPException(
@@ -454,7 +484,8 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
 
     # 1️⃣ Find employee record
     employee = db.query(EmployeeORM).filter(
-        EmployeeORM.name == current_user.fullname
+        # EmployeeORM.name == current_user.fullname
+        EmployeeORM.email == current_user.uname
     ).first()
 
     if not employee:
