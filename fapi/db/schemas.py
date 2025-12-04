@@ -1673,7 +1673,7 @@ class JobTypeUpdate(BaseModel):
     job_name: Optional[str] = None
     job_owner: Optional[str] = None
     job_description: Optional[str] = None
-    lmuid: Optional[str] = None
+    # lmuid: Optional[str] = None
     notes: Optional[str] = None
 
 

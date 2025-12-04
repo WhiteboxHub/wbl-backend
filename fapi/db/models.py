@@ -269,7 +269,7 @@ class CandidateMarketingORM(Base):
     marketing_manager = Column(
         Integer, ForeignKey("employee.id"), nullable=True)
     
-    imap_password = Column(String(100), nullable=True)
+    imap_password = Column(String(50), nullable=True)
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
     priority = Column(Integer, nullable=True)
@@ -683,7 +683,7 @@ class JobTypeORM(Base):
     __tablename__ = "job_types"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    uid = Column(String(50), nullable=True, index=True)  # Job Type Code
+    uid = Column(String(50), nullable=True, index=True) 
     job_name = Column(String(255), nullable=False)
     job_owner = Column(String(255), nullable=True)
     job_description = Column(Text, nullable=True)

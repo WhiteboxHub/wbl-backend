@@ -6,7 +6,6 @@ from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
-
 from fapi.db.models import JobActivityLogORM, JobTypeORM, CandidateORM, EmployeeORM
 from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeCreate, JobTypeUpdate
 
@@ -358,24 +357,6 @@ def get_job_type_by_id(db: Session, job_type_id: int) -> JobTypeORM:
         raise HTTPException(status_code=404, detail="Job type not found")
     return job_type
 
-# def create_job_type(db: Session, job_type_data: JobTypeCreate) -> JobTypeORM:
-#     """Create new job type"""
-#     try:
-#         new_job_type = JobTypeORM(**job_type_data.dict())
-#         db.add(new_job_type)
-#         db.commit()
-#         db.refresh(new_job_type)
-#         return new_job_type
-#     except IntegrityError as e:
-#         db.rollback()
-#         logger.error(f"Integrity error creating job type: {str(e)}")
-#         raise HTTPException(
-#             status_code=400, detail="Job type already exists or constraint violation")
-#     except SQLAlchemyError as e:
-#         db.rollback()
-#         logger.error(f"Failed to create job type: {str(e)}")
-#         raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
-
 def create_job_type(db: Session, job_type_data: JobTypeCreate, employee_name: str) -> JobTypeORM:
     """Create new job type"""
     try:
@@ -398,31 +379,6 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, employee_name: st
         db.rollback()
         logger.error(f"Failed to create job type: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
-
-
-# def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate) -> JobTypeORM:
-#     """Update job type"""
-#     fields = update_data.dict(exclude_unset=True)
-
-#     if not fields:
-#         raise HTTPException(status_code=400, detail="No data to update")
-
-#     job_type = db.query(JobTypeORM).filter(
-#         JobTypeORM.id == job_type_id).first()
-#     if not job_type:
-#         raise HTTPException(status_code=404, detail="Job type not found")
-
-#     try:
-#         for key, value in fields.items():
-#             setattr(job_type, key, value)
-
-#         db.commit()
-#         db.refresh(job_type)
-#         return job_type
-#     except SQLAlchemyError as e:
-#         db.rollback()
-#         logger.error(f"Failed to update job type: {str(e)}")
-#         raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, employee_name: str) -> JobTypeORM:
     """Update job type"""
