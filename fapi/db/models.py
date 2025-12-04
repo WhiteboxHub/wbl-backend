@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
+from sqlalchemy import Integer  # add import at top
 
 
 
@@ -688,7 +689,9 @@ class JobTypeORM(Base):
     job_owner = Column(String(255), nullable=True)
     job_description = Column(Text, nullable=True)
     lmdt = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-    lmuid = Column(String(50), nullable=True)
+    # lmuid = Column(String(50), nullable=True)
+    
+    lmuid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     created_date = Column(TIMESTAMP, server_default=func.current_timestamp())
 

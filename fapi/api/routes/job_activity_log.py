@@ -1,4 +1,4 @@
-
+# WBL_Backend\fapi\api\routes\job_activity_log.py
 from fapi.utils.user_dashboard_utils import get_current_user
 from fapi.db.models import AuthUserORM
 import logging
@@ -120,7 +120,9 @@ def create_job_type(
     current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Create new job type"""
-    return job_activity_log_utils.create_job_type(db, job_type_data, current_user.fullname)
+    # return job_activity_log_utils.create_job_type(db, job_type_data, current_user.fullname)
+    return job_activity_log_utils.create_job_type(db, job_type_data, current_user)
+
 
 
 @router.put("/job-types/{job_type_id}", response_model=JobTypeOut)
@@ -131,7 +133,8 @@ def update_job_type(
     current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Update job type"""
-    return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user.fullname)
+    # return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user.fullname)
+    return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user)
 
 
 @router.delete("/job-types/{job_type_id}")

@@ -1660,7 +1660,8 @@ class JobTypeBase(BaseModel):
     job_name: str
     job_owner: Optional[str] = None
     job_description: Optional[str] = None
-    lmuid: Optional[str] = None
+    # lmuid: Optional[str] = None
+    lmuid: Optional[int] = None
     notes: Optional[str] = None
 
 
