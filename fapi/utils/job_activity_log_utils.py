@@ -1,3 +1,5 @@
+# WBL_Backend\fapi\utils\job_activity_log_utils.py
+from fapi.db.models import EmployeeORM
 
 from typing import List, Dict, Any, Optional
 from datetime import date, datetime
@@ -6,7 +8,6 @@ from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
-
 from fapi.db.models import JobActivityLogORM, JobTypeORM, CandidateORM, EmployeeORM
 from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeCreate, JobTypeUpdate
 
@@ -314,7 +315,7 @@ def update_job_activity_log(
         db.commit()
         db.refresh(log)
 
-        # Get updated log with related names
+        
         response_data = get_job_activity_log_by_id(db, log_id)
         return response_data
     except SQLAlchemyError as e:
@@ -340,15 +341,31 @@ def delete_job_activity_log(db: Session, log_id: int) -> Dict[str, str]:
         logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
-
-def get_all_job_types(db: Session) -> List[JobTypeORM]:
-    """Get all job types"""
+def get_all_job_types(db: Session):
+    """Get all job types with employee name (lmuid_name)"""
     try:
-        return db.query(JobTypeORM).order_by(JobTypeORM.id).all()
+        rows = (
+            db.query(
+                JobTypeORM,
+                EmployeeORM.name.label("lmuid_name")
+            )
+            .outerjoin(EmployeeORM, EmployeeORM.id == JobTypeORM.lmuid)
+            .order_by(JobTypeORM.id)
+            .all()
+        )
+
+        result = []
+        for job_type, lmuid_name in rows:
+            item = job_type.__dict__.copy()
+            item.pop("_sa_instance_state", None)
+            item["lmuid_name"] = lmuid_name
+            result.append(item)
+
+        return result
+
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch job types: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
-
 
 def get_job_type_by_id(db: Session, job_type_id: int) -> JobTypeORM:
     """Get single job type by ID"""
@@ -359,48 +376,68 @@ def get_job_type_by_id(db: Session, job_type_id: int) -> JobTypeORM:
     return job_type
 
 
-def create_job_type(db: Session, job_type_data: JobTypeCreate) -> JobTypeORM:
-    """Create new job type"""
+from fapi.db.models import EmployeeORM  # ensure imported
+
+def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
+    """Create new job type with employee.id stored in lmuid"""
+    print("Current user uname:", current_user.uname)
+
+    # Find employee in employee table
+    employee = db.query(EmployeeORM).filter(
+        EmployeeORM.email == current_user.uname
+
+    ).first()
+    print("Matched employee:", employee)
+
+
+    if not employee:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Employee not found for logged-in user: {current_user.fullname}"
+        )
+
     try:
-        new_job_type = JobTypeORM(**job_type_data.dict())
+        
+        job_type_dict = job_type_data.dict()
+        job_type_dict["lmuid"] = employee.id
+        new_job_type = JobTypeORM(**job_type_dict)
         db.add(new_job_type)
         db.commit()
         db.refresh(new_job_type)
+
         return new_job_type
+
     except IntegrityError as e:
         db.rollback()
-        logger.error(f"Integrity error creating job type: {str(e)}")
+        raise HTTPException(status_code=400, detail="Foreign key error / job type exists")
+
+def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, current_user):
+    """Update job type and update lmuid with employee.id"""
+
+    # Find employee record
+    employee = db.query(EmployeeORM).filter(
+        EmployeeORM.email == current_user.uname
+    ).first()
+
+    if not employee:
         raise HTTPException(
-            status_code=400, detail="Job type already exists or constraint violation")
-    except SQLAlchemyError as e:
-        db.rollback()
-        logger.error(f"Failed to create job type: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Create failed: {str(e)}")
+            status_code=400,
+            detail=f"Employee not found for logged-in user: {current_user.fullname}"
+        )
 
-
-def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate) -> JobTypeORM:
-    """Update job type"""
     fields = update_data.dict(exclude_unset=True)
 
-    if not fields:
-        raise HTTPException(status_code=400, detail="No data to update")
-
-    job_type = db.query(JobTypeORM).filter(
-        JobTypeORM.id == job_type_id).first()
+    job_type = db.query(JobTypeORM).filter(JobTypeORM.id == job_type_id).first()
     if not job_type:
         raise HTTPException(status_code=404, detail="Job type not found")
+    job_type.lmuid = employee.id
 
-    try:
-        for key, value in fields.items():
-            setattr(job_type, key, value)
+    for key, value in fields.items():
+        setattr(job_type, key, value)
 
-        db.commit()
-        db.refresh(job_type)
-        return job_type
-    except SQLAlchemyError as e:
-        db.rollback()
-        logger.error(f"Failed to update job type: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+    db.commit()
+    db.refresh(job_type)
+    return job_type
 
 
 def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
@@ -409,8 +446,6 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         JobTypeORM.id == job_type_id).first()
     if not job_type:
         raise HTTPException(status_code=404, detail="Job type not found")
-
-    # Check if job type is being used in job activity logs
     logs_count = db.query(JobActivityLogORM).filter(
         JobActivityLogORM.job_id == job_type_id).count()
     if logs_count > 0:

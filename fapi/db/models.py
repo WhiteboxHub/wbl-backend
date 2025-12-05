@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
+from sqlalchemy import Integer  # add import at top
 
 
 
@@ -269,7 +270,7 @@ class CandidateMarketingORM(Base):
     marketing_manager = Column(
         Integer, ForeignKey("employee.id"), nullable=True)
     
-    imap_password = Column(String(100), nullable=True)
+    imap_password = Column(String(50), nullable=True)
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
     priority = Column(Integer, nullable=True)
@@ -277,8 +278,6 @@ class CandidateMarketingORM(Base):
     linkedin_username = Column(String(100), nullable=True)
     linkedin_passwd = Column(String(100), nullable=True)
     linkedin_premium_end_date = Column(Date, nullable=True)
-    # linkedin_last_run = Column(DateTime, nullable=True)
-    # linkedin_status = Column(Enum("idle", "running", "error", "completed"), default="idle")
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
@@ -685,38 +684,17 @@ class JobTypeORM(Base):
     __tablename__ = "job_types"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    uid = Column(String(50), nullable=True, index=True) 
     job_name = Column(String(255), nullable=False)
+    job_owner = Column(String(255), nullable=True)
     job_description = Column(Text, nullable=True)
+    lmdt = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    lmuid = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
     created_date = Column(TIMESTAMP, server_default=func.current_timestamp())
 
 
 # -------------------- Job Activity Log --------------------
-# class JobActivityLogORM(Base):
-#     __tablename__ = "job_activity_log"
-
-#     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-#     job_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
-#     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
-#     employee_id = Column(Integer, ForeignKey("employee.id"), nullable=False)
-#     activity_date = Column(Date, nullable=False)
-#     activity_count = Column(Integer, default=0)
-#     last_mod_date = Column(
-#         TIMESTAMP,
-#         server_default=func.current_timestamp(),
-#         onupdate=func.current_timestamp()
-#     )
-#     json_downloaded = Column(
-#         Enum('yes', 'no', name='json_downloaded_enum'), default='no')
-#     sql_downloaded = Column(
-#         Enum('yes', 'no', name='sql_downloaded_enum'), default='no')
-
-#     # Relationships
-#     job_type = relationship("JobTypeORM")
-#     candidate = relationship("CandidateORM")
-#     employee = relationship("EmployeeORM")
-#     title = Column(String(255), nullable=False)
-#     description = Column(Text)
-#     file = Column(String(255))
 class JobActivityLogORM(Base):
     __tablename__ = "job_activity_log"
 

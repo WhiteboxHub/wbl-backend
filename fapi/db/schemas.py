@@ -398,8 +398,6 @@ class CandidateMarketingBase(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
-    # linkedin_last_run: Optional[datetime] = None
-    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = "idle"
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
     candidate: Optional["CandidateBase"] = None
@@ -432,8 +430,6 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
-    # linkedin_last_run: Optional[datetime] = None
-    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 
@@ -650,8 +646,11 @@ class CandidateInterviewCreate(BaseModel):
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
 
-    class Config:
-        allow_population_by_field_name = True
+model_config = {
+    "from_attributes": True,
+    "validate_by_name": True
+}
+
 
 
 # --- Update Schema ---
@@ -1657,8 +1656,12 @@ class InternalDocumentOut(InternalDocumentBase):
 
 # -------------------- Job Types Schemas --------------------
 class JobTypeBase(BaseModel):
+    uid: Optional[str] = None  
     job_name: str
+    job_owner: Optional[str] = None
     job_description: Optional[str] = None
+    lmuid: Optional[int] = None
+    notes: Optional[str] = None
 
 
 class JobTypeCreate(JobTypeBase):
@@ -1666,20 +1669,27 @@ class JobTypeCreate(JobTypeBase):
 
 
 class JobTypeUpdate(BaseModel):
+    uid: Optional[str] = None  
     job_name: Optional[str] = None
+    job_owner: Optional[str] = None
     job_description: Optional[str] = None
+    # lmuid: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class JobTypeOut(JobTypeBase):
     id: int
     created_date: Optional[str] = None
+    lmdt: Optional[str] = None    
+    lmuid_name: Optional[str] = None
 
-    @field_validator("created_date", mode="before")
-    def format_created_date(cls, v):
+
+    @field_validator("created_date", "lmdt", mode="before")
+    def format_timestamp(cls, v):
         if v is None:
             return None
         if isinstance(v, datetime):
-            return v.strftime("%Y-%m-%d")
+            return v.strftime("%Y-%m-%d %H:%M:%S")
         if isinstance(v, date):
             return v.strftime("%Y-%m-%d")
         return str(v).split()[0] if v else None

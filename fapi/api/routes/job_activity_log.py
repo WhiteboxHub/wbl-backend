@@ -1,10 +1,11 @@
+# WBL_Backend\fapi\api\routes\job_activity_log.py
+from fapi.utils.user_dashboard_utils import get_current_user
+from fapi.db.models import AuthUserORM
 import logging
 from typing import List
-
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from fapi.db.database import get_db
 from fapi.db.schemas import (
     JobActivityLogCreate,
@@ -112,15 +113,15 @@ def get_job_type(
     """Get single job type by ID"""
     return job_activity_log_utils.get_job_type_by_id(db, job_type_id)
 
-
 @router.post("/job-types", response_model=JobTypeOut)
 def create_job_type(
     job_type_data: JobTypeCreate,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Create new job type"""
-    return job_activity_log_utils.create_job_type(db, job_type_data)
+    return job_activity_log_utils.create_job_type(db, job_type_data, current_user)
+
 
 
 @router.put("/job-types/{job_type_id}", response_model=JobTypeOut)
@@ -128,10 +129,10 @@ def update_job_type(
     job_type_id: int = Path(..., gt=0),
     update_data: JobTypeUpdate = ...,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Update job type"""
-    return job_activity_log_utils.update_job_type(db, job_type_id, update_data)
+    return job_activity_log_utils.update_job_type(db, job_type_id, update_data, current_user)
 
 
 @router.delete("/job-types/{job_type_id}")
