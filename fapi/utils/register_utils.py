@@ -15,11 +15,7 @@ def combine_notes(experience: str, education: str, specialization: str, referby:
     return "; ".join(p for p in parts if p)
 
 def create_user_and_lead(db: Session, user: UserRegistration):
-    """
-    Creates both AuthUserORM and LeadORM records
-    """
     uname = user.uname.lower().strip()
-
     # Check duplicates
     if db.query(AuthUserORM).filter_by(uname=uname).first():
         raise HTTPException(status_code=409, detail="User already exists. Please use a different email")
