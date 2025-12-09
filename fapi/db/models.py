@@ -365,6 +365,7 @@ class CandidatePlacementORM(Base):
     type = Column(Enum('Company', 'Client', 'Vendor',
                   'Implementation Partner'), nullable=True)
 
+
     status = Column(Enum('Active', 'Inactive',"Complete","Fired","did not take off"), nullable=False)
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -717,31 +718,6 @@ class JobActivityLogORM(Base):
     employee = relationship("EmployeeORM")
 
 ###_--------------------------------------------
-
-# class AmountCollectedEnum(str, enum.Enum):
-#     yes = "yes"
-#     no = "no"
-
-# class PlacementFeeCollection(Base):
-#     __tablename__ = "placement_fee_collection"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     placement_id = Column(Integer, nullable=False, index=True)
-#     installment_id = Column(Integer, nullable=False)
-#     deposit_date = Column(Date, nullable=False)
-#     deposit_amount = Column(Float, nullable=False)  # Changed to Float
-#     amount_collected = Column(Enum(AmountCollectedEnum), default=AmountCollectedEnum.no)
-#     lastmod_user_id = Column(Integer, nullable=False)
-#     notes = Column(Text, nullable=True)
-#     last_mod_datetime = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    
-#     def __repr__(self):
-#         return f"<PlacementFeeCollection(id={self.id}, placement_id={self.placement_id}, amount={self.deposit_amount})>"
-
-
-
-
-
 class PlacementFeeCollectionORM(Base):
     __tablename__ = "placement_fee_collection"
     
@@ -752,9 +728,4 @@ class PlacementFeeCollectionORM(Base):
     deposit_amount = Column(Float, nullable=False)
     amount_collected = Column(String(3), default="no", nullable=False)
     lastmod_user_id = Column(Integer, nullable=False)
-    # Temporarily comment out these columns until they exist in DB
-    # notes = Column(Text, nullable=True)
-    # last_mod_datetime = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-    # Relationship
     placement = relationship("CandidatePlacementORM", backref="fee_collections")

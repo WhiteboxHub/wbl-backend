@@ -1734,54 +1734,18 @@ class PaginatedJobActivityLogs(BaseModel):
 
 
 
-class AmountCollectedEnum(str, Enum):
-    yes = "yes"
-    no = "no"
-
-class PlacementFeeCollectionBase(BaseModel):
-    placement_id: int
-    installment_id: int
-    deposit_date: date
-    deposit_amount: str
-    amount_collected: Optional[AmountCollectedEnum] = AmountCollectedEnum.no
-    lastmod_user_id: int
-    notes: Optional[str] = None
-
-class PlacementFeeCollectionCreate(PlacementFeeCollectionBase):
-    pass
-
-class PlacementFeeCollectionUpdate(BaseModel):
-    placement_id: Optional[int] = None
-    installment_id: Optional[int] = None
-    deposit_date: Optional[date] = None
-    deposit_amount: Optional[str] = None
-    amount_collected: Optional[AmountCollectedEnum] = None
-    lastmod_user_id: Optional[int] = None
-    notes: Optional[str] = None
-
-class PlacementFeeCollection(PlacementFeeCollectionBase):
-    id: int
-
-    class Config:
-        from_attributes = True  # Pydantic v2
-
-
-
-
-
-
 ##-------------------------------------------------
 
 
 
 class PlacementFeeCollectionBase(BaseModel):
-    placement_id: int = Field(..., gt=0, description="ID of the placement")
-    installment_id: int = Field(..., gt=0, description="Installment number")
-    deposit_date: date = Field(..., description="Date when deposit was made")
-    deposit_amount: float = Field(..., gt=0, description="Amount deposited")
-    amount_collected: str = Field(default="no", description="Whether amount was collected (yes/no)")
-    lastmod_user_id: int = Field(..., gt=0, description="ID of user who last modified")
-    notes: Optional[str] = Field(None, description="Additional notes")
+    placement_id: int 
+    installment_id: int 
+    deposit_date: date 
+    deposit_amount: float 
+    amount_collected: str 
+    lastmod_user_id: int 
+    notes: Optional[str]
     
     @validator('amount_collected')
     def validate_amount_collected(cls, v):
