@@ -365,7 +365,6 @@ class CandidatePlacementORM(Base):
     type = Column(Enum('Company', 'Client', 'Vendor',
                   'Implementation Partner'), nullable=True)
 
-
     status = Column(Enum('Active', 'Inactive',"Complete","Fired","did not take off"), nullable=False)
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -718,6 +717,7 @@ class JobActivityLogORM(Base):
     employee = relationship("EmployeeORM")
 
 ###_--------------------------------------------
+
 class PlacementFeeCollectionORM(Base):
     __tablename__ = "placement_fee_collection"
     

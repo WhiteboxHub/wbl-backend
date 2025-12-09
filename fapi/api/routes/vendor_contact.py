@@ -1,5 +1,4 @@
 
-
 # backend/fapi/api/routes/vendor_contact_extracts.py
 import logging
 from fastapi import APIRouter, HTTPException, Request

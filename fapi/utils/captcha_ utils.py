@@ -1,5 +1,4 @@
 
-
 # fapi/utils/captcha_utils.py
 import os
 import requests

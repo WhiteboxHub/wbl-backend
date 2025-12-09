@@ -1,6 +1,3 @@
-# \
-
-
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from sqlalchemy.orm import Session
