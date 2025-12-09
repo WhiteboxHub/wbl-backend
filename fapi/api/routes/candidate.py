@@ -14,7 +14,6 @@ from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateRe
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload,selectinload
-
 from fapi.db.database import get_db,SessionLocal 
 from fapi.utils.candidate_utils import get_all_candidates_paginated, serialize_interview 
 from fapi.db import schemas

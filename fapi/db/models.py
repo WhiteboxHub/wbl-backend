@@ -3,12 +3,11 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text ,Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from sqlalchemy import Integer  # add import at top
-
+from sqlalchemy import Integer 
 
 
 Base = declarative_base()
@@ -366,9 +365,7 @@ class CandidatePlacementORM(Base):
     type = Column(Enum('Company', 'Client', 'Vendor',
                   'Implementation Partner'), nullable=True)
 
-    status = Column(Enum('Active', 'Inactive'), nullable=False)
-    # priority = Column(Integer, nullable=True)
-
+    status = Column(Enum('Active', 'Inactive',"Complete","Fired","did not take off"), nullable=False)
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
@@ -719,3 +716,16 @@ class JobActivityLogORM(Base):
     candidate = relationship("CandidateORM")
     employee = relationship("EmployeeORM")
 
+###_--------------------------------------------
+
+class PlacementFeeCollectionORM(Base):
+    __tablename__ = "placement_fee_collection"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    placement_id = Column(Integer, ForeignKey("candidate_placement.id"), nullable=False)
+    installment_id = Column(Integer, nullable=False)
+    deposit_date = Column(Date, nullable=False)
+    deposit_amount = Column(Float, nullable=False)
+    amount_collected = Column(String(3), default="no", nullable=False)
+    lastmod_user_id = Column(Integer, nullable=False)
+    placement = relationship("CandidatePlacementORM", backref="fee_collections")

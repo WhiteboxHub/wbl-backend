@@ -126,6 +126,7 @@ class UserRegistration(BaseModel):
     referby: Optional[str] = None
     specialization: Optional[str] = None
     notes: Optional[str] = None
+    captchaToken: str
 
 
 class AuthUserBase(BaseModel):
@@ -398,6 +399,8 @@ class CandidateMarketingBase(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
+    # linkedin_last_run: Optional[datetime] = None
+    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = "idle"
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
     candidate: Optional["CandidateBase"] = None
@@ -430,12 +433,12 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_username: Optional[str] = None
     linkedin_passwd: Optional[str] = None
     linkedin_premium_end_date: Optional[date] = None
+    # linkedin_last_run: Optional[datetime] = None
+    # linkedin_status: Optional[Literal["idle", "running", "error", "completed"]] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
 
 # -----------------------PLACEMENT---------------------------------
-
-
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
     position: Optional[str] = None
@@ -443,7 +446,7 @@ class CandidatePlacementBase(BaseModel):
     placement_date: date
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
-    status: Literal['Active', 'Inactive']
+    status: Literal['Active' , 'Complete', 'Fired','did not take off']
     # priority: Optional[int] = 
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
@@ -470,7 +473,7 @@ class CandidatePlacementUpdate(BaseModel):
     placement_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
-    status: Optional[Literal['Active', 'Inactive']]
+    status: Optional[Literal['Active','Inactive' , 'Complete', 'Fired','did not take off']]
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -646,11 +649,8 @@ class CandidateInterviewCreate(BaseModel):
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
 
-model_config = {
-    "from_attributes": True,
-    "validate_by_name": True
-}
-
+    class Config:
+        allow_population_by_field_name = True
 
 
 # --- Update Schema ---
@@ -1005,6 +1005,7 @@ class ContactForm(BaseModel):
     email: EmailStr
     phone: str
     message: str
+    captchaToken: str
 
 
 # -----------------------------------------------------unsubscribe-------------------------
@@ -1656,12 +1657,8 @@ class InternalDocumentOut(InternalDocumentBase):
 
 # -------------------- Job Types Schemas --------------------
 class JobTypeBase(BaseModel):
-    uid: Optional[str] = None  
     job_name: str
-    job_owner: Optional[str] = None
     job_description: Optional[str] = None
-    lmuid: Optional[int] = None
-    notes: Optional[str] = None
 
 
 class JobTypeCreate(JobTypeBase):
@@ -1669,27 +1666,20 @@ class JobTypeCreate(JobTypeBase):
 
 
 class JobTypeUpdate(BaseModel):
-    uid: Optional[str] = None  
     job_name: Optional[str] = None
-    job_owner: Optional[str] = None
     job_description: Optional[str] = None
-    # lmuid: Optional[str] = None
-    notes: Optional[str] = None
 
 
 class JobTypeOut(JobTypeBase):
     id: int
     created_date: Optional[str] = None
-    lmdt: Optional[str] = None    
-    lmuid_name: Optional[str] = None
 
-
-    @field_validator("created_date", "lmdt", mode="before")
-    def format_timestamp(cls, v):
+    @field_validator("created_date", mode="before")
+    def format_created_date(cls, v):
         if v is None:
             return None
         if isinstance(v, datetime):
-            return v.strftime("%Y-%m-%d %H:%M:%S")
+            return v.strftime("%Y-%m-%d")
         if isinstance(v, date):
             return v.strftime("%Y-%m-%d")
         return str(v).split()[0] if v else None
@@ -1739,4 +1729,58 @@ class PaginatedJobActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[JobActivityLogOut]
+
+
+
+
+
+##-------------------------------------------------
+
+class PlacementFeeCollectionBase(BaseModel):
+    placement_id: int 
+    installment_id: int 
+    deposit_date: date 
+    deposit_amount: float 
+    amount_collected: str 
+    lastmod_user_id: int 
+    notes: Optional[str]
+    
+    @validator('amount_collected')
+    def validate_amount_collected(cls, v):
+        if v not in ['yes', 'no']:
+            raise ValueError("amount_collected must be 'yes' or 'no'")
+        return v
+
+class PlacementFeeCollectionCreate(PlacementFeeCollectionBase):
+    pass
+
+class PlacementFeeCollectionUpdate(BaseModel):
+    placement_id: Optional[int] = Field(None, gt=0)
+    installment_id: Optional[int] = Field(None, gt=0)
+    deposit_date: Optional[date] = None
+    deposit_amount: Optional[float] = Field(None, gt=0)
+    amount_collected: Optional[str] = None
+    lastmod_user_id: Optional[int] = Field(None, gt=0)
+    notes: Optional[str] = None
+    
+    @validator('amount_collected')
+    def validate_amount_collected(cls, v):
+        if v is not None and v not in ['yes', 'no']:
+            raise ValueError("amount_collected must be 'yes' or 'no'")
+        return v
+
+class PlacementFeeCollectionResponse(PlacementFeeCollectionBase):
+    id: int
+    
+    class Config:
+        from_attributes = True
+
+class FeeStats(BaseModel):
+    total_count: int
+    collected_count: int
+    pending_count: int
+    total_collected: float
+    total_pending: float
+    total_amount: float
+    collection_rate: float
 
