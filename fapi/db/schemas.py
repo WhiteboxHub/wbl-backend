@@ -126,6 +126,7 @@ class UserRegistration(BaseModel):
     referby: Optional[str] = None
     specialization: Optional[str] = None
     notes: Optional[str] = None
+    captchaToken: str
 
 
 class AuthUserBase(BaseModel):
@@ -1004,6 +1005,7 @@ class ContactForm(BaseModel):
     email: EmailStr
     phone: str
     message: str
+    captchaToken: str
 
 
 # -----------------------------------------------------unsubscribe-------------------------

@@ -1,67 +1,48 @@
-
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+# wbl-backend/fapi/api/routes/register.py
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from datetime import datetime
+
+from fapi.db.schemas import UserRegistration
+from fapi.db.database import get_db
+from fapi.utils.register_utils import create_user_and_lead
+from fapi.utils.auth_utils import md5_hash
+from fapi.utils.captcha_utils import verify_recaptcha_token
+from fapi.utils.email_utils import send_email_to_user
 
 router = APIRouter()
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str
-    first_name: str
-    last_name: str
-    phone: Optional[str] = None
-    captcha_token: str
-
-class RegisterResponse(BaseModel):
-    message: str
-    user_id: int
-    email: str
-    timestamp: str
 
 @router.post("/signup")
-async def register_user(user: RegisterRequest):
-    """Register a new user"""
-    # Validate password strength
-    if len(user.password) < 8:
-        raise HTTPException(
-            status_code=400,
-            detail="Password must be at least 8 characters long"
-        )
-    
-    # TODO: Verify CAPTCHA token
-    # TODO: Hash password
-    # TODO: Check if user already exists
-    # TODO: Save to database
-    
-    # Mock registration
-    return RegisterResponse(
-        message="Registration successful. Please check your email to verify your account.",
-        user_id=1001,
-        email=user.email,
-        timestamp=datetime.now().isoformat()
+async def register_user(user: UserRegistration, db: Session = Depends(get_db)):
+
+    # VERIFY CAPTCHA TOKEN (common shared function)
+    verify_recaptcha_token(user.captchaToken)
+
+    # VALIDATE PASSWORD
+    if len(user.passwd) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+
+    # NORMALIZE DATA
+    user.uname = user.uname.lower().strip()
+    user.passwd = md5_hash(user.passwd)
+
+    # CREATE BOTH USER + LEAD
+    create_user_and_lead(db, user)
+
+    # SEND EMAILS
+    full_name = f"{user.firstname or ''} {user.lastname or ''}".strip()
+
+    # Email to User
+    send_email_to_user(
+        user_email=user.uname,
+        user_name=full_name,
+        user_phone=user.phone
     )
 
-@router.get("/signup/test")
-async def test_register():
-    """Test endpoint for registration"""
+    # FINAL RESPONSE
     return {
-        "message": "Registration endpoint is working",
-        "endpoint": "POST /api/signup",
-        "status": "active",
-        "timestamp": datetime.now().isoformat()
+        "message": "User registered successfully.",
+        "email": user.uname,
+        "timestamp": datetime.utcnow().isoformat()
     }
-
-@router.get("/signup/check-email/{email}")
-async def check_email_availability(email: str):
-    """Check if email is available"""
-    # Mock check - Replace with actual database check
-    taken_emails = ["admin@example.com", "test@example.com"]
-    
-    if email in taken_emails:
-        return {"available": False, "message": "Email already registered"}
-    
-    return {"available": True, "message": "Email is available"}
-

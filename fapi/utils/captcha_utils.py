@@ -1,5 +1,5 @@
 
-# fapi/utils/captcha_utils.py
+# wbl-backend\fapi\utils\captcha_ utils.py
 import os
 import requests
 from fastapi import HTTPException, status
@@ -7,10 +7,6 @@ from fastapi import HTTPException, status
 RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 
 def verify_recaptcha_token(captcha_token: str) -> bool:
-    """
-    Verify reCAPTCHA token (v2 checkbox) with Google.
-    Raises HTTPException on error.
-    """
     if not captcha_token:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CAPTCHA token is required")
 

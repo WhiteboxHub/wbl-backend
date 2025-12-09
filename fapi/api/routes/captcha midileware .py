@@ -1,6 +1,4 @@
-
-
-
+# wbl-backend\fapi\api\routes\captcha midileware .py
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from fapi.utils.captcha_utils import verify_recaptcha
@@ -22,7 +20,7 @@ class CaptchaMiddleware(BaseHTTPMiddleware):
                 # Parse JSON to get CAPTCHA token
                 if body:
                     data = json.loads(body)
-                    captcha_token = data.get("captcha_token")
+                    captcha_token = data.get("captchaToken")
                     
                     if not captcha_token:
                         raise HTTPException(status_code=400, detail="CAPTCHA token required")
