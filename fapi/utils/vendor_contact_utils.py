@@ -1,5 +1,4 @@
 
-
 # backend/fapi/utils/vendor_contact_utils.py
 import asyncio
 import mysql.connector

@@ -1,3 +1,4 @@
+
 # wbl-backend/fapi/utils/register_utils.py
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
