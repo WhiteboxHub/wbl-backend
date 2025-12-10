@@ -10,7 +10,6 @@ import enum
 from sqlalchemy import Integer  # add import at top
 
 
-
 Base = declarative_base()
 
 
@@ -269,7 +268,7 @@ class CandidateMarketingORM(Base):
 
     marketing_manager = Column(
         Integer, ForeignKey("employee.id"), nullable=True)
-    
+
     imap_password = Column(String(50), nullable=True)
     email = Column(String(100), nullable=True)
     password = Column(String(100), nullable=True)
@@ -442,7 +441,7 @@ class EmployeeORM(Base):
     enddate = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
     # status = Column(Integer, nullable=True)
-    status = Column(Integer) 
+    status = Column(Integer)
     aadhaar = Column(String(20), nullable=True, unique=True)
 
 
@@ -531,15 +530,19 @@ class LinkedInActivityLogORM(Base):
         nullable=False,
     )
     source_email = Column(String(100), nullable=True)
-    activity_type = Column(Enum('extraction', 'connection', name='activity_type'), nullable=False)
+    activity_type = Column(
+        Enum('extraction', 'connection', name='activity_type'), nullable=False)
     linkedin_profile_url = Column(String(255), nullable=True)
     full_name = Column(String(255), nullable=True)
     company_name = Column(String(255), nullable=True)
-    status = Column(Enum('success', 'failed', name='status'), server_default='success')
+    status = Column(Enum('success', 'failed', name='status'),
+                    server_default='success')
     message = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
-#---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
+
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -624,7 +627,7 @@ class Batch(Base):
 class Recording(Base):
     __tablename__ = "recording"
     id = Column(Integer, primary_key=True, index=True)
-    #batchname = Column(String(255))
+    # batchname = Column(String(255))
     description = Column(Text)
     type = Column(String(50))
     classdate = Column(DateTime, nullable=True)
@@ -667,8 +670,9 @@ class Session(Base):
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
 
+  # -------------------Internal documents--------------------
 
-  #-------------------Internal documents--------------------
+
 class InternalDocument(Base):
     __tablename__ = "internal_documents"
 
@@ -684,14 +688,14 @@ class JobTypeORM(Base):
     __tablename__ = "job_types"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    uid = Column(String(50), nullable=True, index=True) 
-    job_name = Column(String(255), nullable=False)
-    job_owner = Column(String(255), nullable=True)
-    job_description = Column(Text, nullable=True)
-    lmdt = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-    lmuid = Column(Integer, nullable=True)
+    unique_id = Column(String(100), nullable=False, unique=True)
+    name = Column(String(255), nullable=False)
+    job_owner_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    created_date = Column(TIMESTAMP, server_default=func.current_timestamp())
+    lastmod_date_time = Column(TIMESTAMP, server_default=func.current_timestamp(
+    ), onupdate=func.current_timestamp())
+    lastmod_user_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
 
 
 # -------------------- Job Activity Log --------------------
@@ -699,23 +703,21 @@ class JobActivityLogORM(Base):
     __tablename__ = "job_activity_log"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    job_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
+    job_type_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
-    employee_id = Column(Integer, ForeignKey("employee.id"), nullable=False)
+    employee_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     activity_date = Column(Date, nullable=False)
     activity_count = Column(Integer, default=0)
-    last_mod_date = Column(
+    notes = Column(Text, nullable=True)
+    lastmod_user_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    lastmod_date_time = Column(
         TIMESTAMP,
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp()
     )
-    json_downloaded = Column(
-        Enum('yes', 'no', name='json_downloaded_enum'), default='no')
-    sql_downloaded = Column(
-        Enum('yes', 'no', name='sql_downloaded_enum'), default='no')
 
     # Relationships
     job_type = relationship("JobTypeORM")
     candidate = relationship("CandidateORM")
-    employee = relationship("EmployeeORM")
-
+    employee = relationship("EmployeeORM", foreign_keys=[employee_id])
+    lastmod_user = relationship("EmployeeORM", foreign_keys=[lastmod_user_id])

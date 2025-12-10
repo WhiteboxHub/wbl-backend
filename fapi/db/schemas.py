@@ -273,7 +273,8 @@ class CandidateBase(BaseModel):
     enrolled_date: Optional[date] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    status: Optional[Literal['active', 'inactive', 'discontinued', 'break', 'closed']] = None
+    status: Optional[Literal['active', 'inactive',
+                             'discontinued', 'break', 'closed']] = None
     workstatus: Optional[str] = None
     education: Optional[str] = None
     workexperience: Optional[str] = None
@@ -444,7 +445,7 @@ class CandidatePlacementBase(BaseModel):
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
-    # priority: Optional[int] = 
+    # priority: Optional[int] =
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
@@ -646,11 +647,11 @@ class CandidateInterviewCreate(BaseModel):
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
 
+
 model_config = {
     "from_attributes": True,
     "validate_by_name": True
 }
-
 
 
 # --- Update Schema ---
@@ -839,7 +840,8 @@ class VendorUpdate(BaseModel):
     address: Optional[str] = None
     country: Optional[str] = None
     vendor_type: Optional[VendorTypeEnum] = None
-    status: Optional[Literal['active', 'working', 'not_useful','do_not_contact', 'inactive', 'prospect']] = None
+    status: Optional[Literal['active', 'working', 'not_useful',
+                             'do_not_contact', 'inactive', 'prospect']] = None
     linkedin_connected: Optional[Literal['YES', 'NO']] = None
     intro_email_sent: Optional[Literal['YES', 'NO']] = None
     intro_call: Optional[Literal['YES', 'NO']] = None
@@ -954,9 +956,11 @@ class ActivityType(str, Enum):
     extraction = "extraction"
     connection = "connection"
 
+
 class Status(str, Enum):
     success = "success"
     failed = "failed"
+
 
 class LinkedInActivityLogBase(BaseModel):
     candidate_id: int
@@ -967,6 +971,7 @@ class LinkedInActivityLogBase(BaseModel):
     company_name: Optional[str] = None
     status: Status = Status.success
     message: Optional[str] = None
+
 
 class LinkedInActivityLogCreate(LinkedInActivityLogBase):
     pass
@@ -981,6 +986,7 @@ class LinkedInActivityLogUpdate(BaseModel):
     status: Optional[Status] = None
     message: Optional[str] = None
 
+
 class LinkedInActivityLogOut(LinkedInActivityLogBase):
     id: int
     created_at: datetime
@@ -989,12 +995,12 @@ class LinkedInActivityLogOut(LinkedInActivityLogBase):
     class Config:
         from_attributes = True
 
+
 class PaginatedLinkedInActivityLogs(BaseModel):
     total: int
     page: int
     per_page: int
     logs: List[LinkedInActivityLogOut]
-
 
 
 # ================================================contact====================================
@@ -1094,7 +1100,7 @@ class CourseSubject(CourseSubjectBase):
 
 
 class RecordingBase(BaseModel):
-    #batchname: str
+    # batchname: str
     description: Optional[str] = None
     type: Optional[str] = "class"
     classdate: Optional[datetime] = None
@@ -1104,7 +1110,6 @@ class RecordingBase(BaseModel):
     filename: Optional[str] = None
     new_subject_id: Optional[int] = None
     backup_url: Optional[str] = None
-
 
 
 class RecordingCreate(RecordingBase):
@@ -1633,7 +1638,7 @@ class ResetPassword(BaseModel):
 class InternalDocumentBase(BaseModel):
     title: str
     description: Optional[str] = None
-    file: Optional[str] = None    
+    file: Optional[str] = None
 
 
 class InternalDocumentCreate(InternalDocumentBase):
@@ -1643,7 +1648,7 @@ class InternalDocumentCreate(InternalDocumentBase):
 class InternalDocumentUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    file: Optional[str] = None   
+    file: Optional[str] = None
 
 
 class InternalDocumentOut(InternalDocumentBase):
@@ -1656,11 +1661,10 @@ class InternalDocumentOut(InternalDocumentBase):
 
 # -------------------- Job Types Schemas --------------------
 class JobTypeBase(BaseModel):
-    uid: Optional[str] = None  
-    job_name: str
-    job_owner: Optional[str] = None
-    job_description: Optional[str] = None
-    lmuid: Optional[int] = None
+    unique_id: str
+    name: str
+    job_owner_id: Optional[int] = None
+    description: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -1669,22 +1673,19 @@ class JobTypeCreate(JobTypeBase):
 
 
 class JobTypeUpdate(BaseModel):
-    uid: Optional[str] = None  
-    job_name: Optional[str] = None
-    job_owner: Optional[str] = None
-    job_description: Optional[str] = None
-    # lmuid: Optional[str] = None
+    unique_id: Optional[str] = None
+    name: Optional[str] = None
+    job_owner_id: Optional[int] = None
+    description: Optional[str] = None
     notes: Optional[str] = None
 
 
 class JobTypeOut(JobTypeBase):
     id: int
-    created_date: Optional[str] = None
-    lmdt: Optional[str] = None    
-    lmuid_name: Optional[str] = None
+    lastmod_date_time: Optional[str] = None
+    lastmod_user_name: Optional[str] = None
 
-
-    @field_validator("created_date", "lmdt", mode="before")
+    @field_validator("lastmod_date_time", mode="before")
     def format_timestamp(cls, v):
         if v is None:
             return None
@@ -1702,11 +1703,10 @@ class JobTypeOut(JobTypeBase):
 class JobActivityLogBase(BaseModel):
     job_id: int
     candidate_id: Optional[int] = None
-    employee_id: int
+    employee_id: Optional[int] = None
     activity_date: date
     activity_count: Optional[int] = 0
-    json_downloaded: Optional[Literal['yes', 'no']] = 'no'
-    sql_downloaded: Optional[Literal['yes', 'no']] = 'no'
+    notes: Optional[str] = None
 
 
 class JobActivityLogCreate(JobActivityLogBase):
@@ -1719,13 +1719,13 @@ class JobActivityLogUpdate(BaseModel):
     employee_id: Optional[int] = None
     activity_date: Optional[date] = None
     activity_count: Optional[int] = None
-    json_downloaded: Optional[Literal['yes', 'no']] = None
-    sql_downloaded: Optional[Literal['yes', 'no']] = None
+    notes: Optional[str] = None
 
 
 class JobActivityLogOut(JobActivityLogBase):
     id: int
     last_mod_date: Optional[datetime] = None
+    lastmod_user_name: Optional[str] = None
     job_name: Optional[str] = None
     candidate_name: Optional[str] = None
     employee_name: Optional[str] = None
@@ -1739,4 +1739,3 @@ class PaginatedJobActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[JobActivityLogOut]
-
