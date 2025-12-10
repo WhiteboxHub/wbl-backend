@@ -264,6 +264,7 @@ class CandidateMarketingORM(Base):
     start_date = Column(Date, nullable=False)
     status = Column(Enum("active", "inactive"),
                     nullable=False, default="active")
+    workstatus = Column(String(100), nullable=True)
     last_mod_datetime = Column(
         TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -368,7 +369,6 @@ class CandidatePlacementORM(Base):
 
     status = Column(Enum('Active', 'Inactive'), nullable=False)
     # priority = Column(Integer, nullable=True)
-
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
     fee_paid = Column(DECIMAL(10, 2), nullable=True)
@@ -409,6 +409,7 @@ class CandidatePreparation(Base):
     start_date = Column(Date, nullable=False, server_default="CURRENT_DATE")
     status = Column(Enum("active", "inactive"),
                     nullable=False, default="active")
+    workstatus = Column(String(100), nullable=True)
 
     rating = Column(Enum("excellent", "very good", "good",
                     "average", "need to improve"), nullable=True)
