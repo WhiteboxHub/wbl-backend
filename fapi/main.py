@@ -6,7 +6,7 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, referrals, candidate_dashboard, email_activity_log, internal_documents,
-    job_activity_log,  placement_fee_collection
+    job_activity_log
 )
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -52,7 +52,8 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents ,  placement_fee_collection
+    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents
+    # session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents
 )
 from fapi.utils.permission_gate import enforce_access
 
@@ -96,7 +97,4 @@ app.include_router(candidate.router, prefix="/api", tags=["Candidates"], depende
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(job_activity_log.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
-
-app.include_router(placement_fee_collection.router, prefix="/api", tags=["placement_fee_collection"], dependencies=[Depends(enforce_access)])
-
 
