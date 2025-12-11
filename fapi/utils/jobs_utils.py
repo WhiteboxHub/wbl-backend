@@ -398,7 +398,7 @@ def get_all_job_types(db: Session):
                 JobTypeORM.id,
                 JobTypeORM.unique_id,
                 JobTypeORM.name,
-                JobTypeORM.job_owner,
+                JobTypeORM.job_owner.label("job_owner_id"),
                 JobTypeORM.description,
                 JobTypeORM.notes,
                 JobTypeORM.lastmod_date_time,
@@ -417,7 +417,7 @@ def get_all_job_types(db: Session):
                 "id": row.id,
                 "unique_id": row.unique_id,
                 "name": row.name,
-                "job_owner": row.job_owner,
+                "job_owner": row.job_owner_id,
                 "job_owner_name": row.job_owner_name,
                 "description": row.description,
                 "notes": row.notes,
@@ -451,9 +451,11 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
     try:
         job_type_dict = job_type_data.dict()
 
+
         if "job_owner_id" in job_type_dict:
             job_type_dict["job_owner"] = job_type_dict.pop("job_owner_id")
 
+        # Validate job_owner if provided
         if job_type_dict.get("job_owner") is not None:
             job_owner_employee = db.query(EmployeeORM).filter(
                 EmployeeORM.id == job_type_dict["job_owner"]
@@ -464,6 +466,8 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
                     detail=f"Job owner employee with ID {job_type_dict['job_owner']} not found"
                 )
 
+
+        # Set lastmod_user_id only if employee record exists
         if employee:
             job_type_dict["lastmod_user_id"] = employee.id
         else:
@@ -474,6 +478,8 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
         db.commit()
         db.refresh(new_job_type)
 
+
+        # Return formatted response with employee names instead of IDs
         from sqlalchemy.orm import aliased
         JobOwnerEmployee = aliased(EmployeeORM)
         LastModUserEmployee = aliased(EmployeeORM)
@@ -496,10 +502,12 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
             .first()
         )
 
+
         # Debug: Print the result object to understand its structure
         logger.debug(f"Result object: {result}")
         logger.debug(f"Result job_owner_id type: {type(result.job_owner_id)}")
         logger.debug(f"Result job_owner_id value: {result.job_owner_id}")
+
 
         return {
             "id": result.id,
@@ -507,6 +515,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
             "name": result.name,
             "job_owner": result.job_owner_id,
             "job_owner_name": result.job_owner_name,
+            # "job_owner": result.job_owner,
             "description": result.description,
             "notes": result.notes,
             "lastmod_date_time": result.lastmod_date_time,
@@ -545,6 +554,8 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
         raise HTTPException(status_code=404, detail="Job type not found")
 
     try:
+
+        # Validate job_owner if it's being updated
         if "job_owner" in fields:
             if fields["job_owner"] is not None:
                 job_owner_employee = db.query(EmployeeORM).filter(
@@ -556,6 +567,8 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
                         detail=f"Job owner employee with ID {fields['job_owner']} not found"
                     )
 
+
+        # Set lastmod_user_id only if employee record exists
         if employee:
             job_type.lastmod_user_id = employee.id
         else:
@@ -567,6 +580,8 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
         db.commit()
         db.refresh(job_type)
 
+
+        # Return formatted response with employee names instead of IDs
         from sqlalchemy.orm import aliased
         JobOwnerEmployee = aliased(EmployeeORM)
         LastModUserEmployee = aliased(EmployeeORM)
@@ -589,12 +604,14 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
             .first()
         )
 
+
         # Debug: Print the result object to understand its structure
         logger.debug(f"Update result object: {result}")
         logger.debug(f"Update result job_owner_id type: {type(result.job_owner_id)}")
         logger.debug(f"Update result job_owner_id value: {result.job_owner_id}")
         logger.debug(f"Update result job_owner_name type: {type(result.job_owner_name)}")
         logger.debug(f"Update result job_owner_name value: {result.job_owner_name}")
+
 
         return {
             "id": result.id,
@@ -633,5 +650,5 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         return {"message": f"Job type deleted successfully"}
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(f"Failed to delete job type: {str(e)}")
+        logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
