@@ -1689,28 +1689,35 @@ class InternalDocumentOut(InternalDocumentBase):
 class JobTypeBase(BaseModel):
     unique_id: str
     name: str
-    job_owner_id: Optional[int] = None
+    job_owner: Optional[int] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
-class JobTypeCreate(JobTypeBase):
-    pass
+class JobTypeCreate(BaseModel):
+    unique_id: str
+    name: str
+    job_owner_id: Optional[int] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class JobTypeUpdate(BaseModel):
     unique_id: Optional[str] = None
     name: Optional[str] = None
     job_owner_id: Optional[int] = None
-    job_owner: Optional[int] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
-class JobTypeOut(JobTypeBase):
+class JobTypeOut(BaseModel):
     id: int
+    unique_id: str
+    name: str
     job_owner: Optional[int] = None
     job_owner_name: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
     lastmod_date_time: Optional[str] = None
     lastmod_user_name: Optional[str] = None
     job_owner_name: Optional[str] = None
