@@ -1700,8 +1700,12 @@ class JobTypeBase(BaseModel):
     notes: Optional[str] = None
 
 
-class JobTypeCreate(JobTypeBase):
-    pass
+class JobTypeCreate(BaseModel):
+    unique_id: str
+    name: str
+    job_owner: int
+    description: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class JobTypeUpdate(BaseModel):
@@ -1712,8 +1716,13 @@ class JobTypeUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-class JobTypeOut(JobTypeBase):
+class JobTypeOut(BaseModel):
     id: int
+    unique_id: str
+    name: str
+    job_owner: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
     lastmod_date_time: Optional[str] = None
     lastmod_user_name: Optional[str] = None
     job_owner_name: Optional[str] = None
