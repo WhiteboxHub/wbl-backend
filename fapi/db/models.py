@@ -251,6 +251,12 @@ class CandidateORM(Base):
     batch = relationship("Batch", back_populates="candidates")
     preparation_records = relationship(
         "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
+    
+    preparation_records = relationship(
+        "CandidatePreparation", 
+        viewonly=True,
+        overlaps="preparations"
+    )
 
 # --------------------- Candidate Marketing -----------------
 
@@ -264,7 +270,7 @@ class CandidateMarketingORM(Base):
     start_date = Column(Date, nullable=False)
     status = Column(Enum("active", "inactive"),
                     nullable=False, default="active")
-    workstatus = Column(String(100), nullable=True)
+    # workstatus = Column(String(100), nullable=True)
     last_mod_datetime = Column(
         TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -409,7 +415,7 @@ class CandidatePreparation(Base):
     start_date = Column(Date, nullable=False, server_default="CURRENT_DATE")
     status = Column(Enum("active", "inactive"),
                     nullable=False, default="active")
-    workstatus = Column(String(100), nullable=True)
+    # workstatus = Column(String(100), nullable=True)
 
     rating = Column(Enum("excellent", "very good", "good",
                     "average", "need to improve"), nullable=True)

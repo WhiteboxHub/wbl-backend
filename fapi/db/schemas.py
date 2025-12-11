@@ -377,6 +377,7 @@ class PaginatedCandidateResponse(BaseModel):
     limit: int
     total: int
     data: List[CandidateBase]
+    workstatus: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -390,7 +391,7 @@ class CandidateMarketingBase(BaseModel):
     start_date: date
     notes: Optional[str] = None
     status: Literal["active", "inactive"] = "active"
-    workstatus: Optional[str] = None
+    # workstatus: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None
     imap_password: Optional[str] = None
@@ -412,6 +413,7 @@ class CandidateMarketingCreate(CandidateMarketingBase):
 class CandidateMarketing(CandidateMarketingBase):
     id: int
     last_mod_datetime: Optional[datetime]
+    workstatus: Optional[str] = None 
 
     class Config:
         from_attributes = True
@@ -423,7 +425,7 @@ class CandidateMarketingUpdate(BaseModel):
     start_date: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[Literal["active", "inactive"]] = None
-    workstatus: Optional[str] = None
+    # workstatus: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None
     imap_password: Optional[str] = None
@@ -498,7 +500,7 @@ class CandidatePreparationBase(BaseModel):
     candidate_id: int
     start_date: Optional[date] = None
     status: str
-    workstatus: Optional[str] = None
+    # workstatus: Optional[str] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
@@ -525,7 +527,7 @@ class CandidatePreparationCreate(BaseModel):
     candidate_id: int
     start_date: Optional[date] = None
     status: str = "active"
-    workstatus: Optional[str] = None
+    # workstatus: Optional[str] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None
@@ -543,7 +545,7 @@ class CandidatePreparationCreate(BaseModel):
 class CandidatePreparationUpdate(BaseModel):
     start_date: Optional[date] = None
     status: Optional[str] = None
-    workstatus: Optional[str] = None
+    # workstatus: Optional[str] = None
     instructor1_id: Optional[int] = None
     instructor2_id: Optional[int] = None
     instructor3_id: Optional[int] = None

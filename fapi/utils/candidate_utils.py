@@ -165,13 +165,175 @@ def delete_candidate(candidate_id: int):
 
 # # -----------------------------------------------Marketing----------------------------
 
+# def get_all_marketing_records(page: int, limit: int) -> dict:
+#     db: Session = SessionLocal()
+#     try:
+#         total = db.query(CandidateMarketingORM).count()
+
+#         records = (
+#             db.query(CandidateMarketingORM)
+#             .options(
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.batch),
+
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.preparation_records)
+#                 .joinedload(CandidatePreparation.instructor1),
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.preparation_records)
+#                 .joinedload(CandidatePreparation.instructor2),
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.preparation_records)
+#                 .joinedload(CandidatePreparation.instructor3),
+
+#                 joinedload(CandidateMarketingORM.marketing_manager_obj),
+#             )
+#             .order_by(CandidateMarketingORM.id.desc())
+#             .offset((page - 1) * limit)
+#             .limit(limit)
+#             .all()
+#         )
+
+#         results_serialized = [serialize_marketing(r) for r in records]
+
+#         return {"page": page, "limit": limit, "total": total, "data": results_serialized}
+#     finally:
+#         db.close()
+
+
+# def serialize_marketing(record: CandidateMarketingORM) -> dict:
+#     if not record:
+#         return None
+
+#     record_dict = record.__dict__.copy()
+#     record_dict.pop("_sa_instance_state", None)
+
+#     candidate = record.candidate
+#     record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
+#     if record_dict["candidate"]:
+#         record_dict["candidate"].pop("_sa_instance_state", None)
+#         record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
+#         if record_dict["candidate"]["batch"]:
+#             record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
+
+#         # Get latest preparation record instructors
+#         prep = candidate.preparation_records[-1] if candidate.preparation_records else None
+#         record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
+#         record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
+#         record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+#     else:
+#         record_dict["instructor1_name"] = record_dict["instructor2_name"] = record_dict["instructor3_name"] = None
+
+#     # Marketing manager
+#     if record.marketing_manager_obj:
+#         record_dict["marketing_manager_obj"] = record.marketing_manager_obj.__dict__.copy()
+#         record_dict["marketing_manager_obj"].pop("_sa_instance_state", None)
+#     else:
+#         record_dict["marketing_manager_obj"] = None
+
+#     return record_dict
+
+
+# def get_marketing_by_candidate_id(candidate_id: int):
+#     db: Session = SessionLocal()
+#     try:
+#         records = (
+#             db.query(CandidateMarketingORM)
+#             .options(
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.batch),
+
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.preparation_records)
+#                 .joinedload(CandidatePreparation.instructor1),
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.preparation_records)
+#                 .joinedload(CandidatePreparation.instructor2),
+#                 joinedload(CandidateMarketingORM.candidate)
+#                 .joinedload(CandidateORM.preparation_records)
+#                 .joinedload(CandidatePreparation.instructor3),
+
+#                 joinedload(CandidateMarketingORM.marketing_manager_obj),
+#             )
+#             .filter(CandidateMarketingORM.candidate_id == candidate_id)
+#             .all()
+#         )
+
+#         if not records:
+#             raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
+
+#         results_serialized = [serialize_marketing(r) for r in records]
+#         return {"candidate_id": candidate_id, "data": results_serialized}
+#     finally:
+#         db.close()
+
+
+# def create_marketing(payload: CandidateMarketingCreate) -> dict:
+#     db: Session = SessionLocal()
+#     try:
+#         new_entry = CandidateMarketingORM(**payload.dict())
+#         db.add(new_entry)
+#         db.commit()
+#         db.refresh(new_entry)
+#         return serialize_marketing(new_entry)
+#     finally:
+#         db.close()
+
+
+# def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
+#     db: Session = SessionLocal()
+#     try:
+#         record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
+#         if not record:
+#             raise HTTPException(status_code=404, detail="Marketing record not found")
+
+#         update_data = payload.dict(exclude_unset=True)
+#         for key, value in update_data.items():
+#             if hasattr(record, key) and not isinstance(value, dict):
+#                 setattr(record, key, value)
+
+#         if getattr(record, "move_to_placement", False):
+#             candidate = db.query(CandidateORM).filter(CandidateORM.id == record.candidate_id).first()
+#             if candidate:
+#                 placement_exists = (
+#                     db.query(CandidatePlacementORM)
+#                     .filter_by(candidate_id=candidate.id, status="Active")
+#                     .first()
+#                 )
+#                 if not placement_exists:
+#                     new_placement = CandidatePlacementORM(
+#                         candidate_id=candidate.id,
+#                         placement_date=date.today(),
+#                         status="Active"
+#                     )
+#                     db.add(new_placement)
+
+#         db.commit()
+#         db.refresh(record)
+#         return serialize_marketing(record)
+#     finally:
+#         db.close()
+
+
+# def delete_marketing(record_id: int) -> dict:
+#     db: Session = SessionLocal()
+#     try:
+#         record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
+#         if not record:
+#             raise HTTPException(status_code=404, detail="Marketing record not found")
+#         db.delete(record)
+#         db.commit()
+#         return {"message": "Marketing record deleted successfully"}
+#     finally:
+#         db.close()
+
 def get_all_marketing_records(page: int, limit: int) -> dict:
     db: Session = SessionLocal()
     try:
-        total = db.query(CandidateMarketingORM).count()
-
-        records = (
-            db.query(CandidateMarketingORM)
+        # Query with workstatus from candidate
+        results = (
+            db.query(CandidateMarketingORM, CandidateORM.workstatus)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
             .options(
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.batch),
@@ -194,19 +356,25 @@ def get_all_marketing_records(page: int, limit: int) -> dict:
             .all()
         )
 
-        results_serialized = [serialize_marketing(r) for r in records]
+        total = db.query(CandidateMarketingORM).count()
+        
+        # Update serialize_marketing to accept workstatus
+        results_serialized = [serialize_marketing_with_workstatus(record, workstatus) for record, workstatus in results]
 
         return {"page": page, "limit": limit, "total": total, "data": results_serialized}
     finally:
         db.close()
 
 
-def serialize_marketing(record: CandidateMarketingORM) -> dict:
+def serialize_marketing_with_workstatus(record: CandidateMarketingORM, workstatus: str = None) -> dict:
     if not record:
         return None
 
     record_dict = record.__dict__.copy()
     record_dict.pop("_sa_instance_state", None)
+    
+    # Add workstatus to the main record
+    record_dict["workstatus"] = workstatus
 
     candidate = record.candidate
     record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
@@ -215,14 +383,35 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
         if record_dict["candidate"]["batch"]:
             record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
+        
+        # Add workstatus to candidate object too
+        record_dict["candidate"]["workstatus"] = workstatus
 
         # Get latest preparation record instructors
         prep = candidate.preparation_records[-1] if candidate.preparation_records else None
         record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
         record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
         record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+        
+        # Also add full instructor objects if needed
+        if prep and prep.instructor1:
+            record_dict["instructor1"] = {
+                "id": prep.instructor1.id,
+                "name": prep.instructor1.name
+            }
+        if prep and prep.instructor2:
+            record_dict["instructor2"] = {
+                "id": prep.instructor2.id,
+                "name": prep.instructor2.name
+            }
+        if prep and prep.instructor3:
+            record_dict["instructor3"] = {
+                "id": prep.instructor3.id,
+                "name": prep.instructor3.name
+            }
     else:
         record_dict["instructor1_name"] = record_dict["instructor2_name"] = record_dict["instructor3_name"] = None
+        record_dict["instructor1"] = record_dict["instructor2"] = record_dict["instructor3"] = None
 
     # Marketing manager
     if record.marketing_manager_obj:
@@ -234,11 +423,49 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
     return record_dict
 
 
+def get_marketing_by_id(record_id: int):
+    db: Session = SessionLocal()
+    try:
+        # Query with workstatus from candidate
+        result = (
+            db.query(CandidateMarketingORM, CandidateORM.workstatus)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .options(
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.batch),
+
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor1),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor2),
+                joinedload(CandidateMarketingORM.candidate)
+                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidatePreparation.instructor3),
+
+                joinedload(CandidateMarketingORM.marketing_manager_obj),
+            )
+            .filter(CandidateMarketingORM.id == record_id)
+            .first()
+        )
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Marketing record not found")
+        
+        record, workstatus = result
+        return serialize_marketing_with_workstatus(record, workstatus)
+    finally:
+        db.close()
+
+
 def get_marketing_by_candidate_id(candidate_id: int):
     db: Session = SessionLocal()
     try:
-        records = (
-            db.query(CandidateMarketingORM)
+        # Query with workstatus from candidate
+        results = (
+            db.query(CandidateMarketingORM, CandidateORM.workstatus)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
             .options(
                 joinedload(CandidateMarketingORM.candidate)
                 .joinedload(CandidateORM.batch),
@@ -259,10 +486,10 @@ def get_marketing_by_candidate_id(candidate_id: int):
             .all()
         )
 
-        if not records:
+        if not results:
             raise HTTPException(status_code=404, detail="No marketing records found for this candidate")
 
-        results_serialized = [serialize_marketing(r) for r in records]
+        results_serialized = [serialize_marketing_with_workstatus(record, workstatus) for record, workstatus in results]
         return {"candidate_id": candidate_id, "data": results_serialized}
     finally:
         db.close()
@@ -275,7 +502,15 @@ def create_marketing(payload: CandidateMarketingCreate) -> dict:
         db.add(new_entry)
         db.commit()
         db.refresh(new_entry)
-        return serialize_marketing(new_entry)
+        
+        # Get workstatus from candidate
+        workstatus = (
+            db.query(CandidateORM.workstatus)
+            .filter(CandidateORM.id == new_entry.candidate_id)
+            .scalar()
+        )
+        
+        return serialize_marketing_with_workstatus(new_entry, workstatus)
     finally:
         db.close()
 
@@ -283,10 +518,19 @@ def create_marketing(payload: CandidateMarketingCreate) -> dict:
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
     db: Session = SessionLocal()
     try:
-        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
-        if not record:
+        # Get record with workstatus
+        result = (
+            db.query(CandidateMarketingORM, CandidateORM.workstatus)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .filter(CandidateMarketingORM.id == record_id)
+            .first()
+        )
+        
+        if not result:
             raise HTTPException(status_code=404, detail="Marketing record not found")
-
+        
+        record, workstatus = result
+        
         update_data = payload.dict(exclude_unset=True)
         for key, value in update_data.items():
             if hasattr(record, key) and not isinstance(value, dict):
@@ -310,7 +554,7 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
 
         db.commit()
         db.refresh(record)
-        return serialize_marketing(record)
+        return serialize_marketing_with_workstatus(record, workstatus)
     finally:
         db.close()
 
@@ -318,12 +562,33 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
 def delete_marketing(record_id: int) -> dict:
     db: Session = SessionLocal()
     try:
-        record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
-        if not record:
+        # Get record with workstatus before deletion
+        result = (
+            db.query(CandidateMarketingORM, CandidateORM.workstatus)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .filter(CandidateMarketingORM.id == record_id)
+            .first()
+        )
+        
+        if not result:
             raise HTTPException(status_code=404, detail="Marketing record not found")
+        
+        record, workstatus = result
+        
+        # Store info for response
+        response_info = {
+            "id": record.id,
+            "candidate_id": record.candidate_id,
+            "workstatus": workstatus
+        }
+        
         db.delete(record)
         db.commit()
-        return {"message": "Marketing record deleted successfully"}
+        
+        return {
+            "message": "Marketing record deleted successfully",
+            "deleted_record": response_info
+        }
     finally:
         db.close()
 
@@ -635,19 +900,46 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
 
     return results
 
-
-def get_all_preparations(db: Session):
-    return (
+def get_preparation_by_id(db: Session, prep_id: int):
+    prep = (
         db.query(CandidatePreparation)
         .options(
+            joinedload(CandidatePreparation.candidate),
+            joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidatePreparation.instructor2),
+            joinedload(CandidatePreparation.instructor3),
+        )
+        .filter(CandidatePreparation.id == prep_id)
+        .first()
+    )
+    if not prep:
+        raise HTTPException(status_code=404, detail="Candidate preparation not found")
+
+    # Fetch workstatus from the candidate
+    workstatus = (
+        db.query(CandidateORM.workstatus)
+        .filter(CandidateORM.id == prep.candidate_id)
+        .scalar()
+    )
+
+    return prep, workstatus
+
+
+def get_all_preparations(db: Session):
+    results = (
+        db.query(CandidatePreparation, CandidateORM.workstatus)
+        .join(CandidateORM, CandidatePreparation.candidate_id == CandidateORM.id)
+        .options(
             joinedload(CandidatePreparation.candidate)
-            .joinedload(CandidateORM.batch),  
+            .joinedload(CandidateORM.batch),
             joinedload(CandidatePreparation.instructor1),
             joinedload(CandidatePreparation.instructor2),
             joinedload(CandidatePreparation.instructor3),
         )
         .all()
     )
+    return results
+
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()

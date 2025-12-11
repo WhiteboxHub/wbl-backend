@@ -6,17 +6,18 @@ from fapi.utils.avatar_dashboard_utils import (
     get_interview_metrics,
     candidate_interview_performance,
     get_candidate_preparation_metrics
+
 )
 
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
-from fapi.utils import candidate_utils                                         
+from fapi.utils import candidate_utils                                        
 from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse,CandidatePreparationMetrics
 from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
 
 from sqlalchemy.orm import Session,joinedload,selectinload
 
 from fapi.db.database import get_db,SessionLocal 
-from fapi.utils.candidate_utils import get_all_candidates_paginated, serialize_interview 
+from fapi.utils.candidate_utils import get_all_candidates_paginated, serialize_interview,get_all_preparations
 from fapi.db import schemas
 from typing import Dict, Any, List
 from sqlalchemy import or_, func
@@ -96,16 +97,13 @@ def delete_candidate(candidate_id: int):
     candidate_utils.delete_candidate(candidate_id)
     return {"message": "Candidate deleted successfully"}
 
-
-
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
 def read_all_marketing(
     page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=1000),
-    db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return candidate_utils.get_all_marketing_records( page, limit)
+    return candidate_utils.get_all_marketing_records(page, limit)
 
 
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
@@ -113,17 +111,26 @@ def read_marketing_record(record_id: int = Path(...)):
     return candidate_utils.get_marketing_by_id(record_id)
 
 @router.post("/candidate/marketing", response_model=CandidateMarketing)
-def create_marketing_record(record: CandidateMarketingCreate):
+def create_marketing_record(
+    record: CandidateMarketingCreate,
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return candidate_utils.create_marketing(record)
 
 @router.put("/candidate/marketing/{record_id}", response_model=CandidateMarketing)
-def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
+def update_marketing_record(
+    record_id: int, 
+    record: CandidateMarketingCreate,
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return candidate_utils.update_marketing(record_id, record)
 
 @router.delete("/candidate/marketing/{record_id}")
-def delete_marketing_record(record_id: int):
+def delete_marketing_record(
+    record_id: int,
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     return candidate_utils.delete_marketing(record_id)
-
 
 
 @router.get("/candidate/placements")
@@ -247,18 +254,78 @@ def create_prep(prep: CandidatePreparationCreate, db: Session = Depends(get_db))
 
 @router.get("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
 def get_prep(prep_id: int, db: Session = Depends(get_db)):
-    prep = candidate_utils.get_preparation_by_id(db, prep_id)
-    if not prep:
-        raise HTTPException(status_code=404, detail="Candidate preparation not found")
-    return prep
+    prep, workstatus = candidate_utils.get_preparation_by_id(db, prep_id)
 
+    # Serialize the preparation object and include workstatus
+    response = {
+        "id": prep.id,
+        "start_date": prep.start_date,
+        "status": prep.status,
+        "workstatus": workstatus,
+        "rating": prep.rating,
+        "communication": prep.communication,
+        "years_of_experience": prep.years_of_experience,
+        "target_date": prep.target_date,
+        "notes": prep.notes,
+        "last_mod_datetime": prep.last_mod_datetime,
+        "move_to_mrkt": prep.move_to_mrkt,
+        "github_url": prep.github_url,
+        "resume_url": prep.resume_url,
+        "candidate": prep.candidate,
+        "instructor1": prep.instructor1,
+        "instructor2": prep.instructor2,
+        "instructor3": prep.instructor3,
+    }
 
-@router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
+    return response
+
+@router.get("/candidate_preparations", response_model=list[dict])
 def list_preps(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return candidate_utils.get_all_preparations(db)
+    results = candidate_utils.get_all_preparations(db)
+    preparations = []
+    for prep, workstatus in results:
+        prep_dict = {
+            "id": prep.id,
+            "candidate_id": prep.candidate_id,
+            "start_date": prep.start_date,
+            "status": prep.status,
+            "workstatus": workstatus,
+            "rating": prep.rating,
+            "communication": prep.communication,
+            "years_of_experience": prep.years_of_experience,
+            "target_date": prep.target_date,
+            "notes": prep.notes,
+            "last_mod_datetime": prep.last_mod_datetime,
+            "move_to_mrkt": prep.move_to_mrkt,
+            "github_url": prep.github_url,
+            "resume_url": prep.resume_url,
+            "candidate": {
+                "id": prep.candidate.id,
+                "full_name": prep.candidate.full_name,
+                "batch": {
+                    "batchname": prep.candidate.batch.batchname if prep.candidate.batch else None
+                } if prep.candidate.batch else None,
+                "linkedin_id": prep.candidate.linkedin_id
+            } if prep.candidate else None,
+            "instructor1": {
+                "id": prep.instructor1.id,
+                "name": prep.instructor1.name
+            } if prep.instructor1 else None,
+            "instructor2": {
+                "id": prep.instructor2.id,
+                "name": prep.instructor2.name
+            } if prep.instructor2 else None,
+            "instructor3": {
+                "id": prep.instructor3.id,
+                "name": prep.instructor3.name
+            } if prep.instructor3 else None,
+        }
+        preparations.append(prep_dict)
+    return preparations
+
 
 @router.put("/candidate_preparation/{prep_id}", response_model=CandidatePreparationOut)
 def update_prep(
@@ -271,8 +338,6 @@ def update_prep(
     if not updated:
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return updated
-
-
 
 
 @router.delete("/candidate_preparation/{prep_id}")
