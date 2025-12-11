@@ -690,7 +690,7 @@ class JobTypeORM(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     unique_id = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
-    job_owner_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    job_owner = Column(Integer, ForeignKey("employee.id"), nullable=True)
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     lastmod_date_time = Column(TIMESTAMP, server_default=func.current_timestamp(
