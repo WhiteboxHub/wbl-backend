@@ -367,7 +367,10 @@ class CandidatePlacementORM(Base):
                   'Implementation Partner'), nullable=True)
 
     status = Column(Enum('Active', 'Inactive'), nullable=False)
-    # priority = Column(Integer, nullable=True)
+    no_of_installments = Column(
+        Enum('1', '2', '3', '4', '5', name="installment_enum"),
+        nullable=True
+    )
 
     base_salary_offered = Column(DECIMAL(10, 2), nullable=True)
     benefits = Column(Text, nullable=True)
@@ -423,6 +426,32 @@ class CandidatePreparation(Base):
     resume_url = Column(String(255), nullable=True)
     last_mod_datetime = Column(TIMESTAMP, nullable=True)
     move_to_mrkt = Column(Boolean, default=False, nullable=False)
+
+# ---------------------------------------------------------------
+
+# -----------------------------Placement_Fee_Collection---------------------------------
+
+class AmountCollectedEnum(str, enum.Enum):
+    yes = "yes"
+    no = "no"
+
+class PlacementFeeCollection(Base):
+    __tablename__ = "placement_fee_collection"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    placement_id = Column(Integer, ForeignKey("candidate_placement.id"), nullable=False)
+    installment_id = Column(Integer, nullable=True)
+    deposit_date = Column(Date, nullable=True)
+    deposit_amount = Column(DECIMAL(10, 2), nullable=True)
+    amount_collected = Column(Enum(AmountCollectedEnum), nullable=False, default=AmountCollectedEnum.no)
+    lastmod_user_id = Column(Integer, nullable=True)
+    last_mod_date = Column(
+        TIMESTAMP,
+        nullable=True,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp()
+    )
+
 
 # ---------------------------------------------------------------
 

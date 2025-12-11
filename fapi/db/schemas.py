@@ -1,9 +1,10 @@
 from sqlalchemy import Column, Integer, String, Enum, UniqueConstraint, BigInteger, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal
 from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
+import enum
 
 
 class EmployeeBase(BaseModel):
@@ -435,6 +436,14 @@ class CandidateMarketingUpdate(BaseModel):
 
 # -----------------------PLACEMENT---------------------------------
 
+class InstallmentEnum(str, enum.Enum):
+    one = "1"
+    two = "2"
+    three = "3"
+    four = "4"
+    five = "5"
+
+
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
@@ -448,6 +457,7 @@ class CandidatePlacementBase(BaseModel):
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
+    no_of_installments: Optional[InstallmentEnum] = None
     last_mod_datetime: Optional[datetime] = None
     notes: Optional[str] = None
 
@@ -474,6 +484,7 @@ class CandidatePlacementUpdate(BaseModel):
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
+    no_of_installments: Optional[InstallmentEnum] = None
     notes: Optional[str] = None
 
 
@@ -703,6 +714,46 @@ class ActiveMarketingCandidate(BaseModel):
 
     class Config:
         orm_mode = True
+# -----------------------------------------------------------------------------------
+
+
+# -----------------------------Placement_Fee_Collection---------------------------------
+
+
+class AmountCollectedEnum(str, enum.Enum):
+    yes = "yes"
+    no = "no"
+
+Decimal2 = condecimal(max_digits=10, decimal_places=2)
+
+class PlacementFeeBase(BaseModel):
+    placement_id: int
+    installment_id: Optional[int] = None
+    deposit_date: Optional[date] = None
+    deposit_amount: Optional[Decimal2] = None
+    amount_collected: AmountCollectedEnum = AmountCollectedEnum.no
+    lastmod_user_id: Optional[int] = None
+
+class PlacementFeeCreate(PlacementFeeBase):
+    pass
+
+class PlacementFeeUpdate(BaseModel):
+    placement_id: Optional[int] = None
+    installment_id: Optional[int] = None
+    deposit_date: Optional[date] = None
+    deposit_amount: Optional[Decimal2] = None
+    amount_collected: Optional[AmountCollectedEnum] = None
+    lastmod_user_id: Optional[int] = None
+
+class PlacementFeeOut(PlacementFeeBase):
+    id: int
+    candidate_name: Optional[str] = None
+    lastmod_user_name: Optional[str] = None
+    last_mod_date: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
 # -----------------------------------------------------------------------------------
 
 
