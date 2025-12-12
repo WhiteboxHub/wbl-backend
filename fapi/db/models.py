@@ -287,8 +287,8 @@ class CandidateMarketingORM(Base):
         "CandidateORM", back_populates="marketing_records")
     marketing_manager_obj = relationship(
         "EmployeeORM", foreign_keys=[marketing_manager])
-    email_logs = relationship(
-        "EmailActivityLogORM", back_populates="marketing", cascade="all, delete-orphan")
+    # email_logs = relationship(
+    #     "EmailActivityLogORM", back_populates="marketing", cascade="all, delete-orphan")
 # # -------------------------------------- Candidate Interview -------------------------------
 
 
