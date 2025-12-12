@@ -5,7 +5,7 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals, candidate_dashboard, email_activity_log, internal_documents,
+    session, recording, referrals, candidate_dashboard, internal_documents,
     job_activity_log, placement_fee_collection
 )
 from fapi.db.database import SessionLocal
@@ -52,8 +52,7 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents
-    # session, recording, referrals,candidate_dashboard,email_activity_log,internal_documents
+    session, recording, referrals,candidate_dashboard,internal_documents
 )
 from fapi.utils.permission_gate import enforce_access
 
@@ -65,7 +64,6 @@ def get_db():
         db.close()
 
 
-app.include_router(email_activity_log.router, prefix="/api", tags=["Email Activity Log"], dependencies=[Depends(enforce_access)])
 app.include_router(candidate.router, prefix="/api", tags=["Candidate"], dependencies=[Depends(enforce_access)])
 app.include_router(leads.router, prefix="/api", tags=["Leads"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])

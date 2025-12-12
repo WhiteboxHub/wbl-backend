@@ -524,31 +524,6 @@ class DailyVendorActivityORM(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class EmailActivityLogORM(Base):
-    __tablename__ = "email_activity_log"
-
-    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    candidate_marketing_id = Column(
-        Integer,
-        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    email = Column(String(100), nullable=False)
-    activity_date = Column(Date, nullable=False, server_default=func.curdate())
-    emails_read = Column(Integer, nullable=False, server_default="0")
-    last_updated = Column(
-        TIMESTAMP,
-        server_default=func.current_timestamp(),
-        onupdate=func.current_timestamp(),
-    )
-    marketing = relationship("CandidateMarketingORM",
-                             back_populates="email_logs")
-
-    __table_args__ = (
-        UniqueConstraint("email", "activity_date", name="uniq_email_day"),
-    )
-
-
 # ---------linkedin_activity_log----------------------
 class LinkedInActivityLogORM(Base):
     __tablename__ = "linkedin_activity_log"

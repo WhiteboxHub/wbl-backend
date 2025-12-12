@@ -792,6 +792,10 @@ class VendorContactExtract(BaseModel):
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
 
+    model_config = {
+        "from_attributes": True
+    }
+
 
 # ------------------------------------Innovapath----------------------------
 class TalentSearch(BaseModel):
@@ -960,43 +964,6 @@ class VendorCreate(BaseModel):
 
 class VendorResponse(BaseModel):
     message: str
-
-
-# -------------------- Email Activity Log Schemas --------------------
-
-class EmailActivityLogBase(BaseModel):
-    candidate_marketing_id: int
-    email: str
-    activity_date: Optional[date] = None
-    emails_read: Optional[int] = 0
-
-
-class EmailActivityLogCreate(EmailActivityLogBase):
-    pass
-
-
-class EmailActivityLogUpdate(BaseModel):
-    emails_read: Optional[int] = None
-    activity_date: Optional[date] = None
-
-
-class EmailActivityLogOut(EmailActivityLogBase):
-    id: int
-    activity_date: date
-    emails_read: int
-    last_updated: Optional[datetime] = None
-    candidate_name: Optional[str] = None
-    total_extracted: Optional[int] = 0
-
-    class Config:
-        from_attributes = True
-
-
-class PaginatedEmailActivityLogs(BaseModel):
-    total: int
-    page: int
-    per_page: int
-    logs: List[EmailActivityLogOut]
 
 
 # ---------------linkedin_activity_log---------------------
