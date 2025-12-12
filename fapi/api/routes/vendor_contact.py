@@ -17,6 +17,7 @@ from fapi.utils.vendor_contact_utils import (
     insert_vendor_contact,
     update_vendor_contact,
     delete_vendor_contact,
+    move_contacts_to_vendor,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ async def create_vendor_contact_handler(
     contact: VendorContactExtractCreate, 
     db: Session = Depends(get_db)
 ):
+  
     try:
         result = await insert_vendor_contact(contact, db)
         return result
@@ -74,6 +76,7 @@ async def update_vendor_contact_handler(
 
 @router.delete("/vendor_contact/{contact_id}")
 async def delete_vendor_contact_handler(contact_id: int, db: Session = Depends(get_db)):
+   
     try:
         result = await delete_vendor_contact(contact_id, db)
         return result
@@ -83,3 +86,19 @@ async def delete_vendor_contact_handler(contact_id: int, db: Session = Depends(g
         logger.error(f"Error deleting vendor contact {contact_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@router.post("/vendor_contact/move-to-vendor")
+async def move_contacts_to_vendor_handler(
+    contact_ids: Optional[List[int]] = Query(None),
+    db: Session = Depends(get_db)
+):
+
+    try:
+        result = await move_contacts_to_vendor(contact_ids, db)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error moving contacts to vendor: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+    
+    
