@@ -263,7 +263,6 @@ def update_job_activity_log(
             log.lastmod_user_id = lastmod_employee.id
 
 
-        # Convert job_id to job_type_id for the ORM (same as create function)
         if "job_id" in fields:
             fields["job_type_id"] = fields.pop("job_id")
 
