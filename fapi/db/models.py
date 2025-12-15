@@ -236,20 +236,7 @@ class CandidateORM(Base):
     marketing_records = relationship(
         "CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
 
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate")
-    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
-
-    interview_records = relationship(
-        "CandidateInterview", back_populates="candidate")
-    placement_records = relationship(
-        "CandidatePlacementORM", back_populates="candidate")
-    placement_records = relationship(
-        "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
-
     batch = relationship("Batch", back_populates="candidates")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
 
 # --------------------- Candidate Marketing -----------------
 
@@ -377,7 +364,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    candidate = relationship("CandidateORM", back_populates="placements")
+    candidate = relationship("CandidateORM", back_populates="placements", overlaps="placement_records")
 
 # -------------------------------------- Candidate Preparation -------------------------------
 
@@ -390,8 +377,8 @@ class CandidatePreparation(Base):
 
     candidate = relationship(
         "CandidateORM",
-        back_populates="preparation_records",
-        overlaps="preparations"
+        back_populates="preparations",
+        overlaps="preparation_records"
     )
 
     instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)

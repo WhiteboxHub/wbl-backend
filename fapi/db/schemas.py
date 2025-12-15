@@ -76,7 +76,7 @@ class EmployeeBirthdayOut(BaseModel):
     wish: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # ---------------------------enployee search -----------------------------
@@ -96,7 +96,7 @@ class EmployeeDetailSchema(BaseModel):
     aadhaar: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Token(BaseModel):
@@ -197,7 +197,7 @@ class AuthUserResponse(AuthUserBase):
         return v
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PaginatedUsers(BaseModel):
@@ -395,7 +395,7 @@ class PaginatedCandidateResponse(BaseModel):
     data: List[CandidateBase]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # -------------------------MARKETING-----------------------
 
@@ -510,7 +510,7 @@ class InstructorOut(BaseModel):
     full_name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # =====================================employee  --hkd ========================
@@ -728,7 +728,7 @@ class ActiveMarketingCandidate(BaseModel):
     status: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 # -----------------------------------------------------------------------------------
 
 
@@ -923,7 +923,7 @@ class VendorMetrics(BaseModel):
     week_extracted: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---------------daily-vendor-activity --------------
 
@@ -1097,7 +1097,7 @@ class SubjectOut(BaseModel):
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class SubjectCreate(SubjectBase):
@@ -1157,7 +1157,7 @@ class RecordingOut(RecordingBase):
     # lastmoddatetime: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class Recording(RecordingBase):
@@ -1487,7 +1487,7 @@ class SessionOut(SessionBase):
     # subject: Optional[SubjectOut]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PaginatedSession(BaseModel):
@@ -1498,7 +1498,7 @@ class PaginatedSession(BaseModel):
     pages: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # -----------------------------Avatar Dashboard schemas----------------------------------------------------
@@ -1604,7 +1604,7 @@ class CombinedEmailExtractionSummary(BaseModel):
     emails_extracted_week: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # =====================================employee========================
@@ -1654,7 +1654,7 @@ class EmployeeBirthdayOut(BaseModel):
     wish: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # --------------------------------------------Password----------------------------
@@ -1695,34 +1695,28 @@ class InternalDocumentOut(InternalDocumentBase):
 class JobTypeBase(BaseModel):
     unique_id: str
     name: str
-    job_owner: Optional[int] = None
+    job_owner_id: Optional[int] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
-class JobTypeCreate(BaseModel):
-    unique_id: str
-    name: str
-    job_owner: int
-    description: Optional[str] = None
-    notes: Optional[str] = None
+class JobTypeCreate(JobTypeBase):
+    pass
 
 
 class JobTypeUpdate(BaseModel):
     unique_id: Optional[str] = None
     name: Optional[str] = None
+    job_owner_id: Optional[int] = None
     job_owner: Optional[int] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
-class JobTypeOut(BaseModel):
+class JobTypeOut(JobTypeBase):
     id: int
-    unique_id: str
-    name: str
-    job_owner: Optional[str] = None
-    description: Optional[str] = None
-    notes: Optional[str] = None
+    job_owner: Optional[int] = None
+    job_owner_name: Optional[str] = None
     lastmod_date_time: Optional[str] = None
     lastmod_user_name: Optional[str] = None
     job_owner_name: Optional[str] = None
