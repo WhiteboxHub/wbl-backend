@@ -1477,8 +1477,7 @@ class SessionOut(SessionBase):
         if v in ("0000-00-00", None, ""):
             return None
         return v
-    # lastmoddatetime: Optional[datetime]
-    # subject: Optional[SubjectOut]
+
 
     class Config:
         from_attributes = True
@@ -1689,11 +1688,12 @@ class InternalDocumentOut(InternalDocumentBase):
 class JobTypeBase(BaseModel):
     unique_id: str
     name: str
-    job_owner: Optional[int] = None
+    job_owner_id: Optional[int] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
+# <<<<<<< HEAD
 class JobTypeCreate(BaseModel):
     unique_id: str
     name: str
@@ -1706,12 +1706,14 @@ class JobTypeUpdate(BaseModel):
     unique_id: Optional[str] = None
     name: Optional[str] = None
     job_owner_id: Optional[int] = None
+    job_owner: Optional[int] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
-class JobTypeOut(BaseModel):
+class JobTypeOut(JobTypeBase):
     id: int
+
     unique_id: str
     name: str
     job_owner: Optional[int] = None
