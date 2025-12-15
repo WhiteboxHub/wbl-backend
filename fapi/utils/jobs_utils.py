@@ -17,10 +17,6 @@ logger = logging.getLogger(__name__)
 def get_all_job_activity_logs(db: Session) -> List[JobActivityLogOut]:
     """Get all job activity logs with job name, candidate name, employee name, and lastmod_user_name"""
     try:
-
-        total_logs = db.query(JobActivityLogORM).count()
-
-
         from sqlalchemy.orm import aliased
         LastModUserEmployee = aliased(EmployeeORM)
 
@@ -48,8 +44,6 @@ def get_all_job_activity_logs(db: Session) -> List[JobActivityLogOut]:
         )
 
         # All logs are now returned, including those with missing job type references
-
-        logger.info(f"Retrieved {len(logs)} job activity logs (total in database: {total_logs})")
 
         result = []
         for row in logs:
@@ -546,7 +540,6 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
     ).first()
 
     fields = update_data.dict(exclude_unset=True)
-    logger.info(f"Job type update fields received: {fields}")
 
     if "job_owner_id" in fields:
         fields["job_owner"] = fields.pop("job_owner_id")
