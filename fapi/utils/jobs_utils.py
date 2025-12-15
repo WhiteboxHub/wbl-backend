@@ -1,5 +1,4 @@
 # WBL_Backend\fapi\utils\jobs_utils.py
-from fapi.db.models import EmployeeORM  # ensure imported
 from fapi.db.models import EmployeeORM
 
 from typing import List, Dict, Any, Optional
@@ -16,50 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 from sqlalchemy.orm import aliased
-
-def _get_base_log_query(db: Session):
-    """Base query for job activity logs with all necessary joins"""
-    LastModUserEmployee = aliased(EmployeeORM)
-    
-    return (
-        db.query(
-            JobActivityLogORM.id,
-            JobActivityLogORM.job_type_id,
-            JobActivityLogORM.candidate_id,
-            JobActivityLogORM.employee_id,
-            JobActivityLogORM.activity_date,
-            JobActivityLogORM.activity_count,
-            JobActivityLogORM.notes,
-            JobActivityLogORM.lastmod_date_time,
-            JobTypeORM.name.label("job_name"),
-            CandidateORM.full_name.label("candidate_name"),
-            EmployeeORM.name.label("employee_name"),
-            LastModUserEmployee.name.label("lastmod_user_name")
-        )
-        .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
-        .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
-        .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
-        .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
-    )
-
-def _format_log_result(row) -> Dict[str, Any]:
-    """Format a job activity log query result row into a dictionary"""
-    return {
-        "id": row.id,
-        "job_id": row.job_type_id,
-        "candidate_id": row.candidate_id,
-        "employee_id": row.employee_id,
-        "activity_date": row.activity_date,
-        "activity_count": row.activity_count,
-        "notes": row.notes,
-        "last_mod_date": row.lastmod_date_time,
-        "lastmod_user_name": row.lastmod_user_name,
-        "job_name": row.job_name,
-        "candidate_name": row.candidate_name,
-        "employee_name": row.employee_name
-    }
-
-
 
 def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
     """Get all job activity logs with job name, candidate name, employee name, and lastmod_user_name"""
@@ -105,8 +60,28 @@ def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
 def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
     """Get single job activity log by ID"""
     try:
+        from sqlalchemy.orm import aliased
+        LastModUserEmployee = aliased(EmployeeORM)
+        
         result = (
-            _get_base_log_query(db)
+            db.query(
+                JobActivityLogORM.id,
+                JobActivityLogORM.job_type_id,
+                JobActivityLogORM.candidate_id,
+                JobActivityLogORM.employee_id,
+                JobActivityLogORM.activity_date,
+                JobActivityLogORM.activity_count,
+                JobActivityLogORM.notes,
+                JobActivityLogORM.lastmod_date_time,
+                JobTypeORM.name.label("job_name"),
+                CandidateORM.full_name.label("candidate_name"),
+                EmployeeORM.name.label("employee_name"),
+                LastModUserEmployee.name.label("lastmod_user_name")
+            )
+            .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
+            .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
+            .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
+            .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
             .filter(JobActivityLogORM.id == log_id)
             .first()
         )
@@ -433,7 +408,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
                 JobTypeORM.id,
                 JobTypeORM.unique_id,
                 JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),  # Explicitly label as job_owner_id
+                JobTypeORM.job_owner.label("job_owner_id"),
                 JobTypeORM.description,
                 JobTypeORM.notes,
                 JobTypeORM.lastmod_date_time,
@@ -455,7 +430,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
             "id": result.id,
             "unique_id": result.unique_id,
             "name": result.name,
-            "job_owner": result.job_owner_id,  # Use the explicitly labeled field
+            "job_owner": result.job_owner_id,
             "job_owner_name": result.job_owner_name,
             "description": result.description,
             "notes": result.notes,
@@ -527,7 +502,7 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
                 JobTypeORM.id,
                 JobTypeORM.unique_id,
                 JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),  # Explicitly label as job_owner_id
+                JobTypeORM.job_owner.label("job_owner_id"),
                 JobTypeORM.description,
                 JobTypeORM.notes,
                 JobTypeORM.lastmod_date_time,
@@ -551,7 +526,7 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
             "id": result.id,
             "unique_id": result.unique_id,
             "name": result.name,
-            "job_owner": result.job_owner_id,  # Use the explicitly labeled field
+            "job_owner": result.job_owner_id,
             "job_owner_name": result.job_owner_name,
             "description": result.description,
             "notes": result.notes,
