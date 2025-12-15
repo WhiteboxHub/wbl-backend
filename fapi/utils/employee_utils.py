@@ -12,8 +12,6 @@ def get_all_employees() -> list[dict]:
         employees = query.all()
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
 
-
-
 def create_employee_db(employee_data: dict) -> None:
     with SessionLocal() as session:
         employee = EmployeeORM(**employee_data)
@@ -28,6 +26,14 @@ def delete_employee_db(employee_id: int) -> None:
             raise ValueError("Employee not found")
         session.delete(employee)
         session.commit()
+
+
+def get_employee_by_email(email: str) -> dict:
+    with SessionLocal() as session:
+        employee = session.query(EmployeeORM).filter(EmployeeORM.email == email).first()
+        if employee:
+            return clean_invalid_values(employee.__dict__.copy())
+        return None
 
 
 def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:

@@ -4,6 +4,7 @@ from fapi.db.schemas import GoogleUserCreate
 from fapi.db.database import SessionLocal, get_db
 from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
 from fapi.utils.google_auth_utils import get_google_user_by_email, insert_google_user_db
+from fapi.utils.employee_utils import get_employee_by_email
 from fapi.auth import create_google_access_token
 from fapi.core.config import SECRET_KEY, ALGORITHM
 import jwt
@@ -64,23 +65,37 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
 
     # 3. Candidate table check
     candidate_info = fetch_candidate_id_and_status_by_email(db, user.email)
-    if not candidate_info:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Candidate record not found. Please register or contact support."
-        )
-
-    if candidate_info.status.lower() not in ("active","closed"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Candidate account is inactive. Please contact Recruiting at +1 925-557-1053."
-        )
+    if candidate_info:
+        # This is a candidate
+        if candidate_info.status.lower() not in ("active","closed"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Candidate account is inactive. Please contact Recruiting at +1 925-557-1053."
+            )
+        # Set candidate role
+        token_data = {
+            "sub": existing_user.uname,
+            "team": getattr(existing_user, "team", "default_team"),
+            "role": "candidate"
+        }
+    else:
+        # Check if this is an employee
+        employee = get_employee_by_email(user.email)
+        if employee and employee['status'] == 1:
+            # This is an active employee
+            token_data = {
+                "sub": existing_user.uname,
+                "team": getattr(existing_user, "team", "default_team"),
+                "role": "admin",
+                "is_employee": True
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No active candidate or employee record found. Please register or contact support."
+            )
 
     # 4. Generate JWT
-    token_data = {
-        "sub": existing_user.uname,
-        "team": getattr(existing_user, "team", "default_team")
-    }
     access_token = await create_google_access_token(data=token_data)
 
     return {

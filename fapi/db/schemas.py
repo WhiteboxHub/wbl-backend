@@ -89,7 +89,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     team: Optional[str] = None
-    team: Optional[str] = None
+    login_count: Optional[int] = None
 
 
 class TokenRequest(BaseModel):
@@ -1757,4 +1757,3 @@ class PaginatedJobActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[JobActivityLogOut]
-
