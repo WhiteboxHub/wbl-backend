@@ -1693,7 +1693,6 @@ class JobTypeBase(BaseModel):
     notes: Optional[str] = None
 
 
-# <<<<<<< HEAD
 class JobTypeCreate(BaseModel):
     unique_id: str
     name: str
