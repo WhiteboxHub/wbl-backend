@@ -7,7 +7,6 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from sqlalchemy import Integer  # add import at top
 
 
 Base = declarative_base()
