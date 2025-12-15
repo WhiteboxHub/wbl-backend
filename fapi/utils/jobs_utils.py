@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 def get_all_job_activity_logs(db: Session) -> List[JobActivityLogOut]:
     """Get all job activity logs with job name, candidate name, employee name, and lastmod_user_name"""
     try:
+
+        total_logs = db.query(JobActivityLogORM).count()
+
+
         from sqlalchemy.orm import aliased
         LastModUserEmployee = aliased(EmployeeORM)
 
@@ -44,6 +48,8 @@ def get_all_job_activity_logs(db: Session) -> List[JobActivityLogOut]:
         )
 
         # All logs are now returned, including those with missing job type references
+
+        logger.info(f"Retrieved {len(logs)} job activity logs (total in database: {total_logs})")
 
         result = []
         for row in logs:
@@ -349,7 +355,8 @@ def update_job_activity_log(
         if lastmod_employee:
             log.lastmod_user_id = lastmod_employee.id
 
-        # Convert job_id to job_type_id for the ORM
+
+        # Convert job_id to job_type_id for the ORM (same as create function)
         if "job_id" in fields:
             fields["job_type_id"] = fields["job_id"]
             del fields["job_id"]
@@ -455,7 +462,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
         if "job_owner_id" in job_type_dict:
             job_type_dict["job_owner"] = job_type_dict.pop("job_owner_id")
 
-        # Validate job_owner if provided
+
         if job_type_dict.get("job_owner") is not None:
             job_owner_employee = db.query(EmployeeORM).filter(
                 EmployeeORM.id == job_type_dict["job_owner"]
@@ -477,7 +484,6 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
         db.add(new_job_type)
         db.commit()
         db.refresh(new_job_type)
-
 
         # Return formatted response with employee names instead of IDs
         from sqlalchemy.orm import aliased
@@ -515,7 +521,6 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
             "name": result.name,
             "job_owner": result.job_owner_id,
             "job_owner_name": result.job_owner_name,
-            # "job_owner": result.job_owner,
             "description": result.description,
             "notes": result.notes,
             "lastmod_date_time": result.lastmod_date_time,
@@ -542,6 +547,12 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
     ).first()
 
     fields = update_data.dict(exclude_unset=True)
+    logger.info(f"Job type update fields received: {fields}")
+
+    if "job_owner_id" in fields:
+        fields["job_owner"] = fields.pop("job_owner_id")
+    elif "job_owner" in fields:
+        pass
 
     if "job_owner_id" in fields:
         fields["job_owner"] = fields.pop("job_owner_id")
