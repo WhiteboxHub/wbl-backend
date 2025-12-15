@@ -51,6 +51,7 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
             decoded_token = jwt.decode(apiToken, SECRET_KEY, algorithms=[ALGORITHM])
             username = decoded_token.get('sub')
             role = decoded_token.get('role')
+            is_employee = decoded_token.get('is_employee', False)
 
             user = cache_get(username)
             if user is None:
@@ -62,6 +63,7 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
 
             request.state.user = user
             request.state.role = role
+            request.state.is_employee = is_employee
 
         except ExpiredSignatureError:
             return JSONResponse(status_code=401, content={"detail": "Login session expired"})
@@ -114,6 +116,11 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
             role = determine_user_role(userinfo)
             to_encode["role"] = role
 
+        # Handle employee flags
+        is_employee = data.get("is_employee", False)
+        if is_employee:
+            to_encode["is_employee"] = True
+
         # ORM-safe domain handling
         domain = getattr(userinfo, "domain", None)
         if domain:
@@ -146,4 +153,3 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
