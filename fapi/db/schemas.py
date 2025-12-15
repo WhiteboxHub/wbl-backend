@@ -59,12 +59,6 @@ class EmployeeUpdate(EmployeeBase):
 class Employee(EmployeeBase):
     id: int
 
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if isinstance(v, str) and v.startswith("0000-00-00"):
-            return None
-        return v
-
     class Config:
         from_attributes = True
 

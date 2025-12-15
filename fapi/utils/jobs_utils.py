@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
 from fapi.db.models import JobActivityLogORM, JobTypeORM, CandidateORM, EmployeeORM
-from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeCreate, JobTypeUpdate
+from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeCreate, JobTypeUpdate, JobActivityLogOut, JobTypeOut
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,6 @@ def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
         )
 
         # All logs are now returned, including those with missing job type references
-        logger.info(f"Retrieved {len(logs)} job activity logs (total in database: {total_logs})")
 
         return [_format_log_result(row) for row in logs]
     except SQLAlchemyError as e:
@@ -102,7 +101,6 @@ def get_logs_by_job_id(db: Session, job_id: int) -> List[Dict[str, Any]]:
         logs = (
             _get_base_log_query(db)
             .filter(JobActivityLogORM.job_type_id == job_id)
-            .filter(JobTypeORM.id.isnot(None))  # Ensure job type exists
             .order_by(JobActivityLogORM.activity_date.desc())
             .all()
         )
@@ -119,7 +117,6 @@ def get_logs_by_employee_id(db: Session, employee_id: int) -> List[Dict[str, Any
         logs = (
             _get_base_log_query(db)
             .filter(JobActivityLogORM.employee_id == employee_id)
-            .filter(JobTypeORM.id.isnot(None))  # Ensure job type exists
             .order_by(JobActivityLogORM.activity_date.desc())
             .all()
         )
@@ -458,7 +455,6 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
     ).first()
 
     fields = update_data.dict(exclude_unset=True)
-    logger.info(f"Job type update fields received: {fields}")
 
     if "job_owner_id" in fields:
         fields["job_owner"] = fields.pop("job_owner_id")
