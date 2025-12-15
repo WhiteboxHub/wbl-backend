@@ -81,8 +81,6 @@ def update_job_activity_log(
     current_user: AuthUserORM = Depends(get_current_user)
 ):
     """Update job activity log"""
-    logger.info(
-        f"Update schema received: {update_data.dict(exclude_unset=True)}")
     return jobs_utils.update_job_activity_log(db, log_id, update_data, current_user)
 
 
