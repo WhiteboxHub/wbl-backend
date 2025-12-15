@@ -5,29 +5,43 @@ from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator
 from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
 import enum
+import re
 
 
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     state: Optional[str] = None
     dob: Optional[date] = None
-    startdate: Optional[date] = None
+    startdate: Optional[date] = Field(default_factory=date.today)
+
     enddate: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[int] = None
     instructor: Optional[int] = None
     aadhaar: Optional[str] = None
 
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if v in ("", "0000-00-00", None):
-            return None
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v and not re.match(r'^[6-9]\d{9}$', v):
+            raise ValueError('Phone must be a valid 10-digit Indian number starting with 6-9')
         return v
 
+    @validator('email')
+    def validate_email(cls, v):
+        if not re.match(r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$', v, re.IGNORECASE):
+            raise ValueError('Invalid email format')
+        
+        return v
+
+    @validator('aadhaar')
+    def validate_aadhaar(cls, v):
+        if v and not re.match(r'^\d{12}$', v):
+            raise ValueError('Aadhaar must be 12 digits')
+        return v
 
 class EmployeeCreate(EmployeeBase):
     name: str

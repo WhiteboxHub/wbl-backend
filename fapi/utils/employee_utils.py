@@ -42,13 +42,10 @@ def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:
         if not employee:
             raise ValueError("Employee not found")
 
-        print(f"Before update: {employee.name}, {employee.email}")  # Debug log
         for key, value in fields.items():
-            if hasattr(employee, key):
-                print(f"Setting {key} to {value}")  # Debug log
+            if hasattr(employee, key) and value is not None:
                 setattr(employee, key, value)
 
         session.commit()
         session.refresh(employee)
-        print(f"After update: {employee.name}, {employee.email}")  # Debug log
         return employee
