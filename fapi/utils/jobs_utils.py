@@ -1,5 +1,4 @@
 # WBL_Backend\fapi\utils\jobs_utils.py
-from fapi.db.models import EmployeeORM  # ensure imported
 from fapi.db.models import EmployeeORM
 
 from typing import List, Dict, Any, Optional
@@ -96,7 +95,7 @@ def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
                 EmployeeORM.name.label("employee_name"),
                 LastModUserEmployee.name.label("lastmod_user_name")
             )
-            .join(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
+            .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
             .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
             .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
             .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
@@ -357,7 +356,7 @@ def update_job_activity_log(
         if lastmod_employee:
             log.lastmod_user_id = lastmod_employee.id
 
-        # Convert job_id to job_type_id for the ORM (same as create function)
+        # Convert job_id to job_type_id for the ORM
         if "job_id" in fields:
             fields["job_type_id"] = fields["job_id"]
             del fields["job_id"]
@@ -491,7 +490,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
                 JobTypeORM.id,
                 JobTypeORM.unique_id,
                 JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),  # Explicitly label as job_owner_id
+                JobTypeORM.job_owner.label("job_owner_id"),
                 JobTypeORM.description,
                 JobTypeORM.notes,
                 JobTypeORM.lastmod_date_time,
@@ -513,7 +512,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
             "id": result.id,
             "unique_id": result.unique_id,
             "name": result.name,
-            "job_owner": result.job_owner_id,  # Use the explicitly labeled field
+            "job_owner": result.job_owner_id,
             "job_owner_name": result.job_owner_name,
             "description": result.description,
             "notes": result.notes,
@@ -585,7 +584,7 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
                 JobTypeORM.id,
                 JobTypeORM.unique_id,
                 JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),  # Explicitly label as job_owner_id
+                JobTypeORM.job_owner.label("job_owner_id"),
                 JobTypeORM.description,
                 JobTypeORM.notes,
                 JobTypeORM.lastmod_date_time,
@@ -609,7 +608,7 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
             "id": result.id,
             "unique_id": result.unique_id,
             "name": result.name,
-            "job_owner": result.job_owner_id,  # Use the explicitly labeled field
+            "job_owner": result.job_owner_id,
             "job_owner_name": result.job_owner_name,
             "description": result.description,
             "notes": result.notes,
