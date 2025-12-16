@@ -1696,7 +1696,7 @@ class JobTypeBase(BaseModel):
 class JobTypeCreate(BaseModel):
     unique_id: str
     name: str
-    job_owner_id: Optional[int] = None
+    job_owner_id: int
     description: Optional[str] = None
     notes: Optional[str] = None
 
