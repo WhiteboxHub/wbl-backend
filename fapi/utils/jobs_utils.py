@@ -439,10 +439,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
         )
 
 
-        # Debug: Print the result object to understand its structure
-        logger.debug(f"Result object: {result}")
-        logger.debug(f"Result job_owner_id type: {type(result.job_owner_id)}")
-        logger.debug(f"Result job_owner_id value: {result.job_owner_id}")
+
 
 
         return {
@@ -478,15 +475,9 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
 
     fields = update_data.dict(exclude_unset=True)
 
+    # Convert job_owner_id to job_owner for database compatibility
     if "job_owner_id" in fields:
         fields["job_owner"] = fields.pop("job_owner_id")
-    elif "job_owner" in fields:
-        pass
-
-    if "job_owner_id" in fields:
-        fields["job_owner"] = fields.pop("job_owner_id")
-    elif "job_owner" in fields:
-        pass
 
     job_type = db.query(JobTypeORM).filter(
         JobTypeORM.id == job_type_id).first()
@@ -545,12 +536,7 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
         )
 
 
-        # Debug: Print the result object to understand its structure
-        logger.debug(f"Update result object: {result}")
-        logger.debug(f"Update result job_owner_id type: {type(result.job_owner_id)}")
-        logger.debug(f"Update result job_owner_id value: {result.job_owner_id}")
-        logger.debug(f"Update result job_owner_name type: {type(result.job_owner_name)}")
-        logger.debug(f"Update result job_owner_name value: {result.job_owner_name}")
+
 
 
         return {
