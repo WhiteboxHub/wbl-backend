@@ -1,32 +1,47 @@
 from sqlalchemy import Column, Integer, String, Enum, UniqueConstraint, BigInteger, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal
 from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
+import enum
+import re
 
 
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     state: Optional[str] = None
     dob: Optional[date] = None
-    startdate: Optional[date] = None
+    startdate: Optional[date] = Field(default_factory=date.today)
+
     enddate: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[int] = None
     instructor: Optional[int] = None
     aadhaar: Optional[str] = None
 
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if v in ("", "0000-00-00", None):
-            return None
+    @validator('phone')
+    def validate_phone(cls, v):
+        if v and not re.match(r'^[6-9]\d{9}$', v):
+            raise ValueError('Phone must be a valid 10-digit Indian number starting with 6-9')
         return v
 
+    @validator('email')
+    def validate_email(cls, v):
+        if not re.match(r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$', v, re.IGNORECASE):
+            raise ValueError('Invalid email format')
+        
+        return v
+
+    @validator('aadhaar')
+    def validate_aadhaar(cls, v):
+        if v and not re.match(r'^\d{12}$', v):
+            raise ValueError('Aadhaar must be 12 digits')
+        return v
 
 class EmployeeCreate(EmployeeBase):
     name: str
@@ -82,7 +97,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     team: Optional[str] = None
-    team: Optional[str] = None
+    login_count: Optional[int] = None
 
 
 class TokenRequest(BaseModel):
@@ -430,6 +445,14 @@ class CandidateMarketingUpdate(BaseModel):
 
 # -----------------------PLACEMENT---------------------------------
 
+class InstallmentEnum(str, enum.Enum):
+    one = "1"
+    two = "2"
+    three = "3"
+    four = "4"
+    five = "5"
+
+
 
 class CandidatePlacementBase(BaseModel):
     candidate_id: int
@@ -443,6 +466,7 @@ class CandidatePlacementBase(BaseModel):
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
+    no_of_installments: Optional[InstallmentEnum] = None
     last_mod_datetime: Optional[datetime] = None
     notes: Optional[str] = None
 
@@ -469,6 +493,7 @@ class CandidatePlacementUpdate(BaseModel):
     base_salary_offered: Optional[float] = None
     benefits: Optional[str] = None
     fee_paid: Optional[float] = None
+    no_of_installments: Optional[InstallmentEnum] = None
     notes: Optional[str] = None
 
 
@@ -701,6 +726,46 @@ class ActiveMarketingCandidate(BaseModel):
 # -----------------------------------------------------------------------------------
 
 
+# -----------------------------Placement_Fee_Collection---------------------------------
+
+
+class AmountCollectedEnum(str, enum.Enum):
+    yes = "yes"
+    no = "no"
+
+Decimal2 = condecimal(max_digits=10, decimal_places=2)
+
+class PlacementFeeBase(BaseModel):
+    placement_id: int
+    installment_id: Optional[int] = None
+    deposit_date: Optional[date] = None
+    deposit_amount: Optional[Decimal2] = None
+    amount_collected: AmountCollectedEnum = AmountCollectedEnum.no
+    lastmod_user_id: Optional[int] = None
+
+class PlacementFeeCreate(PlacementFeeBase):
+    pass
+
+class PlacementFeeUpdate(BaseModel):
+    placement_id: Optional[int] = None
+    installment_id: Optional[int] = None
+    deposit_date: Optional[date] = None
+    deposit_amount: Optional[Decimal2] = None
+    amount_collected: Optional[AmountCollectedEnum] = None
+    lastmod_user_id: Optional[int] = None
+
+class PlacementFeeOut(PlacementFeeBase):
+    id: int
+    candidate_name: Optional[str] = None
+    lastmod_user_name: Optional[str] = None
+    last_mod_date: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+# -----------------------------------------------------------------------------------
+
+
 class GoogleUserCreate(BaseModel):
     name: str
     email: str
@@ -735,6 +800,10 @@ class VendorContactExtract(BaseModel):
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }
 
 
 # ------------------------------------Innovapath----------------------------
@@ -905,43 +974,6 @@ class VendorCreate(BaseModel):
 
 class VendorResponse(BaseModel):
     message: str
-
-
-# -------------------- Email Activity Log Schemas --------------------
-
-class EmailActivityLogBase(BaseModel):
-    candidate_marketing_id: int
-    email: str
-    activity_date: Optional[date] = None
-    emails_read: Optional[int] = 0
-
-
-class EmailActivityLogCreate(EmailActivityLogBase):
-    pass
-
-
-class EmailActivityLogUpdate(BaseModel):
-    emails_read: Optional[int] = None
-    activity_date: Optional[date] = None
-
-
-class EmailActivityLogOut(EmailActivityLogBase):
-    id: int
-    activity_date: date
-    emails_read: int
-    last_updated: Optional[datetime] = None
-    candidate_name: Optional[str] = None
-    total_extracted: Optional[int] = 0
-
-    class Config:
-        from_attributes = True
-
-
-class PaginatedEmailActivityLogs(BaseModel):
-    total: int
-    page: int
-    per_page: int
-    logs: List[EmailActivityLogOut]
 
 
 # ---------------linkedin_activity_log---------------------

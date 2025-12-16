@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,EmailActivityLogORM,Recording,RecordingBatch
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation,Vendor, VendorContactExtractsORM,Recording,RecordingBatch
 from fapi.db.schemas import CandidatePreparationMetrics
 import re
 
@@ -475,17 +475,17 @@ def get_combined_email_extraction_summary(db: Session):
     today = date.today()
     week_start = today - timedelta(days=7)
 
-    reads_today_subq = (
-        db.query(
-            CandidateORM.id.label("candidate_id"),
-            func.sum(EmailActivityLogORM.emails_read).label("emails_read_today")
-        )
-        .join(CandidateMarketingORM, CandidateMarketingORM.id == EmailActivityLogORM.candidate_marketing_id)
-        .join(CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id)
-        .filter(EmailActivityLogORM.activity_date == today)
-        .group_by(CandidateORM.id)
-        .subquery()
-    )
+    # reads_today_subq = (
+    #     db.query(
+    #         CandidateORM.id.label("candidate_id"),
+    #         func.sum(EmailActivityLogORM.emails_read).label("emails_read_today")
+    #     )
+    #     .join(CandidateMarketingORM, CandidateMarketingORM.id == EmailActivityLogORM.candidate_marketing_id)
+    #     .join(CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id)
+    #     .filter(EmailActivityLogORM.activity_date == today)
+    #     .group_by(CandidateORM.id)
+    #     .subquery()
+    # )
 
     extraction_subq = (
         db.query(

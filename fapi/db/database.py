@@ -1,3 +1,4 @@
+# wbl-backend/fapi/db/database.py
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -8,6 +9,8 @@ load_dotenv()
 
 # Read from environment variables
 raw_password = os.getenv('DB_PASSWORD')
+if raw_password is None:
+    raise ValueError("DB_PASSWORD environment variable is not set")
 encoded_password = quote(raw_password)
 
 db_config = {

@@ -12,8 +12,6 @@ def get_all_employees() -> list[dict]:
         employees = query.all()
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
 
-
-
 def create_employee_db(employee_data: dict) -> None:
     with SessionLocal() as session:
         employee = EmployeeORM(**employee_data)
@@ -30,19 +28,24 @@ def delete_employee_db(employee_id: int) -> None:
         session.commit()
 
 
+def get_employee_by_email(email: str) -> dict:
+    with SessionLocal() as session:
+        employee = session.query(EmployeeORM).filter(EmployeeORM.email == email).first()
+        if employee:
+            return clean_invalid_values(employee.__dict__.copy())
+        return None
+
+
 def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:
     with SessionLocal() as session:
         employee = session.query(EmployeeORM).filter(EmployeeORM.id == employee_id).first()
         if not employee:
             raise ValueError("Employee not found")
 
-        print(f"Before update: {employee.name}, {employee.email}")  # Debug log
         for key, value in fields.items():
-            if hasattr(employee, key):
-                print(f"Setting {key} to {value}")  # Debug log
+            if hasattr(employee, key) and value is not None:
                 setattr(employee, key, value)
 
         session.commit()
         session.refresh(employee)
-        print(f"After update: {employee.name}, {employee.email}")  # Debug log
         return employee

@@ -5,8 +5,8 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals, candidate_dashboard, email_activity_log, internal_documents,
-    jobs
+    session, recording, referrals, candidate_dashboard, internal_documents,
+    jobs, placement_fee_collection
 )
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -47,6 +47,18 @@ async def log_exceptions(request: Request, call_next):
         raise
 
 
+
+from fapi.db.database import SessionLocal
+from fapi.api.routes import (
+    candidate, leads, google_auth, talent_search, user_role,
+    contact, login, register, resources, vendor_contact,
+    vendor, request_demo, unsubscribe,
+    user_dashboard, password, employee, course, subject, course_subject,
+    course_content, course_material, batch, authuser, avatar_dashboard,
+    session, recording, referrals,candidate_dashboard,internal_documents
+)
+from fapi.utils.permission_gate import enforce_access
+
 def get_db():
     db = SessionLocal()
     try:
@@ -55,20 +67,12 @@ def get_db():
         db.close()
 
 
-app.include_router(email_activity_log.router, prefix="/api",
-                   tags=["Email Activity Log"], dependencies=[Depends(enforce_access)])
-app.include_router(candidate.router, prefix="/api",
-                   tags=["Candidate"], dependencies=[Depends(enforce_access)])
-app.include_router(leads.router, prefix="/api",
-                   tags=["Leads"], dependencies=[Depends(enforce_access)])
-app.include_router(vendor_contact.router, prefix="/api",
-                   tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])
-app.include_router(vendor.router, prefix="/api",
-                   tags=["Vendor"], dependencies=[Depends(enforce_access)])
-app.include_router(employee.router, prefix="/api",
-                   tags=["Employee"], dependencies=[Depends(enforce_access)])
-app.include_router(talent_search.router,  prefix="/api",
-                   tags=["Talent Search"], dependencies=[Depends(enforce_access)])
+app.include_router(candidate.router, prefix="/api", tags=["Candidate"], dependencies=[Depends(enforce_access)])
+app.include_router(leads.router, prefix="/api", tags=["Leads"], dependencies=[Depends(enforce_access)])
+app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])
+app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])
+app.include_router(employee.router, prefix="/api", tags=["Employee"], dependencies=[Depends(enforce_access)])
+app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"], dependencies=[Depends(enforce_access)])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(password.router, prefix="/api", tags=["Password"])
 app.include_router(request_demo.router, prefix="/api",
@@ -111,3 +115,5 @@ app.include_router(internal_documents.router,
                    prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api",
                    tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
+app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
+

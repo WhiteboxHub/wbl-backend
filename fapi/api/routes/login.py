@@ -20,7 +20,9 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+    print(f"Login attempt for username: {form_data.username}")
     user = await authenticate_user(form_data.username, form_data.password, db)
+    print(f"Authenticate user result: {user}")
 
     if user == "inactive_authuser":
         raise HTTPException(
@@ -54,25 +56,25 @@ async def login_for_access_token(
     db_user = get_user_by_username(db, user.get("uname"))
     if db_user:
 
-        db_user.logincount += 1
+        db_user.logincount = (db_user.logincount or 0) + 1
         db.commit()
         db.refresh(db_user)
         login_count = db_user.logincount
     else:
         login_count = 0
-    access_token = create_access_token(
-        data={
-            "sub": user.get("uname"),
-            "team": user.get("team", "default_team"),
-            "role": user.get("role", None),
-            "is_admin": user.get("is_admin", False),
-            "is_employee": user.get("is_employee", False),
-        }
-    )
+    token_data = {
+        "sub": user.get("uname"),
+        "team": user.get("team", "default_team"),
+        "role": user.get("role", None),
+        "is_admin": user.get("is_admin", False),
+        "is_employee": user.get("is_employee", False),
+    }
+
+    access_token = create_access_token(token_data)
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "team": user.get("team", "default_team"),
-        "login_count": login_count  
+        "login_count": login_count
     }

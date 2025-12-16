@@ -28,7 +28,10 @@ async def get_user_role(
             raise HTTPException(status_code=404, detail="User not found")
 
         role_info = determine_user_role(userinfo)
-        return role_info
+        return {
+            **role_info,
+            "status": userinfo.status or "inactive"
+        }
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except JWTError:
