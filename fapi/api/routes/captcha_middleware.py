@@ -1,4 +1,3 @@
-
 # wbl-backend\fapi\api\routes\captcha midileware .py
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
