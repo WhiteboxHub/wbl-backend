@@ -15,35 +15,82 @@ from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeC
 logger = logging.getLogger(__name__)
 
 
+from sqlalchemy.orm import aliased
+
+def _get_base_log_query(db: Session):
+    """Base query for job activity logs with all necessary joins"""
+    LastModUserEmployee = aliased(EmployeeORM)
+    
+    return (
+        db.query(
+            JobActivityLogORM.id,
+            JobActivityLogORM.job_type_id,
+            JobActivityLogORM.candidate_id,
+            JobActivityLogORM.employee_id,
+            JobActivityLogORM.activity_date,
+            JobActivityLogORM.activity_count,
+            JobActivityLogORM.notes,
+            JobActivityLogORM.lastmod_date_time,
+            JobTypeORM.name.label("job_name"),
+            CandidateORM.full_name.label("candidate_name"),
+            EmployeeORM.name.label("employee_name"),
+            LastModUserEmployee.name.label("lastmod_user_name")
+        )
+        .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
+        .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
+        .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
+        .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
+    )
+
+def _format_log_result(row) -> Dict[str, Any]:
+    """Format a job activity log query result row into a dictionary"""
+    return {
+        "id": row.id,
+        "job_id": row.job_type_id,
+        "candidate_id": row.candidate_id,
+        "employee_id": row.employee_id,
+        "activity_date": row.activity_date,
+        "activity_count": row.activity_count,
+        "notes": row.notes,
+        "last_mod_date": row.lastmod_date_time,
+        "lastmod_user_name": row.lastmod_user_name,
+        "job_name": row.job_name,
+        "candidate_name": row.candidate_name,
+        "employee_name": row.employee_name
+    }
+
+def _get_base_job_type_query(db: Session):
+    """Base query for job types with all necessary joins"""
+    LastModUser = aliased(EmployeeORM)
+    JobOwner = aliased(EmployeeORM)
+
+    return (
+        db.query(
+            JobTypeORM,
+            LastModUser.name.label("lastmod_user_name"),
+            JobOwner.name.label("job_owner_name")
+        )
+        .outerjoin(LastModUser, LastModUser.id == JobTypeORM.lastmod_user_id)
+        .outerjoin(JobOwner, JobOwner.id == JobTypeORM.job_owner)
+    )
+
+def _format_job_type_result(job_type, lastmod_user_name, job_owner_name) -> Dict[str, Any]:
+    """Format a job type query result row into a dictionary"""
+    item = job_type.__dict__.copy()
+    item.pop("_sa_instance_state", None)
+    item["lastmod_user_name"] = lastmod_user_name
+    item["job_owner_name"] = job_owner_name
+    return item
+
+
 def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
     """Get all job activity logs with job name, candidate name, employee name, and lastmod_user_name"""
     try:
         # Get total count of logs (including potentially orphaned ones)
         total_logs = db.query(JobActivityLogORM).count()
 
-        # Create alias for lastmod_user employee
-        from sqlalchemy.orm import aliased
-        LastModUserEmployee = aliased(EmployeeORM)
-
         logs = (
-            db.query(
-                JobActivityLogORM.id,
-                JobActivityLogORM.job_type_id,
-                JobActivityLogORM.candidate_id,
-                JobActivityLogORM.employee_id,
-                JobActivityLogORM.activity_date,
-                JobActivityLogORM.activity_count,
-                JobActivityLogORM.notes,
-                JobActivityLogORM.lastmod_date_time,
-                JobTypeORM.name.label("job_name"),
-                CandidateORM.full_name.label("candidate_name"),
-                EmployeeORM.name.label("employee_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
-            )
-            .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
-            .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
-            .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
-            .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
+            _get_base_log_query(db)
             # Only include logs with valid job types
             .filter(JobTypeORM.id.isnot(None))
             .order_by(JobActivityLogORM.activity_date.desc())
@@ -55,25 +102,7 @@ def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
             logger.warning(
                 f"Filtered out {total_logs - valid_logs_count} job activity logs with missing foreign key references")
 
-        result = []
-        for row in logs:
-            log_dict = {
-                "id": row.id,
-                "job_id": row.job_type_id,
-                "candidate_id": row.candidate_id,
-                "employee_id": row.employee_id,
-                "activity_date": row.activity_date,
-                "activity_count": row.activity_count,
-                "notes": row.notes,
-                "last_mod_date": row.lastmod_date_time,
-                "lastmod_user_name": row.lastmod_user_name,
-                "job_name": row.job_name,
-                "candidate_name": row.candidate_name,
-                "employee_name": row.employee_name
-            }
-            result.append(log_dict)
-
-        return result
+        return [_format_log_result(row) for row in logs]
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch job activity logs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
@@ -82,28 +111,8 @@ def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
 def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
     """Get single job activity log by ID"""
     try:
-        from sqlalchemy.orm import aliased
-        LastModUserEmployee = aliased(EmployeeORM)
-
         result = (
-            db.query(
-                JobActivityLogORM.id,
-                JobActivityLogORM.job_type_id,
-                JobActivityLogORM.candidate_id,
-                JobActivityLogORM.employee_id,
-                JobActivityLogORM.activity_date,
-                JobActivityLogORM.activity_count,
-                JobActivityLogORM.notes,
-                JobActivityLogORM.lastmod_date_time,
-                JobTypeORM.name.label("job_name"),
-                CandidateORM.full_name.label("candidate_name"),
-                EmployeeORM.name.label("employee_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
-            )
-            .join(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
-            .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
-            .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
-            .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
+            _get_base_log_query(db)
             .filter(JobActivityLogORM.id == log_id)
             .first()
         )
@@ -112,22 +121,7 @@ def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
             raise HTTPException(
                 status_code=404, detail="Job activity log not found")
 
-        log_dict = {
-            "id": result.id,
-            "job_id": result.job_type_id,
-            "candidate_id": result.candidate_id,
-            "employee_id": result.employee_id,
-            "activity_date": result.activity_date,
-            "activity_count": result.activity_count,
-            "notes": result.notes,
-            "last_mod_date": result.lastmod_date_time,
-            "lastmod_user_name": result.lastmod_user_name,
-            "job_name": result.job_name,
-            "candidate_name": result.candidate_name,
-            "employee_name": result.employee_name
-        }
-
-        return log_dict
+        return _format_log_result(result)
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch job activity log: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
@@ -136,53 +130,15 @@ def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
 def get_logs_by_job_id(db: Session, job_id: int) -> List[Dict[str, Any]]:
     """Get all logs for a specific job ID"""
     try:
-        from sqlalchemy.orm import aliased
-        LastModUserEmployee = aliased(EmployeeORM)
-
         logs = (
-            db.query(
-                JobActivityLogORM.id,
-                JobActivityLogORM.job_type_id,
-                JobActivityLogORM.candidate_id,
-                JobActivityLogORM.employee_id,
-                JobActivityLogORM.activity_date,
-                JobActivityLogORM.activity_count,
-                JobActivityLogORM.notes,
-                JobActivityLogORM.lastmod_date_time,
-                JobTypeORM.name.label("job_name"),
-                CandidateORM.full_name.label("candidate_name"),
-                EmployeeORM.name.label("employee_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
-            )
-            .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
-            .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
-            .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
-            .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
+            _get_base_log_query(db)
             .filter(JobActivityLogORM.job_type_id == job_id)
             .filter(JobTypeORM.id.isnot(None))  # Ensure job type exists
             .order_by(JobActivityLogORM.activity_date.desc())
             .all()
         )
 
-        result = []
-        for row in logs:
-            log_dict = {
-                "id": row.id,
-                "job_id": row.job_type_id,
-                "candidate_id": row.candidate_id,
-                "employee_id": row.employee_id,
-                "activity_date": row.activity_date,
-                "activity_count": row.activity_count,
-                "notes": row.notes,
-                "last_mod_date": row.lastmod_date_time,
-                "lastmod_user_name": row.lastmod_user_name,
-                "job_name": row.job_name,
-                "candidate_name": row.candidate_name,
-                "employee_name": row.employee_name
-            }
-            result.append(log_dict)
-
-        return result
+        return [_format_log_result(row) for row in logs]
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch job activity logs for job: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
@@ -191,53 +147,15 @@ def get_logs_by_job_id(db: Session, job_id: int) -> List[Dict[str, Any]]:
 def get_logs_by_employee_id(db: Session, employee_id: int) -> List[Dict[str, Any]]:
     """Get all logs for a specific employee ID"""
     try:
-        from sqlalchemy.orm import aliased
-        LastModUserEmployee = aliased(EmployeeORM)
-
         logs = (
-            db.query(
-                JobActivityLogORM.id,
-                JobActivityLogORM.job_type_id,
-                JobActivityLogORM.candidate_id,
-                JobActivityLogORM.employee_id,
-                JobActivityLogORM.activity_date,
-                JobActivityLogORM.activity_count,
-                JobActivityLogORM.notes,
-                JobActivityLogORM.lastmod_date_time,
-                JobTypeORM.name.label("job_name"),
-                CandidateORM.full_name.label("candidate_name"),
-                EmployeeORM.name.label("employee_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
-            )
-            .outerjoin(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
-            .outerjoin(CandidateORM, JobActivityLogORM.candidate_id == CandidateORM.id)
-            .outerjoin(EmployeeORM, JobActivityLogORM.employee_id == EmployeeORM.id)
-            .outerjoin(LastModUserEmployee, JobActivityLogORM.lastmod_user_id == LastModUserEmployee.id)
+            _get_base_log_query(db)
             .filter(JobActivityLogORM.employee_id == employee_id)
             .filter(JobTypeORM.id.isnot(None))  # Ensure job type exists
             .order_by(JobActivityLogORM.activity_date.desc())
             .all()
         )
 
-        result = []
-        for row in logs:
-            log_dict = {
-                "id": row.id,
-                "job_id": row.job_type_id,
-                "candidate_id": row.candidate_id,
-                "employee_id": row.employee_id,
-                "activity_date": row.activity_date,
-                "activity_count": row.activity_count,
-                "notes": row.notes,
-                "last_mod_date": row.lastmod_date_time,
-                "lastmod_user_name": row.lastmod_user_name,
-                "job_name": row.job_name,
-                "candidate_name": row.candidate_name,
-                "employee_name": row.employee_name
-            }
-            result.append(log_dict)
-
-        return result
+        return [_format_log_result(row) for row in logs]
     except SQLAlchemyError as e:
         logger.error(
             f"Failed to fetch job activity logs for employee: {str(e)}")
@@ -274,6 +192,10 @@ def create_job_activity_log(db: Session, log_data: JobActivityLogCreate, current
 
     if lastmod_employee:
         payload["lastmod_user_id"] = lastmod_employee.id
+
+    # Translate job_id to job_type_id for ORM model
+    if "job_id" in payload:
+        payload["job_type_id"] = payload.pop("job_id")
 
     new_log = JobActivityLogORM(**payload)
     db.add(new_log)
@@ -343,6 +265,10 @@ def update_job_activity_log(
         if lastmod_employee:
             log.lastmod_user_id = lastmod_employee.id
 
+        # Translate job_id to job_type_id for ORM model
+        if "job_id" in fields:
+            fields["job_type_id"] = fields.pop("job_id")
+
         for key, value in fields.items():
             setattr(log, key, value)
 
@@ -376,39 +302,33 @@ def delete_job_activity_log(db: Session, log_id: int) -> Dict[str, str]:
 
 
 def get_all_job_types(db: Session):
-    """Get all job types with employee name (lastmod_user_name)"""
+    """Get all job types with employee name (lastmod_user_name) and job_owner_name"""
     try:
         rows = (
-            db.query(
-                JobTypeORM,
-                EmployeeORM.name.label("lastmod_user_name")
-            )
-            .outerjoin(EmployeeORM, EmployeeORM.id == JobTypeORM.lastmod_user_id)
+            _get_base_job_type_query(db)
             .order_by(JobTypeORM.id)
             .all()
         )
 
-        result = []
-        for job_type, lastmod_user_name in rows:
-            item = job_type.__dict__.copy()
-            item.pop("_sa_instance_state", None)
-            item["lastmod_user_name"] = lastmod_user_name
-            result.append(item)
-
-        return result
+        return [_format_job_type_result(*row) for row in rows]
 
     except SQLAlchemyError as e:
         logger.error(f"Failed to fetch job types: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
 
 
-def get_job_type_by_id(db: Session, job_type_id: int) -> JobTypeORM:
-    """Get single job type by ID"""
-    job_type = db.query(JobTypeORM).filter(
-        JobTypeORM.id == job_type_id).first()
-    if not job_type:
+def get_job_type_by_id(db: Session, job_type_id: int):
+    """Get single job type by ID with job_owner_name"""
+    row = (
+        _get_base_job_type_query(db)
+        .filter(JobTypeORM.id == job_type_id)
+        .first()
+    )
+
+    if not row:
         raise HTTPException(status_code=404, detail="Job type not found")
-    return job_type
+    
+    return _format_job_type_result(*row)
 
 
 def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
