@@ -6,7 +6,7 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, referrals, candidate_dashboard, internal_documents,
-    jobs, placement_fee_collection
+    jobs, placement_fee_collection, employee_tasks,
 )
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -72,6 +72,7 @@ app.include_router(leads.router, prefix="/api", tags=["Leads"], dependencies=[De
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])
 app.include_router(employee.router, prefix="/api", tags=["Employee"], dependencies=[Depends(enforce_access)])
+app.include_router(employee_tasks.router, prefix="/api", tags=["Employee Tasks"])
 app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"], dependencies=[Depends(enforce_access)])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(password.router, prefix="/api", tags=["Password"])
@@ -114,4 +115,3 @@ app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
 app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
-

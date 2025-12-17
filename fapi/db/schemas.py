@@ -1595,12 +1595,7 @@ class BatchClassSummary(BaseModel):
     classes_count: int
 
 
-class CombinedEmailExtractionSummary(BaseModel):
-    candidate_name: str
-    source_email: str
-    emails_read_today: int
-    emails_extracted_today: int
-    emails_extracted_week: int
+
 
     class Config:
         from_attributes = True
@@ -1654,6 +1649,30 @@ class EmployeeBirthdayOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class EmployeeTaskBase(BaseModel): 
+    employee_name: str | None = None 
+    task: str 
+    assigned_date: date 
+    due_date: date 
+    status: str 
+    priority: str 
+    notes: str | None = None 
+class EmployeeTaskCreate(EmployeeTaskBase): 
+    pass
+class EmployeeTaskUpdate(BaseModel):
+    employee_name: Optional[str]
+    task: Optional[str]
+    assigned_date: Optional[date]
+    due_date: Optional[date]
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str]
+
+class EmployeeTask(EmployeeTaskBase): 
+    id: int 
+class Config: 
+    orm_mode = True
 
 
 # --------------------------------------------Password----------------------------
