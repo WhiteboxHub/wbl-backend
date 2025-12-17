@@ -317,3 +317,19 @@ def get_candidate_details(candidate_id: int, db: Session = Depends(get_db)):
 @router.get("/candidates/sessions/{candidate_id}")
 def get_candidate_sessions_route(candidate_id: int, db: Session = Depends(get_db)):
     return candidate_utils.get_candidate_sessions(candidate_id, db)
+
+
+@router.get("/candidates-with-interviews")
+def get_candidates_with_interviews(db: Session = Depends(get_db)):
+    """Get all candidates who have at least one interview record"""
+    try:
+        candidates = (
+            db.query(CandidateORM)
+            .join(CandidateInterview)
+            .distinct()
+            .all()
+        )
+        return [{"id": c.id, "full_name": c.full_name} for c in candidates]
+    except Exception as e:
+        logger.error(f"Failed to fetch candidates with interviews: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
