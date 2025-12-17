@@ -1,4 +1,3 @@
-
 # wbl-backend\fapi\utils\captcha_ utils.py
 import os
 import requests
