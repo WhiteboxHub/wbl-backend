@@ -98,7 +98,7 @@ def get_employee_sessions_and_recordings(db: Session, employee_id: int):
             matched_sessions.append(s)
 
     for r in all_recordings:
-        text = " ".join(filter(None, [r.description, r.batchname, r.subject or ""])).lower()
+        text = " ".join(filter(None, [r.description, r.subject or ""])).lower()
         if any(part in text for part in emp_name.split()):
             matched_recordings.append(r)
 

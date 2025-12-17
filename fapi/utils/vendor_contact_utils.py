@@ -173,4 +173,3 @@ async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None, db: S
         logger.error(f"Move error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Move error: {str(e)}")
     
-

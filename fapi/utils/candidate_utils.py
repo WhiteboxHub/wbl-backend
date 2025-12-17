@@ -597,16 +597,25 @@ def get_active_marketing_candidates(db: Session):
 
 
 # -------------------Candidate_Preparation-------------
-
+from datetime import datetime
+def is_valid_date(date_str):
+    if not date_str:
+        return False
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
     if prep_data.email:
         prep_data.email = prep_data.email.lower()
     db_prep = CandidatePreparation(**prep_data.dict(exclude_unset=True))
     db.add(db_prep)
     db.commit()
-    db.refresh(db_prep)
-    return db_prep
+    db.refresh(candidate)
 
+    # Return the full object so it matches the response_model
+    return candidate
 
 def get_preparations_by_candidate(db: Session, candidate_id: int):
     results = (
@@ -812,6 +821,10 @@ def get_candidate_details(candidate_id: int, db: Session):
             "marketing_records": [
                 {
                     "start_date": m.start_date.isoformat() if m.start_date else None,
+                    "Marketing Email": m.email,
+                    "Email Password": m.password,
+                    "Linkedin Username": m.linkedin_username,
+                    "Linkedin Password": m.linkedin_passwd,
                     "marketing_manager_name": m.marketing_manager_obj.name if m.marketing_manager_obj else None,
                     "notes": m.notes,
                     "last_modified": m.last_mod_datetime.isoformat()
@@ -827,6 +840,9 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "interview_type": i.type_of_interview,
                     "company_type": i.company_type,
                     "mode_of_interview": i.mode_of_interview,
+                    "interviewer_emails": i.interviewer_emails,
+                    "interviewer_linkedin_ids": i.interviewer_linkedin,
+                    "interviewer_contact": i.interviewer_contact,
                     "feedback": i.feedback,
                     "recording_link": i.recording_link,
                     "notes": i.notes,

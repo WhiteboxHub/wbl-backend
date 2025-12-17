@@ -8,7 +8,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from fastapi import Request
 from typing import Optional
-
 # Simple in-memory cache dictionary
 cache = {}
 cache_clear_seconds = 60 * 180
@@ -107,8 +106,13 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
                 raise ValueError(f"User '{username}' not found while creating Google access token")
             cache_set(username, userinfo)
 
-        role = determine_user_role(userinfo)
-        to_encode["role"] = role
+        # Prefer an explicit role supplied in `data` (e.g. employee login may set role='admin')
+        explicit_role = data.get("role")
+        if explicit_role:
+            to_encode["role"] = explicit_role
+        else:
+            role = determine_user_role(userinfo)
+            to_encode["role"] = role
 
         # ORM-safe domain handling
         domain = getattr(userinfo, "domain", None)
@@ -132,8 +136,13 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
                 raise ValueError(f"User '{username}' not found while creating access token")
             cache_set(username, userinfo)
 
-        role = determine_user_role(userinfo)
-        to_encode["role"] = role
+        # Prefer explicit role if provided, otherwise determine from userinfo
+        explicit_role = data.get("role")
+        if explicit_role:
+            to_encode["role"] = explicit_role
+        else:
+            role = determine_user_role(userinfo)
+            to_encode["role"] = role
 
     to_encode["exp"] = expire
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
