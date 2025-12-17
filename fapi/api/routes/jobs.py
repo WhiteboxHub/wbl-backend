@@ -142,3 +142,12 @@ def delete_job_type(
 ):
     """Delete job type"""
     return jobs_utils.delete_job_type(db, job_type_id)
+
+
+@router.get("/candidates-with-interviews")
+def get_candidates_with_interviews(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Get candidates who have interview records"""
+    return jobs_utils.get_candidates_with_interviews(db)

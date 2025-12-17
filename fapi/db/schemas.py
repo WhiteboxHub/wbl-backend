@@ -59,6 +59,12 @@ class EmployeeUpdate(EmployeeBase):
 class Employee(EmployeeBase):
     id: int
 
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_invalid_dates(cls, v):
+        if isinstance(v, str) and v.startswith("0000-00-00"):
+            return None
+        return v
+
     class Config:
         from_attributes = True
 
@@ -1743,7 +1749,7 @@ class JobActivityLogBase(BaseModel):
     candidate_id: Optional[int] = None
     employee_id: Optional[int] = None
     activity_date: date
-    activity_count: Optional[int] = 0
+    activity_count: Optional[int] = Field(default=0, ge=0)
     notes: Optional[str] = None
 
 

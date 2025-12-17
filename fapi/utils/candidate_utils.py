@@ -177,13 +177,13 @@ def get_all_marketing_records(page: int, limit: int) -> dict:
                 .joinedload(CandidateORM.batch),
 
                 joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidateORM.preparations)
                 .joinedload(CandidatePreparation.instructor1),
                 joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidateORM.preparations)
                 .joinedload(CandidatePreparation.instructor2),
                 joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidateORM.preparations)
                 .joinedload(CandidatePreparation.instructor3),
 
                 joinedload(CandidateMarketingORM.marketing_manager_obj),
@@ -217,7 +217,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
             record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
 
         # Get latest preparation record instructors
-        prep = candidate.preparation_records[-1] if candidate.preparation_records else None
+        prep = candidate.preparations[-1] if candidate.preparations else None
         record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
         record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
         record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
@@ -244,13 +244,13 @@ def get_marketing_by_candidate_id(candidate_id: int):
                 .joinedload(CandidateORM.batch),
 
                 joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidateORM.preparations)
                 .joinedload(CandidatePreparation.instructor1),
                 joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidateORM.preparations)
                 .joinedload(CandidatePreparation.instructor2),
                 joinedload(CandidateMarketingORM.candidate)
-                .joinedload(CandidateORM.preparation_records)
+                .joinedload(CandidateORM.preparations)
                 .joinedload(CandidatePreparation.instructor3),
 
                 joinedload(CandidateMarketingORM.marketing_manager_obj),
@@ -743,9 +743,9 @@ def get_candidate_details(candidate_id: int, db: Session):
         candidate = (
             db.query(CandidateORM)
             .options(
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor1),
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor2),
-                selectinload(CandidateORM.preparation_records).joinedload(CandidatePreparation.instructor3),
+                selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor1),
+                selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor2),
+                selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor3),
                 selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_obj),
                 selectinload(CandidateORM.interviews),
                 selectinload(CandidateORM.placements),
@@ -816,7 +816,7 @@ def get_candidate_details(candidate_id: int, db: Session):
                     if getattr(prep, "last_mod_datetime", None)
                     else None,
                 }
-                for prep in candidate.preparation_records
+                for prep in candidate.preparations
             ],
             "marketing_records": [
                 {
@@ -879,7 +879,7 @@ def get_candidate_details(candidate_id: int, db: Session):
             },
             "miscellaneous": {
                 "notes": candidate.notes,
-                "preparation_active": bool(candidate.preparation_records),
+                "preparation_active": bool(candidate.preparations),
                 "marketing_active": bool(candidate.marketing_records),
                 "placement_active": bool(candidate.placements),
             },
@@ -899,7 +899,7 @@ def search_candidates_comprehensive(search_term: str, db: Session):
             db.query(CandidateORM)
             .filter(CandidateORM.full_name.ilike(f"%{search_term}%"))
             .options(
-                selectinload(CandidateORM.preparation_records),
+                selectinload(CandidateORM.preparations),
                 selectinload(CandidateORM.marketing_records),
                 selectinload(CandidateORM.interviews),
                 selectinload(CandidateORM.placements),
@@ -926,7 +926,7 @@ def search_candidates_comprehensive(search_term: str, db: Session):
                     "phone": c.phone,
                     "status": c.status,
                     "batch_name": batch_name,
-                    "preparation_count": len(c.preparation_records),
+                    "preparation_count": len(c.preparations),
                     "marketing_count": len(c.marketing_records),
                     "interview_count": len(c.interviews),
                     "placement_count": len(c.placements),

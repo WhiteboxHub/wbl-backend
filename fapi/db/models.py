@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
+from sqlalchemy import Integer
 
 
 Base = declarative_base()
@@ -234,8 +235,20 @@ class CandidateORM(Base):
         "CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship(
         "CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
+    preparation_records = relationship(
+        "CandidatePreparation", back_populates="candidate")
+    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
+
+    interview_records = relationship(
+        "CandidateInterview", back_populates="candidate")
+    placement_records = relationship(
+        "CandidatePlacementORM", back_populates="candidate")
+    placement_records = relationship(
+        "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
     batch = relationship("Batch", back_populates="candidates")
+    preparation_records = relationship(
+        "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
 
 # --------------------- Candidate Marketing -----------------
 
@@ -363,7 +376,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    candidate = relationship("CandidateORM", back_populates="placements", overlaps="placement_records")
+    candidate = relationship("CandidateORM", back_populates="placements")
 
 # -------------------------------------- Candidate Preparation -------------------------------
 
@@ -376,8 +389,8 @@ class CandidatePreparation(Base):
 
     candidate = relationship(
         "CandidateORM",
-        back_populates="preparations",
-        overlaps="preparation_records"
+        back_populates="preparation_records",
+        overlaps="preparations"
     )
 
     instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)

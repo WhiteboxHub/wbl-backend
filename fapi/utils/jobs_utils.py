@@ -307,10 +307,10 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
     try:
         job_type_dict = job_type_data.dict()
 
-        # Check for existing job type by name
-        existing_job_type = db.query(JobTypeORM).filter(JobTypeORM.name == job_type_dict["name"]).first()
+        # Check for existing job type by unique_id
+        existing_job_type = db.query(JobTypeORM).filter(JobTypeORM.unique_id == job_type_dict["unique_id"]).first()
         if existing_job_type:
-            raise HTTPException(status_code=400, detail="job type already exists")
+            raise HTTPException(status_code=400, detail="job type with this unique_id already exists")
 
         if "job_owner_id" in job_type_dict:
             job_type_dict["job_owner"] = job_type_dict.pop("job_owner_id")
@@ -501,3 +501,35 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         db.rollback()
         logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
+def get_candidates_with_interviews(db: Session) -> List[Dict[str, Any]]:
+    """Get candidates who have interview records"""
+    try:
+        from fapi.db.models import CandidateInterview
+
+        # Get distinct candidate IDs that have interviews
+        interview_candidate_ids = (
+            db.query(CandidateInterview.candidate_id.distinct())
+            .subquery()
+        )
+
+        # Get candidate details for those with interviews
+        candidates = (
+            db.query(CandidateORM)
+            .filter(CandidateORM.id.in_(interview_candidate_ids))
+            .order_by(CandidateORM.full_name)
+            .all()
+        )
+
+        result = []
+        for candidate in candidates:
+            item = candidate.__dict__.copy()
+            item.pop('_sa_instance_state', None)
+            result.append(item)
+
+        return result
+
+    except SQLAlchemyError as e:
+        logger.error(f"Failed to fetch candidates with interviews: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
