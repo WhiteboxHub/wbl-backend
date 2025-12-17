@@ -1727,7 +1727,6 @@ class JobTypeOut(JobTypeBase):
     notes: Optional[str] = None
     lastmod_date_time: Optional[str] = None
     lastmod_user_name: Optional[str] = None
-    job_owner_name: Optional[str] = None
 
     @field_validator("lastmod_date_time", mode="before")
     def format_timestamp(cls, v):

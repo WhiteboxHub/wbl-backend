@@ -274,7 +274,7 @@ def get_job_type_by_id(db: Session, job_type_id: int):
             JobTypeORM.description,
             JobTypeORM.notes,
             JobTypeORM.lastmod_date_time,
-            JobOwnerEmployee.name.label("job_owner"),
+            JobOwnerEmployee.name.label("job_owner_name"),
             LastModUserEmployee.name.label("lastmod_user_name")
         )
         .outerjoin(JobOwnerEmployee, JobOwnerEmployee.id == JobTypeORM.job_owner)
