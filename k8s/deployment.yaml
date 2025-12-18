@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: fastapi-backend
+  labels:
+    app: fastapi-backend
 spec:
   replicas: 1
   selector:
@@ -21,6 +23,6 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-          env:
-            - name: PORT
-              value: "8000"
+          envFrom:
+            - secretRef:
+                name: db-secrets
