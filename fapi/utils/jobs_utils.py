@@ -217,7 +217,9 @@ def delete_job_activity_log(db: Session, log_id: int) -> Dict[str, str]:
 def get_all_job_types(db: Session):
     try:
         from sqlalchemy.orm import aliased
-        JobOwnerEmployee = aliased(EmployeeORM)
+        Owner1 = aliased(EmployeeORM)
+        Owner2 = aliased(EmployeeORM)
+        Owner3 = aliased(EmployeeORM)
         LastModUserEmployee = aliased(EmployeeORM)
 
         rows = (
@@ -225,14 +227,21 @@ def get_all_job_types(db: Session):
                 JobTypeORM.id,
                 JobTypeORM.unique_id,
                 JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),
+                JobTypeORM.job_owner_1,
+                JobTypeORM.job_owner_2,
+                JobTypeORM.job_owner_3,
+                JobTypeORM.category,
                 JobTypeORM.description,
                 JobTypeORM.notes,
                 JobTypeORM.lastmod_date_time,
-                JobOwnerEmployee.name.label("job_owner_name"),
+                Owner1.name.label("job_owner_1_name"),
+                Owner2.name.label("job_owner_2_name"),
+                Owner3.name.label("job_owner_3_name"),
                 LastModUserEmployee.name.label("lastmod_user_name")
             )
-            .outerjoin(JobOwnerEmployee, JobOwnerEmployee.id == JobTypeORM.job_owner)
+            .outerjoin(Owner1, Owner1.id == JobTypeORM.job_owner_1)
+            .outerjoin(Owner2, Owner2.id == JobTypeORM.job_owner_2)
+            .outerjoin(Owner3, Owner3.id == JobTypeORM.job_owner_3)
             .outerjoin(LastModUserEmployee, LastModUserEmployee.id == JobTypeORM.lastmod_user_id)
             .order_by(JobTypeORM.id)
             .all()
@@ -244,8 +253,13 @@ def get_all_job_types(db: Session):
                 "id": row.id,
                 "unique_id": row.unique_id,
                 "name": row.name,
-                "job_owner": row.job_owner_id,
-                "job_owner_name": row.job_owner_name,
+                "job_owner_1": row.job_owner_1,
+                "job_owner_2": row.job_owner_2,
+                "job_owner_3": row.job_owner_3,
+                "job_owner_1_name": row.job_owner_1_name,
+                "job_owner_2_name": row.job_owner_2_name,
+                "job_owner_3_name": row.job_owner_3_name,
+                "category": row.category,
                 "description": row.description,
                 "notes": row.notes,
                 "lastmod_date_time": row.lastmod_date_time,
@@ -261,9 +275,11 @@ def get_all_job_types(db: Session):
 
 
 def get_job_type_by_id(db: Session, job_type_id: int):
-    """Get single job type by ID with job_owner as employee name"""
+    """Get single job type by ID with owners as employee names"""
     from sqlalchemy.orm import aliased
-    JobOwnerEmployee = aliased(EmployeeORM)
+    Owner1 = aliased(EmployeeORM)
+    Owner2 = aliased(EmployeeORM)
+    Owner3 = aliased(EmployeeORM)
     LastModUserEmployee = aliased(EmployeeORM)
     
     row = (
@@ -271,13 +287,21 @@ def get_job_type_by_id(db: Session, job_type_id: int):
             JobTypeORM.id,
             JobTypeORM.unique_id,
             JobTypeORM.name,
+            JobTypeORM.job_owner_1,
+            JobTypeORM.job_owner_2,
+            JobTypeORM.job_owner_3,
+            JobTypeORM.category,
             JobTypeORM.description,
             JobTypeORM.notes,
             JobTypeORM.lastmod_date_time,
-            JobOwnerEmployee.name.label("job_owner_name"),
+            Owner1.name.label("job_owner_1_name"),
+            Owner2.name.label("job_owner_2_name"),
+            Owner3.name.label("job_owner_3_name"),
             LastModUserEmployee.name.label("lastmod_user_name")
         )
-        .outerjoin(JobOwnerEmployee, JobOwnerEmployee.id == JobTypeORM.job_owner)
+        .outerjoin(Owner1, Owner1.id == JobTypeORM.job_owner_1)
+        .outerjoin(Owner2, Owner2.id == JobTypeORM.job_owner_2)
+        .outerjoin(Owner3, Owner3.id == JobTypeORM.job_owner_3)
         .outerjoin(LastModUserEmployee, LastModUserEmployee.id == JobTypeORM.lastmod_user_id)
         .filter(JobTypeORM.id == job_type_id)
         .first()
@@ -290,7 +314,13 @@ def get_job_type_by_id(db: Session, job_type_id: int):
         "id": row.id,
         "unique_id": row.unique_id,
         "name": row.name,
-        "job_owner": row.job_owner,
+        "job_owner_1": row.job_owner_1,
+        "job_owner_2": row.job_owner_2,
+        "job_owner_3": row.job_owner_3,
+        "job_owner_1_name": row.job_owner_1_name,
+        "job_owner_2_name": row.job_owner_2_name,
+        "job_owner_3_name": row.job_owner_3_name,
+        "category": row.category,
         "description": row.description,
         "notes": row.notes,
         "lastmod_date_time": row.lastmod_date_time,
@@ -312,21 +342,6 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
         if existing_job_type:
             raise HTTPException(status_code=400, detail="job type with this unique_id already exists")
 
-        if "job_owner_id" in job_type_dict:
-            job_type_dict["job_owner"] = job_type_dict.pop("job_owner_id")
-
-
-        if job_type_dict.get("job_owner") is not None:
-            job_owner_employee = db.query(EmployeeORM).filter(
-                EmployeeORM.id == job_type_dict["job_owner"]
-            ).first()
-            if not job_owner_employee:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Job owner employee with ID {job_type_dict['job_owner']} not found"
-                )
-
-
         # Set lastmod_user_id only if employee record exists
         if employee:
             job_type_dict["lastmod_user_id"] = employee.id
@@ -338,44 +353,7 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
         db.commit()
         db.refresh(new_job_type)
 
-        # Return formatted response with employee names instead of IDs
-        from sqlalchemy.orm import aliased
-        JobOwnerEmployee = aliased(EmployeeORM)
-        LastModUserEmployee = aliased(EmployeeORM)
-
-        result = (
-            db.query(
-                JobTypeORM.id,
-                JobTypeORM.unique_id,
-                JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),
-                JobTypeORM.description,
-                JobTypeORM.notes,
-                JobTypeORM.lastmod_date_time,
-                JobOwnerEmployee.name.label("job_owner_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
-            )
-            .outerjoin(JobOwnerEmployee, JobOwnerEmployee.id == JobTypeORM.job_owner)
-            .outerjoin(LastModUserEmployee, LastModUserEmployee.id == JobTypeORM.lastmod_user_id)
-            .filter(JobTypeORM.id == new_job_type.id)
-            .first()
-        )
-
-
-
-
-
-        return {
-            "id": result.id,
-            "unique_id": result.unique_id,
-            "name": result.name,
-            "job_owner": result.job_owner_id,
-            "job_owner_name": result.job_owner_name,
-            "description": result.description,
-            "notes": result.notes,
-            "lastmod_date_time": result.lastmod_date_time,
-            "lastmod_user_name": result.lastmod_user_name
-        }
+        return get_job_type_by_id(db, new_job_type.id)
 
     except IntegrityError as e:
         db.rollback()
@@ -398,30 +376,12 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
 
     fields = update_data.dict(exclude_unset=True)
 
-    # Convert job_owner_id to job_owner for database compatibility
-    if "job_owner_id" in fields:
-        fields["job_owner"] = fields.pop("job_owner_id")
-
     job_type = db.query(JobTypeORM).filter(
         JobTypeORM.id == job_type_id).first()
     if not job_type:
         raise HTTPException(status_code=404, detail="Job type not found")
 
     try:
-
-        # Validate job_owner if it's being updated
-        if "job_owner" in fields:
-            if fields["job_owner"] is not None:
-                job_owner_employee = db.query(EmployeeORM).filter(
-                    EmployeeORM.id == fields["job_owner"]
-                ).first()
-                if not job_owner_employee:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Job owner employee with ID {fields['job_owner']} not found"
-                    )
-
-
         # Set lastmod_user_id only if employee record exists
         if employee:
             job_type.lastmod_user_id = employee.id
@@ -434,45 +394,7 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
         db.commit()
         db.refresh(job_type)
 
-
-        # Return formatted response with employee names instead of IDs
-        from sqlalchemy.orm import aliased
-        JobOwnerEmployee = aliased(EmployeeORM)
-        LastModUserEmployee = aliased(EmployeeORM)
-
-        result = (
-            db.query(
-                JobTypeORM.id,
-                JobTypeORM.unique_id,
-                JobTypeORM.name,
-                JobTypeORM.job_owner.label("job_owner_id"),
-                JobTypeORM.description,
-                JobTypeORM.notes,
-                JobTypeORM.lastmod_date_time,
-                JobOwnerEmployee.name.label("job_owner_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
-            )
-            .outerjoin(JobOwnerEmployee, JobOwnerEmployee.id == JobTypeORM.job_owner)
-            .outerjoin(LastModUserEmployee, LastModUserEmployee.id == JobTypeORM.lastmod_user_id)
-            .filter(JobTypeORM.id == job_type.id)
-            .first()
-        )
-
-
-
-
-
-        return {
-            "id": result.id,
-            "unique_id": result.unique_id,
-            "name": result.name,
-            "job_owner": result.job_owner_id,
-            "job_owner_name": result.job_owner_name,
-            "description": result.description,
-            "notes": result.notes,
-            "lastmod_date_time": result.lastmod_date_time,
-            "lastmod_user_name": result.lastmod_user_name
-        }
+        return get_job_type_by_id(db, job_type_id)
     except SQLAlchemyError as e:
         db.rollback()
         logger.error(f"Update job type failed: {str(e)}")
