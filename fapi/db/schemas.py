@@ -24,23 +24,29 @@ class EmployeeBase(BaseModel):
     instructor: Optional[int] = None
     aadhaar: Optional[str] = None
 
-    @validator('phone')
+    @field_validator('phone', mode='before')
+    @classmethod
     def validate_phone(cls, v):
-        if v and not re.match(r'^[6-9]\d{9}$', v):
-            raise ValueError('Phone must be a valid 10-digit Indian number starting with 6-9')
+        if not v:
+            return None
+        if isinstance(v, str):
+            v = re.sub(r'[\s\-()]+', '', v)
         return v
 
-    @validator('email')
+    @field_validator('email', mode='before')
+    @classmethod
     def validate_email(cls, v):
-        if not re.match(r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$', v, re.IGNORECASE):
-            raise ValueError('Invalid email format')
-        
+        if not v:
+            return None
         return v
 
-    @validator('aadhaar')
+    @field_validator('aadhaar', mode='before')
+    @classmethod
     def validate_aadhaar(cls, v):
-        if v and not re.match(r'^\d{12}$', v):
-            raise ValueError('Aadhaar must be 12 digits')
+        if not v:
+            return None
+        if isinstance(v, str):
+            v = re.sub(r'[\s\-()]+', '', v)
         return v
 
 class EmployeeCreate(EmployeeBase):
@@ -60,8 +66,9 @@ class Employee(EmployeeBase):
     id: int
 
     @field_validator("dob", "startdate", "enddate", mode="before")
+    @classmethod
     def handle_invalid_dates(cls, v):
-        if isinstance(v, str) and v.startswith("0000-00-00"):
+        if v in (None, "", "0000-00-00", "0000-00-00 00:00:00"):
             return None
         return v
 
@@ -161,14 +168,17 @@ class AuthUserBase(BaseModel):
     visa_status: Optional[str] = None
     googleId: Optional[str] = None
 
-    @validator("uname", pre=True)
+    @field_validator("uname", mode="before")
+    @classmethod
     def validate_uname(cls, v):
         if not v:
             return None
-        try:
-            return EmailStr.validate(v)
-        except Exception:
-            return v
+        if isinstance(v, str) and "@" in v:
+            try:
+                return v
+            except Exception:
+                return v
+        return v
 
 
 class AuthUserCreate(AuthUserBase):
@@ -186,11 +196,12 @@ class AuthUserResponse(AuthUserBase):
     registereddate: Optional[datetime] = None
     enddate: Optional[date] = None
 
-    @validator(
+    @field_validator(
         "registereddate",
         "enddate",
-        pre=True,
+        mode="before",
     )
+    @classmethod
     def fix_invalid_datetime(cls, v):
         if v in ("0000-00-00 00:00:00", "0000-00-00", None, ""):
             return None
@@ -1511,10 +1522,18 @@ class BatchMetrics(BaseModel):
     candidate_status_breakdown: Dict[str, int]
 
 
+class PlacementFeeMetrics(BaseModel):
+    total_expected: float
+    total_collected: float
+    total_pending: float
+    collected_this_month: float
+
+
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
     fee_collected_previous_batch: float
     top_batches_fee: List[Dict[str, Any]]
+    placement_fee_metrics: PlacementFeeMetrics
 
 
 class PlacementMetrics(BaseModel):
@@ -1529,15 +1548,60 @@ class InterviewMetrics(BaseModel):
     upcoming_interviews: int
     total_interviews: int
     interviews_month: int
+    interviews_today: int
     marketing_candidates: int
+    priority_1_candidates: int
+    priority_2_candidates: int
+    priority_3_candidates: int
     feedback_breakdown: Dict[str, int]
 
+
+class EmployeeTaskBase(BaseModel): 
+    employee_name: Optional[str] = None 
+    task: Optional[str] = None 
+    assigned_date: Optional[date] = None 
+    due_date: Optional[date] = None 
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str] = None 
+
+class EmployeeTaskUpdate(EmployeeTaskBase): 
+    pass
+
+class EmployeeTaskCreate(EmployeeTaskBase): 
+    task: str 
+    assigned_date: date 
+    due_date: Optional[date] = None
+
+class EmployeeTask(EmployeeTaskBase): 
+    id: int 
+    class Config: 
+        from_attributes = True
+
+class EmployeeTaskMetrics(BaseModel):
+    total_tasks: int
+    pending_tasks: int
+    in_progress_tasks: int
+    completed_tasks: int
+    overdue_tasks: int
+
+class JobsMetrics(BaseModel):
+    total_job_types: int
+    total_activities: int
+    activities_today: int
+    activities_this_week: int
+    recent_activities: List[Dict[str, Any]]
 
 class DashboardMetrics(BaseModel):
     batch_metrics: BatchMetrics
     financial_metrics: FinancialMetrics
     placement_metrics: PlacementMetrics
     interview_metrics: InterviewMetrics
+    employee_task_metrics: EmployeeTaskMetrics
+    jobs_metrics: JobsMetrics
+    my_tasks: Optional[List[EmployeeTask]] = None
+    my_jobs: Optional[List["JobTypeOut"]] = None
+
 
 
 class UpcomingBatch(BaseModel):
@@ -1600,79 +1664,6 @@ class BatchClassSummary(BaseModel):
     class Config:
         from_attributes = True
 
-
-# =====================================employee========================
-class EmployeeBase(BaseModel):
-    name: str
-    email: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    state: Optional[str] = None
-    dob: Optional[date] = None
-    startdate: Optional[date] = None
-    enddate: Optional[datetime] = None
-    notes: Optional[str] = None
-    status: Optional[int] = None
-    instructor: Optional[int] = None
-    aadhaar: Optional[str] = None
-
-
-class EmployeeCreate(EmployeeBase):
-    pass
-
-
-class EmployeeUpdate(EmployeeBase):
-    id: int
-    name: Optional[str] = None
-    email: Optional[str] = None
-
-
-class Employee(EmployeeBase):
-    id: int
-
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if isinstance(v, str) and v.startswith("0000-00-00"):
-            return None
-        return v
-
-    class Config:
-        from_attributes = True
-
-
-class EmployeeBirthdayOut(BaseModel):
-    id: int
-    name: str
-    dob: date
-    # wish: str | None = None
-    wish: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-class EmployeeTaskBase(BaseModel): 
-    employee_name: str | None = None 
-    task: str 
-    assigned_date: date 
-    due_date: date 
-    status: str 
-    priority: str 
-    notes: str | None = None 
-class EmployeeTaskCreate(EmployeeTaskBase): 
-    pass
-class EmployeeTaskUpdate(BaseModel):
-    employee_name: Optional[str]
-    task: Optional[str]
-    assigned_date: Optional[date]
-    due_date: Optional[date]
-    status: Optional[str] = "pending"
-    priority: Optional[str] = "medium"
-    notes: Optional[str]
-
-class EmployeeTask(EmployeeTaskBase): 
-    id: int 
-class Config: 
-    orm_mode = True
 
 
 # --------------------------------------------Password----------------------------

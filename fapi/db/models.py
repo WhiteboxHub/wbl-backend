@@ -235,20 +235,7 @@ class CandidateORM(Base):
         "CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship(
         "CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate")
-    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
-
-    interview_records = relationship(
-        "CandidateInterview", back_populates="candidate")
-    placement_records = relationship(
-        "CandidatePlacementORM", back_populates="candidate")
-    placement_records = relationship(
-        "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
-
     batch = relationship("Batch", back_populates="candidates")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
 
 # --------------------- Candidate Marketing -----------------
 
@@ -389,7 +376,7 @@ class CandidatePreparation(Base):
 
     candidate = relationship(
         "CandidateORM",
-        back_populates="preparation_records",
+        back_populates="preparations",
         overlaps="preparations"
     )
 
@@ -480,7 +467,7 @@ class EmployeeTaskORM(Base):
     employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
     task = Column(String(255), nullable=False)
     assigned_date = Column(Date, nullable=False)
-    due_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=True)
     status = Column(Enum("pending","in_progress","completed","blocked"), default="pending")
     priority = Column(Enum("low","medium","high","urgent"), default="medium")
     notes = Column(Text, nullable=True)

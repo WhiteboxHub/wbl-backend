@@ -18,7 +18,7 @@ ALLOWED_GET_PREFIXES = {
     "/api/materials",
     "/api/course-contents",
     "/api/referrals",
-
+    "/api/metrics/all",
 }
 
 def _is_admin(user) -> bool:

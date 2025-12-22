@@ -1,6 +1,7 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Dict
-from fapi.db.models import EmployeeORM, CandidatePreparation, CandidateMarketingORM, Recording
+from fapi.db.models import EmployeeORM, CandidatePreparation, CandidateMarketingORM, Recording, CandidatePlacementORM, CandidateORM
 from typing import List
 from fapi.db.models import Session as SessionORM 
 from datetime import datetime, date
@@ -9,6 +10,39 @@ from typing import List, Dict
 def search_employees(db: Session, query: str) -> List[EmployeeORM]:
     return db.query(EmployeeORM).filter(EmployeeORM.name.ilike(f"%{query}%")).all()
 
+
+def get_employee_placements(db: Session, employee_id: int) -> List[Dict]:
+    results = (
+        db.query(CandidatePlacementORM, CandidateORM.full_name)
+        .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
+        .join(CandidatePreparation, CandidateORM.id == CandidatePreparation.candidate_id)
+        .filter(
+            or_(
+                CandidatePreparation.instructor1_id == employee_id,
+                CandidatePreparation.instructor2_id == employee_id,
+                CandidatePreparation.instructor3_id == employee_id
+            )
+        )
+        .distinct()
+        .all()
+    )
+
+    placements = []
+    for p, name in results:
+        placements.append({
+            "id": p.id,
+            "candidate_name": name,
+            "position": p.position,
+            "company": p.company,
+            "placement_date": p.placement_date.isoformat() if p.placement_date else None,
+            "type": p.type,
+            "status": p.status,
+            "base_salary": float(p.base_salary_offered) if p.base_salary_offered else 0,
+            "fee_paid": float(p.fee_paid) if p.fee_paid else 0,
+            "notes": p.notes
+        })
+    
+    return placements
 
 def safe_date(value):
     

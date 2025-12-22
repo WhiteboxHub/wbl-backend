@@ -15,7 +15,7 @@ def get_all_tasks(db: Session) -> list:
             "id": t.id,
             "employee_id": t.employee_id,
             "employee_name": t.employee.name if t.employee else None,
-            "task": t.task,
+            "task": t.task, 
             "assigned_date": t.assigned_date,
             "due_date": t.due_date,
             "status": t.status,
