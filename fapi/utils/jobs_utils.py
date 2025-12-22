@@ -425,33 +425,3 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
-def get_candidates_with_interviews(db: Session) -> List[Dict[str, Any]]:
-    """Get candidates who have interview records"""
-    try:
-        from fapi.db.models import CandidateInterview
-
-        # Get distinct candidate IDs that have interviews
-        interview_candidate_ids = (
-            db.query(CandidateInterview.candidate_id.distinct())
-            .subquery()
-        )
-
-        # Get candidate details for those with interviews
-        candidates = (
-            db.query(CandidateORM)
-            .filter(CandidateORM.id.in_(interview_candidate_ids))
-            .order_by(CandidateORM.full_name)
-            .all()
-        )
-
-        result = []
-        for candidate in candidates:
-            item = candidate.__dict__.copy()
-            item.pop('_sa_instance_state', None)
-            result.append(item)
-
-        return result
-
-    except SQLAlchemyError as e:
-        logger.error(f"Failed to fetch candidates with interviews: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
