@@ -1713,7 +1713,10 @@ class InternalDocumentOut(InternalDocumentBase):
 class JobTypeBase(BaseModel):
     unique_id: str
     name: str
-    job_owner_id: Optional[int] = None
+    job_owner_1: Optional[int] = None
+    job_owner_2: Optional[int] = None
+    job_owner_3: Optional[int] = None
+    category: Optional[Literal["manual", "automation"]] = "manual"
     description: Optional[str] = None
     notes: Optional[str] = None
 
@@ -1721,7 +1724,10 @@ class JobTypeBase(BaseModel):
 class JobTypeCreate(BaseModel):
     unique_id: str
     name: str
-    job_owner_id: int
+    job_owner_1: Optional[int] = None
+    job_owner_2: Optional[int] = None
+    job_owner_3: Optional[int] = None
+    category: Optional[Literal["manual", "automation"]] = "manual"
     description: Optional[str] = None
     notes: Optional[str] = None
 
@@ -1729,21 +1735,19 @@ class JobTypeCreate(BaseModel):
 class JobTypeUpdate(BaseModel):
     unique_id: Optional[str] = None
     name: Optional[str] = None
-    job_owner_id: Optional[int] = None
-    job_owner: Optional[int] = None
+    job_owner_1: Optional[int] = None
+    job_owner_2: Optional[int] = None
+    job_owner_3: Optional[int] = None
+    category: Optional[Literal["manual", "automation"]] = None
     description: Optional[str] = None
     notes: Optional[str] = None
 
 
 class JobTypeOut(JobTypeBase):
     id: int
-
-    unique_id: str
-    name: str
-    job_owner: Optional[int] = None
-    job_owner_name: Optional[str] = None
-    description: Optional[str] = None
-    notes: Optional[str] = None
+    job_owner_1_name: Optional[str] = None
+    job_owner_2_name: Optional[str] = None
+    job_owner_3_name: Optional[str] = None
     lastmod_date_time: Optional[str] = None
     lastmod_user_name: Optional[str] = None
 

@@ -706,7 +706,10 @@ class JobTypeORM(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     unique_id = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
-    job_owner = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    job_owner_1 = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    job_owner_2 = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    job_owner_3 = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    category = Column(SQLAEnum("manual", "automation", name="job_type_category"), nullable=False, server_default="manual")
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     lastmod_date_time = Column(TIMESTAMP, server_default=func.current_timestamp(
