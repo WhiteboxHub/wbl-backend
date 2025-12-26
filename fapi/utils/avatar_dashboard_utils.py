@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session,aliased
 from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
@@ -617,7 +617,6 @@ def get_job_metrics(db: Session) -> JobsMetrics:
 
 # Dashboard-specific functions for employee tasks and jobs
 def get_tasks_by_employee_id_for_dashboard(db: Session, employee_id: int) -> List[dict]:
-    """Get tasks for employee with HTML stripped (for dashboard display)"""
     tasks = db.query(EmployeeTaskORM).filter(EmployeeTaskORM.employee_id == employee_id).all()
     result = []
     for t in tasks:
@@ -638,10 +637,7 @@ def get_tasks_by_employee_id_for_dashboard(db: Session, employee_id: int) -> Lis
 
 
 def get_job_types_by_employee_id_for_dashboard(db: Session, employee_id: int) -> List[dict]:
-
     try:
-        from sqlalchemy.orm import aliased
-        from sqlalchemy import or_
         Owner1 = aliased(EmployeeORM)
         Owner2 = aliased(EmployeeORM)
         Owner3 = aliased(EmployeeORM)
@@ -707,5 +703,4 @@ def get_job_types_by_employee_id_for_dashboard(db: Session, employee_id: int) ->
         return result
 
     except Exception as e:
-        # Return empty list on error for dashboard
         return []
