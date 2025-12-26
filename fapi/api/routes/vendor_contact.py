@@ -6,18 +6,22 @@ from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 
 from fapi.db.database import get_db
+from fapi.db.models import VendorContactExtractsORM
 from fapi.db.schemas import (
     VendorContactExtract,
     VendorContactExtractCreate,
     VendorContactExtractUpdate,
+    VendorContactBulkCreate,
+    VendorContactBulkResponse,
 )
 from fapi.utils.vendor_contact_utils import (
     get_all_vendor_contacts,
     get_vendor_contact_by_id,
     insert_vendor_contact,
+    insert_vendor_contacts_bulk,
     update_vendor_contact,
     delete_vendor_contact,
-    move_contacts_to_vendor,
+    delete_vendor_contacts_bulk,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +29,6 @@ router = APIRouter()
 
 @router.get("/vendor_contact_extracts", response_model=List[VendorContactExtract])
 async def read_vendor_contact_extracts(db: Session = Depends(get_db)):
-
     try:
         return await get_all_vendor_contacts(db)
     except HTTPException:
@@ -49,7 +52,6 @@ async def create_vendor_contact_handler(
     contact: VendorContactExtractCreate, 
     db: Session = Depends(get_db)
 ):
-  
     try:
         result = await insert_vendor_contact(contact, db)
         return result
@@ -57,6 +59,45 @@ async def create_vendor_contact_handler(
         raise
     except Exception as e:
         logger.error(f"Error creating vendor contact: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.post("/vendor_contact/bulk", response_model=VendorContactBulkResponse)
+async def create_vendor_contacts_bulk_handler(
+    bulk_data: VendorContactBulkCreate,
+    db: Session = Depends(get_db)
+):
+    """Bulk insert vendor contacts"""
+    try:
+        result = await insert_vendor_contacts_bulk(bulk_data.contacts, db)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in bulk insert: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.put("/vendor_contact/move-to-vendor")
+async def move_contacts_to_vendor_handler(
+    contact_ids: List[int] = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Move vendor contacts to vendor table by setting moved_to_vendor flag"""
+    try:
+        # Update contacts to set moved_to_vendor = True
+        updated_count = db.query(VendorContactExtractsORM).filter(
+            VendorContactExtractsORM.id.in_(contact_ids)
+        ).update({"moved_to_vendor": True}, synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "updated": updated_count,
+            "message": f"Successfully moved {updated_count} contacts to vendor"
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error moving contacts to vendor: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.put("/vendor_contact/{contact_id}", response_model=VendorContactExtract)
@@ -74,9 +115,23 @@ async def update_vendor_contact_handler(
         logger.error(f"Error updating vendor contact {contact_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@router.delete("/vendor_contact/bulk")
+async def delete_vendor_contacts_bulk_handler(
+    contact_ids: List[int] = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Bulk delete vendor contacts"""
+    try:
+        result = await delete_vendor_contacts_bulk(contact_ids, db)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in bulk delete: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 @router.delete("/vendor_contact/{contact_id}")
 async def delete_vendor_contact_handler(contact_id: int, db: Session = Depends(get_db)):
-   
     try:
         result = await delete_vendor_contact(contact_id, db)
         return result
@@ -85,20 +140,3 @@ async def delete_vendor_contact_handler(contact_id: int, db: Session = Depends(g
     except Exception as e:
         logger.error(f"Error deleting vendor contact {contact_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@router.post("/vendor_contact/move-to-vendor")
-async def move_contacts_to_vendor_handler(
-    contact_ids: Optional[List[int]] = Query(None),
-    db: Session = Depends(get_db)
-):
-
-    try:
-        result = await move_contacts_to_vendor(contact_ids, db)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error moving contacts to vendor: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-    
-    

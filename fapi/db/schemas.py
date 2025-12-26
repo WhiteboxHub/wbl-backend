@@ -852,6 +852,21 @@ class VendorContactExtractUpdate(BaseModel):
     linkedin_internal_id: Optional[str] = None
 
 
+
+
+class VendorContactBulkCreate(BaseModel):
+    contacts: List[VendorContactExtractCreate]
+
+
+class VendorContactBulkResponse(BaseModel):
+    inserted: int
+    failed: int
+    duplicates: int
+    total: int
+    failed_contacts: List[dict] = []
+    duplicate_contacts: List[dict] = []
+
+
 # -------------------- Vendor Schemas --------------------
 class VendorBase(BaseModel):
     full_name: Optional[str] = None
@@ -1132,16 +1147,16 @@ class CourseSubject(CourseSubjectBase):
 
 
 class RecordingBase(BaseModel):
-    # batchname: str
-    description: Optional[str] = None
-    type: Optional[str] = "class"
-    classdate: Optional[datetime] = None
-    link: Optional[str] = None
+    description: str
+    type: str = "class"
+    classdate: date
+    link: str
     videoid: Optional[str] = None
+    backup_url: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
-    backup_url: Optional[str] = None
 
 
 class RecordingCreate(RecordingBase):
@@ -1154,7 +1169,12 @@ class RecordingUpdate(RecordingBase):
 
 class RecordingOut(RecordingBase):
     id: int
-    # lastmoddatetime: Optional[datetime]
+
+    @field_validator("lastmoddatetime", mode="before")
+    def clean_invalid_datetime(cls, v):
+        if v in ("0000-00-00 00:00:00", None, ""):
+            return None
+        return v
 
     class Config:
         from_attributes = True
@@ -1405,12 +1425,12 @@ class PaginatedBatches(BaseModel):
 
 
 class RecordingBase(BaseModel):
-    batchname: str
-    description: Optional[str] = None
-    type: Optional[str] = None
-    classdate: Optional[datetime] = None
-    link: Optional[str] = None
+    description: str
+    type: str = "class"
+    classdate: date
+    link: str
     videoid: Optional[str] = None
+    backup_url: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
@@ -1449,13 +1469,14 @@ class RecordingBatch(RecordingBatchBase):
 # -----------------------------------------------------Session------------------------------------
 
 class SessionBase(BaseModel):
-    title: str
+    title: Optional[str] = None
+    status: str
     link: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     type: Optional[str] = None
-    sessiondate: Optional[datetime] = None
-    # lastmoddatetime: Optional[datetime] = None
+    sessiondate: Optional[date] = None
+    lastmoddatetime: Optional[datetime] = None
     subject_id: int
 
 
