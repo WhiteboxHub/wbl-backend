@@ -480,7 +480,7 @@ class EmployeeTaskORM(Base):
     employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
     task = Column(String(255), nullable=False)
     assigned_date = Column(Date, nullable=False)
-    due_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=True)
     status = Column(Enum("pending","in_progress","completed","blocked"), default="pending")
     priority = Column(Enum("low","medium","high","urgent"), default="medium")
     notes = Column(Text, nullable=True)
@@ -709,7 +709,7 @@ class JobTypeORM(Base):
     job_owner_1 = Column(Integer, ForeignKey("employee.id"), nullable=True)
     job_owner_2 = Column(Integer, ForeignKey("employee.id"), nullable=True)
     job_owner_3 = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    category = Column(SQLAEnum("manual", "automation", name="job_type_category"), nullable=False, server_default="manual")
+    category = Column(Enum("manual", "automation", name="job_type_category"), nullable=False, server_default="manual")
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     lastmod_date_time = Column(TIMESTAMP, server_default=func.current_timestamp(
