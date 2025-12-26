@@ -651,13 +651,13 @@ class Recording(Base):
     videoid = Column(String(255))
     subject = Column(String(255))
     filename = Column(String(255))
-    # lastmoddatetime = Column(DateTime)
+    lastmoddatetime = Column(DateTime)
     backup_url = Column(String(400))
     new_subject_id = Column(Integer, ForeignKey("subject.id"))
 
     subject_rel = relationship("Subject", back_populates="recordings")
     recording_batches = relationship(
-        "RecordingBatch", back_populates="recording")
+        "RecordingBatch", back_populates="recording", cascade="all, delete-orphan")
 
 
 class RecordingBatch(Base):
@@ -674,7 +674,8 @@ class RecordingBatch(Base):
 class Session(Base):
     __tablename__ = "session"
     sessionid = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255))
+    title = Column(String(500))
+    status = Column(String(45), nullable=False)
     link = Column(String(1024))
     videoid = Column(String(255))
 

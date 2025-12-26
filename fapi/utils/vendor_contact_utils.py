@@ -98,78 +98,95 @@ async def delete_vendor_contact(contact_id: int, db: Session) -> dict:
         logger.error(f"Delete error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete error: {str(e)}")
 
-async def move_contacts_to_vendor(contact_ids: Optional[List[int]] = None, db: Session = None) -> dict:
-    """Move vendor contacts to main vendor table using SQLAlchemy ORM"""
-    try:
+
+
+async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate], db: Session) -> dict:
+    """Bulk insert vendor contacts with duplicate handling"""
+    inserted = 0
+    failed = 0
+    duplicates = 0
+    failed_contacts = []
+    duplicate_contacts = []
     
-        query = db.query(VendorContactExtractsORM).filter(VendorContactExtractsORM.moved_to_vendor == False)
-        
-        if contact_ids:
-            query = query.filter(VendorContactExtractsORM.id.in_(contact_ids))
-        
-        contacts_to_move = query.all()
-        
-        if not contacts_to_move:
-            return {
-                "inserted": 0,
-                "skipped_already_moved": 0,
-                "count": 0,
-                "message": "No contacts to move or all selected contacts are already moved"
-            }
-
-        inserted = 0
-        skipped_already_moved = 0
-        moved_ids = []
-
-        for contact in contacts_to_move:
-          
-            existing_vendor = db.query(Vendor).filter(
-                or_(
-                    Vendor.email == contact.email,
-                    Vendor.linkedin_id == contact.linkedin_id
+    try:
+        for contact in contacts:
+            try:
+                # Check for duplicates by email or linkedin_id
+                existing = None
+                if contact.email or contact.linkedin_id:
+                    existing = db.query(VendorContactExtractsORM).filter(
+                        or_(
+                            VendorContactExtractsORM.email == contact.email if contact.email else False,
+                            VendorContactExtractsORM.linkedin_id == contact.linkedin_id if contact.linkedin_id else False
+                        )
+                    ).first()
+                
+                if existing:
+                    duplicates += 1
+                    duplicate_contacts.append({
+                        "full_name": contact.full_name,
+                        "email": contact.email,
+                        "reason": "Duplicate email or LinkedIn ID"
+                    })
+                    continue
+                
+                # Insert new contact
+                db_contact = VendorContactExtractsORM(
+                    full_name=contact.full_name,
+                    source_email=contact.source_email,
+                    email=contact.email,
+                    phone=contact.phone,
+                    linkedin_id=contact.linkedin_id,
+                    company_name=contact.company_name,
+                    location=contact.location,
+                    moved_to_vendor=False
                 )
-            ).first()
-
-            if existing_vendor:
-                skipped_already_moved += 1
-                continue
-
-            new_vendor = Vendor(
-                full_name=contact.full_name,
-                phone_number=contact.phone,
-                email=contact.email,
-                linkedin_id=contact.linkedin_id,
-                company_name=contact.company_name,
-                location=contact.location,
-                linkedin_internal_id=contact.linkedin_internal_id,
-                type="client",  
                 
-                status="prospect" 
+                db.add(db_contact)
+                inserted += 1
                 
-            )
-
-            db.add(new_vendor)
-            moved_ids.append(contact.id)
-            inserted += 1
-
-       
-       
-        if moved_ids:
-            db.query(VendorContactExtractsORM).filter(
-                VendorContactExtractsORM.id.in_(moved_ids)
-            ).update({"moved_to_vendor": True}, synchronize_session=False)
-
+            except Exception as e:
+                failed += 1
+                failed_contacts.append({
+                    "full_name": contact.full_name,
+                    "email": contact.email,
+                    "reason": str(e)
+                })
+                logger.error(f"Failed to insert contact {contact.full_name}: {str(e)}")
+        
+        # Commit all successful inserts
         db.commit()
-
+        
         return {
             "inserted": inserted,
-            "skipped_already_moved": skipped_already_moved,
-            "count": len(moved_ids),
-            "message": f"Successfully moved {inserted} contacts to vendors"
+            "failed": failed,
+            "duplicates": duplicates,
+            "total": len(contacts),
+            "failed_contacts": failed_contacts,
+            "duplicate_contacts": duplicate_contacts
         }
-
+        
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(f"Move error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Move error: {str(e)}")
-    
+        logger.error(f"Bulk insert error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Bulk insert error: {str(e)}")
+
+
+async def delete_vendor_contacts_bulk(contact_ids: List[int], db: Session) -> dict:
+    """Bulk delete vendor contacts"""
+    try:
+        deleted_count = db.query(VendorContactExtractsORM).filter(
+            VendorContactExtractsORM.id.in_(contact_ids)
+        ).delete(synchronize_session=False)
+        
+        db.commit()
+        
+        return {
+            "deleted": deleted_count,
+            "message": f"Successfully deleted {deleted_count} contacts"
+        }
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Bulk delete error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Bulk delete error: {str(e)}")
