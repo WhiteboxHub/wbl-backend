@@ -1511,10 +1511,19 @@ class BatchMetrics(BaseModel):
     candidate_status_breakdown: Dict[str, int]
 
 
+class PlacementFeeMetrics(BaseModel):
+    total_expected: float
+    total_collected: float
+    total_pending: float
+    collected_this_month: float
+    installment_stats: Optional[Dict[str, int]] = None
+
+
 class FinancialMetrics(BaseModel):
     total_fee_current_batch: float
     fee_collected_previous_batch: float
     top_batches_fee: List[Dict[str, Any]]
+    placement_fee_metrics: PlacementFeeMetrics
 
 
 class PlacementMetrics(BaseModel):
@@ -1529,15 +1538,38 @@ class InterviewMetrics(BaseModel):
     upcoming_interviews: int
     total_interviews: int
     interviews_month: int
+    interviews_today: int
     marketing_candidates: int
+    priority_1_candidates: int
+    priority_2_candidates: int
+    priority_3_candidates: int
     feedback_breakdown: Dict[str, int]
 
+
+class EmployeeTaskMetrics(BaseModel):
+    total_tasks: int
+    pending_tasks: int
+    in_progress_tasks: int
+    completed_tasks: int
+    overdue_tasks: int
+
+class JobsMetrics(BaseModel):
+    total_job_types: int
+    total_activities: int
+    activities_today: int
+    activities_this_week: int
+    recent_activities: List[Dict[str, Any]]
 
 class DashboardMetrics(BaseModel):
     batch_metrics: BatchMetrics
     financial_metrics: FinancialMetrics
     placement_metrics: PlacementMetrics
     interview_metrics: InterviewMetrics
+    employee_task_metrics: EmployeeTaskMetrics
+    jobs_metrics: JobsMetrics
+    my_tasks: Optional[List["EmployeeTask"]] = None
+    my_jobs: Optional[List["JobTypeOut"]] = None
+    employee_name: Optional[str] = None
 
 
 class UpcomingBatch(BaseModel):
@@ -1654,7 +1686,7 @@ class EmployeeTaskBase(BaseModel):
     employee_name: str | None = None 
     task: str 
     assigned_date: date 
-    due_date: date 
+    due_date: date | None = None 
     status: str 
     priority: str 
     notes: str | None = None 
@@ -1671,8 +1703,8 @@ class EmployeeTaskUpdate(BaseModel):
 
 class EmployeeTask(EmployeeTaskBase): 
     id: int 
-class Config: 
-    orm_mode = True
+    class Config: 
+        from_attributes = True
 
 
 # --------------------------------------------Password----------------------------
