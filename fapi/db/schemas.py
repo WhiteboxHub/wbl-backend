@@ -1170,6 +1170,12 @@ class RecordingUpdate(RecordingBase):
 class RecordingOut(RecordingBase):
     id: int
 
+    @field_validator("lastmoddatetime", mode="before")
+    def clean_invalid_datetime(cls, v):
+        if v in ("0000-00-00 00:00:00", None, ""):
+            return None
+        return v
+
     class Config:
         from_attributes = True
 
@@ -1437,7 +1443,7 @@ class RecordingCreate(RecordingBase):
 
 class Recording(RecordingBase):
     id: int
-
+    
     model_config = {
         "from_attributes": True
     }
