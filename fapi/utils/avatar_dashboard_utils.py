@@ -120,38 +120,28 @@ def get_financial_metrics(db: Session) -> Dict[str, Any]:
         )
         
     # Top 5 Batches (Zig-Zag Pattern)
-    top_batches = (
+    # Latest 5 Previous Batches
+    query = (
         db.query(
             Batch.batchname,
             func.sum(CandidateORM.fee_paid).label("total_fee")
         )
         .join(CandidateORM, CandidateORM.batchid == Batch.batchid)
-        .group_by(Batch.batchid)
-        .order_by(desc("total_fee"))
+    )
+    
+    if current_batch:
+        query = query.filter(Batch.batchid != current_batch.batchid)
+        
+    latest_previous_batches = (
+        query.group_by(Batch.batchid, Batch.batchname, Batch.startdate)
+        .order_by(desc(Batch.startdate))
         .limit(5)
         .all()
     )
 
-    sorted_batches = list(top_batches) 
-
-    # Zig-Zag: High → Low → High → Low → High
-    pattern_result = []
-    left = 0
-    right = len(sorted_batches) - 1
-    take_high = True
-
-    while left <= right:
-        if take_high:
-            pattern_result.append(sorted_batches[left])
-            left += 1
-        else:
-            pattern_result.append(sorted_batches[right])
-            right -= 1
-        take_high = not take_high
-
     top_batches_list = [
-        {"batch_name": name, "total_fee": float(total_fee)}
-        for name, total_fee in pattern_result
+        {"batch_name": name, "total_fee": float(total_fee or 0)}
+        for name, total_fee in latest_previous_batches
     ]
 
     # Placement Fee Collection Metrics
@@ -335,23 +325,37 @@ def get_upcoming_batches(db: Session, limit: int = 3) -> List[Dict[str, Any]]:
 # Top batch revenue
 def get_top_batches_revenue(db: Session, limit: int = 5) -> List[Dict[str, Any]]:
     try:
-        top_batches = db.query(
+        today = date.today()
+        # Find current active batch to exclude
+        current_batch = db.query(Batch).filter(
+            Batch.startdate <= today,
+            Batch.enddate >= today
+        ).order_by(desc(Batch.startdate)).first()
+
+        query = db.query(
             Batch.batchname,
             func.sum(CandidateORM.fee_paid).label("total_revenue"),
             func.count(CandidateORM.id).label("candidate_count")
         ).join(
             CandidateORM,
             CandidateORM.batchid == Batch.batchid
-        ).group_by(
+        )
+
+        if current_batch:
+            query = query.filter(Batch.batchid != current_batch.batchid)
+
+        top_batches = query.group_by(
             Batch.batchid,
-            Batch.batchname
+            Batch.batchname,
+            Batch.startdate
         ).order_by(
-            desc("total_revenue")
+            desc(Batch.startdate)
         ).limit(limit).all()
+
         return [
             {
                 "batch_name": name,
-                "total_revenue": float(total_revenue),
+                "total_revenue": float(total_revenue or 0),
                 "candidate_count": candidate_count
             }
             for name, total_revenue, candidate_count in top_batches
@@ -635,72 +639,15 @@ def get_tasks_by_employee_id_for_dashboard(db: Session, employee_id: int) -> Lis
         })
     return result
 
-
 def get_job_types_by_employee_id_for_dashboard(db: Session, employee_id: int) -> List[dict]:
     try:
-        Owner1 = aliased(EmployeeORM)
-        Owner2 = aliased(EmployeeORM)
-        Owner3 = aliased(EmployeeORM)
-        LastModUserEmployee = aliased(EmployeeORM)
-
-        rows = (
-            db.query(
-                JobTypeORM.id,
-                JobTypeORM.unique_id,
-                JobTypeORM.name,
-                JobTypeORM.job_owner_1,
-                JobTypeORM.job_owner_2,
-                JobTypeORM.job_owner_3,
-                JobTypeORM.category,
-                JobTypeORM.description,
-                JobTypeORM.notes,
-                JobTypeORM.lastmod_date_time,
-                Owner1.name.label("job_owner_1_name"),
-                Owner2.name.label("job_owner_2_name"),
-                Owner3.name.label("job_owner_3_name"),
-                LastModUserEmployee.name.label("lastmod_user_name")
+        rows = db.query(JobTypeORM.id, JobTypeORM.name, JobTypeORM.unique_id).filter(
+            or_(
+                JobTypeORM.job_owner_1 == employee_id,
+                JobTypeORM.job_owner_2 == employee_id,
+                JobTypeORM.job_owner_3 == employee_id
             )
-            .outerjoin(Owner1, Owner1.id == JobTypeORM.job_owner_1)
-            .outerjoin(Owner2, Owner2.id == JobTypeORM.job_owner_2)
-            .outerjoin(Owner3, Owner3.id == JobTypeORM.job_owner_3)
-            .outerjoin(LastModUserEmployee, LastModUserEmployee.id == JobTypeORM.lastmod_user_id)
-            .filter(
-                or_(
-                    JobTypeORM.job_owner_1 == employee_id,
-                    JobTypeORM.job_owner_2 == employee_id,
-                    JobTypeORM.job_owner_3 == employee_id
-                )
-            )
-            .order_by(JobTypeORM.id)
-            .all()
-        )
-
-        # Fetch the name of the person whose dashboard this is
-        target_employee = db.query(EmployeeORM).filter(EmployeeORM.id == employee_id).first()
-        target_name = target_employee.name if target_employee else "Employee"
-
-        result = []
-        for row in rows:
-            item = {
-                "id": row.id,
-                "unique_id": row.unique_id,
-                "name": row.name,
-                "employee_name": target_name,
-                "job_owner_1": row.job_owner_1,
-                "job_owner_2": row.job_owner_2,
-                "job_owner_3": row.job_owner_3,
-                "job_owner_1_name": row.job_owner_1_name,
-                "job_owner_2_name": row.job_owner_2_name,
-                "job_owner_3_name": row.job_owner_3_name,
-                "category": row.category or "manual",
-                "description": row.description,
-                "notes": row.notes,
-                "lastmod_date_time": row.lastmod_date_time.isoformat() if isinstance(row.lastmod_date_time, datetime) else str(row.lastmod_date_time) if row.lastmod_date_time else None,
-                "lastmod_user_name": row.lastmod_user_name
-            }
-            result.append(item)
-
-        return result
-
-    except Exception as e:
+        ).all()
+        return [{"id": r.id, "name": r.name, "unique_id": r.unique_id} for r in rows]
+    except Exception:
         return []
