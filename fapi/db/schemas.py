@@ -1852,3 +1852,60 @@ class PaginatedJobActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[JobActivityLogOut]
+
+
+# ==================== Job Automation Keywords ====================
+
+class MatchTypeEnum(str, Enum):
+    exact = "exact"
+    contains = "contains"
+    regex = "regex"
+
+
+class ActionEnum(str, Enum):
+    allow = "allow"
+    block = "block"
+
+
+class JobAutomationKeywordBase(BaseModel):
+    category: str = Field(..., max_length=50, description="Category like blocked_personal_domain, allowed_staffing_domain")
+    source: str = Field(default="email_extractor", max_length=50, description="Which extractor uses this")
+    keywords: str = Field(..., description="Comma-separated keywords: gmail.com,yahoo.com,outlook.com")
+    match_type: MatchTypeEnum = Field(default=MatchTypeEnum.contains, description="How to match")
+    action: Optional[ActionEnum] = Field(default=ActionEnum.block, description="Allow or block")
+    priority: int = Field(default=100, description="Lower = higher priority. Allowlist=1, Blocklist=100")
+    context: Optional[str] = Field(None, description="Why this filter exists")
+    is_active: bool = Field(default=True)
+
+
+class JobAutomationKeywordCreate(JobAutomationKeywordBase):
+    pass
+
+
+class JobAutomationKeywordUpdate(BaseModel):
+    category: Optional[str] = Field(None, max_length=50)
+    source: Optional[str] = Field(None, max_length=50)
+    keywords: Optional[str] = None
+    match_type: Optional[MatchTypeEnum] = None
+    action: Optional[ActionEnum] = None
+    priority: Optional[int] = None
+    context: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class JobAutomationKeywordOut(JobAutomationKeywordBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class PaginatedJobAutomationKeywords(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    keywords: List[JobAutomationKeywordOut]
+

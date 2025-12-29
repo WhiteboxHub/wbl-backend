@@ -741,3 +741,33 @@ class JobActivityLogORM(Base):
     candidate = relationship("CandidateORM")
     employee = relationship("EmployeeORM", foreign_keys=[employee_id])
     lastmod_user = relationship("EmployeeORM", foreign_keys=[lastmod_user_id])
+
+
+# -------------------- Job Automation Keywords --------------------
+class JobAutomationKeywordORM(Base):
+    __tablename__ = "job_automation_keywords"
+
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    category = Column(String(50), nullable=False, comment="blocked_personal_domain, allowed_staffing_domain, etc.")
+    source = Column(String(50), nullable=False, server_default="email_extractor", comment="Which extractor uses this")
+    keywords = Column(Text, nullable=False, comment="Comma-separated: gmail.com,yahoo.com,outlook.com")
+    match_type = Column(
+        Enum("exact", "contains", "regex", name="match_type_enum"),
+        nullable=False,
+        server_default="contains",
+        comment="How to match"
+    )
+    action = Column(
+        Enum("allow", "block", name="action_enum"),
+        server_default="block",
+        comment="allow or block"
+    )
+    priority = Column(Integer, server_default="100", comment="Lower = higher priority. Allowlist=1, Blocklist=100")
+    context = Column(Text, nullable=True, comment="Why this filter exists")
+    is_active = Column(Boolean, server_default="1")
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    updated_at = Column(
+        TIMESTAMP,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp()
+    )
