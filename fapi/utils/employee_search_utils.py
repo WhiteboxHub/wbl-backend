@@ -1,10 +1,22 @@
+import re
 from sqlalchemy.orm import Session
 from typing import List, Dict
-from fapi.db.models import EmployeeORM, CandidatePreparation, CandidateMarketingORM, Recording
+from fapi.db.models import (
+    EmployeeORM, 
+    CandidatePreparation, 
+    CandidateMarketingORM, 
+    Recording, 
+    JobTypeORM, 
+    EmployeeTaskORM, 
+    CandidatePlacementORM, 
+    CandidateORM,
+    Batch
+)
 from typing import List
 from fapi.db.models import Session as SessionORM 
 from datetime import datetime, date
-from typing import List, Dict
+from typing import List, Dict, Any
+from sqlalchemy import or_
 
 def search_employees(db: Session, query: str) -> List[EmployeeORM]:
     return db.query(EmployeeORM).filter(EmployeeORM.name.ilike(f"%{query}%")).all()
@@ -36,7 +48,7 @@ def get_employee_details(db: Session) -> List[Dict]:
             "state": emp.state,
             "dob": safe_date(emp.dob),
             "enddate": safe_date(emp.enddate),
-            "notes": emp.notes,
+            "notes": re.sub(r'<[^>]*>', '', emp.notes) if emp.notes else "",
             "status": emp.status,
             "instructor": emp.instructor,
             "aadhaar": emp.aadhaar
@@ -106,4 +118,61 @@ def get_employee_sessions_and_recordings(db: Session, employee_id: int):
         "employee": employee,
         "sessions": matched_sessions,
         "recordings": matched_recordings
+    }
+
+
+def get_employee_jobs(db: Session, employee_id: int) -> Dict[str, Any]:
+    jobs = db.query(JobTypeORM).filter(
+        or_(
+            JobTypeORM.job_owner_1 == employee_id,
+            JobTypeORM.job_owner_2 == employee_id,
+            JobTypeORM.job_owner_3 == employee_id
+        )
+    ).all()
+    
+    job_names = [j.name for j in jobs]
+    
+    return {
+        "count": len(job_names),
+        "names": job_names
+    }
+
+
+import re
+
+def get_employee_tasks(db: Session, employee_id: int) -> List[Dict[str, Any]]:
+    tasks = db.query(EmployeeTaskORM).filter(EmployeeTaskORM.employee_id == employee_id).all()
+    return [
+        {
+            "id": t.id,
+            "task": re.sub(r'<[^>]*>', '', t.task) if t.task else "",
+            "status": t.status,
+            "priority": t.priority,
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+            "assigned_date": t.assigned_date.isoformat() if t.assigned_date else None
+        } for t in tasks
+    ]
+
+
+def get_employee_placements(db: Session, employee_id: int) -> Dict[str, Any]:
+    placements = db.query(CandidatePlacementORM).join(
+        CandidatePreparation, 
+        CandidatePlacementORM.candidate_id == CandidatePreparation.candidate_id
+    ).filter(
+        or_(
+            CandidatePreparation.instructor1_id == employee_id,
+            CandidatePreparation.instructor2_id == employee_id,
+            CandidatePreparation.instructor3_id == employee_id
+        )
+    ).all()
+    
+    candidate_names = []
+    for p in placements:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == p.candidate_id).first()
+        if candidate:
+            candidate_names.append(candidate.full_name)
+    
+    return {
+        "count": len(candidate_names),
+        "names": candidate_names
     }
