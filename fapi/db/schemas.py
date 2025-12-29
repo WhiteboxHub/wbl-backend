@@ -991,7 +991,7 @@ class VendorCreate(BaseModel):
     postal_code: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
-
+    linkedin_internal_id: Optional[str] = None
 
 class VendorResponse(BaseModel):
     message: str
