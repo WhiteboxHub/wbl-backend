@@ -11,6 +11,9 @@ from fapi.utils.employee_search_utils import (
     get_employee_details,
     get_employee_candidates,
      get_employee_sessions_and_recordings,
+     get_employee_jobs,
+     get_employee_tasks,
+     get_employee_placements,
 )
 from typing import List
 from fapi.utils.employee_utils import (
@@ -139,3 +142,18 @@ def get_employee_session_class_data(employee_id: int, db: Session = Depends(get_
         "session_count": len(data["sessions"]),
         "timeline": timeline
     }
+
+
+@router.get("/employees/{employee_id}/jobs")
+def get_employee_jobs_endpoint(employee_id: int, db: Session = Depends(get_db)):
+    return get_employee_jobs(db, employee_id)
+
+
+@router.get("/employees/{employee_id}/tasks")
+def get_employee_tasks_endpoint(employee_id: int, db: Session = Depends(get_db)):
+    return get_employee_tasks(db, employee_id)
+
+
+@router.get("/employees/{employee_id}/placements")
+def get_employee_placements_endpoint(employee_id: int, db: Session = Depends(get_db)):
+    return get_employee_placements(db, employee_id)
