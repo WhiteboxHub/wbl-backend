@@ -852,6 +852,21 @@ class VendorContactExtractUpdate(BaseModel):
     linkedin_internal_id: Optional[str] = None
 
 
+
+
+class VendorContactBulkCreate(BaseModel):
+    contacts: List[VendorContactExtractCreate]
+
+
+class VendorContactBulkResponse(BaseModel):
+    inserted: int
+    failed: int
+    duplicates: int
+    total: int
+    failed_contacts: List[dict] = []
+    duplicate_contacts: List[dict] = []
+
+
 # -------------------- Vendor Schemas --------------------
 class VendorBase(BaseModel):
     full_name: Optional[str] = None
@@ -976,7 +991,7 @@ class VendorCreate(BaseModel):
     postal_code: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
-
+    linkedin_internal_id: Optional[str] = None
 
 class VendorResponse(BaseModel):
     message: str
@@ -1132,16 +1147,16 @@ class CourseSubject(CourseSubjectBase):
 
 
 class RecordingBase(BaseModel):
-    # batchname: str
-    description: Optional[str] = None
-    type: Optional[str] = "class"
-    classdate: Optional[datetime] = None
-    link: Optional[str] = None
+    description: str
+    type: str = "class"
+    classdate: date
+    link: str
     videoid: Optional[str] = None
+    backup_url: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
+    lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
-    backup_url: Optional[str] = None
 
 
 class RecordingCreate(RecordingBase):
@@ -1154,7 +1169,12 @@ class RecordingUpdate(RecordingBase):
 
 class RecordingOut(RecordingBase):
     id: int
-    # lastmoddatetime: Optional[datetime]
+
+    @field_validator("lastmoddatetime", mode="before")
+    def clean_invalid_datetime(cls, v):
+        if v in ("0000-00-00 00:00:00", None, ""):
+            return None
+        return v
 
     class Config:
         from_attributes = True
@@ -1405,12 +1425,12 @@ class PaginatedBatches(BaseModel):
 
 
 class RecordingBase(BaseModel):
-    batchname: str
-    description: Optional[str] = None
-    type: Optional[str] = None
-    classdate: Optional[datetime] = None
-    link: Optional[str] = None
+    description: str
+    type: str = "class"
+    classdate: date
+    link: str
     videoid: Optional[str] = None
+    backup_url: Optional[str] = None
     subject: Optional[str] = None
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
@@ -1423,7 +1443,7 @@ class RecordingCreate(RecordingBase):
 
 class Recording(RecordingBase):
     id: int
-
+    
     model_config = {
         "from_attributes": True
     }
@@ -1449,13 +1469,14 @@ class RecordingBatch(RecordingBatchBase):
 # -----------------------------------------------------Session------------------------------------
 
 class SessionBase(BaseModel):
-    title: str
+    title: Optional[str] = None
+    status: str
     link: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     type: Optional[str] = None
-    sessiondate: Optional[datetime] = None
-    # lastmoddatetime: Optional[datetime] = None
+    sessiondate: Optional[date] = None
+    lastmoddatetime: Optional[datetime] = None
     subject_id: int
 
 
@@ -1837,3 +1858,60 @@ class PaginatedJobActivityLogs(BaseModel):
     page: int
     per_page: int
     logs: List[JobActivityLogOut]
+
+
+# ==================== Job Automation Keywords ====================
+
+class MatchTypeEnum(str, Enum):
+    exact = "exact"
+    contains = "contains"
+    regex = "regex"
+
+
+class ActionEnum(str, Enum):
+    allow = "allow"
+    block = "block"
+
+
+class JobAutomationKeywordBase(BaseModel):
+    category: str = Field(..., max_length=50, description="Category like blocked_personal_domain, allowed_staffing_domain")
+    source: str = Field(default="email_extractor", max_length=50, description="Which extractor uses this")
+    keywords: str = Field(..., description="Comma-separated keywords: gmail.com,yahoo.com,outlook.com")
+    match_type: MatchTypeEnum = Field(default=MatchTypeEnum.contains, description="How to match")
+    action: Optional[ActionEnum] = Field(default=ActionEnum.block, description="Allow or block")
+    priority: int = Field(default=100, description="Lower = higher priority. Allowlist=1, Blocklist=100")
+    context: Optional[str] = Field(None, description="Why this filter exists")
+    is_active: bool = Field(default=True)
+
+
+class JobAutomationKeywordCreate(JobAutomationKeywordBase):
+    pass
+
+
+class JobAutomationKeywordUpdate(BaseModel):
+    category: Optional[str] = Field(None, max_length=50)
+    source: Optional[str] = Field(None, max_length=50)
+    keywords: Optional[str] = None
+    match_type: Optional[MatchTypeEnum] = None
+    action: Optional[ActionEnum] = None
+    priority: Optional[int] = None
+    context: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class JobAutomationKeywordOut(JobAutomationKeywordBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class PaginatedJobAutomationKeywords(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    keywords: List[JobAutomationKeywordOut]
+

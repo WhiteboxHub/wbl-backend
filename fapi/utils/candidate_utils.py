@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fastapi import HTTPException,APIRouter,Depends
@@ -840,9 +840,6 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "interview_type": i.type_of_interview,
                     "company_type": i.company_type,
                     "mode_of_interview": i.mode_of_interview,
-                    "interviewer_emails": i.interviewer_emails,
-                    "interviewer_linkedin_ids": i.interviewer_linkedin,
-                    "interviewer_contact": i.interviewer_contact,
                     "feedback": i.feedback,
                     "recording_link": i.recording_link,
                     "notes": i.notes,
@@ -865,6 +862,20 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "notes": p.notes,
                 }
                 for p in candidate.placements
+            ],
+            "placement_fee_collection": [
+                {
+                    "id": fee.id,
+                    "placement_id": fee.placement_id,
+                    "installment_id": fee.installment_id,
+                    "deposit_date": fee.deposit_date.isoformat() if fee.deposit_date else None,
+                    "deposit_amount": float(fee.deposit_amount) if fee.deposit_amount else None,
+                    "amount_collected": fee.amount_collected.value if fee.amount_collected else None,
+                    "lastmod_user_id": fee.lastmod_user_id,
+                    "last_mod_date": fee.last_mod_date.isoformat() if fee.last_mod_date else None,
+                }
+                for p in candidate.placements
+                for fee in db.query(PlacementFeeCollection).filter(PlacementFeeCollection.placement_id == p.id).all()
             ],
             "login_access": {
                 "login_count": getattr(authuser, "logincount", 0) if authuser else 0,
