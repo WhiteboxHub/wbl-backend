@@ -18,16 +18,7 @@ def get_keywords(
     action: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """
-    Get all job automation keywords with optional filtering and pagination.
-    
-    - **page**: Page number (default: 1)
-    - **per_page**: Items per page (default: 50, max: 100)
-    - **category**: Filter by category
-    - **source**: Filter by source
-    - **is_active**: Filter by active status
-    - **action**: Filter by action (allow/block)
-    """
+   
     skip = (page - 1) * per_page
     keywords, total = job_automation_keyword_utils.get_keywords(
         db=db,
