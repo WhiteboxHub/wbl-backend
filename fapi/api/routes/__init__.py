@@ -5,5 +5,5 @@ from . import (
     vendor,  request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, 
     course_subject, course_content, course_material, batch,
-    authuser, avatar_dashboard, session, referrals, jobs,job_automation_keywords
+    authuser, avatar_dashboard, session, referrals
 )
