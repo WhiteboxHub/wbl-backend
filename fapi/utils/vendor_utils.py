@@ -29,7 +29,7 @@ def _normalize_email(email: Optional[str]) -> Optional[str]:
         valid = _EmailValidator(email=email.strip())
         return valid.email.lower()
     except ValidationError:
-        logger.warning(f"Invalid email encountered while normalizing: {email!r}")
+        logger.warning("Invalid email encountered while normalizing")
         return None
 
 
@@ -114,4 +114,15 @@ def delete_vendor(db: Session, vendor_id: int) -> Dict[str, str]:
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
+def delete_vendors_bulk(db: Session, vendor_ids: List[int]) -> int:
+    try:
+        deleted_count = db.query(Vendor).filter(Vendor.id.in_(vendor_ids)).delete(synchronize_session=False)
+        db.commit()
+        return deleted_count
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Bulk delete failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Bulk delete failed: {str(e)}")
 

@@ -13,6 +13,7 @@ from fapi.db.schemas import (
     VendorContactExtractUpdate,
     VendorContactBulkCreate,
     VendorContactBulkResponse,
+    MoveToVendorRequest,
 )
 from fapi.utils.vendor_contact_utils import (
     get_all_vendor_contacts,
@@ -77,28 +78,47 @@ async def create_vendor_contacts_bulk_handler(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.put("/vendor_contact/move-to-vendor")
+@router.post("/vendor_contact/move-to-vendor")
 async def move_contacts_to_vendor_handler(
-    contact_ids: List[int] = Query(...),
+    request: MoveToVendorRequest,
     db: Session = Depends(get_db)
 ):
-    """Move vendor contacts to vendor table by setting moved_to_vendor flag"""
+    """Move vendor contacts to vendor table by setting moved_to_vendor flag
+    
+    Uses POST with request body to avoid URL length limits for large batches.
+    Processes in batches of 500 to avoid database locks and timeouts.
+    """
     try:
-        # Update contacts to set moved_to_vendor = True
-        updated_count = db.query(VendorContactExtractsORM).filter(
-            VendorContactExtractsORM.id.in_(contact_ids)
-        ).update({"moved_to_vendor": True}, synchronize_session=False)
+        logger.info(f"Move to vendor request received with {len(request.contact_ids)} contact IDs")
+        contact_ids = request.contact_ids
+        if not contact_ids:
+            raise HTTPException(status_code=400, detail="No contact IDs provided")
         
-        db.commit()
+        total_updated = 0
+        batch_size = 500
         
+        # Process in batches to avoid database locks and timeouts
+        for i in range(0, len(contact_ids), batch_size):
+            batch = contact_ids[i:i + batch_size]
+            
+            updated_count = db.query(VendorContactExtractsORM).filter(
+                VendorContactExtractsORM.id.in_(batch)
+            ).update({"moved_to_vendor": True}, synchronize_session=False)
+            
+            total_updated += updated_count
+            db.commit()  # Commit each batch
+        
+        logger.info(f"Successfully moved {total_updated} contacts to vendor")
         return {
-            "updated": updated_count,
-            "message": f"Successfully moved {updated_count} contacts to vendor"
+            "updated": total_updated,
+            "message": f"Successfully moved {total_updated} contacts to vendor"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Error moving contacts to vendor: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @router.put("/vendor_contact/{contact_id}", response_model=VendorContactExtract)
 async def update_vendor_contact_handler(
