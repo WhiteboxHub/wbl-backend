@@ -867,6 +867,10 @@ class VendorContactBulkResponse(BaseModel):
     duplicate_contacts: List[dict] = []
 
 
+class MoveToVendorRequest(BaseModel):
+    contact_ids: List[int] = Field(..., description="List of contact IDs to move to vendor")
+
+
 # -------------------- Vendor Schemas --------------------
 class VendorBase(BaseModel):
     full_name: Optional[str] = None
