@@ -44,22 +44,17 @@ def get_employees(
 
 from sqlalchemy.exc import IntegrityError
 
-@router.post("/employees")
-def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+@router.post("/employees", response_model=Employee)
+def create_employee(payload: EmployeeCreate):
     try:
-        employee = Employee(**payload.model_dump())
-        db.add(employee)
-        db.commit()
-        db.refresh(employee)
+        employee = create_employee_db(payload.model_dump())
         return employee
 
     except IntegrityError:
-        db.rollback()
         raise HTTPException(
             status_code=409,
             detail="Employee with this email already exists"
         )
-
 
 @router.put("/employees/{employee_id}", response_model=Employee)
 def update_employee(
