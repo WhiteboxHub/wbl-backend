@@ -6,6 +6,7 @@ from fapi.db.database import SessionLocal, get_db
 from fapi.db import models, schemas
 from typing import List, Dict
 from fapi.db.schemas import Employee, EmployeeCreate, EmployeeUpdate,EmployeeDetailSchema
+from sqlalchemy.exc import IntegrityError
 from fapi.utils.employee_search_utils import (
     search_employees,
     get_employee_details,
@@ -40,9 +41,6 @@ def get_employees(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-from sqlalchemy.exc import IntegrityError
 
 @router.post("/employees", response_model=Employee)
 def create_employee(payload: EmployeeCreate):
