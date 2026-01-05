@@ -1211,10 +1211,7 @@ class RecordingBatchCreate(RecordingBatchBase):
 
 
 class RecordingBatch(RecordingBatchBase):
-    id: int
-
     model_config = {
-
         "from_attributes": True
     }
 
@@ -1463,8 +1460,6 @@ class RecordingBatchCreate(RecordingBatchBase):
 
 
 class RecordingBatch(RecordingBatchBase):
-    id: int
-
     model_config = {
         "from_attributes": True
     }
@@ -1918,4 +1913,3 @@ class PaginatedJobAutomationKeywords(BaseModel):
     page: int
     per_page: int
     keywords: List[JobAutomationKeywordOut]
-
