@@ -5,7 +5,7 @@ from fapi.api.routes import (
     vendor, request_demo, unsubscribe,
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals, candidate_dashboard, internal_documents,
+    session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords,
 )
 from fapi.db.database import SessionLocal
@@ -88,6 +88,8 @@ app.include_router(session.router, prefix="/api",
                    tags=["Sessions"], dependencies=[Depends(enforce_access)])
 app.include_router(recording.router, prefix="/api",
                    tags=["Recordings"], dependencies=[Depends(enforce_access)])
+app.include_router(recording_batch.router, prefix="/api",
+                   tags=["Recording Batches"], dependencies=[Depends(enforce_access)])
 app.include_router(course.router, prefix="/api",
                    tags=["Courses"], dependencies=[Depends(enforce_access)])
 app.include_router(subject.router, prefix="/api",
