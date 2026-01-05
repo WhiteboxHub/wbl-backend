@@ -30,7 +30,7 @@ router = APIRouter()
 
 security = HTTPBearer()
 
-@router.get("/employees", response_model=list[Employee])
+@router.get("/employees", response_model=List[Employee])
 def get_employees(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
@@ -41,50 +41,59 @@ def get_employees(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/employee-birthdays")
-def employee_birthdays(db: Session = Depends(get_db)):
-    birthdays = get_employee_birthdays(db)
-    return birthdays
 
+from sqlalchemy.exc import IntegrityError
 
-@router.post("/employees", response_model=Employee)
-def create_employee(employee_data: EmployeeCreate, db: Session = Depends(get_db)):
+@router.post("/employees")
+def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
     try:
- 
-        if not employee_data.name or not employee_data.email:
-            raise HTTPException(status_code=400, detail="Name and email are required")
-
-        db_employee = EmployeeORM(**employee_data.model_dump())
-        db.add(db_employee)
+        employee = Employee(**payload.model_dump())
+        db.add(employee)
         db.commit()
-        db.refresh(db_employee)
-        return db_employee
-    except Exception as e:
+        db.refresh(employee)
+        return employee
+
+    except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create employee: {str(e)}")
+        raise HTTPException(
+            status_code=409,
+            detail="Employee with this email already exists"
+        )
 
 
 @router.put("/employees/{employee_id}", response_model=Employee)
 def update_employee(
     employee_id: int,
-    employee_data: EmployeeUpdate,  
-    db: Session = Depends(get_db)
+    employee_data: EmployeeUpdate,
 ):
     try:
-        updated_employee = update_employee_db(employee_id, employee_data.model_dump(exclude_unset=True))
-        return updated_employee
+        return update_employee_db(
+            employee_id,
+            employee_data.model_dump(exclude_unset=True),
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update employee: {str(e)}")
-    
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update employee: {str(e)}",
+        )
 
-@router.delete("/employees/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete(
+    "/employees/{employee_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_employee(employee_id: int):
     try:
         delete_employee_db(employee_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Delete failed: {str(e)}",
+        )
 
 
 # ---------------------------------employee search--------------------------------------

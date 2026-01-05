@@ -7,41 +7,27 @@ from enum import Enum
 import enum
 import re
 
-
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     state: Optional[str] = None
     dob: Optional[date] = None
-    startdate: Optional[date] = Field(default_factory=date.today)
-
+    startdate: Optional[date] = None
     enddate: Optional[date] = None
     notes: Optional[str] = None
     status: Optional[int] = None
     instructor: Optional[int] = None
     aadhaar: Optional[str] = None
 
-    @validator('phone')
-    def validate_phone(cls, v):
-        if v and not re.match(r'^[6-9]\d{9}$', v):
-            raise ValueError('Phone must be a valid 10-digit Indian number starting with 6-9')
+    @field_validator("dob", "startdate", "enddate", mode="before")
+    def handle_invalid_dates(cls, v):
+        if v in ("", "0000-00-00", None):
+            return None
         return v
 
-    @validator('email')
-    def validate_email(cls, v):
-        if not re.match(r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$', v, re.IGNORECASE):
-            raise ValueError('Invalid email format')
-        
-        return v
-
-    @validator('aadhaar')
-    def validate_aadhaar(cls, v):
-        if v and not re.match(r'^\d{12}$', v):
-            raise ValueError('Aadhaar must be 12 digits')
-        return v
 
 class EmployeeCreate(EmployeeBase):
     name: str
@@ -51,7 +37,8 @@ class EmployeeCreate(EmployeeBase):
 
 
 class EmployeeUpdate(EmployeeBase):
-    id: int
+    # id: int
+    pass
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,8 +63,7 @@ class EmployeeBirthdayOut(BaseModel):
     wish: Optional[str] = None
 
     class Config:
-        from_attributes = True
-
+        orm_mode = True
 
 # ---------------------------enployee search -----------------------------
 class EmployeeDetailSchema(BaseModel):
@@ -1655,53 +1641,8 @@ class BatchClassSummary(BaseModel):
 
 
 # =====================================employee========================
-class EmployeeBase(BaseModel):
-    name: str
-    email: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    state: Optional[str] = None
-    dob: Optional[date] = None
-    startdate: Optional[date] = None
-    enddate: Optional[datetime] = None
-    notes: Optional[str] = None
-    status: Optional[int] = None
-    instructor: Optional[int] = None
-    aadhaar: Optional[str] = None
 
 
-class EmployeeCreate(EmployeeBase):
-    pass
-
-
-class EmployeeUpdate(EmployeeBase):
-    id: int
-    name: Optional[str] = None
-    email: Optional[str] = None
-
-
-class Employee(EmployeeBase):
-    id: int
-
-    @field_validator("dob", "startdate", "enddate", mode="before")
-    def handle_invalid_dates(cls, v):
-        if isinstance(v, str) and v.startswith("0000-00-00"):
-            return None
-        return v
-
-    class Config:
-        from_attributes = True
-
-
-class EmployeeBirthdayOut(BaseModel):
-    id: int
-    name: str
-    dob: date
-    # wish: str | None = None
-    wish: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 class EmployeeTaskBase(BaseModel): 
     employee_name: str | None = None 
