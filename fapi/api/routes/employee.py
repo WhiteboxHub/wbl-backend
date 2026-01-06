@@ -6,6 +6,7 @@ from fapi.db.database import SessionLocal, get_db
 from fapi.db import models, schemas
 from typing import List, Dict
 from fapi.db.schemas import Employee, EmployeeCreate, EmployeeUpdate,EmployeeDetailSchema
+from sqlalchemy.exc import IntegrityError
 from fapi.utils.employee_search_utils import (
     search_employees,
     get_employee_details,
@@ -41,25 +42,17 @@ def get_employees(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-from sqlalchemy.exc import IntegrityError
-
-@router.post("/employees")
-def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db)):
+@router.post("/employees", response_model=Employee)
+def create_employee(payload: EmployeeCreate):
     try:
-        employee = Employee(**payload.model_dump())
-        db.add(employee)
-        db.commit()
-        db.refresh(employee)
+        employee = create_employee_db(payload.model_dump())
         return employee
 
     except IntegrityError:
-        db.rollback()
         raise HTTPException(
             status_code=409,
             detail="Employee with this email already exists"
         )
-
 
 @router.put("/employees/{employee_id}", response_model=Employee)
 def update_employee(
