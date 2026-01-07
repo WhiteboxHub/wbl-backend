@@ -28,6 +28,7 @@ app.add_middleware(
         "http://www.whitebox-learning.com",
         "http://localhost:3000",
         "http://localhost:8000",
+        "https://wbl-frontend-560359652969.us-central1.run.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
