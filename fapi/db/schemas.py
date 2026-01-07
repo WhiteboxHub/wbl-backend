@@ -127,6 +127,7 @@ class UserRegistration(BaseModel):
     referby: Optional[str] = None
     specialization: Optional[str] = None
     notes: Optional[str] = None
+    recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
 
 
 class AuthUserBase(BaseModel):
@@ -1048,6 +1049,7 @@ class ContactForm(BaseModel):
     email: EmailStr
     phone: str
     message: str
+    recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
 
 
 # -----------------------------------------------------unsubscribe-------------------------
