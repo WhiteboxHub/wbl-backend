@@ -8,3 +8,4 @@ myenv/
 myvenv/
 venv/
 node_modules
+backend-env.yaml

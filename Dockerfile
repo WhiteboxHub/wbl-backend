@@ -1,24 +1,19 @@
-# Use an official Python runtime as a parent image
+# //wbl-backend\Dockerfile
+
 FROM python:3.11-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install any needed packages specified in requirements.txt
-RUN pip install -r requirements.txt
+# Copy app code
+COPY . .
 
-# Install python-dotenv if you need it for local development
-RUN pip install python-dotenv
+# Cloud Run expects the container to listen on $PORT
+ENV PORT=8080
+EXPOSE 8080
 
-# Make port 8000 available to the world outside this container
-EXPOSE 8000
-
-# # Copy the .env file to the working directory
-#COPY .env .env  
-
-# Run the FastAPI server with reload option
-CMD ["uvicorn", "fapi.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
+# Run FastAPI
+CMD uvicorn fapi.main:app --host 0.0.0.0 --port $PORT

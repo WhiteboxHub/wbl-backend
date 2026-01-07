@@ -34,7 +34,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.middleware("http")
 async def log_exceptions(request: Request, call_next):
     try:
