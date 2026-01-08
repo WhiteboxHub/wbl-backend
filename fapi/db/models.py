@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, CheckConstraint, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -499,18 +499,20 @@ class CandidateStatus(str, enum.Enum):
 class VendorContactExtractsORM(Base):
     __tablename__ = "vendor_contact_extracts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String(255), nullable=True)
-    email = Column(String(255), nullable=True, unique=False)
+    email = Column(String(255), nullable=True, unique=True)
     phone = Column(String(50), nullable=True)
     linkedin_id = Column(String(255), nullable=True)
     company_name = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
     moved_to_vendor = Column(Boolean, default=False)
-    created_at = Column(DateTime, server_default=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now())
     linkedin_internal_id = Column(String(255))
-    extraction_date = Column(DateTime, nullable=True)
+    extraction_date = Column(Date, nullable=True)
     source_email = Column(String(255), nullable=True)
+    notes = Column(String(100), nullable=True)
+    job_source = Column(String(40), nullable=True)
 
 # -------------------- ORM: vendor-daily-activity --------------------
 

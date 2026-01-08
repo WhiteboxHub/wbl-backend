@@ -792,7 +792,8 @@ class VendorContactExtract(BaseModel):
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
-
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
     model_config = {
         "from_attributes": True
     }
@@ -823,6 +824,10 @@ class VendorContactExtractCreate(BaseModel):
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
+    extraction_date: Optional[date] = None
+    linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 class VendorContactExtractUpdate(BaseModel):
@@ -836,6 +841,8 @@ class VendorContactExtractUpdate(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
     linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 

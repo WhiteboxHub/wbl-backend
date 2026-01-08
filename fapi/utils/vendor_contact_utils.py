@@ -38,7 +38,11 @@ async def insert_vendor_contact(contact: VendorContactExtractCreate, db: Session
             linkedin_id=contact.linkedin_id,
             company_name=contact.company_name,
             location=contact.location,
-            moved_to_vendor=False
+            moved_to_vendor=False,
+            extraction_date=contact.extraction_date,
+            linkedin_internal_id=contact.linkedin_internal_id,
+            notes=contact.notes,
+            job_source=contact.job_source
         )
         
         db.add(db_contact)
