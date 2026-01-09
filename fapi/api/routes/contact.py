@@ -5,12 +5,19 @@ from fapi.db.schemas import ContactForm
 from fapi.db.database import SessionLocal, get_db
 from fapi.utils.contact_utils import save_contact_lead
 from fapi.utils.email_utils import send_contact_emails
+from fapi.utils.recaptcha_utils import verify_recaptcha_token, ReCAPTCHAVerificationError
 
 router = APIRouter()
 
 
 @router.post("/contact")
 async def contact(user: ContactForm, db: Session = Depends(get_db)):
+    # Verify reCAPTCHA token first
+    try:
+        recaptcha_result = await verify_recaptcha_token(user.recaptcha_token)
+    except ReCAPTCHAVerificationError as e:
+        raise HTTPException(status_code=400, detail=f"CAPTCHA verification failed: {str(e)}")
+    
     # Send email
     send_contact_emails(
         first_name=user.firstName,

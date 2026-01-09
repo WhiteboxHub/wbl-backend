@@ -15,3 +15,5 @@ sqlalchemy
 pymysql
 pydantic==2.11.10
 fastapi-mail==1.5.0
+requests
+httpx
