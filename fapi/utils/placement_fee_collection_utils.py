@@ -25,10 +25,10 @@ def list_placement_fees(db: Session):
     ).all()
 
     fees = []
-    import logging
-    logger = logging.getLogger("wbl")
+    # import logging
+    # logger = logging.getLogger("wbl")
     for fee, c_name, u_name in results:
-        logger.info(f"PlacementFee {fee.id}: candidate={c_name}, lastmod_user={u_name}")
+        # logger.info(f"PlacementFee {fee.id}: candidate={c_name}, lastmod_user={u_name}")
         fee.candidate_name = c_name
         fee.lastmod_user_name = u_name.title() if u_name else None
         fees.append(fee)
