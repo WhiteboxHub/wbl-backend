@@ -987,6 +987,45 @@ class VendorResponse(BaseModel):
     message: str
 
 
+# -------------------- HR Contact Schemas --------------------
+class HRContactBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = False
+
+    @validator("email", pre=True)
+    def empty_string_to_none(cls, v):
+        return v or None
+
+
+class HRContactCreate(HRContactBase):
+    full_name: str
+    email: EmailStr
+
+
+class HRContactUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = None
+
+
+class HRContact(HRContactBase):
+    id: int
+    extraction_date: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
 # ---------------linkedin_activity_log---------------------
 
 class ActivityType(str, Enum):
