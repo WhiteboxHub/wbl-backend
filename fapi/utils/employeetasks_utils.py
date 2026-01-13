@@ -5,9 +5,10 @@ from fapi.db import models, schemas
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
 from difflib import get_close_matches
+from datetime import timedelta
 
 def get_all_tasks(db: Session) -> list:
-    tasks = db.query(models.EmployeeTaskORM).options(joinedload(models.EmployeeTaskORM.employee)).all()
+    tasks = db.query(models.EmployeeTaskORM).options(joinedload(models.EmployeeTaskORM.employee)).order_by(models.EmployeeTaskORM.id.desc()).all()
 
     result = []
     for t in tasks:
@@ -29,12 +30,11 @@ def get_task_by_id(db: Session, task_id: int) -> Optional[models.EmployeeTaskORM
     return db.query(models.EmployeeTaskORM).filter(models.EmployeeTaskORM.id == task_id).first()
 
 
-
-def create_task(db, task: schemas.EmployeeTaskCreate):
-    if not task.employee_name or not task.employee_name.strip():
+def _find_employee_by_name(db: Session, name_input: str) -> models.EmployeeORM:
+    if not name_input or not name_input.strip():
         raise HTTPException(status_code=400, detail="Employee name is required")
 
-    employee_name_clean = "".join(task.employee_name.strip().lower().split())    
+    employee_name_clean = "".join(name_input.strip().lower().split())    
     employees = db.query(models.EmployeeORM).all()
     db_names = {e.id: "".join(e.name.strip().lower().split()) for e in employees if e.name}
     employee = None
@@ -63,7 +63,7 @@ def create_task(db, task: schemas.EmployeeTaskCreate):
             matched_names = [e.name for e in employees if "".join(e.name.strip().lower().split()) in matches]
             raise HTTPException(
                 status_code=400,
-                detail=f"Multiple employees found matching '{task.employee_name}': {matched_names}. Please provide exact name."
+                detail=f"Multiple employees found matching '{name_input}': {matched_names}. Please provide exact name."
             )
 
 
@@ -71,26 +71,33 @@ def create_task(db, task: schemas.EmployeeTaskCreate):
         all_names = [e.name for e in employees]
         raise HTTPException(
             status_code=400,
-            detail=f"Employee '{task.employee_name}' not found. Existing employees: {all_names}"
+            detail=f"Employee '{name_input}' not found. Existing employees: {all_names}"
         )
+    
+    return employee
 
+
+def create_task(db, task: schemas.EmployeeTaskCreate):
+    employee = _find_employee_by_name(db, task.employee_name)
+
+    due_date = task.due_date
+    if not due_date and task.assigned_date:
+        due_date = task.assigned_date + timedelta(days=7)
 
     db_task = models.EmployeeTaskORM(
         employee_id=employee.id,
         task=task.task,
         assigned_date=task.assigned_date,
-        due_date=task.due_date,
+        due_date=due_date,
         status=task.status.lower() if task.status else "pending",
         priority=task.priority.lower() if task.priority else "medium",
         notes=task.notes
     )
 
-
-    db_task.employee_name = employee.name
-
-
+    
     db.add(db_task)
     try:
+        db.flush()
         db.commit()
         db.refresh(db_task)
     except IntegrityError as e:
@@ -100,6 +107,7 @@ def create_task(db, task: schemas.EmployeeTaskCreate):
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database Error: {str(e)}")
 
+    db_task.employee_name = employee.name
     return db_task
 
 
@@ -109,13 +117,22 @@ def update_task(db: Session, task_id: int, task: schemas.EmployeeTaskUpdate):
     if not db_task:
         return None
 
-    for key, value in task.dict(exclude_unset=True).items():
+    update_data = task.dict(exclude_unset=True)
+    
+    updated_employee = None
 
+    if "employee_name" in update_data:
+        new_name = update_data.pop("employee_name")
+        if new_name:
+             updated_employee = _find_employee_by_name(db, new_name)
+             db_task.employee_id = updated_employee.id
+             db_task.employee = updated_employee 
+    for key, value in update_data.items():
         if key in {"status", "priority"}:
             if value is not None:
                 value = value.lower()
             else:
-                continue  # skip updating if None
+                continue  
 
         setattr(db_task, key, value)
 
@@ -125,9 +142,13 @@ def update_task(db: Session, task_id: int, task: schemas.EmployeeTaskUpdate):
     except Exception as e:
         db.rollback()
         raise e
+    
+    if updated_employee:
+        db_task.employee_name = updated_employee.name
+    elif db_task.employee:
+        db_task.employee_name = db_task.employee.name
 
     return db_task
-
 
 
 def delete_task(db: Session, task_id: int) -> Optional[models.EmployeeTaskORM]:
