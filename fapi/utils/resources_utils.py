@@ -29,7 +29,7 @@ def fetch_keyword_presentation(search: str, course: str):
         "Cheatsheets": "C",
         "Study Guides": "SG",
         "Diagrams": "D",
-        "Installations": "I",
+        "Interactive Visual Explainers": "I",
         "Templates": "T",
         "Books": "B",
         "Softwares": "S",
@@ -40,7 +40,7 @@ def fetch_keyword_presentation(search: str, course: str):
     if not type_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Study Guides, Diagrams, Installations, Templates, Books, Softwares, Newsletters, Assignments"
+            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Study Guides, Diagrams, Interactive Visual Explainers, Templates, Books, Softwares, Newsletters, Assignments"
         )
 
     courseid_mapping = {

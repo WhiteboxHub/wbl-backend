@@ -10,7 +10,7 @@ COURSE_MATERIAL_TYPE_MAPPING = {
     "SG": "Study Guides", 
     "D": "Diagrams",
     "S": "Softwares",
-    "I": "Installations",
+    "I": "Interactive Visual Explainers",
     "B": "Books",
     "N": "Newsletters",
     "M": "Materials",
