@@ -771,3 +771,17 @@ class JobAutomationKeywordORM(Base):
         server_default=func.current_timestamp(),
         onupdate=func.current_timestamp()
     )
+
+
+class CompanyHRContact(Base):
+    __tablename__ = "company_hr_contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255))
+    email = Column(String(255), unique=True, index=True)
+    phone = Column(String(50))
+    company_name = Column(String(255))
+    location = Column(String(500))
+    job_title = Column(String(255))
+    is_immigration_team = Column(Boolean, default=False)
+    extraction_date = Column(TIMESTAMP, server_default=func.now())
