@@ -988,6 +988,53 @@ class VendorResponse(BaseModel):
     message: str
 
 
+# -------------------- HR Contact Schemas --------------------
+class HRContactBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = False
+
+    @validator("email", pre=True)
+    def empty_string_to_none(cls, v):
+        return v or None
+
+    @field_validator("full_name", "company_name", "location", "job_title", mode="before")
+    @classmethod
+    def init_cap_fields(cls, v):
+        if v is None or not isinstance(v, str):
+            return v
+        # Converts to Init Cap (Title Case)
+        return " ".join(word.capitalize() for word in v.strip().split())
+
+
+class HRContactCreate(HRContactBase):
+    full_name: str
+    email: EmailStr
+
+
+class HRContactUpdate(HRContactBase):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = None
+
+
+class HRContact(HRContactBase):
+    id: int
+    extraction_date: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
 # ---------------linkedin_activity_log---------------------
 
 class ActivityType(str, Enum):
