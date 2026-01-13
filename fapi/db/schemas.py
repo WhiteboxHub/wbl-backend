@@ -1001,13 +1001,21 @@ class HRContactBase(BaseModel):
     def empty_string_to_none(cls, v):
         return v or None
 
+    @field_validator("full_name", "company_name", "location", "job_title", mode="before")
+    @classmethod
+    def init_cap_fields(cls, v):
+        if v is None or not isinstance(v, str):
+            return v
+        # Converts to Init Cap (Title Case)
+        return " ".join(word.capitalize() for word in v.strip().split())
+
 
 class HRContactCreate(HRContactBase):
     full_name: str
     email: EmailStr
 
 
-class HRContactUpdate(BaseModel):
+class HRContactUpdate(HRContactBase):
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None

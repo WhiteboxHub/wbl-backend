@@ -12,10 +12,10 @@ from fapi.db.schemas import HRContactCreate, HRContactUpdate
 
 logger = logging.getLogger(__name__)
 
+
 # ---------- Helpers ----------
 class _EmailValidator(BaseModel):
     email: EmailStr
-
 
 def _normalize_email(email: Optional[str]) -> Optional[str]:
     if not email:
@@ -27,6 +27,14 @@ def _normalize_email(email: Optional[str]) -> Optional[str]:
     except ValidationError:
         logger.warning("Invalid email encountered while normalizing")
         return None
+
+
+def _init_cap(text: Optional[str]) -> Optional[str]:
+    """Converts a string to Init Cap (Title Case)."""
+    if not text:
+        return text
+    # This specifically capitalizes each word, being more robust than .title() for some cases
+    return " ".join(word.capitalize() for word in text.strip().split())
 
 
 # ---------- CRUD: HR Contact ----------
@@ -41,7 +49,7 @@ def get_all_hr_contacts(db: Session) -> List[CompanyHRContact]:
 def create_hr_contact(db: Session, contact: HRContactCreate) -> CompanyHRContact:
     payload = contact.dict()
     payload["email"] = _normalize_email(payload.get("email"))
-
+    
     # Optional: enforce uniqueness on email if present
     if payload.get("email"):
         dup = (
@@ -78,15 +86,15 @@ def update_hr_contact_handler(db: Session, contact_id: int, update_data: HRConta
     # Normalize email if provided
     if "email" in fields:
         fields["email"] = _normalize_email(fields["email"])
-
-        if fields["email"]:
-            dup = (
-                db.query(CompanyHRContact)
-                .filter(func.lower(CompanyHRContact.email) == fields["email"], CompanyHRContact.id != contact_id)
-                .first()
-            )
-            if dup:
-                raise HTTPException(status_code=400, detail="Email already exists.")
+        
+    if "email" in fields and fields["email"]:
+        dup = (
+            db.query(CompanyHRContact)
+            .filter(func.lower(CompanyHRContact.email) == fields["email"], CompanyHRContact.id != contact_id)
+            .first()
+        )
+        if dup:
+            raise HTTPException(status_code=400, detail="Email already exists.")
 
     try:
         for key, value in fields.items():
