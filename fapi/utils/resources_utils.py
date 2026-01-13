@@ -27,6 +27,7 @@ def fetch_keyword_presentation(search: str, course: str):
     type_mapping = {
         "Presentations": "P",
         "Cheatsheets": "C",
+        "Study Guides": "SG",
         "Diagrams": "D",
         "Installations": "I",
         "Templates": "T",
@@ -39,7 +40,7 @@ def fetch_keyword_presentation(search: str, course: str):
     if not type_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Diagrams, Installations, Templates, Books, Softwares, Newsletters, Assignments"
+            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Study Guides, Diagrams, Installations, Templates, Books, Softwares, Newsletters, Assignments"
         )
 
     courseid_mapping = {
