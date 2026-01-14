@@ -7,9 +7,10 @@ from fapi.db import schemas
 COURSE_MATERIAL_TYPE_MAPPING = {
     "P": "Presentations",
     "C": "Cheatsheets", 
+    "SG": "Study Guides", 
     "D": "Diagrams",
     "S": "Softwares",
-    "I": "Installations",
+    "I": "Interactive Visual Explainers",
     "B": "Books",
     "N": "Newsletters",
     "M": "Materials",
