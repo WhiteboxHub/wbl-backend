@@ -39,11 +39,11 @@ app.add_middleware(
     allow_origins=[
         "https://whitebox-learning.com",
         "https://www.whitebox-learning.com",
-        "https://wbl-frontend-560359652969.us-central1.run.app",
+        "https://wbl-frontend-560359652969.us-central1.run.app", 
         "http://localhost:3000",  # dev only
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],  
     allow_headers=["*"],
 )
 

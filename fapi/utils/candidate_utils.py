@@ -362,13 +362,22 @@ def get_all_placements(page: int, limit: int) -> Dict:
     try:
         total = db.query(CandidatePlacementORM).count()
 
+        # Get unique placement IDs first
+        placement_ids_subquery = (
+            db.query(CandidatePlacementORM.id)
+            .order_by(CandidatePlacementORM.id.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .subquery()
+        )
+
+        # Then fetch full data for those IDs
         results = (
             db.query(
                 CandidatePlacementORM,
                 CandidateORM.full_name.label("candidate_name"),
                 func.coalesce(
                     CandidateMarketingORM.start_date,
-                    # CandidatePlacementORM.placement_date  
                 ).label("marketing_start_date")
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
@@ -376,19 +385,22 @@ def get_all_placements(page: int, limit: int) -> Dict:
                 CandidateMarketingORM,
                 CandidatePlacementORM.candidate_id == CandidateMarketingORM.candidate_id
             )
+            .filter(CandidatePlacementORM.id.in_(placement_ids_subquery))
             .order_by(CandidatePlacementORM.id.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
             .all()
         )
 
+        # Deduplicate in Python to ensure uniqueness
+        seen_ids = set()
         data = []
         for placement, candidate_name, marketing_start_date in results:
-            record = placement.__dict__.copy()
-            record.pop("_sa_instance_state", None)
-            record["candidate_name"] = candidate_name
-            record["marketing_start_date"] = marketing_start_date
-            data.append(record)
+            if placement.id not in seen_ids:
+                seen_ids.add(placement.id)
+                record = placement.__dict__.copy()
+                record.pop("_sa_instance_state", None)
+                record["candidate_name"] = candidate_name
+                record["marketing_start_date"] = marketing_start_date
+                data.append(record)
 
         return {"page": page, "limit": limit, "total": total, "data": data}
     finally:
