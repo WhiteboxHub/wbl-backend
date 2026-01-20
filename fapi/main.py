@@ -19,31 +19,17 @@ app = FastAPI(title="WBL Backend")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wbl")
 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=[
-#         "https://whitebox-learning.com",
-#         "https://www.whitebox-learning.com",
-#         "http://whitebox-learning.com",
-#         "http://www.whitebox-learning.com",
-#         "http://localhost:3000",
-#         "http://localhost:8000",
-#         "https://wbl-frontend-560359652969.us-central1.run.app",
-#     ],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://whitebox-learning.com",
         "https://www.whitebox-learning.com",
         "https://wbl-frontend-560359652969.us-central1.run.app",
-        "http://localhost:3000",  # dev only
+        "http://localhost:3000",
+        "http://localhost:8000"  
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
