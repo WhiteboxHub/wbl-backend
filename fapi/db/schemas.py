@@ -793,10 +793,82 @@ class VendorContactExtract(BaseModel):
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
-
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
     model_config = {
         "from_attributes": True
     }
+
+
+# -------------------- Projects Schemas --------------------
+
+class ProjectBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    owner: str
+    start_date: date
+    target_end_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: Optional[Literal['Low', 'Medium', 'High', 'Critical']] = 'Medium'
+    status: Optional[Literal['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled']] = 'Planned'
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    owner: Optional[str] = None
+    start_date: Optional[date] = None
+    target_end_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: Optional[Literal['Low', 'Medium', 'High', 'Critical']] = None
+    status: Optional[Literal['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled']] = None
+
+class ProjectOut(ProjectBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+# -------------------- Employee Task Schemas (Updated) --------------------
+
+class EmployeeTaskBase(BaseModel):
+    employee_id: int
+    project_id: Optional[int] = None
+    task: str
+    assigned_date: date
+    due_date: Optional[date] = None
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str] = None
+    employee_name: Optional[str] = None # Helper for UI
+
+class EmployeeTaskCreate(EmployeeTaskBase):
+    employee_name: Optional[str] = None
+    project_name: Optional[str] = None
+
+class EmployeeTaskUpdate(BaseModel):
+    employee_id: Optional[int] = None
+    project_id: Optional[int] = None
+    task: Optional[str] = None
+    assigned_date: Optional[date] = None
+    due_date: Optional[date] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    notes: Optional[str] = None
+    employee_name: Optional[str] = None
+    project_name: Optional[str] = None
+
+class EmployeeTask(EmployeeTaskBase):
+    id: int
+    project_name: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
 
 
 # ------------------------------------Innovapath----------------------------
@@ -824,6 +896,8 @@ class VendorContactExtractCreate(BaseModel):
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 class VendorContactExtractUpdate(BaseModel):
@@ -837,6 +911,8 @@ class VendorContactExtractUpdate(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
     linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 
@@ -1692,29 +1768,7 @@ class BatchClassSummary(BaseModel):
 
 
 
-class EmployeeTaskBase(BaseModel): 
-    employee_name: str | None = None 
-    task: str 
-    assigned_date: date 
-    due_date: date | None = None 
-    status: str 
-    priority: str 
-    notes: str | None = None 
-class EmployeeTaskCreate(EmployeeTaskBase): 
-    pass
-class EmployeeTaskUpdate(BaseModel):
-    employee_name: Optional[str]
-    task: Optional[str]
-    assigned_date: Optional[date]
-    due_date: Optional[date]
-    status: Optional[str] = "pending"
-    priority: Optional[str] = "medium"
-    notes: Optional[str]
-
-class EmployeeTask(EmployeeTaskBase): 
-    id: int 
-    class Config: 
-        from_attributes = True
+# Duplicate EmployeeTask schemas removed.
 
 
 # --------------------------------------------Password----------------------------
