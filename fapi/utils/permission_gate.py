@@ -18,14 +18,6 @@ ALLOWED_GET_PREFIXES = {
     "/api/materials",
     "/api/course-contents",
     "/api/referrals",
-    "/api/vendor_contact",
-    "/api/vendor_contact_extracts",
-}
-
-# Paths that allow all methods (GET, POST, PUT, DELETE) for authenticated users
-ALLOWED_ALL_METHODS_PREFIXES = {
-    "/api/vendor_contact",
-    "/api/vendor_contact_extracts",
 }
 
 def _is_admin(user) -> bool:
@@ -42,10 +34,7 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
     if _is_admin(current_user):
         return current_user
     
-    # Check if path allows all methods
-    for prefix in ALLOWED_ALL_METHODS_PREFIXES:
-        if path == prefix or path.startswith(prefix + "/"):
-            return current_user
+
     
     if method == "GET":
         for prefix in ALLOWED_GET_PREFIXES:

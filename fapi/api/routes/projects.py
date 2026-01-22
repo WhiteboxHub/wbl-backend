@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
-from fapi.db import models, schemas
-from datetime import date
+from fapi.db import schemas
+from fapi.utils import projects_utils
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -12,13 +12,8 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 @router.post("/", response_model=schemas.ProjectOut)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
     try:
-        db_project = models.ProjectORM(**project.dict())
-        db.add(db_project)
-        db.commit()
-        db.refresh(db_project)
-        return db_project
+        return projects_utils.create_project(db, project)
     except Exception as e:
-        db.rollback()
         print(f"Error creating project: {e}")
         print(f"Project data received: {project.dict()}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -30,42 +25,26 @@ def list_projects(
     owner: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(models.ProjectORM)
-    if status:
-        query = query.filter(models.ProjectORM.status == status)
-    if priority:
-        query = query.filter(models.ProjectORM.priority == priority)
-    if owner:
-        query = query.filter(models.ProjectORM.owner == owner)
-    return query.all()
+    return projects_utils.list_projects(db, status, priority, owner)
 
 @router.get("/{project_id}", response_model=schemas.ProjectOut)
 def get_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(models.ProjectORM).filter(models.ProjectORM.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    return projects_utils.get_project_by_id(db, project_id)
 
 @router.put("/{project_id}", response_model=schemas.ProjectOut)
 def update_project(project_id: int, project_in: schemas.ProjectUpdate, db: Session = Depends(get_db)):
-    project = db.query(models.ProjectORM).filter(models.ProjectORM.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    update_data = project_in.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(project, field, value)
-    
-    db.commit()
-    db.refresh(project)
-    return project
+    try:
+        return projects_utils.update_project(db, project_id, project_in)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{project_id}")
 def delete_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(models.ProjectORM).filter(models.ProjectORM.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    db.delete(project)
-    db.commit()
-    return {"message": "Project deleted successfully"}
+    try:
+        return projects_utils.delete_project(db, project_id)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
