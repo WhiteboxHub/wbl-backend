@@ -7,8 +7,19 @@ from fastapi import HTTPException
 from difflib import get_close_matches
 from datetime import timedelta
 
-def get_all_tasks(db: Session) -> list:
-    tasks = db.query(models.EmployeeTaskORM).options(joinedload(models.EmployeeTaskORM.employee)).order_by(models.EmployeeTaskORM.id.desc()).all()
+def get_all_tasks(db: Session, project_id: Optional[int] = None, employee_id: Optional[int] = None) -> list:
+    query = db.query(models.EmployeeTaskORM).options(
+        joinedload(models.EmployeeTaskORM.employee),
+        joinedload(models.EmployeeTaskORM.project)
+    )
+
+    if project_id:
+        query = query.filter(models.EmployeeTaskORM.project_id == project_id)
+    
+    if employee_id:
+        query = query.filter(models.EmployeeTaskORM.employee_id == employee_id)
+
+    tasks = query.order_by(models.EmployeeTaskORM.id.desc()).all()
 
     result = []
     for t in tasks:
@@ -16,6 +27,8 @@ def get_all_tasks(db: Session) -> list:
             "id": t.id,
             "employee_id": t.employee_id,
             "employee_name": t.employee.name if t.employee else None,
+            "project_id": t.project_id,
+            "project_name": t.project.name if t.project else None,
             "task": t.task,
             "assigned_date": t.assigned_date,
             "due_date": t.due_date,
@@ -77,8 +90,20 @@ def _find_employee_by_name(db: Session, name_input: str) -> models.EmployeeORM:
     return employee
 
 
-def create_task(db, task: schemas.EmployeeTaskCreate):
-    employee = _find_employee_by_name(db, task.employee_name)
+def create_task(db: Session, task: schemas.EmployeeTaskCreate):
+    if task.employee_id:
+        employee = db.query(models.EmployeeORM).filter(models.EmployeeORM.id == task.employee_id).first()
+        if not employee:
+             raise HTTPException(status_code=400, detail=f"Employee ID {task.employee_id} not found")
+    elif task.employee_name:
+        employee = _find_employee_by_name(db, task.employee_name)
+    else:
+        raise HTTPException(status_code=400, detail="Employee name or ID is required")
+    project_id = task.project_id
+    if hasattr(task, 'project_name') and task.project_name:
+        project = db.query(models.ProjectORM).filter(models.ProjectORM.name == task.project_name).first()
+        if project:
+            project_id = project.id
 
     due_date = task.due_date
     if not due_date and task.assigned_date:
@@ -86,6 +111,7 @@ def create_task(db, task: schemas.EmployeeTaskCreate):
 
     db_task = models.EmployeeTaskORM(
         employee_id=employee.id,
+        project_id=project_id,
         task=task.task,
         assigned_date=task.assigned_date,
         due_date=due_date,
@@ -94,7 +120,6 @@ def create_task(db, task: schemas.EmployeeTaskCreate):
         notes=task.notes
     )
 
-    
     db.add(db_task)
     try:
         db.flush()
@@ -119,14 +144,24 @@ def update_task(db: Session, task_id: int, task: schemas.EmployeeTaskUpdate):
 
     update_data = task.dict(exclude_unset=True)
     
-    updated_employee = None
-
     if "employee_name" in update_data:
         new_name = update_data.pop("employee_name")
         if new_name:
-             updated_employee = _find_employee_by_name(db, new_name)
-             db_task.employee_id = updated_employee.id
-             db_task.employee = updated_employee 
+             employee = _find_employee_by_name(db, new_name)
+             db_task.employee_id = employee.id
+    
+    if "project_name" in update_data:
+        project_name = update_data.pop("project_name")
+        if project_name:
+            project = db.query(models.ProjectORM).filter(models.ProjectORM.name == project_name).first()
+            if project:
+                db_task.project_id = project.id
+        else:
+            db_task.project_id = None
+    
+    if "project_id" in update_data:
+        db_task.project_id = update_data.pop("project_id")
+
     for key, value in update_data.items():
         if key in {"status", "priority"}:
             if value is not None:
@@ -143,11 +178,6 @@ def update_task(db: Session, task_id: int, task: schemas.EmployeeTaskUpdate):
         db.rollback()
         raise e
     
-    if updated_employee:
-        db_task.employee_name = updated_employee.name
-    elif db_task.employee:
-        db_task.employee_name = db_task.employee.name
-
     return db_task
 
 

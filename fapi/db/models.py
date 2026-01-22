@@ -473,18 +473,10 @@ class EmployeeORM(Base):
     aadhaar = Column(String(20), nullable=True, unique=True)
     tasks = relationship("EmployeeTaskORM", back_populates="employee")
 
-class EmployeeTaskORM(Base):
-    __tablename__ = "employee_task" 
+    tasks = relationship("EmployeeTaskORM", back_populates="employee")
 
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
-    task = Column(String(255), nullable=False)
-    assigned_date = Column(Date, nullable=False)
-    due_date = Column(Date, nullable=True)
-    status = Column(Enum("pending","in_progress","completed","blocked"), default="pending")
-    priority = Column(Enum("low","medium","high","urgent"), default="medium")
-    notes = Column(Text, nullable=True)
-    employee = relationship("EmployeeORM", back_populates="tasks")
+# Class EmployeeTaskORM moved to below ProjectORM to support relationship
+
 
 class CandidateStatus(str, enum.Enum):
     active = "active"
@@ -511,6 +503,8 @@ class VendorContactExtractsORM(Base):
     linkedin_internal_id = Column(String(255))
     extraction_date = Column(DateTime, nullable=True)
     source_email = Column(String(255), nullable=True)
+    notes = Column(String(500), nullable=True)
+    job_source = Column(String(100), nullable=True)
 
 # -------------------- ORM: vendor-daily-activity --------------------
 
@@ -773,6 +767,7 @@ class JobAutomationKeywordORM(Base):
     )
 
 
+
 class CompanyHRContact(Base):
     __tablename__ = "company_hr_contacts"
 
@@ -785,3 +780,41 @@ class CompanyHRContact(Base):
     job_title = Column(String(255))
     is_immigration_team = Column(Boolean, default=False)
     extraction_date = Column(TIMESTAMP, server_default=func.now())
+
+
+
+# -------------------- Projects --------------------
+class ProjectORM(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    owner = Column(String(150), nullable=False)
+    start_date = Column(Date, nullable=False)
+    target_end_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    priority = Column(Enum('Low', 'Medium', 'High', 'Critical'), default='Medium')
+    status = Column(Enum('Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled'), default='Planned')
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    tasks = relationship("EmployeeTaskORM", back_populates="project")
+
+
+class EmployeeTaskORM(Base):
+    __tablename__ = "employee_task"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    task = Column(String(255), nullable=False)
+    assigned_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=True)
+    status = Column(Enum("pending", "in_progress", "completed", "blocked"), default="pending")
+    priority = Column(Enum("low", "medium", "high", "urgent"), default="medium")
+    notes = Column(Text, nullable=True)
+    
+    employee = relationship("EmployeeORM", back_populates="tasks")
+    project = relationship("ProjectORM", back_populates="tasks")
+
