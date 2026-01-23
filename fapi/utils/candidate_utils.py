@@ -215,12 +215,28 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
         if record_dict["candidate"]["batch"]:
             record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
+        
+        # Add workstatus from candidate
+        record_dict["workstatus"] = candidate.workstatus if candidate else None
 
-        # Get latest preparation record instructors
-        prep = candidate.preparations[-1] if candidate.preparations else None
-        record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
-        record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
-        record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+        # Get instructors from ACTIVE preparation record (not last one)
+        active_prep = None
+        if candidate.preparations:
+            # Find the active preparation record
+            for prep in candidate.preparations:
+                if prep.status == 'active':
+                    active_prep = prep
+                    break
+        
+        # Set instructor names from active preparation
+        if active_prep:
+            record_dict["instructor1_name"] = active_prep.instructor1.name if active_prep.instructor1 else None
+            record_dict["instructor2_name"] = active_prep.instructor2.name if active_prep.instructor2 else None
+            record_dict["instructor3_name"] = active_prep.instructor3.name if active_prep.instructor3 else None
+        else:
+            record_dict["instructor1_name"] = None
+            record_dict["instructor2_name"] = None
+            record_dict["instructor3_name"] = None
     else:
         record_dict["instructor1_name"] = record_dict["instructor2_name"] = record_dict["instructor3_name"] = None
 
