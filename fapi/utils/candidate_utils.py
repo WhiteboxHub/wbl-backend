@@ -126,14 +126,18 @@ def update_candidate(candidate_id: int, candidate_data: dict):
         db.flush()
 
         if getattr(candidate, "move_to_prep", False):
-            prep_exists = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id).first()
-            if not prep_exists:
+            active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
+            if not active_prep:
                 new_prep = CandidatePreparation(
                     candidate_id=candidate.id,
                     start_date=date.today(),
                     status="active"
                 )
                 db.add(new_prep)
+        
+        # Keep the flag in sync with the actual active preparation status
+        final_active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
+        candidate.move_to_prep = True if final_active_prep else False
 
         db.commit()
         db.refresh(candidate)
@@ -323,6 +327,10 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
                         status="Active"
                     )
                     db.add(new_placement)
+
+        # Keep flag in sync with actual active placement status
+        final_placement = db.query(CandidatePlacementORM).filter_by(candidate_id=record.candidate_id, status="Active").first()
+        record.move_to_placement = True if final_placement else False
 
         db.commit()
         db.refresh(record)
@@ -704,6 +712,10 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
                 status="active"
             )
             db.add(new_marketing)
+
+    # Keep flag in sync with actual active marketing status
+    final_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()
+    db_prep.move_to_mrkt = True if final_marketing else False
 
     db.commit()
     db.refresh(db_prep)
