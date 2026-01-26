@@ -6,6 +6,7 @@ from fapi.db import schemas
 
 COURSE_MATERIAL_TYPE_MAPPING = {
     "P": "Presentations",
+    "Y": "Must See Youtube Videos",
     "C": "Cheatsheets", 
     "SG": "Study Guides", 
     "D": "Diagrams",
