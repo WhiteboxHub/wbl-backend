@@ -298,6 +298,8 @@ class CandidateBase(BaseModel):
     batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None
     move_to_prep: Optional[bool] = False
+    is_in_prep: Optional[str] = "No"
+    is_in_marketing: Optional[str] = "No"
 
     model_config = {
         "from_attributes": True,
@@ -580,6 +582,7 @@ class CandidatePreparationOut(BaseModel):
     # linkedin_id: Optional[str] = None
     github_url: Optional[str] = None
     resume_url: Optional[str] = None
+    is_in_marketing: Optional[str] = "No"
 
     candidate: Optional["CandidateBase"]
     instructor1: Optional["EmployeeBase"]
