@@ -63,6 +63,10 @@ def get_all_candidates_paginated(
     else:
         candidates = query.all()
 
+    # Get active preparation and marketing statuses efficiently
+    active_prep_ids = {r[0] for r in db.query(CandidatePreparation.candidate_id).filter(CandidatePreparation.status == "active").all()}
+    active_marketing_ids = {r[0] for r in db.query(CandidateMarketingORM.candidate_id).filter(CandidateMarketingORM.status == "active").all()}
+
     data = []
     for candidate in candidates:
         item = candidate.__dict__.copy()
@@ -72,6 +76,9 @@ def get_all_candidates_paginated(
             item["batchname"] = candidate.batch.batchname
         else:
             item["batchname"] = None
+        
+        item["is_in_prep"] = "Yes" if candidate.id in active_prep_ids else "No"
+        item["is_in_marketing"] = "Yes" if candidate.id in active_marketing_ids else "No"
 
         data.append(item)
 
@@ -673,7 +680,7 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
 
 
 def get_all_preparations(db: Session):
-    return (
+    preps = (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate)
@@ -684,6 +691,14 @@ def get_all_preparations(db: Session):
         )
         .all()
     )
+
+    # Efficiently get candidates who have active marketing records
+    active_marketing_ids = {r[0] for r in db.query(CandidateMarketingORM.candidate_id).filter(CandidateMarketingORM.status == "active").all()}
+
+    for prep in preps:
+        prep.is_in_marketing = "Yes" if prep.candidate_id in active_marketing_ids else "No"
+
+    return preps
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
