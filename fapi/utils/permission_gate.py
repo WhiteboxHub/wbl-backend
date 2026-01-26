@@ -18,7 +18,6 @@ ALLOWED_GET_PREFIXES = {
     "/api/materials",
     "/api/course-contents",
     "/api/referrals",
-
 }
 
 def _is_admin(user) -> bool:
@@ -34,6 +33,9 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
     path = request.url.path.rstrip("/")
     if _is_admin(current_user):
         return current_user
+    
+
+    
     if method == "GET":
         for prefix in ALLOWED_GET_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):

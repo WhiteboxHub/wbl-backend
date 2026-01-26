@@ -159,3 +159,7 @@ def get_employee_tasks_endpoint(employee_id: int, db: Session = Depends(get_db))
 @router.get("/employees/{employee_id}/placements")
 def get_employee_placements_endpoint(employee_id: int, db: Session = Depends(get_db)):
     return get_employee_placements(db, employee_id)
+
+@router.get("/employee-birthdays")
+def get_employee_birthdays_endpoint(db: Session = Depends(get_db)):
+    return get_employee_birthdays(db)

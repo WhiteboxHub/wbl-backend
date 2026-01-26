@@ -127,6 +127,7 @@ class UserRegistration(BaseModel):
     referby: Optional[str] = None
     specialization: Optional[str] = None
     notes: Optional[str] = None
+    recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
 
 
 class AuthUserBase(BaseModel):
@@ -297,6 +298,8 @@ class CandidateBase(BaseModel):
     batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None
     move_to_prep: Optional[bool] = False
+    is_in_prep: Optional[str] = "No"
+    is_in_marketing: Optional[str] = "No"
 
     model_config = {
         "from_attributes": True,
@@ -579,6 +582,7 @@ class CandidatePreparationOut(BaseModel):
     # linkedin_id: Optional[str] = None
     github_url: Optional[str] = None
     resume_url: Optional[str] = None
+    is_in_marketing: Optional[str] = "No"
 
     candidate: Optional["CandidateBase"]
     instructor1: Optional["EmployeeBase"]
@@ -792,10 +796,82 @@ class VendorContactExtract(BaseModel):
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
-
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
     model_config = {
         "from_attributes": True
     }
+
+
+# -------------------- Projects Schemas --------------------
+
+class ProjectBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    owner: str
+    start_date: date
+    target_end_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: Optional[Literal['Low', 'Medium', 'High', 'Critical']] = 'Medium'
+    status: Optional[Literal['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled']] = 'Planned'
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    owner: Optional[str] = None
+    start_date: Optional[date] = None
+    target_end_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: Optional[Literal['Low', 'Medium', 'High', 'Critical']] = None
+    status: Optional[Literal['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled']] = None
+
+class ProjectOut(ProjectBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+# -------------------- Employee Task Schemas (Updated) --------------------
+
+class EmployeeTaskBase(BaseModel):
+    employee_id: int
+    project_id: Optional[int] = None
+    task: str
+    assigned_date: date
+    due_date: Optional[date] = None
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str] = None
+    employee_name: Optional[str] = None # Helper for UI
+
+class EmployeeTaskCreate(EmployeeTaskBase):
+    employee_name: Optional[str] = None
+    project_name: Optional[str] = None
+
+class EmployeeTaskUpdate(BaseModel):
+    employee_id: Optional[int] = None
+    project_id: Optional[int] = None
+    task: Optional[str] = None
+    assigned_date: Optional[date] = None
+    due_date: Optional[date] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    notes: Optional[str] = None
+    employee_name: Optional[str] = None
+    project_name: Optional[str] = None
+
+class EmployeeTask(EmployeeTaskBase):
+    id: int
+    project_name: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
 
 
 # ------------------------------------Innovapath----------------------------
@@ -823,6 +899,8 @@ class VendorContactExtractCreate(BaseModel):
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 class VendorContactExtractUpdate(BaseModel):
@@ -836,6 +914,8 @@ class VendorContactExtractUpdate(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
     linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 
@@ -987,6 +1067,53 @@ class VendorResponse(BaseModel):
     message: str
 
 
+# -------------------- HR Contact Schemas --------------------
+class HRContactBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = False
+
+    @validator("email", pre=True)
+    def empty_string_to_none(cls, v):
+        return v or None
+
+    @field_validator("full_name", "company_name", "location", "job_title", mode="before")
+    @classmethod
+    def init_cap_fields(cls, v):
+        if v is None or not isinstance(v, str):
+            return v
+        # Converts to Init Cap (Title Case)
+        return " ".join(word.capitalize() for word in v.strip().split())
+
+
+class HRContactCreate(HRContactBase):
+    full_name: str
+    email: EmailStr
+
+
+class HRContactUpdate(HRContactBase):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = None
+
+
+class HRContact(HRContactBase):
+    id: int
+    extraction_date: Optional[datetime] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
 # ---------------linkedin_activity_log---------------------
 
 class ActivityType(str, Enum):
@@ -1048,6 +1175,7 @@ class ContactForm(BaseModel):
     email: EmailStr
     phone: str
     message: str
+    recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
 
 
 # -----------------------------------------------------unsubscribe-------------------------
@@ -1643,29 +1771,7 @@ class BatchClassSummary(BaseModel):
 
 
 
-class EmployeeTaskBase(BaseModel): 
-    employee_name: str | None = None 
-    task: str 
-    assigned_date: date 
-    due_date: date | None = None 
-    status: str 
-    priority: str 
-    notes: str | None = None 
-class EmployeeTaskCreate(EmployeeTaskBase): 
-    pass
-class EmployeeTaskUpdate(BaseModel):
-    employee_name: Optional[str]
-    task: Optional[str]
-    assigned_date: Optional[date]
-    due_date: Optional[date]
-    status: Optional[str] = "pending"
-    priority: Optional[str] = "medium"
-    notes: Optional[str]
-
-class EmployeeTask(EmployeeTaskBase): 
-    id: int 
-    class Config: 
-        from_attributes = True
+# Duplicate EmployeeTask schemas removed.
 
 
 # --------------------------------------------Password----------------------------
@@ -1854,3 +1960,34 @@ class PaginatedJobAutomationKeywords(BaseModel):
     page: int
     per_page: int
     keywords: List[JobAutomationKeywordOut]
+
+
+# -------------------- Company HR Contact Schemas --------------------
+class CompanyHRContactBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: bool = False
+
+class CompanyHRContactCreate(CompanyHRContactBase):
+    full_name: str
+    email: EmailStr
+
+class CompanyHRContactUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = None
+
+class CompanyHRContactOut(CompanyHRContactBase):
+    id: int
+    extraction_date: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

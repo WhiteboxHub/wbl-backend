@@ -63,6 +63,10 @@ def get_all_candidates_paginated(
     else:
         candidates = query.all()
 
+    # Get active preparation and marketing statuses efficiently
+    active_prep_ids = {r[0] for r in db.query(CandidatePreparation.candidate_id).filter(CandidatePreparation.status == "active").all()}
+    active_marketing_ids = {r[0] for r in db.query(CandidateMarketingORM.candidate_id).filter(CandidateMarketingORM.status == "active").all()}
+
     data = []
     for candidate in candidates:
         item = candidate.__dict__.copy()
@@ -72,6 +76,9 @@ def get_all_candidates_paginated(
             item["batchname"] = candidate.batch.batchname
         else:
             item["batchname"] = None
+        
+        item["is_in_prep"] = "Yes" if candidate.id in active_prep_ids else "No"
+        item["is_in_marketing"] = "Yes" if candidate.id in active_marketing_ids else "No"
 
         data.append(item)
 
@@ -126,14 +133,18 @@ def update_candidate(candidate_id: int, candidate_data: dict):
         db.flush()
 
         if getattr(candidate, "move_to_prep", False):
-            prep_exists = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id).first()
-            if not prep_exists:
+            active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
+            if not active_prep:
                 new_prep = CandidatePreparation(
                     candidate_id=candidate.id,
                     start_date=date.today(),
                     status="active"
                 )
                 db.add(new_prep)
+        
+        # Keep the flag in sync with the actual active preparation status
+        final_active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
+        candidate.move_to_prep = True if final_active_prep else False
 
         db.commit()
         db.refresh(candidate)
@@ -215,12 +226,28 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         record_dict["candidate"]["batch"] = candidate.batch.__dict__.copy() if candidate.batch else None
         if record_dict["candidate"]["batch"]:
             record_dict["candidate"]["batch"].pop("_sa_instance_state", None)
+        
+        # Add workstatus from candidate
+        record_dict["workstatus"] = candidate.workstatus if candidate else None
 
-        # Get latest preparation record instructors
-        prep = candidate.preparations[-1] if candidate.preparations else None
-        record_dict["instructor1_name"] = prep.instructor1.name if prep and prep.instructor1 else None
-        record_dict["instructor2_name"] = prep.instructor2.name if prep and prep.instructor2 else None
-        record_dict["instructor3_name"] = prep.instructor3.name if prep and prep.instructor3 else None
+        # Get instructors from ACTIVE preparation record (not last one)
+        active_prep = None
+        if candidate.preparations:
+            # Find the active preparation record
+            for prep in candidate.preparations:
+                if prep.status == 'active':
+                    active_prep = prep
+                    break
+        
+        # Set instructor names from active preparation
+        if active_prep:
+            record_dict["instructor1_name"] = active_prep.instructor1.name if active_prep.instructor1 else None
+            record_dict["instructor2_name"] = active_prep.instructor2.name if active_prep.instructor2 else None
+            record_dict["instructor3_name"] = active_prep.instructor3.name if active_prep.instructor3 else None
+        else:
+            record_dict["instructor1_name"] = None
+            record_dict["instructor2_name"] = None
+            record_dict["instructor3_name"] = None
     else:
         record_dict["instructor1_name"] = record_dict["instructor2_name"] = record_dict["instructor3_name"] = None
 
@@ -308,6 +335,10 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
                     )
                     db.add(new_placement)
 
+        # Keep flag in sync with actual active placement status
+        final_placement = db.query(CandidatePlacementORM).filter_by(candidate_id=record.candidate_id, status="Active").first()
+        record.move_to_placement = True if final_placement else False
+
         db.commit()
         db.refresh(record)
         return serialize_marketing(record)
@@ -362,13 +393,22 @@ def get_all_placements(page: int, limit: int) -> Dict:
     try:
         total = db.query(CandidatePlacementORM).count()
 
+        # Get unique placement IDs first
+        placement_ids_subquery = (
+            db.query(CandidatePlacementORM.id)
+            .order_by(CandidatePlacementORM.id.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .subquery()
+        )
+
+        # Then fetch full data for those IDs
         results = (
             db.query(
                 CandidatePlacementORM,
                 CandidateORM.full_name.label("candidate_name"),
                 func.coalesce(
                     CandidateMarketingORM.start_date,
-                    # CandidatePlacementORM.placement_date  
                 ).label("marketing_start_date")
             )
             .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
@@ -376,19 +416,22 @@ def get_all_placements(page: int, limit: int) -> Dict:
                 CandidateMarketingORM,
                 CandidatePlacementORM.candidate_id == CandidateMarketingORM.candidate_id
             )
+            .filter(CandidatePlacementORM.id.in_(placement_ids_subquery))
             .order_by(CandidatePlacementORM.id.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
             .all()
         )
 
+        # Deduplicate in Python to ensure uniqueness
+        seen_ids = set()
         data = []
         for placement, candidate_name, marketing_start_date in results:
-            record = placement.__dict__.copy()
-            record.pop("_sa_instance_state", None)
-            record["candidate_name"] = candidate_name
-            record["marketing_start_date"] = marketing_start_date
-            data.append(record)
+            if placement.id not in seen_ids:
+                seen_ids.add(placement.id)
+                record = placement.__dict__.copy()
+                record.pop("_sa_instance_state", None)
+                record["candidate_name"] = candidate_name
+                record["marketing_start_date"] = marketing_start_date
+                data.append(record)
 
         return {"page": page, "limit": limit, "total": total, "data": data}
     finally:
@@ -637,7 +680,7 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
 
 
 def get_all_preparations(db: Session):
-    return (
+    preps = (
         db.query(CandidatePreparation)
         .options(
             joinedload(CandidatePreparation.candidate)
@@ -648,6 +691,14 @@ def get_all_preparations(db: Session):
         )
         .all()
     )
+
+    # Efficiently get candidates who have active marketing records
+    active_marketing_ids = {r[0] for r in db.query(CandidateMarketingORM.candidate_id).filter(CandidateMarketingORM.status == "active").all()}
+
+    for prep in preps:
+        prep.is_in_marketing = "Yes" if prep.candidate_id in active_marketing_ids else "No"
+
+    return preps
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
@@ -676,6 +727,10 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
                 status="active"
             )
             db.add(new_marketing)
+
+    # Keep flag in sync with actual active marketing status
+    final_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()
+    db_prep.move_to_mrkt = True if final_marketing else False
 
     db.commit()
     db.refresh(db_prep)

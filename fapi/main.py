@@ -6,7 +6,7 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
-    jobs, placement_fee_collection, employee_tasks, job_automation_keywords,
+    jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects
 )
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -24,11 +24,9 @@ app.add_middleware(
     allow_origins=[
         "https://whitebox-learning.com",
         "https://www.whitebox-learning.com",
-        "http://whitebox-learning.com",
-        "http://www.whitebox-learning.com",
-        "http://localhost:3000",
-        "http://localhost:8000",
         "https://wbl-frontend-560359652969.us-central1.run.app",
+        "http://localhost:3000",
+        "http://localhost:8000"  
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -45,18 +43,6 @@ async def log_exceptions(request: Request, call_next):
                      request.method, request.url)
         logger.error(traceback.format_exc())
         raise
-
-
-from fapi.db.database import SessionLocal
-from fapi.api.routes import (
-    candidate, leads, google_auth, talent_search, user_role,
-    contact, login, register, resources, vendor_contact,
-    vendor, request_demo, unsubscribe,
-    user_dashboard, password, employee, course, subject, course_subject,
-    course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, referrals,candidate_dashboard,internal_documents
-)
-from fapi.utils.permission_gate import enforce_access
 
 
 def get_db():
@@ -103,6 +89,7 @@ app.include_router(course_material.router, prefix="/api",
 app.include_router(referrals.router, prefix="/api", tags=["Referrals"])
 app.include_router(avatar_dashboard.router, prefix="/api",
                    tags=["Avatar Dashboard"], dependencies=[Depends(enforce_access)])
+app.include_router(projects.router, prefix="/api", tags=["Projects"], dependencies=[Depends(enforce_access)])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api",
                    tags=["Resources"], dependencies=[Depends(enforce_access)])
@@ -118,3 +105,4 @@ app.include_router(internal_documents.router, prefix="/api/internal-documents", 
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
 app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
+app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])

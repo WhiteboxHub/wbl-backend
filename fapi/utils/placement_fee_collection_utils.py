@@ -22,13 +22,16 @@ def list_placement_fees(db: Session):
     ).outerjoin(
         models.AuthUserORM,
         models.PlacementFeeCollection.lastmod_user_id == models.AuthUserORM.id
+    ).order_by(
+        models.PlacementFeeCollection.placement_id.desc(),  # Newest placements first
+        models.PlacementFeeCollection.installment_id.asc()   # Installments in order
     ).all()
 
     fees = []
-    import logging
-    logger = logging.getLogger("wbl")
+    # import logging
+    # logger = logging.getLogger("wbl")
     for fee, c_name, u_name in results:
-        logger.info(f"PlacementFee {fee.id}: candidate={c_name}, lastmod_user={u_name}")
+        # logger.info(f"PlacementFee {fee.id}: candidate={c_name}, lastmod_user={u_name}")
         fee.candidate_name = c_name
         fee.lastmod_user_name = u_name.title() if u_name else None
         fees.append(fee)
