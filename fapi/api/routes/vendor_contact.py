@@ -23,6 +23,7 @@ from fapi.utils.vendor_contact_utils import (
     update_vendor_contact,
     delete_vendor_contact,
     delete_vendor_contacts_bulk,
+    move_contacts_to_vendor,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,110 +87,15 @@ async def move_contacts_to_vendor_handler(
     """Move vendor contacts to vendor table, creating vendor records with deduplication
     
     Uses POST with request body to avoid URL length limits for large batches.
-    Processes in batches of 200 to avoid database locks and timeouts.
+    Processes in batches to avoid database locks and timeouts.
     Handles duplicate detection via linkedin_internal_id, linkedin_id, or email.
     """
-    if not request.contact_ids:
-        raise HTTPException(status_code=400, detail="No contact IDs provided")
-    
-    # Safety limit to prevent API timeouts
-    MAX_RECORDS_PER_REQUEST = 5000
-    if len(request.contact_ids) > MAX_RECORDS_PER_REQUEST:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Too many records. Maximum {MAX_RECORDS_PER_REQUEST} per request. "
-                   f"Please split into smaller batches or use background processing."
-        )
-
-    batch_size = 200  # Reduced for better performance
-    total_updated = 0
-
     try:
-        from sqlalchemy import text
-        from datetime import datetime
-        from fapi.utils.vendor_contact_utils import find_existing_vendor, build_duplicate_notes
-        
-        for i in range(0, len(request.contact_ids), batch_size):
-            batch = request.contact_ids[i:i + batch_size]
-            
-            # Get extracts that haven't been moved yet
-            extracts = db.query(VendorContactExtractsORM).filter(
-                VendorContactExtractsORM.id.in_(batch),
-                VendorContactExtractsORM.moved_to_vendor == 0
-            ).all()
-            
-            for extract in extracts:
-                # Check for existing vendor
-                from fapi.db.models import Vendor
-                vendor = find_existing_vendor(db, extract)
-                
-                if vendor:
-                    # Duplicate found - append notes
-                    notes = build_duplicate_notes(vendor, extract)
-                    combined_notes = ((vendor.notes or "") + "\n" + notes)[:255]
-                    
-                    # Update vendor notes using raw SQL
-                    db.execute(text("""
-                        UPDATE vendor 
-                        SET notes = :notes
-                        WHERE id = :vendor_id
-                    """), {'notes': combined_notes, 'vendor_id': vendor.id})
-                    
-                    vendor_id = vendor.id
-                else:
-                    # Create new vendor using raw SQL
-                    insert_result = db.execute(text("""
-                        INSERT INTO vendor 
-                        (full_name, email, linkedin_id, linkedin_internal_id, 
-                         company_name, location, type, status, notes, 
-                         linkedin_connected, intro_email_sent, intro_call)
-                        VALUES 
-                        (:full_name, :email, :linkedin_id, :linkedin_internal_id,
-                         :company_name, :location, :type, :status, :notes,
-                         :linkedin_connected, :intro_email_sent, :intro_call)
-                    """), {
-                        'full_name': extract.full_name,
-                        'email': extract.email,
-                        'linkedin_id': extract.linkedin_id,
-                        'linkedin_internal_id': extract.linkedin_internal_id,
-                        'company_name': extract.company_name or '',
-                        'location': extract.location or '',
-                        'type': 'third-party-vendor',
-                        'status': 'prospect',
-                        'notes': f'Created from extract ID: {extract.id}'[:255],
-                        'linkedin_connected': 'NO',
-                        'intro_email_sent': 'NO',
-                        'intro_call': 'NO'
-                    })
-                    vendor_id = insert_result.lastrowid
-                
-                # Update extract using raw SQL to avoid triggers
-                db.execute(text("""
-                    UPDATE vendor_contact_extracts 
-                    SET moved_to_vendor = 1,
-                        vendor_id = :vendor_id,
-                        moved_at = :moved_at
-                    WHERE id = :extract_id
-                """), {
-                    'vendor_id': vendor_id,
-                    'moved_at': datetime.now(),
-                    'extract_id': extract.id
-                })
-                
-                total_updated += 1
-            
-            db.commit()
-            
-            # Log progress every batch (no sensitive data)
-            logger.info(f"Batch {i//batch_size + 1}: Processed {total_updated} records")
-        
-        logger.info(f"Successfully processed {total_updated} vendor contacts")
-        return {
-            "processed": total_updated,
-            "message": f"Successfully moved {total_updated} contacts to vendor"
-        }
+        result = await move_contacts_to_vendor(request.contact_ids, db)
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
         logger.error(f"Error moving contacts to vendor: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 

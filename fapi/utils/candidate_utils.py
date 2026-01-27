@@ -934,8 +934,8 @@ def get_candidate_details(candidate_id: int, db: Session):
             ],
             "login_access": {
                 "login_count": getattr(authuser, "logincount", 0) if authuser else 0,
-                "last_login": authuser.lastmod.isoformat()
-                if authuser and getattr(authuser, "lastmod", None)
+                "last_login": authuser.lastmoddatetime.isoformat()
+                if authuser and getattr(authuser, "lastmoddatetime", None)
                 else None,
                 "registered_date": authuser.registereddate.isoformat()
                 if authuser and getattr(authuser, "registereddate", None)
