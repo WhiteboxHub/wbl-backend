@@ -10,6 +10,56 @@ from fapi.db.schemas import VendorContactExtractCreate, VendorContactExtractUpda
 
 logger = logging.getLogger(__name__)
 
+
+def find_existing_vendor(db: Session, extract: VendorContactExtractsORM) -> Optional[Vendor]:
+    """Find existing vendor by linkedin_internal_id, linkedin_id, or email"""
+    if extract.linkedin_internal_id:
+        vendor = db.query(Vendor).filter(
+            Vendor.linkedin_internal_id == extract.linkedin_internal_id
+        ).first()
+        if vendor:
+            return vendor
+
+    if extract.linkedin_id:
+        vendor = db.query(Vendor).filter(
+            Vendor.linkedin_id == extract.linkedin_id
+        ).first()
+        if vendor:
+            return vendor
+
+    if extract.email:
+        vendor = db.query(Vendor).filter(
+            Vendor.email == extract.email
+        ).first()
+        if vendor:
+            return vendor
+
+    return None
+
+
+def build_duplicate_notes(vendor: Vendor, extract: VendorContactExtractsORM) -> str:
+    """Build notes for duplicate vendor detection"""
+    notes = ["Duplicate detected via identity match"]
+
+    if extract.full_name and extract.full_name != vendor.full_name:
+        notes.append(f"Alt name: {extract.full_name}")
+
+    if extract.email and extract.email != vendor.email:
+        notes.append(f"Alt email: {extract.email}")
+
+    if extract.phone and extract.phone != vendor.phone_number:
+        notes.append(f"Alt phone: {extract.phone}")
+
+    if extract.company_name and extract.company_name != vendor.company_name:
+        notes.append(f"Alt company: {extract.company_name}")
+
+    if extract.location and extract.location != vendor.location:
+        notes.append(f"Alt location: {extract.location}")
+
+    notes.append(f"Source extract ID: {extract.id}")
+
+    return "\n".join(notes)
+
 async def get_all_vendor_contacts(db: Session) -> List[VendorContactExtractsORM]:
 
     try:
