@@ -26,6 +26,7 @@ def fetch_keyword_presentation(search: str, course: str):
 
     type_mapping = {
         "Presentations": "P",
+        "Must See Youtube Videos": "Y",
         "Cheatsheets": "C",
         "Study Guides": "SG",
         "Diagrams": "D",
