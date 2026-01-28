@@ -41,11 +41,14 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
         .all()
     )
     
-    # Marketing
+    # Marketing - Get all marketing candidates that are also in prep with this employee
+    # First get the candidate IDs from prep
+    prep_candidate_ids = [prep.candidate_id for prep in prep_candidates]
+    
     marketing_candidates = (
         db.query(CandidateMarketingORM, CandidateORM.full_name)
         .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
-        .filter(CandidateMarketingORM.marketing_manager == employee_id)
+        .filter(CandidateMarketingORM.candidate_id.in_(prep_candidate_ids))
         .filter(CandidateMarketingORM.status == "active")
         .all()
     )
