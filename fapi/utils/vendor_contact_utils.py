@@ -305,8 +305,22 @@ async def move_contacts_to_vendor(contact_ids: List[int], db: Session) -> Dict:
                         notes=f'Created from extract ID: {extract.id}'[:255],
                         linkedin_connected='NO',
                         intro_email_sent='NO',
-                        intro_call='NO'
+                        intro_call='NO',
+                        phone_number=extract.phone
                     )
+                    
+                    # Append extra info to notes
+                    extra_notes = []
+                    if extract.source_email:
+                        extra_notes.append(f"Source Email: {extract.source_email}")
+                    if extract.job_source:
+                        extra_notes.append(f"Job Source: {extract.job_source}")
+                    if extract.notes:
+                        extra_notes.append(f"Original Notes: {extract.notes}")
+                        
+                    if extra_notes:
+                        current_notes = new_vendor.notes or ""
+                        new_vendor.notes = (current_notes + "\n" + "\n".join(extra_notes))[:65535] # Text type is large enough, but keeping safe
                     db.add(new_vendor)
                     db.flush()  # Get the ID without committing
                     vendor_id = new_vendor.id
