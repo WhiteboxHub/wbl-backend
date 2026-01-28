@@ -9,7 +9,8 @@ from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,C
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any, Optional 
 from datetime import date
-
+from fapi.db.models import Session as SessionModel
+from datetime import datetime, timedelta
 router = APIRouter()
       
 def get_all_candidates_paginated(
@@ -934,8 +935,8 @@ def get_candidate_details(candidate_id: int, db: Session):
             ],
             "login_access": {
                 "login_count": getattr(authuser, "logincount", 0) if authuser else 0,
-                "last_login": authuser.lastlogin.isoformat()
-                if authuser and getattr(authuser, "lastlogin", None)
+                "last_login": authuser.lastmoddatetime.isoformat()
+                if authuser and getattr(authuser, "lastmoddatetime", None)
                 else None,
                 "registered_date": authuser.registereddate.isoformat()
                 if authuser and getattr(authuser, "registereddate", None)
@@ -1012,17 +1013,19 @@ def search_candidates_comprehensive(search_term: str, db: Session):
 
 def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
     """
-    Get sessions with smart name matching - handles common names like 'Sai'
+    Get sessions with smart name matching
+    Returns two separate lists:
+    - sessions_took: matches in title/subject
+    - sessions_attended: matches in notes only
     """
     try:
-        from fapi.db.models import Session as SessionModel
-        from datetime import datetime, timedelta
+        
         import re
         
         
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
-            return {"error": "Candidate not found", "sessions": []}
+            return {"error": "Candidate not found", "sessions_took": [], "sessions_attended": []}
         
 
         all_words = [word for word in candidate.full_name.split() if len(word) >= 3]
@@ -1044,7 +1047,7 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         search_words = priority_words if priority_words else all_words
         
         if not search_words:
-            return {"candidate_id": candidate_id, "candidate_name": candidate.full_name, "sessions": []}
+            return {"candidate_id": candidate_id, "candidate_name": candidate.full_name, "sessions_took": [], "sessions_attended": []}
         
         
         one_year_ago = datetime.now() - timedelta(days=365)
@@ -1057,13 +1060,19 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         )
         
         
-        matched_sessions = []
+        sessions_took = []
+        sessions_attended = []
+        
         for session in recent_sessions:
             title_text = (session.title or "").lower()
             subject_text = (session.subject or "").lower()
-            combined_text = f"{title_text} {subject_text}"
+            notes_text = (session.notes or "").lower()
             
-            word_found = False
+            title_subject_combined = f"{title_text} {subject_text}"
+            
+            # Check if name appears in title/subject
+            title_match = False
+            notes_match = False
             
           
             for word in priority_words:
@@ -1071,79 +1080,89 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
                 
          
                 pattern = r'\b' + re.escape(word_lower) + r'\b'
-                if re.search(pattern, combined_text):
-                    word_found = True
-                    break
                 
-       
-                if len(word_lower) >= 4 and word_lower in combined_text:
-                    word_found = True
-                    break
+                # Check title/subject
+                if re.search(pattern, title_subject_combined):
+                    title_match = True
+                
+                # Check notes
+                if re.search(pattern, notes_text):
+                    notes_match = True
+                
+                # Substring match for longer words
+                if len(word_lower) >= 4:
+                    if word_lower in title_subject_combined:
+                        title_match = True
+                    if word_lower in notes_text:
+                        notes_match = True
             
         
-            if not word_found and common_words and not priority_words:
+            if not title_match and not notes_match and common_words and not priority_words:
                 for word in common_words:
                     word_lower = word.lower()
                     
             
                     pattern = r'\b' + re.escape(word_lower) + r'\b'
-                    if re.search(pattern, combined_text):
-                        word_found = True
-                        break
+                    if re.search(pattern, title_subject_combined):
+                        title_match = True
+                    if re.search(pattern, notes_text):
+                        notes_match = True
             
             
-            if not word_found and priority_words and common_words:
-                priority_matches = 0
-                common_matches = 0
+            if not title_match and not notes_match and priority_words and common_words:
+                priority_title_matches = 0
+                priority_notes_matches = 0
+                common_title_matches = 0
+                common_notes_matches = 0
                 
                 
                 for word in priority_words:
                     word_lower = word.lower()
                     pattern = r'\b' + re.escape(word_lower) + r'\b'
-                    if re.search(pattern, combined_text):
-                        priority_matches += 1
+                    if re.search(pattern, title_subject_combined):
+                        priority_title_matches += 1
+                    if re.search(pattern, notes_text):
+                        priority_notes_matches += 1
                 
                 
                 for word in common_words:
                     word_lower = word.lower()
                     pattern = r'\b' + re.escape(word_lower) + r'\b'
-                    if re.search(pattern, combined_text):
-                        common_matches += 1
+                    if re.search(pattern, title_subject_combined):
+                        common_title_matches += 1
+                    if re.search(pattern, notes_text):
+                        common_notes_matches += 1
                 
                 
-                if priority_matches >= 1 or (priority_matches + common_matches >= 2):
-                    word_found = True
+                if priority_title_matches >= 1 or (priority_title_matches + common_title_matches >= 2):
+                    title_match = True
+                if priority_notes_matches >= 1 or (priority_notes_matches + common_notes_matches >= 2):
+                    notes_match = True
             
-            if word_found:
-                matched_sessions.append(session)
-        
-        
-        matched_sessions.sort(key=lambda x: x.sessiondate or datetime.min, reverse=True)
-        
-        
-        session_list = []
-        for session in matched_sessions:
-            session_date_str = None
-            if session.sessiondate:
-                if isinstance(session.sessiondate, str):
-                    session_date_str = session.sessiondate
-                else:
-                    session_date_str = session.sessiondate.isoformat()
-            
+            # Add to appropriate list
             session_data = {
                 "session_id": session.sessionid,
                 "title": session.title,
-                "session_date": session_date_str,
+                "session_date": session.sessiondate.isoformat() if session.sessiondate else None,
                 "type": session.type,
                 "subject": session.subject,
                 "link": session.link
             }
-            session_list.append(session_data)
+            
+            if title_match:
+                sessions_took.append(session_data)
+            if notes_match:
+                sessions_attended.append(session_data)
+        
+        
+        sessions_took.sort(key=lambda x: x.get('session_date') or '', reverse=True)
+        sessions_attended.sort(key=lambda x: x.get('session_date') or '', reverse=True)
         
         return {
             "candidate_id": candidate_id,
             "candidate_name": candidate.full_name,
-            "sessions": session_list,
+            "sessions_took": sessions_took,
+            "sessions_attended": sessions_attended,
             "debug_info": {
                 "all_words": all_words,
                 "priority_words": priority_words,
@@ -1153,4 +1172,5 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         }
         
     except Exception as e:
-        return {"error": str(e), "sessions": []}
+        return {"error": str(e), "sessions_took": [], "sessions_attended": []}
+
