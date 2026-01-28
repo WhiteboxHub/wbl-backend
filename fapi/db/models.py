@@ -672,7 +672,7 @@ class Session(Base):
     status = Column(String(45), nullable=False)
     link = Column(String(1024))
     videoid = Column(String(255))
-
+    backup_url = Column(String(200))
     type = Column(String(50))
     sessiondate = Column(DateTime)
     lastmoddatetime = Column(DateTime)
@@ -680,7 +680,7 @@ class Session(Base):
     subject_id = Column(Integer, nullable=False, default=0)
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
-
+    notes = Column(String(100))
   # -------------------Internal documents--------------------
 
 

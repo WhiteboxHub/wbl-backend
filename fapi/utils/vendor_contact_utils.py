@@ -1,5 +1,6 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -9,6 +10,56 @@ from fapi.db.models import VendorContactExtractsORM, Vendor
 from fapi.db.schemas import VendorContactExtractCreate, VendorContactExtractUpdate
 
 logger = logging.getLogger(__name__)
+
+
+def find_existing_vendor(db: Session, extract: VendorContactExtractsORM) -> Optional[Vendor]:
+    """Find existing vendor by linkedin_internal_id, linkedin_id, or email"""
+    if extract.linkedin_internal_id:
+        vendor = db.query(Vendor).filter(
+            Vendor.linkedin_internal_id == extract.linkedin_internal_id
+        ).first()
+        if vendor:
+            return vendor
+
+    if extract.linkedin_id:
+        vendor = db.query(Vendor).filter(
+            Vendor.linkedin_id == extract.linkedin_id
+        ).first()
+        if vendor:
+            return vendor
+
+    if extract.email:
+        vendor = db.query(Vendor).filter(
+            Vendor.email == extract.email
+        ).first()
+        if vendor:
+            return vendor
+
+    return None
+
+
+def build_duplicate_notes(vendor: Vendor, extract: VendorContactExtractsORM) -> str:
+    """Build notes for duplicate vendor detection"""
+    notes = ["Duplicate detected via identity match"]
+
+    if extract.full_name and extract.full_name != vendor.full_name:
+        notes.append(f"Alt name: {extract.full_name}")
+
+    if extract.email and extract.email != vendor.email:
+        notes.append(f"Alt email: {extract.email}")
+
+    if extract.phone and extract.phone != vendor.phone_number:
+        notes.append(f"Alt phone: {extract.phone}")
+
+    if extract.company_name and extract.company_name != vendor.company_name:
+        notes.append(f"Alt company: {extract.company_name}")
+
+    if extract.location and extract.location != vendor.location:
+        notes.append(f"Alt location: {extract.location}")
+
+    notes.append(f"Source extract ID: {extract.id}")
+
+    return "\n".join(notes)
 
 async def get_all_vendor_contacts(db: Session) -> List[VendorContactExtractsORM]:
 
@@ -190,3 +241,96 @@ async def delete_vendor_contacts_bulk(contact_ids: List[int], db: Session) -> di
         db.rollback()
         logger.error(f"Bulk delete error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Bulk delete error: {str(e)}")
+
+
+async def move_contacts_to_vendor(contact_ids: List[int], db: Session) -> Dict:
+    """Move vendor contacts to vendor table with deduplication using ORM
+    
+    Args:
+        contact_ids: List of vendor contact extract IDs to move
+        db: Database session
+        
+    Returns:
+        Dict with processed count and message
+        
+    Raises:
+        HTTPException: If validation fails or database error occurs
+    """
+    if not contact_ids:
+        raise HTTPException(status_code=400, detail="No contact IDs provided")
+    
+    # Safety limit to prevent API timeouts
+    MAX_RECORDS_PER_REQUEST = 5000
+    if len(contact_ids) > MAX_RECORDS_PER_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many records. Maximum {MAX_RECORDS_PER_REQUEST} per request. "
+                   f"Please split into smaller batches or use background processing."
+        )
+    
+    batch_size = 200
+    total_updated = 0
+    
+    try:
+        for i in range(0, len(contact_ids), batch_size):
+            batch = contact_ids[i:i + batch_size]
+            
+            # Get extracts that haven't been moved yet
+            extracts = db.query(VendorContactExtractsORM).filter(
+                VendorContactExtractsORM.id.in_(batch),
+                VendorContactExtractsORM.moved_to_vendor == 0
+            ).all()
+            
+            for extract in extracts:
+                # Check for existing vendor
+                vendor = find_existing_vendor(db, extract)
+                
+                if vendor:
+                    # Duplicate found - append notes using ORM
+                    notes = build_duplicate_notes(vendor, extract)
+                    combined_notes = ((vendor.notes or "") + "\n" + notes)[:255]
+                    vendor.notes = combined_notes
+                    vendor_id = vendor.id
+                else:
+                    # Create new vendor using ORM
+                    new_vendor = Vendor(
+                        full_name=extract.full_name,
+                        email=extract.email,
+                        linkedin_id=extract.linkedin_id,
+                        linkedin_internal_id=extract.linkedin_internal_id,
+                        company_name=extract.company_name or '',
+                        location=extract.location or '',
+                        type='third-party-vendor',
+                        status='prospect',
+                        notes=f'Created from extract ID: {extract.id}'[:255],
+                        linkedin_connected='NO',
+                        intro_email_sent='NO',
+                        intro_call='NO'
+                    )
+                    db.add(new_vendor)
+                    db.flush()  # Get the ID without committing
+                    vendor_id = new_vendor.id
+                
+                # Update extract using ORM
+                extract.moved_to_vendor = 1
+                extract.vendor_id = vendor_id
+                extract.moved_at = datetime.now()
+                
+                total_updated += 1
+            
+            db.commit()
+            
+            # Log progress every batch (no sensitive data)
+            logger.info(f"Batch {i//batch_size + 1}: Processed {total_updated} records")
+        
+        logger.info(f"Successfully processed {total_updated} vendor contacts")
+        return {
+            "processed": total_updated,
+            "message": f"Successfully moved {total_updated} contacts to vendor"
+        }
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error(f"Error moving contacts to vendor: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+

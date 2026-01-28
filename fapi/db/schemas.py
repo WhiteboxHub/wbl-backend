@@ -1585,12 +1585,14 @@ class SessionBase(BaseModel):
     title: Optional[str] = None
     status: str
     link: Optional[str] = None
+    backup_url: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     type: Optional[str] = None
     sessiondate: Optional[date] = None
     lastmoddatetime: Optional[datetime] = None
     subject_id: int
+    notes: Optional[str] = None
 
 
 class SessionCreate(SessionBase):
