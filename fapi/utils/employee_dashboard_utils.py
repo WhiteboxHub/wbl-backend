@@ -43,7 +43,7 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     
     # Marketing - Get all marketing candidates that are also in prep with this employee
     # First get the candidate IDs from prep (prep_candidates is a list of tuples)
-    prep_candidate_ids = [prep[0].candidate_id for prep, _ in prep_candidates]
+    prep_candidate_ids = [prep.candidate_id for prep, full_name in prep_candidates]
     
     marketing_candidates = (
         db.query(CandidateMarketingORM, CandidateORM.full_name)
