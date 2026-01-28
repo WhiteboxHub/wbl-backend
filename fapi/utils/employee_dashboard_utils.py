@@ -28,7 +28,8 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     # 3. Assigned candidates
     # Prep
     prep_candidates = (
-        db.query(CandidatePreparation)
+        db.query(CandidatePreparation, CandidateORM.full_name)
+        .join(CandidateORM, CandidatePreparation.candidate_id == CandidateORM.id)
         .filter(
             or_(
                 CandidatePreparation.instructor1_id == employee_id,
@@ -42,7 +43,8 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     
     # Marketing
     marketing_candidates = (
-        db.query(CandidateMarketingORM)
+        db.query(CandidateMarketingORM, CandidateORM.full_name)
+        .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
         .filter(CandidateMarketingORM.marketing_manager == employee_id)
         .filter(CandidateMarketingORM.status == "active")
         .all()
