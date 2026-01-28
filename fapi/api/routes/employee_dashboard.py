@@ -2,13 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.utils.permission_gate import enforce_access
-from fapi.db.schemas import EmployeeDashboardMetrics
 from fapi.utils.employee_dashboard_utils import get_employee_dashboard_metrics
 from fapi.db.models import EmployeeORM
 
 router = APIRouter()
 
-@router.get("/metrics/employee", response_model=EmployeeDashboardMetrics)
+@router.get("/metrics/employee")
 def get_employee_metrics_endpoint(db: Session = Depends(get_db), current_user = Depends(enforce_access)):
     email = getattr(current_user, "uname", None)
     if not email:
