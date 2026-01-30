@@ -2158,3 +2158,19 @@ class CompanyHRContactOut(CompanyHRContactBase):
 
     class Config:
         from_attributes = True
+
+
+class EmployeeDashboardMetrics(BaseModel):
+    employee_info: Employee
+    placements: List[CandidatePlacement]
+    assigned_prep_candidates: List[CandidatePreparationOut]
+    assigned_marketing_candidates: List[CandidateMarketing]
+    pending_tasks: List[EmployeeTask]
+    job_help_candidates: List[CandidatePlacement]
+    classes: List[Recording]
+    sessions: List[Session]
+    is_birthday: bool = False
+
+    model_config = {
+        "from_attributes": True
+    }
