@@ -1993,3 +1993,57 @@ class CompanyHRContactOut(CompanyHRContactBase):
 
     class Config:
         from_attributes = True
+
+
+# -------------------- AI Talent Outreach Schemas --------------------
+class AITalentOutreachBase(BaseModel):
+    full_name: str
+    email: EmailStr
+    phone: str
+    city: str
+    country: str
+    linkedin_url: str
+    github_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    resume_file: Optional[str] = None
+    primary_role: Optional[Literal[
+        'Machine Learning Engineer',
+        'AI Engineer',
+        'Data Scientist',
+        'Research Scientist',
+        'MLOps Engineer',
+        'NLP Engineer',
+        'Computer Vision Engineer',
+        'AI Product Manager',
+        'Other'
+    ]] = None
+    years_experience: Optional[int] = None
+    employment_type: Optional[Literal[
+        'Full-Time',
+        'Part-Time',
+        'Contract',
+        'Freelance',
+        'Internship'
+    ]] = None
+    availability_timeline: Optional[Literal[
+        'Immediate',
+        'Within 1 Month',
+        '1–3 Months',
+        '3+ Months'
+    ]] = None
+    core_ai_skills: Optional[str] = None
+    ai_domains: Optional[str] = None
+    preferred_location: Optional[str] = None
+    compensation_range: Optional[str] = None
+    notes: Optional[str] = None
+
+class AITalentOutreachCreate(AITalentOutreachBase):
+    pass
+
+class AITalentOutreachResponse(AITalentOutreachBase):
+    id: int
+    entry_date: datetime
+    last_modified: datetime
+
+    class Config:
+        from_attributes = True
