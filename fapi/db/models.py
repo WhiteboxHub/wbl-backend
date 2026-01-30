@@ -195,7 +195,7 @@ class CandidateORM(Base):
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
-    zip_code = Column(String(10), nullable=True)
+
 
     interviews = relationship(
         "CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
