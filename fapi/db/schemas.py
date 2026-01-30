@@ -285,6 +285,7 @@ class CandidateBase(BaseModel):
     secondaryemail: Optional[str] = None
     secondaryphone: Optional[str] = None
     address: Optional[str] = None
+    zip_code: Optional[str] = None
     linkedin_id: Optional[str] = None
     github_link: Optional[str] = None
     dob: Optional[date] = None
@@ -344,6 +345,7 @@ class CandidateUpdate(BaseModel):
     secondaryemail: Optional[str] = None
     secondaryphone: Optional[str] = None
     address: Optional[str] = None
+    zip_code: Optional[str] = None
     linkedin_id: Optional[str] = None
     dob: Optional[date] = None
     emergcontactname: Optional[str] = None
