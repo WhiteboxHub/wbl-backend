@@ -6,8 +6,8 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
-    jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
-    employee_dashboard
+    jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects, position, raw_position,employee_dashboard
+
 )
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -107,4 +107,7 @@ app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], depend
 app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
+app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
+app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
+
