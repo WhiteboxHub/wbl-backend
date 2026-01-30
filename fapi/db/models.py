@@ -1,21 +1,15 @@
-from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from sqlalchemy import Integer
-
+from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum
 
 Base = declarative_base()
 
 
-class UserCreate(BaseModel):
-    uname: str
-    passwd: str
 
 # -----------------------------------------------------
 
@@ -49,32 +43,6 @@ class AuthUserORM(Base):
     visa_status = Column(String(50))
     notes = Column(Text)
 
-
-# ----------------------------------------------
-class ContactForm(BaseModel):
-    firstName: str
-    lastName: str
-    email: str
-    phone: str
-    message: str
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class EmailRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPassword(BaseModel):
-    token: str
-    new_password: str
 
 
 # ------------------------------------------- Leads----------------------------------------
@@ -818,3 +786,78 @@ class EmployeeTaskORM(Base):
     employee = relationship("EmployeeORM", back_populates="tasks")
     project = relationship("ProjectORM", back_populates="tasks")
 
+
+class RawPositionORM(Base):
+    __tablename__ = "raw_position"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    source = Column(String(50), nullable=False,
+                    comment='linkedin, email, job_board, scraper')
+    source_uid = Column(String(255), nullable=True,
+                        comment='external job id or message id')
+    extracted_at = Column(
+        TIMESTAMP, nullable=False, server_default=func.now())
+    extractor_version = Column(String(50), nullable=True)
+    raw_title = Column(String(500), nullable=True)
+    raw_company = Column(String(255), nullable=True)
+    raw_location = Column(String(255), nullable=True)
+    raw_zip = Column(String(20), nullable=True)
+    raw_description = Column(Text, nullable=True)
+    raw_contact_info = Column(
+        Text, nullable=True, comment='emails, phones, linkedin, free text')
+    raw_notes = Column(Text, nullable=True,
+                       comment='any additional extractor notes')
+    raw_payload = Column(
+        JSON, nullable=True, comment='full extractor payload if available')
+    processing_status = Column(SQLAEnum(ProcessingStatusEnum),
+                               nullable=False, server_default='new')
+    error_message = Column(Text, nullable=True)
+    processed_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False,
+                        server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_source_uid', 'source', 'source_uid'),
+        Index('idx_processing_status', 'processing_status'),
+        Index('idx_extracted_at', 'extracted_at'),
+    )
+
+
+class PositionORM(Base):
+    __tablename__ = "position"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    normalized_title = Column(
+        String(255), nullable=True, comment='standardized role name')
+    company_name = Column(String(255), nullable=False)
+    company_id = Column(Integer, nullable=True,
+                        comment='future reference to company table')
+    position_type = Column(SQLAEnum(PositionTypeEnum), nullable=True)
+    employment_mode = Column(SQLAEnum(EmploymentModeEnum), nullable=True)
+    source = Column(String(50), nullable=False,
+                    comment='linkedin, job_board, vendor, email')
+    source_uid = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    zip = Column(String(20), nullable=True)
+    country = Column(String(100), nullable=True)
+    contact_email = Column(String(255), nullable=True)
+    contact_phone = Column(String(50), nullable=True)
+    contact_linkedin = Column(String(255), nullable=True)
+    job_url = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    status = Column(SQLAEnum(PositionStatusEnum),
+                    nullable=False, server_default='open')
+    confidence_score = Column(DECIMAL(
+        5, 2), nullable=True, comment='extraction or matching confidence')
+    created_from_raw_id = Column(BigInteger, ForeignKey(
+        "raw_position.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('source', 'source_uid', name='uniq_source_job'),
+    )

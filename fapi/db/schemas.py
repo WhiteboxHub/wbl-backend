@@ -7,6 +7,145 @@ from enum import Enum
 import enum
 import re
 
+class PositionTypeEnum(str, enum.Enum):
+    full_time = 'full_time'
+    contract = 'contract'
+    contract_to_hire = 'contract_to_hire'
+    internship = 'internship'
+
+
+class EmploymentModeEnum(str, enum.Enum):
+    onsite = 'onsite'
+    hybrid = 'hybrid'
+    remote = 'remote'
+
+
+class PositionStatusEnum(str, enum.Enum):
+    open = 'open'
+    closed = 'closed'
+    on_hold = 'on_hold'
+    duplicate = 'duplicate'
+    invalid = 'invalid'
+
+
+class ProcessingStatusEnum(str, enum.Enum):
+    new = 'new'
+    parsed = 'parsed'
+    mapped = 'mapped'
+    discarded = 'discarded'
+    error = 'error'
+
+
+class PositionBase(BaseModel):
+    title: str
+    normalized_title: Optional[str] = None
+    company_name: str
+    company_id: Optional[int] = None
+    position_type: Optional[PositionTypeEnum] = None
+    employment_mode: Optional[EmploymentModeEnum] = None
+    source: str
+    source_uid: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_linkedin: Optional[str] = None
+    job_url: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    status: PositionStatusEnum = PositionStatusEnum.open
+    confidence_score: Optional[float] = None
+    created_from_raw_id: Optional[int] = None
+
+
+class PositionCreate(PositionBase):
+    pass
+
+
+class PositionUpdate(BaseModel):
+    title: Optional[str] = None
+    normalized_title: Optional[str] = None
+    company_name: Optional[str] = None
+    company_id: Optional[int] = None
+    position_type: Optional[PositionTypeEnum] = None
+    employment_mode: Optional[EmploymentModeEnum] = None
+    source: Optional[str] = None
+    source_uid: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_linkedin: Optional[str] = None
+    job_url: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[PositionStatusEnum] = None
+    confidence_score: Optional[float] = None
+    created_from_raw_id: Optional[int] = None
+
+
+class PositionOut(PositionBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RawPositionBase(BaseModel):
+    source: str
+    source_uid: Optional[str] = None
+    extractor_version: Optional[str] = None
+    raw_title: Optional[str] = None
+    raw_company: Optional[str] = None
+    raw_location: Optional[str] = None
+    raw_zip: Optional[str] = None
+    raw_description: Optional[str] = None
+    raw_contact_info: Optional[str] = None
+    raw_notes: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    processing_status: ProcessingStatusEnum = ProcessingStatusEnum.new
+    error_message: Optional[str] = None
+
+
+class RawPositionCreate(RawPositionBase):
+    pass
+
+
+class RawPositionUpdate(BaseModel):
+    source: Optional[str] = None
+    source_uid: Optional[str] = None
+    extractor_version: Optional[str] = None
+    raw_title: Optional[str] = None
+    raw_company: Optional[str] = None
+    raw_location: Optional[str] = None
+    raw_zip: Optional[str] = None
+    raw_description: Optional[str] = None
+    raw_contact_info: Optional[str] = None
+    raw_notes: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    processing_status: Optional[ProcessingStatusEnum] = None
+    error_message: Optional[str] = None
+    processed_at: Optional[datetime] = None
+
+
+class RawPositionOut(RawPositionBase):
+    id: int
+    extracted_at: datetime
+    processed_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -63,7 +202,7 @@ class EmployeeBirthdayOut(BaseModel):
     wish: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---------------------------enployee search -----------------------------
 class EmployeeDetailSchema(BaseModel):
@@ -114,6 +253,32 @@ class UserRegistration(BaseModel):
     country: Optional[str] = None
     message: Optional[str] = None
     registereddate: Optional[datetime] = None
+
+
+class UserCreate(BaseModel):
+    uname: str
+    passwd: str
+
+
+class ContactForm(BaseModel):
+    firstName: str
+    lastName: str
+    email: str
+    phone: str
+    message: str
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
     level3date: Optional[datetime] = None
     demo: Optional[str] = None
     enddate: Optional[date] = None
@@ -757,7 +922,7 @@ class PlacementFeeOut(PlacementFeeBase):
     last_mod_date: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # -----------------------------------------------------------------------------------
 
@@ -1993,3 +2158,19 @@ class CompanyHRContactOut(CompanyHRContactBase):
 
     class Config:
         from_attributes = True
+
+
+class EmployeeDashboardMetrics(BaseModel):
+    employee_info: Employee
+    placements: List[CandidatePlacement]
+    assigned_prep_candidates: List[CandidatePreparationOut]
+    assigned_marketing_candidates: List[CandidateMarketing]
+    pending_tasks: List[EmployeeTask]
+    job_help_candidates: List[CandidatePlacement]
+    classes: List[Recording]
+    sessions: List[Session]
+    is_birthday: bool = False
+
+    model_config = {
+        "from_attributes": True
+    }
