@@ -5,7 +5,7 @@ from fapi.db.database import get_db
 from fapi.db.schemas import PositionCreate, PositionUpdate, PositionOut
 from fapi.utils import position_utils
 
-router = APIRouter(prefix="/positions", tags=["Positions"])
+router = APIRouter(prefix="/positions", tags=["Positions"], redirect_slashes=False)
 
 @router.get("/", response_model=List[PositionOut])
 def read_positions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
