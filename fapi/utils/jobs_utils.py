@@ -483,5 +483,3 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         db.rollback()
         logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
-
-
