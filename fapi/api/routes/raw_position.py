@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from fapi.db.database import get_db
-from fapi.db.schemas import RawPositionCreate, RawPositionUpdate, RawPositionOut
+from fapi.db.schemas import (
+    RawPositionCreate, 
+    RawPositionUpdate, 
+    RawPositionOut,
+    RawPositionBulkCreate,
+    RawPositionBulkResponse
+)
 from fapi.utils import raw_position_utils
 
 router = APIRouter(prefix="/raw-positions", tags=["Raw Positions"])
@@ -21,6 +27,14 @@ def read_raw_position(raw_position_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=RawPositionOut, status_code=status.HTTP_201_CREATED)
 def create_raw_position(raw_position: RawPositionCreate, db: Session = Depends(get_db)):
     return raw_position_utils.create_raw_position(db, raw_position=raw_position)
+
+@router.post("/bulk", response_model=RawPositionBulkResponse)
+async def create_raw_positions_bulk(
+    bulk_data: RawPositionBulkCreate,
+    db: Session = Depends(get_db)
+):
+    """Bulk insert raw positions"""
+    return await raw_position_utils.insert_raw_positions_bulk(bulk_data.positions, db)
 
 @router.put("/{raw_position_id}", response_model=RawPositionOut)
 def update_raw_position(raw_position_id: int, raw_position: RawPositionUpdate, db: Session = Depends(get_db)):

@@ -100,6 +100,7 @@ class PositionOut(PositionBase):
 
 
 class RawPositionBase(BaseModel):
+    candidate_id: Optional[int] = None
     source: str
     source_uid: Optional[str] = None
     extractor_version: Optional[str] = None
@@ -134,6 +135,17 @@ class RawPositionUpdate(BaseModel):
     processing_status: Optional[ProcessingStatusEnum] = None
     error_message: Optional[str] = None
     processed_at: Optional[datetime] = None
+
+
+class RawPositionBulkCreate(BaseModel):
+    positions: List[RawPositionCreate]
+
+
+class RawPositionBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
+    failed_contacts: List[dict] = []
 
 
 class RawPositionOut(RawPositionBase):
