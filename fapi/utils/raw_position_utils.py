@@ -37,3 +37,54 @@ def delete_raw_position(db: Session, raw_position_id: int) -> bool:
     db.delete(db_raw_position)
     db.commit()
     return True
+
+async def insert_raw_positions_bulk(positions: List[RawPositionCreate], db: Session) -> dict:
+    """Bulk insert raw positions with duplicate handling"""
+    inserted = 0
+    failed = 0
+    duplicates = 0
+    failed_contacts = []
+    
+    try:
+        for pos_data in positions:
+            try:
+                # Check for duplicates by source and source_uid
+                existing = None
+                if pos_data.source_uid:
+                    existing = db.query(RawPositionORM).filter(
+                        RawPositionORM.source == pos_data.source,
+                        RawPositionORM.source_uid == pos_data.source_uid
+                    ).first()
+                
+                if existing:
+                    duplicates += 1
+                    continue
+                
+                # Insert new position
+                db_pos = RawPositionORM(**pos_data.model_dump())
+                db.add(db_pos)
+                inserted += 1
+                
+                # Flush every 100 records to keep memory low
+                if inserted % 100 == 0:
+                    db.flush()
+                    
+            except Exception as e:
+                failed += 1
+                failed_contacts.append({
+                    "source_uid": pos_data.source_uid,
+                    "reason": str(e)
+                })
+        
+        db.commit()
+        
+        return {
+            "inserted": inserted,
+            "skipped": duplicates,
+            "total": len(positions),
+            "failed_contacts": failed_contacts
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise e

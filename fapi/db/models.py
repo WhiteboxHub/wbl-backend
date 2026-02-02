@@ -790,6 +790,7 @@ class EmployeeTaskORM(Base):
 class RawPositionORM(Base):
     __tablename__ = "raw_position"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
     source = Column(String(50), nullable=False,
                     comment='linkedin, email, job_board, scraper')
     source_uid = Column(String(255), nullable=True,
