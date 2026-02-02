@@ -159,10 +159,23 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
     failed_contacts = []
     duplicate_contacts = []
     
+    processed_identifiers = set()
+    
     try:
         for contact in contacts:
             try:
-                # Check for duplicates by email or linkedin_id
+                # 1. Check for duplicates within the current batch
+                identifier = f"{contact.email if contact.email else ''}-{contact.linkedin_id if contact.linkedin_id else ''}"
+                if identifier in processed_identifiers and (contact.email or contact.linkedin_id):
+                    duplicates += 1
+                    duplicate_contacts.append({
+                        "full_name": contact.full_name,
+                        "email": contact.email,
+                        "reason": "Duplicate in the same batch"
+                    })
+                    continue
+
+                # 2. Check for duplicates in the database
                 existing = None
                 if contact.email or contact.linkedin_id:
                     existing = db.query(VendorContactExtractsORM).filter(
@@ -177,7 +190,7 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
                     duplicate_contacts.append({
                         "full_name": contact.full_name,
                         "email": contact.email,
-                        "reason": "Duplicate email or LinkedIn ID"
+                        "reason": "Duplicate email or LinkedIn ID in database"
                     })
                     continue
                 
@@ -194,8 +207,22 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
                 )
                 
                 db.add(db_contact)
+                db.flush()  # Flush so subsequent checks see it, and unique constraint is checked early
+                
+                # Mark as processed in this batch
+                if contact.email or contact.linkedin_id:
+                    processed_identifiers.add(identifier)
+                
                 inserted += 1
                 
+            except IntegrityError:
+                db.rollback() # Rollback the flush
+                duplicates += 1
+                duplicate_contacts.append({
+                    "full_name": contact.full_name,
+                    "email": contact.email,
+                    "reason": "IntegrityError (Conflict detected by database)"
+                })
             except Exception as e:
                 failed += 1
                 failed_contacts.append({
