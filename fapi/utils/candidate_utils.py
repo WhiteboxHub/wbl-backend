@@ -734,6 +734,17 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
                 status="active"
             )
             db.add(new_marketing)
+            db.flush() # Get marketing ID if needed, though req uses candidate_marketing_id
+            
+            # Create Job Request automatically
+            from fapi.db.models import JobRequestORM
+            new_request = JobRequestORM(
+                job_type="MASS_EMAIL",
+                candidate_marketing_id=new_marketing.id,
+                status="PENDING"
+            )
+            db.add(new_request)
+            logger.info(f"Triggered automatic JobRequest for candidate {candidate.id}")
 
     # Keep flag in sync with actual active marketing status
     final_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()
