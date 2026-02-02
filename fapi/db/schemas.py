@@ -2066,6 +2066,17 @@ class JobActivityLogUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class JobActivityLogBulkCreate(BaseModel):
+    logs: List[JobActivityLogCreate]
+
+
+class JobActivityLogBulkResponse(BaseModel):
+    inserted: int
+    failed: int
+    total: int
+    failed_logs: List[dict] = []
+
+
 class JobActivityLogOut(JobActivityLogBase):
     id: int
     last_mod_date: Optional[datetime] = None
