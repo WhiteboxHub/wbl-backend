@@ -12,6 +12,8 @@ from fapi.db.schemas import (
     JobActivityLogCreate,
     JobActivityLogUpdate,
     JobActivityLogOut,
+    JobActivityLogBulkCreate,
+    JobActivityLogBulkResponse,
     JobTypeOut,
     JobTypeCreate,
     JobTypeUpdate
@@ -71,6 +73,16 @@ def create_job_activity_log(
 ):
     """Create new job activity log"""
     return jobs_utils.create_job_activity_log(db, log_data, current_user)
+
+
+@router.post("/job_activity_logs/bulk", response_model=JobActivityLogBulkResponse)
+def create_job_activity_logs_bulk(
+    bulk_data: JobActivityLogBulkCreate,
+    db: Session = Depends(get_db),
+    current_user: AuthUserORM = Depends(get_current_user)
+):
+    """Bulk create job activity logs"""
+    return jobs_utils.insert_job_activity_logs_bulk(db, bulk_data.logs, current_user)
 
 
 @router.put("/job_activity_logs/{log_id}", response_model=JobActivityLogOut)
