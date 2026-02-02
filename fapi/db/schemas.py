@@ -808,6 +808,7 @@ class CandidateInterviewBase(BaseModel):
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
+    position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
 
 
@@ -815,6 +816,7 @@ class CandidateInterviewBase(BaseModel):
 class CandidateInterviewCreate(BaseModel):
     candidate_id: int
     company: str
+    company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client
     interview_date: date
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
@@ -826,6 +828,7 @@ class CandidateInterviewCreate(BaseModel):
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
+    position_id: Optional[int] = None
 
 
 model_config = {
@@ -851,6 +854,7 @@ class CandidateInterviewUpdate(BaseModel):
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
+    position_id: Optional[int] = None
 
 
 # --- Output Schema ---
@@ -860,6 +864,8 @@ class CandidateInterviewOut(CandidateInterviewBase):
     instructor1_name: Optional[str] = None
     instructor2_name: Optional[str] = None
     instructor3_name: Optional[str] = None
+    position_title: Optional[str] = None
+    position_company: Optional[str] = None
     last_mod_datetime: Optional[datetime] = None
 
     class Config:

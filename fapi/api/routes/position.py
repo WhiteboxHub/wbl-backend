@@ -11,6 +11,10 @@ router = APIRouter(prefix="/positions", tags=["Positions"], redirect_slashes=Fal
 def read_positions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return position_utils.get_positions(db, skip=skip, limit=limit)
 
+@router.get("/search", response_model=List[PositionOut])
+def search_positions(term: str, db: Session = Depends(get_db)):
+    return position_utils.search_positions(db, term=term)
+
 @router.get("/{position_id}", response_model=PositionOut)
 def read_position(position_id: int, db: Session = Depends(get_db)):
     db_position = position_utils.get_position(db, position_id=position_id)

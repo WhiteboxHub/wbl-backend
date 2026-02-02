@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from fapi.db.models import PositionORM
 from fapi.db.schemas import PositionCreate, PositionUpdate
 from typing import List, Optional
@@ -37,3 +38,11 @@ def delete_position(db: Session, position_id: int) -> bool:
     db.delete(db_position)
     db.commit()
     return True
+
+def search_positions(db: Session, term: str) -> List[PositionORM]:
+    return db.query(PositionORM).filter(
+        or_(
+            PositionORM.title.ilike(f"%{term}%"),
+            PositionORM.company_name.ilike(f"%{term}%")
+        )
+    ).limit(20).all()

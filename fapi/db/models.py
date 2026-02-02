@@ -313,8 +313,11 @@ class CandidateInterview(Base):
     )
 
     notes = Column(Text, nullable=True)
+    position_id = Column(BigInteger, ForeignKey("position.id", ondelete="SET NULL"), nullable=True)
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    position = relationship("PositionORM")
 
 
 # -------------------------------------- Candidate Placement -------------------------------
