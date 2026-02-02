@@ -182,6 +182,7 @@ class CandidateORM(Base):
     secondaryemail = Column(String(100), nullable=True)
     secondaryphone = Column(String(45), nullable=True)
     address = Column(String(300), nullable=True)
+    zip_code = Column(String(20), nullable=True)
     linkedin_id = Column(String(100), nullable=True)
     dob = Column(Date, nullable=True)
     emergcontactname = Column(String(100), nullable=True)
@@ -194,6 +195,7 @@ class CandidateORM(Base):
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
+
 
     interviews = relationship(
         "CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
