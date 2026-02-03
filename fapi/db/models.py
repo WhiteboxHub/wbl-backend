@@ -293,7 +293,7 @@ class CandidateInterview(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-    candidate = relationship("CandidateORM", back_populates="interviews", overlaps="interview_records")
+    candidate = relationship("CandidateORM", back_populates="interviews")
 
     company = Column(String(200), nullable=False)
     company_type = Column(
@@ -377,7 +377,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    candidate = relationship("CandidateORM", back_populates="placements", overlaps="placement_records")
+    candidate = relationship("CandidateORM", back_populates="placements")
 
 # -------------------------------------- Candidate Preparation -------------------------------
 
