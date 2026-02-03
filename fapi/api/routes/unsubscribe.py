@@ -1,39 +1,51 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.models import OutreachContactORM
 from sqlalchemy import func
 import base64
+import os
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.get("/feedback")
+@router.get("/outreach-feedback")
 def handle_feedback(
-    token: str = Query(..., description="Encoded email token"),
+    request: Request,
+    token: str = Query(None, description="Encoded email token"),
+    email: str = Query(None, description="Direct email address"),
     type: str = Query("unsubscribe", description="Type of feedback: unsubscribe, bounce, complaint"),
     reason: str = Query(None),
     db: Session = Depends(get_db)
 ):
     """
     Updates existing outreach records for unsubscribes, bounces, or complaints.
-    Strictly NO NEW INSERTS.
     """
-    try:
-        email = base64.b64decode(token).decode('utf-8').lower()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid token")
+    target_email = None
+    if token:
+        try:
+            target_email = base64.b64decode(token).decode('utf-8').lower()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid token")
+    elif email:
+        target_email = email.lower()
+    
+    if not target_email:
+        raise HTTPException(status_code=400, detail="Token or email required")
 
     # Find the record - strictly unique by email_lc
     contact = db.query(OutreachContactORM).filter(
-        OutreachContactORM.email_lc == email
+        OutreachContactORM.email_lc == target_email
     ).first()
 
     if not contact:
         # Create a new record as suppressed
-        logger.info(f"Creating new suppressed record for {email} ({type})")
+        logger.info(f"Creating new suppressed record for {target_email} ({type})")
         contact = OutreachContactORM(
-            email=email,
-            email_lc=email,
+            email=target_email,
             source_type="MANUAL_UNSUB",
             status=type if type != "unsubscribe" else "unsubscribed",
             unsubscribe_flag=(type == "unsubscribe"),
@@ -57,9 +69,41 @@ def handle_feedback(
             contact.status = "complaint"
 
     db.commit()
-    return {"message": f"Updated record for {email}", "status": "success"}
+    
+    # Check if this is an API call (AJAX) or a browser click
+    # 1. Check Accept header
+    accept_header = request.headers.get("accept", "").lower()
+    # 2. Check for X-Requested-With
+    is_ajax = request.headers.get("x-requested-with", "").lower() == "xmlhttprequest"
+    # 3. Check if 'json' is in query params (backup)
+    wants_json = request.query_params.get("format") == "json"
+    
+    frontend_url = os.getenv("PUBLIC_UNSUBSCRIBE_SUCCESS_URL", "http://localhost:3001/solutions/unsubscribe-success")
+    
+    if "application/json" in accept_header or is_ajax or wants_json:
+        # For manual form submissions (manual page)
+        return {"message": "Unsubscribed successfully", "status": "success", "redirect": frontend_url}
+    
+    # For direct link clicks (vendor in email)
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=frontend_url)
 
-# Keep the /unsubscribe alias for backward compatibility with links already sent
+@router.get("/outreach-unsubscribe")
+def outreach_unsubscribe(
+    request: Request,
+    token: str = Query(None), 
+    email: str = Query(None),
+    reason: str = Query(None), 
+    db: Session = Depends(get_db)
+):
+    return handle_feedback(request, token, email, "unsubscribe", reason, db)
+
 @router.get("/unsubscribe")
-def unsubscribe_alias(token: str = Query(...), reason: str = Query(None), db: Session = Depends(get_db)):
-    return handle_feedback(token, "unsubscribe", reason, db)
+def unsubscribe_alias(
+    request: Request,
+    token: str = Query(None), 
+    email: str = Query(None),
+    reason: str = Query(None), 
+    db: Session = Depends(get_db)
+):
+    return handle_feedback(request, token, email, "unsubscribe", reason, db)

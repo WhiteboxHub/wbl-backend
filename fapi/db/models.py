@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -917,7 +917,7 @@ class OutreachContactORM(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     email = Column(String(255), nullable=False, unique=True)
-    email_lc = Column(String(255), nullable=False, unique=True)
+    email_lc = Column(String(255), server_default=FetchedValue(), unique=True)
     source_type = Column(String(50))  # CAMPAIGN | MANUAL | CSV
     source_id = Column(Integer, nullable=True)
     status = Column(String(30), nullable=False, server_default="active")

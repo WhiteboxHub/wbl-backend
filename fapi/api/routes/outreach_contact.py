@@ -24,14 +24,26 @@ def create_contact(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    db_contact = OutreachContactORM(
-        **contact.model_dump(),
-        email_lc=contact.email.lower()
-    )
-    db.add(db_contact)
-    db.commit()
-    db.refresh(db_contact)
-    return db_contact
+    from sqlalchemy.exc import IntegrityError
+    from fastapi import HTTPException
+    
+    try:
+        db_contact = OutreachContactORM(
+            **contact.model_dump()
+        )
+        db.add(db_contact)
+        db.commit()
+        db.refresh(db_contact)
+        return db_contact
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409, 
+            detail=f"Contact with email {contact.email} already exists"
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/outreach-contact/{contact_id}", response_model=schemas.OutreachContactOut)
 def update_contact(
@@ -46,8 +58,6 @@ def update_contact(
         raise HTTPException(status_code=404, detail="Contact not found")
     
     update_data = contact_update.model_dump(exclude_unset=True)
-    if 'email' in update_data:
-        update_data['email_lc'] = update_data['email'].lower()
         
     for key, value in update_data.items():
         setattr(db_contact, key, value)

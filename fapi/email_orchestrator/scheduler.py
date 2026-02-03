@@ -194,9 +194,14 @@ class JobScheduler:
                 if email in suppressed_emails:
                     continue
                 
-                # Unsubscribe link (always generated)
-                token = base64.b64encode(email.encode('utf-8')).decode('utf-8')
-                unsub_link = f"{base_url}/api/unsubscribe?token={token}"
+                # Unsubscribe link (pointing to Premium UI on port 3001)
+                unsub_base = os.getenv("PUBLIC_UNSUBSCRIBE_URL")
+                if not unsub_base:
+                    # Fallback: If we are on localhost:8000, the UI is likely on localhost:3001
+                    ui_base = base_url.replace(":8000", ":3001")
+                    unsub_base = f"{ui_base}/solutions/unsubscribe"
+                
+                unsub_link = f"{unsub_base}?email={email}"
                 
                 recipients_payload.append({
                     "email": email,

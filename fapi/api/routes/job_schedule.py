@@ -14,6 +14,7 @@ security = HTTPBearer()
 
 
 @router.get("/job-schedule", response_model=List[schemas.JobScheduleOut])
+@router.head("/job-schedule")
 def read_job_schedules(
     search: Optional[str] = Query(None, description="Search by frequency or timezone"),
     skip: int = Query(0, ge=0),
