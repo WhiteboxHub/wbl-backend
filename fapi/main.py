@@ -99,6 +99,8 @@ app.include_router(course_material.router, prefix="/api",
 app.include_router(referrals.router, prefix="/api", tags=["Referrals"])
 app.include_router(avatar_dashboard.router, prefix="/api",
                    tags=["Avatar Dashboard"], dependencies=[Depends(enforce_access)])
+app.include_router(candidate.router, prefix="/api",
+                   tags=["Candidates"], dependencies=[Depends(enforce_access)])
 app.include_router(projects.router, prefix="/api", tags=["Projects"], dependencies=[Depends(enforce_access)])
 app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api",
@@ -127,6 +129,7 @@ app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
+
 
 
 
