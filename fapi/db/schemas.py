@@ -355,7 +355,7 @@ class AuthUserBase(BaseModel):
     country: Optional[str] = None
     message: Optional[str] = None
     notes: Optional[str] = None
-    visa_status: Optional[VisaStatusEnum] = None
+    visa_status: Optional[str] = None
     googleId: Optional[str] = None
 
     @validator("uname", pre=True)
@@ -411,7 +411,7 @@ class LeadBase(BaseModel):
     entry_date: Optional[datetime] = None
     phone: Optional[str] = None
     email: EmailStr
-    workstatus: Optional[VisaStatusEnum] = None
+    workstatus: Optional[str] = None
     status: Optional[str] = "open"
     secondary_email: Optional[str] = None
     secondary_phone: Optional[str] = None
@@ -487,7 +487,7 @@ class CandidateBase(BaseModel):
     phone: Optional[str] = None
     status: Optional[Literal['active', 'inactive',
                              'discontinued', 'break', 'closed']] = None
-    workstatus: Optional[VisaStatusEnum] = None
+    workstatus: Optional[str] = None
     education: Optional[str] = None
     workexperience: Optional[str] = None
     ssn: Optional[str] = None
@@ -547,7 +547,7 @@ class CandidateUpdate(BaseModel):
     phone: Optional[str] = None
     status: Optional[Literal['active', 'inactive',
                              'discontinued', 'break', 'closed']] = None
-    workstatus: Optional[VisaStatusEnum] = None
+    workstatus: Optional[str] = None
     education: Optional[str] = None
     workexperience: Optional[str] = None
     ssn: Optional[str] = None

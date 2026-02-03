@@ -15,6 +15,8 @@ from fapi.utils.avatar_dashboard_utils import (
     get_job_metrics,
     get_tasks_by_employee_id_for_dashboard,
     get_job_types_by_employee_id_for_dashboard,
+    get_top_batches_revenue,
+    get_employee_birthdays,
 )
 from fapi.utils.permission_gate import enforce_access
 
@@ -60,8 +62,11 @@ def get_upcoming_batches_endpoint(limit: int = 3, db: Session = Depends(get_db))
     return get_upcoming_batches(db, limit)
 
 
-
-
 @router.get("/batches/latest/classes", response_model=list[BatchClassSummary])
 def get_latest_batches_classes(db: Session = Depends(get_db)):
     return get_classes_per_latest_batches(db)
+
+
+@router.get("/employee-birthdays")
+def get_employee_birthdays_endpoint(db: Session = Depends(get_db), current_user = Depends(enforce_access)):
+    return get_employee_birthdays(db)

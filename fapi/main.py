@@ -1,3 +1,4 @@
+# Force server reload for AuthUser updates
 from fapi.utils.permission_gate import enforce_access
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,

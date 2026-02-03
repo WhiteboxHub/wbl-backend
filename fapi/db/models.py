@@ -40,17 +40,7 @@ class AuthUserORM(Base):
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
     role = Column(String(100))
-    visa_status = Column(
-        SQLAEnum(
-            'US_CITIZEN', 'GREEN_CARD', 'GC_EAD', 'I485_EAD', 'I140_APPROVED',
-            'F1', 'F1_OPT', 'F1_CPT', 'J1', 'J1_AT', 'H1B', 'H1B_TRANSFER',
-            'H1B_CAP_EXEMPT', 'H4', 'H4_EAD', 'L1A', 'L1B', 'L2', 'L2_EAD',
-            'O1', 'TN', 'E3', 'E3_EAD', 'E2', 'E2_EAD', 'TPS_EAD', 'ASYLUM_EAD',
-            'REFUGEE_EAD', 'DACA_EAD',
-            name='visa_status_enum'
-        ),
-        nullable=True
-    )
+    visa_status = Column(String(100), nullable=True)
     notes = Column(Text)
 
 
@@ -65,17 +55,7 @@ class LeadORM(Base):
     entry_date = Column(DateTime)
     phone = Column(String(20))
     email = Column(String(255), nullable=False)
-    workstatus = Column(
-        SQLAEnum(
-            'US_CITIZEN', 'GREEN_CARD', 'GC_EAD', 'I485_EAD', 'I140_APPROVED',
-            'F1', 'F1_OPT', 'F1_CPT', 'J1', 'J1_AT', 'H1B', 'H1B_TRANSFER',
-            'H1B_CAP_EXEMPT', 'H4', 'H4_EAD', 'L1A', 'L1B', 'L2', 'L2_EAD',
-            'O1', 'TN', 'E3', 'E3_EAD', 'E2', 'E2_EAD', 'TPS_EAD', 'ASYLUM_EAD',
-            'REFUGEE_EAD', 'DACA_EAD',
-            name='visa_status_enum'
-        ),
-        nullable=True
-    )
+    workstatus = Column(String(100), nullable=True)
     status = Column(String(45), nullable=False, server_default="Open")
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
@@ -194,17 +174,7 @@ class CandidateORM(Base):
     phone = Column(String(100), nullable=True)
     status = Column(Enum('active', 'inactive', 'discontinued',
                     'break', 'closed', name='status_enum'), nullable=True)
-    workstatus = Column(
-        SQLAEnum(
-            'US_CITIZEN', 'GREEN_CARD', 'GC_EAD', 'I485_EAD', 'I140_APPROVED',
-            'F1', 'F1_OPT', 'F1_CPT', 'J1', 'J1_AT', 'H1B', 'H1B_TRANSFER',
-            'H1B_CAP_EXEMPT', 'H4', 'H4_EAD', 'L1A', 'L1B', 'L2', 'L2_EAD',
-            'O1', 'TN', 'E3', 'E3_EAD', 'E2', 'E2_EAD', 'TPS_EAD', 'ASYLUM_EAD',
-            'REFUGEE_EAD', 'DACA_EAD',
-            name='visa_status_enum'
-        ),
-        nullable=True
-    )
+    workstatus = Column(String(100), nullable=True)
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
     ssn = Column(String(11), nullable=True)
@@ -212,7 +182,7 @@ class CandidateORM(Base):
     secondaryemail = Column(String(100), nullable=True)
     secondaryphone = Column(String(45), nullable=True)
     address = Column(String(300), nullable=True)
-    zip_code = Column(String(20), nullable=True)
+    # zip_code = Column(String(20), nullable=True)
     linkedin_id = Column(String(100), nullable=True)
     dob = Column(Date, nullable=True)
     emergcontactname = Column(String(100), nullable=True)
@@ -343,11 +313,11 @@ class CandidateInterview(Base):
     )
 
     notes = Column(Text, nullable=True)
-    position_id = Column(BigInteger, ForeignKey("position.id", ondelete="SET NULL"), nullable=True)
+    # position_id = Column(BigInteger, ForeignKey("position.id", ondelete="SET NULL"), nullable=True)
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
-    position = relationship("PositionORM")
+    # position = relationship("PositionORM")
 
 
 # -------------------------------------- Candidate Placement -------------------------------

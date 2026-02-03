@@ -525,6 +525,9 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
         data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
+    # Remove position_id if present as it's not in DB
+    if "position_id" in data:
+        data.pop("position_id")
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
@@ -546,7 +549,7 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
             .joinedload(CandidatePreparation.instructor3),
-            joinedload(CandidateInterview.position)
+            # joinedload(CandidateInterview.position)
         )
         .filter(CandidateInterview.id == interview_id)
         .first()
@@ -567,7 +570,7 @@ def list_interviews_with_instructors(db: Session):
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
             .joinedload(CandidatePreparation.instructor3),
-            joinedload(CandidateInterview.position)
+            # joinedload(CandidateInterview.position)
         )
         .order_by(CandidateInterview.interview_date.desc())
         .all()
@@ -589,9 +592,9 @@ def serialize_interview(interview: CandidateInterview) -> dict:
         if prep.instructor3:
             data["instructor3_name"] = prep.instructor3.name
 
-    if interview.position:
-        data["position_title"] = interview.position.title
-        data["position_company"] = interview.position.company_name
+    # if interview.position:
+    #     data["position_title"] = interview.position.title
+    #     data["position_company"] = interview.position.company_name
 
     return data
 
@@ -609,6 +612,8 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
         )
 
     for key, value in update_data.items():
+        if key == "position_id":
+             continue
         setattr(db_obj, key, value)
 
     db.commit()
