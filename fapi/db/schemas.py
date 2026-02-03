@@ -298,6 +298,20 @@ class UserRegistration(BaseModel):
     country: Optional[str] = None
     message: Optional[str] = None
     registereddate: Optional[datetime] = None
+    level3date: Optional[datetime] = None
+    demo: Optional[str] = None
+    enddate: Optional[date] = None
+    googleId: Optional[str] = None
+    reset_token: Optional[str] = None
+    token_expiry: Optional[datetime] = None
+    role: Optional[str] = None
+    visa_status: Optional[VisaStatusEnum] = None
+    experience: Optional[str] = None
+    education: Optional[str] = None
+    referby: Optional[str] = None
+    specialization: Optional[str] = None
+    notes: Optional[str] = None
+    recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
 
 
 class UserCreate(BaseModel):
@@ -324,20 +338,6 @@ class ResetPasswordRequest(BaseModel):
 class ResetPassword(BaseModel):
     token: str
     new_password: str
-    level3date: Optional[datetime] = None
-    demo: Optional[str] = None
-    enddate: Optional[date] = None
-    googleId: Optional[str] = None
-    reset_token: Optional[str] = None
-    token_expiry: Optional[datetime] = None
-    role: Optional[str] = None
-    visa_status: Optional[VisaStatusEnum] = None
-    experience: Optional[str] = None
-    education: Optional[str] = None
-    referby: Optional[str] = None
-    specialization: Optional[str] = None
-    notes: Optional[str] = None
-    recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
 
 
 class AuthUserBase(BaseModel):
