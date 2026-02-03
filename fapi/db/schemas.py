@@ -7,6 +7,190 @@ from enum import Enum
 import enum
 import re
 
+class PositionTypeEnum(str, enum.Enum):
+    full_time = 'full_time'
+    contract = 'contract'
+    contract_to_hire = 'contract_to_hire'
+    internship = 'internship'
+
+
+class EmploymentModeEnum(str, enum.Enum):
+    onsite = 'onsite'
+    hybrid = 'hybrid'
+    remote = 'remote'
+
+
+class PositionStatusEnum(str, enum.Enum):
+    open = 'open'
+    closed = 'closed'
+    on_hold = 'on_hold'
+    duplicate = 'duplicate'
+    invalid = 'invalid'
+
+
+class ProcessingStatusEnum(str, enum.Enum):
+    new = 'new'
+    parsed = 'parsed'
+    mapped = 'mapped'
+    discarded = 'discarded'
+    error = 'error'
+
+
+class PositionBase(BaseModel):
+    title: str
+    normalized_title: Optional[str] = None
+    company_name: str
+    company_id: Optional[int] = None
+    position_type: Optional[PositionTypeEnum] = None
+    employment_mode: Optional[EmploymentModeEnum] = None
+    source: str
+    source_uid: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_linkedin: Optional[str] = None
+    job_url: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    status: PositionStatusEnum = PositionStatusEnum.open
+    confidence_score: Optional[float] = None
+    created_from_raw_id: Optional[int] = None
+
+
+class PositionCreate(PositionBase):
+    pass
+
+
+class PositionUpdate(BaseModel):
+    title: Optional[str] = None
+    normalized_title: Optional[str] = None
+    company_name: Optional[str] = None
+    company_id: Optional[int] = None
+    position_type: Optional[PositionTypeEnum] = None
+    employment_mode: Optional[EmploymentModeEnum] = None
+    source: Optional[str] = None
+    source_uid: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip: Optional[str] = None
+    country: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_linkedin: Optional[str] = None
+    job_url: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[PositionStatusEnum] = None
+    confidence_score: Optional[float] = None
+    created_from_raw_id: Optional[int] = None
+
+
+class PositionOut(PositionBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RawPositionBase(BaseModel):
+    candidate_id: Optional[int] = None
+    source: str
+    source_uid: Optional[str] = None
+    extractor_version: Optional[str] = None
+    raw_title: Optional[str] = None
+    raw_company: Optional[str] = None
+    raw_location: Optional[str] = None
+    raw_zip: Optional[str] = None
+    raw_description: Optional[str] = None
+    raw_contact_info: Optional[str] = None
+    raw_notes: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    processing_status: ProcessingStatusEnum = ProcessingStatusEnum.new
+    error_message: Optional[str] = None
+
+
+class RawPositionCreate(RawPositionBase):
+    pass
+
+
+class RawPositionUpdate(BaseModel):
+    source: Optional[str] = None
+    source_uid: Optional[str] = None
+    extractor_version: Optional[str] = None
+    raw_title: Optional[str] = None
+    raw_company: Optional[str] = None
+    raw_location: Optional[str] = None
+    raw_zip: Optional[str] = None
+    raw_description: Optional[str] = None
+    raw_contact_info: Optional[str] = None
+    raw_notes: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    processing_status: Optional[ProcessingStatusEnum] = None
+    error_message: Optional[str] = None
+    processed_at: Optional[datetime] = None
+
+
+class RawPositionBulkCreate(BaseModel):
+    positions: List[RawPositionCreate]
+
+
+class RawPositionBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
+    failed_contacts: List[dict] = []
+
+
+class RawPositionOut(RawPositionBase):
+    id: int
+    extracted_at: datetime
+    processed_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+
+# Visa Status Enum
+class VisaStatusEnum(str, enum.Enum):
+    US_CITIZEN = "US_CITIZEN"
+    GREEN_CARD = "GREEN_CARD"
+    GC_EAD = "GC_EAD"
+    I485_EAD = "I485_EAD"
+    I140_APPROVED = "I140_APPROVED"
+    F1 = "F1"
+    F1_OPT = "F1_OPT"
+    F1_CPT = "F1_CPT"
+    J1 = "J1"
+    J1_AT = "J1_AT"
+    H1B = "H1B"
+    H1B_TRANSFER = "H1B_TRANSFER"
+    H1B_CAP_EXEMPT = "H1B_CAP_EXEMPT"
+    H4 = "H4"
+    H4_EAD = "H4_EAD"
+    L1A = "L1A"
+    L1B = "L1B"
+    L2 = "L2"
+    L2_EAD = "L2_EAD"
+    O1 = "O1"
+    TN = "TN"
+    E3 = "E3"
+    E3_EAD = "E3_EAD"
+    E2 = "E2"
+    E2_EAD = "E2_EAD"
+    TPS_EAD = "TPS_EAD"
+    ASYLUM_EAD = "ASYLUM_EAD"
+    REFUGEE_EAD = "REFUGEE_EAD"
+    DACA_EAD = "DACA_EAD"
+
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -63,7 +247,7 @@ class EmployeeBirthdayOut(BaseModel):
     wish: Optional[str] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---------------------------enployee search -----------------------------
 class EmployeeDetailSchema(BaseModel):
@@ -120,13 +304,39 @@ class UserRegistration(BaseModel):
     reset_token: Optional[str] = None
     token_expiry: Optional[datetime] = None
     role: Optional[str] = None
-    visa_status: Optional[str] = None
+    visa_status: Optional[VisaStatusEnum] = None
     experience: Optional[str] = None
     education: Optional[str] = None
     referby: Optional[str] = None
     specialization: Optional[str] = None
     notes: Optional[str] = None
     recaptcha_token: str = Field(..., description="reCAPTCHA v2 token from frontend")
+
+
+class UserCreate(BaseModel):
+    uname: str
+    passwd: str
+
+
+class ContactForm(BaseModel):
+    firstName: str
+    lastName: str
+    email: str
+    phone: str
+    message: str
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
 
 
 class AuthUserBase(BaseModel):
@@ -284,6 +494,7 @@ class CandidateBase(BaseModel):
     secondaryemail: Optional[str] = None
     secondaryphone: Optional[str] = None
     address: Optional[str] = None
+    zip_code: Optional[str] = None
     linkedin_id: Optional[str] = None
     github_link: Optional[str] = None
     dob: Optional[date] = None
@@ -297,6 +508,8 @@ class CandidateBase(BaseModel):
     batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None
     move_to_prep: Optional[bool] = False
+    is_in_prep: Optional[str] = "No"
+    is_in_marketing: Optional[str] = "No"
 
     model_config = {
         "from_attributes": True,
@@ -341,6 +554,7 @@ class CandidateUpdate(BaseModel):
     secondaryemail: Optional[str] = None
     secondaryphone: Optional[str] = None
     address: Optional[str] = None
+    zip_code: Optional[str] = None
     linkedin_id: Optional[str] = None
     dob: Optional[date] = None
     emergcontactname: Optional[str] = None
@@ -402,6 +616,8 @@ class CandidateMarketingBase(BaseModel):
     linkedin_premium_end_date: Optional[date] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
+    mass_email: Optional[bool] = False
+    candidate_intro: Optional[str] = None
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -434,6 +650,8 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_premium_end_date: Optional[date] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
+    mass_email: Optional[bool] = None
+    candidate_intro: Optional[str] = None
 
 # -----------------------PLACEMENT---------------------------------
 
@@ -573,6 +791,7 @@ class CandidatePreparationOut(BaseModel):
     move_to_mrkt: Optional[bool] = None
     github_url: Optional[str] = None
     resume_url: Optional[str] = None
+    is_in_marketing: Optional[str] = "No"
 
     candidate: Optional["CandidateBase"]
     instructor1: Optional["EmployeeBase"]
@@ -629,6 +848,7 @@ class CandidateInterviewBase(BaseModel):
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
+    position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
 
 
@@ -636,6 +856,7 @@ class CandidateInterviewBase(BaseModel):
 class CandidateInterviewCreate(BaseModel):
     candidate_id: int
     company: str
+    company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client
     interview_date: date
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
@@ -647,6 +868,7 @@ class CandidateInterviewCreate(BaseModel):
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
+    position_id: Optional[int] = None
 
 
 model_config = {
@@ -672,6 +894,7 @@ class CandidateInterviewUpdate(BaseModel):
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
+    position_id: Optional[int] = None
 
 
 # --- Output Schema ---
@@ -681,6 +904,8 @@ class CandidateInterviewOut(CandidateInterviewBase):
     instructor1_name: Optional[str] = None
     instructor2_name: Optional[str] = None
     instructor3_name: Optional[str] = None
+    position_title: Optional[str] = None
+    position_company: Optional[str] = None
     last_mod_datetime: Optional[datetime] = None
 
     class Config:
@@ -736,11 +961,12 @@ class PlacementFeeUpdate(BaseModel):
 class PlacementFeeOut(PlacementFeeBase):
     id: int
     candidate_name: Optional[str] = None
+    company_name: Optional[str] = None
     lastmod_user_name: Optional[str] = None
     last_mod_date: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # -----------------------------------------------------------------------------------
 
@@ -779,10 +1005,82 @@ class VendorContactExtract(BaseModel):
     moved_to_vendor: Optional[bool] = None
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
-
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
     model_config = {
         "from_attributes": True
     }
+
+
+# -------------------- Projects Schemas --------------------
+
+class ProjectBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    owner: str
+    start_date: date
+    target_end_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: Optional[Literal['Low', 'Medium', 'High', 'Critical']] = 'Medium'
+    status: Optional[Literal['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled']] = 'Planned'
+
+class ProjectCreate(ProjectBase):
+    pass
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    owner: Optional[str] = None
+    start_date: Optional[date] = None
+    target_end_date: Optional[date] = None
+    end_date: Optional[date] = None
+    priority: Optional[Literal['Low', 'Medium', 'High', 'Critical']] = None
+    status: Optional[Literal['Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled']] = None
+
+class ProjectOut(ProjectBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+# -------------------- Employee Task Schemas (Updated) --------------------
+
+class EmployeeTaskBase(BaseModel):
+    employee_id: int
+    project_id: Optional[int] = None
+    task: str
+    assigned_date: date
+    due_date: Optional[date] = None
+    status: Optional[str] = "pending"
+    priority: Optional[str] = "medium"
+    notes: Optional[str] = None
+    employee_name: Optional[str] = None # Helper for UI
+
+class EmployeeTaskCreate(EmployeeTaskBase):
+    employee_name: Optional[str] = None
+    project_name: Optional[str] = None
+
+class EmployeeTaskUpdate(BaseModel):
+    employee_id: Optional[int] = None
+    project_id: Optional[int] = None
+    task: Optional[str] = None
+    assigned_date: Optional[date] = None
+    due_date: Optional[date] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    notes: Optional[str] = None
+    employee_name: Optional[str] = None
+    project_name: Optional[str] = None
+
+class EmployeeTask(EmployeeTaskBase):
+    id: int
+    project_name: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
 
 
 # ------------------------------------Innovapath----------------------------
@@ -810,6 +1108,8 @@ class VendorContactExtractCreate(BaseModel):
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
     location: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 class VendorContactExtractUpdate(BaseModel):
@@ -823,6 +1123,8 @@ class VendorContactExtractUpdate(BaseModel):
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
     linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+    job_source: Optional[str] = None
 
 
 
@@ -1491,12 +1793,14 @@ class SessionBase(BaseModel):
     title: Optional[str] = None
     status: str
     link: Optional[str] = None
+    backup_url: Optional[str] = None
     videoid: Optional[str] = None
     subject: Optional[str] = None
     type: Optional[str] = None
     sessiondate: Optional[date] = None
     lastmoddatetime: Optional[datetime] = None
     subject_id: int
+    notes: Optional[str] = None
 
 
 class SessionCreate(SessionBase):
@@ -1677,29 +1981,7 @@ class BatchClassSummary(BaseModel):
 
 
 
-class EmployeeTaskBase(BaseModel): 
-    employee_name: str | None = None 
-    task: str 
-    assigned_date: date 
-    due_date: date | None = None 
-    status: str 
-    priority: str 
-    notes: str | None = None 
-class EmployeeTaskCreate(EmployeeTaskBase): 
-    pass
-class EmployeeTaskUpdate(BaseModel):
-    employee_name: Optional[str]
-    task: Optional[str]
-    assigned_date: Optional[date]
-    due_date: Optional[date]
-    status: Optional[str] = "pending"
-    priority: Optional[str] = "medium"
-    notes: Optional[str]
-
-class EmployeeTask(EmployeeTaskBase): 
-    id: int 
-    class Config: 
-        from_attributes = True
+# Duplicate EmployeeTask schemas removed.
 
 
 # --------------------------------------------Password----------------------------
@@ -1815,6 +2097,17 @@ class JobActivityLogUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class JobActivityLogBulkCreate(BaseModel):
+    logs: List[JobActivityLogCreate]
+
+
+class JobActivityLogBulkResponse(BaseModel):
+    inserted: int
+    failed: int
+    total: int
+    failed_logs: List[dict] = []
+
+
 class JobActivityLogOut(JobActivityLogBase):
     id: int
     last_mod_date: Optional[datetime] = None
@@ -1888,3 +2181,268 @@ class PaginatedJobAutomationKeywords(BaseModel):
     page: int
     per_page: int
     keywords: List[JobAutomationKeywordOut]
+
+
+# -------------------- Company HR Contact Schemas --------------------
+class CompanyHRContactBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: bool = False
+
+class CompanyHRContactCreate(CompanyHRContactBase):
+    full_name: str
+    email: EmailStr
+
+class CompanyHRContactUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    location: Optional[str] = None
+    job_title: Optional[str] = None
+    is_immigration_team: Optional[bool] = None
+
+class CompanyHRContactOut(CompanyHRContactBase):
+    id: int
+    extraction_date: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# -------------------- Job Definition Schemas --------------------
+class JobDefinitionBase(BaseModel):
+    job_type: str
+    status: str = "ACTIVE"
+    candidate_marketing_id: int
+    config_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobDefinitionCreate(JobDefinitionBase):
+    pass
+
+
+class JobDefinitionUpdate(BaseModel):
+    job_type: Optional[str] = None
+    status: Optional[str] = None
+    candidate_marketing_id: Optional[int] = None
+    config_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobDefinitionOut(JobDefinitionBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Schedule Schemas --------------------
+class JobScheduleBase(BaseModel):
+    job_definition_id: int
+    timezone: str = "America/Los_Angeles"
+    frequency: str
+    interval_value: int = 1
+    next_run_at: datetime
+    last_run_at: Optional[datetime] = None
+    lock_token: Optional[str] = None
+    lock_expires_at: Optional[datetime] = None
+    enabled: bool = True
+    manually_triggered: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobScheduleCreate(JobScheduleBase):
+    pass
+
+
+class JobScheduleUpdate(BaseModel):
+    job_definition_id: Optional[int] = None
+    timezone: Optional[str] = None
+    frequency: Optional[str] = None
+    interval_value: Optional[int] = None
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None
+    lock_token: Optional[str] = None
+    lock_expires_at: Optional[datetime] = None
+    enabled: Optional[bool] = None
+    manually_triggered: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobScheduleOut(JobScheduleBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Run Schemas --------------------
+class JobRunBase(BaseModel):
+    job_definition_id: int
+    job_schedule_id: int
+    run_status: str = "RUNNING"
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    items_total: int = 0
+    items_succeeded: int = 0
+    items_failed: int = 0
+    error_message: Optional[str] = None
+    details_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRunCreate(JobRunBase):
+    pass
+
+
+class JobRunUpdate(BaseModel):
+    job_definition_id: Optional[int] = None
+    job_schedule_id: Optional[int] = None
+    run_status: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    items_total: Optional[int] = None
+    items_succeeded: Optional[int] = None
+    items_failed: Optional[int] = None
+    error_message: Optional[str] = None
+    details_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRunOut(JobRunBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Request Schemas --------------------
+class JobRequestBase(BaseModel):
+    job_type: str
+    candidate_marketing_id: int
+    status: str = "PENDING"
+    requested_at: datetime
+    processed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRequestCreate(BaseModel):
+    job_type: str
+    candidate_marketing_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRequestUpdate(BaseModel):
+    status: Optional[str] = None
+    processed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRequestOut(JobRequestBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Email Sender Engine Schemas --------------------
+class EmailSenderEngineBase(BaseModel):
+    engine_name: str
+    provider: str
+    is_active: bool = True
+    priority: int = 1
+    credentials_json: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EmailSenderEngineCreate(EmailSenderEngineBase):
+    pass
+
+
+class EmailSenderEngineUpdate(BaseModel):
+    engine_name: Optional[str] = None
+    provider: Optional[str] = None
+    is_active: Optional[bool] = None
+    priority: Optional[int] = None
+    credentials_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EmailSenderEngineOut(EmailSenderEngineBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Outreach Contact Schemas --------------------
+class OutreachContactBase(BaseModel):
+    email: str
+    source_type: Optional[str] = "CAMPAIGN"
+    source_id: Optional[int] = None
+    status: str = "active"
+    unsubscribe_flag: bool = False
+    bounce_flag: bool = False
+    complaint_flag: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OutreachContactCreate(OutreachContactBase):
+    pass
+
+
+class OutreachContactUpdate(BaseModel):
+    email: Optional[str] = None
+    source_type: Optional[str] = None
+    source_id: Optional[int] = None
+    status: Optional[str] = None
+    unsubscribe_flag: Optional[bool] = None
+    bounce_flag: Optional[bool] = None
+    complaint_flag: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OutreachContactOut(OutreachContactBase):
+    id: int
+    email_lc: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+class EmployeeDashboardMetrics(BaseModel):
+    employee_info: Employee
+    placements: List[CandidatePlacement]
+    assigned_prep_candidates: List[CandidatePreparationOut]
+    assigned_marketing_candidates: List[CandidateMarketing]
+    pending_tasks: List[EmployeeTask]
+    job_help_candidates: List[CandidatePlacement]
+    classes: List[Recording]
+    sessions: List[Session]
+    is_birthday: bool = False
+
+    model_config = {
+        "from_attributes": True
+    }

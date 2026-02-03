@@ -214,6 +214,66 @@ def delete_job_activity_log(db: Session, log_id: int) -> Dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 
+def insert_job_activity_logs_bulk(
+    db: Session, 
+    logs: List[JobActivityLogCreate], 
+    current_user
+) -> Dict[str, Any]:
+    """Bulk insert job activity logs"""
+    inserted = 0
+    failed = 0
+    failed_logs = []
+
+    # Get employee ID for lastmod_user_id
+    lastmod_user_id = None
+    lastmod_employee = db.query(EmployeeORM).filter(EmployeeORM.email == current_user.uname).first()
+    if lastmod_employee:
+        lastmod_user_id = lastmod_employee.id
+
+    for log_data in logs:
+        try:
+            payload = log_data.dict()
+            
+            # Basic validation
+            _validate_job_activity_log_references(db, payload)
+            
+            # Set lastmod
+            payload["lastmod_user_id"] = lastmod_user_id
+            
+            # Convert job_id to job_type_id
+            if "job_id" in payload:
+                payload["job_type_id"] = payload.pop("job_id")
+            
+            new_log = JobActivityLogORM(**payload)
+            db.add(new_log)
+            inserted += 1
+            
+            # Flush every 50 records
+            if inserted % 50 == 0:
+                db.flush()
+                
+        except Exception as e:
+            failed += 1
+            failed_logs.append({
+                "candidate_id": log_data.candidate_id,
+                "reason": str(e)
+            })
+            logger.error(f"Failed to insert activity log for candidate {log_data.candidate_id}: {str(e)}")
+
+    try:
+        db.commit()
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Bulk commit failed: {str(e)}")
+
+    return {
+        "inserted": inserted,
+        "failed": failed,
+        "total": len(logs),
+        "failed_logs": failed_logs
+    }
+
+
 def get_all_job_types(db: Session):
     try:
         from sqlalchemy.orm import aliased
@@ -423,5 +483,3 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         db.rollback()
         logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
-
-

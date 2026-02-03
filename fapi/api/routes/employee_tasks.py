@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from fapi.db import schemas
 from fapi.db.database import get_db
 from fapi.utils.employeetasks_utils import (
@@ -13,12 +13,12 @@ from fapi.utils.employeetasks_utils import (
 router = APIRouter()
 
 
-@router.get("/employee-tasks", response_model=List[schemas.EmployeeTask])
-def read_tasks(db: Session = Depends(get_db)):
-    return get_all_tasks(db)
+@router.get("/employee-tasks/", response_model=List[schemas.EmployeeTask])
+def read_tasks(project_id: Optional[int] = None, employee_id: Optional[int] = None, db: Session = Depends(get_db)):
+    return get_all_tasks(db, project_id, employee_id)
 
 
-@router.post("/employee-tasks", response_model=schemas.EmployeeTask)
+@router.post("/employee-tasks/", response_model=schemas.EmployeeTask)
 def create_new_task(task: schemas.EmployeeTaskCreate, db: Session = Depends(get_db)):
     return create_task(db, task)
 

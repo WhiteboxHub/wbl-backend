@@ -17,3 +17,6 @@ pydantic==2.11.10
 fastapi-mail==1.5.0
 requests
 httpx
+cryptography  # Required for MySQL 8.0 caching_sha2_password authentication
+
+

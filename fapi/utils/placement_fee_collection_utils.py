@@ -12,6 +12,7 @@ def list_placement_fees(db: Session):
     results = db.query(
         models.PlacementFeeCollection,
         models.CandidateORM.full_name.label("candidate_name"),
+        models.CandidatePlacementORM.company.label("company_name"),
         func.coalesce(models.AuthUserORM.fullname, models.AuthUserORM.uname).label("lastmod_user_name")
     ).outerjoin(
         models.CandidatePlacementORM,
@@ -22,14 +23,18 @@ def list_placement_fees(db: Session):
     ).outerjoin(
         models.AuthUserORM,
         models.PlacementFeeCollection.lastmod_user_id == models.AuthUserORM.id
+    ).order_by(
+        models.PlacementFeeCollection.placement_id.desc(),  # Newest placements first
+        models.PlacementFeeCollection.installment_id.asc()   # Installments in order
     ).all()
 
     fees = []
     # import logging
     # logger = logging.getLogger("wbl")
-    for fee, c_name, u_name in results:
+    for fee, c_name, comp_name, u_name in results:
         # logger.info(f"PlacementFee {fee.id}: candidate={c_name}, lastmod_user={u_name}")
         fee.candidate_name = c_name
+        fee.company_name = comp_name
         fee.lastmod_user_name = u_name.title() if u_name else None
         fees.append(fee)
     return fees
@@ -39,6 +44,7 @@ def get_placement_fee(db: Session, fee_id: int) -> Optional[models.PlacementFeeC
     result = db.query(
         models.PlacementFeeCollection,
         models.CandidateORM.full_name.label("candidate_name"),
+        models.CandidatePlacementORM.company.label("company_name"),
         func.coalesce(models.AuthUserORM.fullname, models.AuthUserORM.uname).label("lastmod_user_name")
     ).outerjoin(
         models.CandidatePlacementORM,
@@ -54,8 +60,9 @@ def get_placement_fee(db: Session, fee_id: int) -> Optional[models.PlacementFeeC
     ).first()
 
     if result:
-        fee, c_name, u_name = result
+        fee, c_name, comp_name, u_name = result
         fee.candidate_name = c_name
+        fee.company_name = comp_name
         fee.lastmod_user_name = u_name
         return fee
     return None

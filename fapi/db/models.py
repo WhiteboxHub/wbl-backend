@@ -1,21 +1,15 @@
-from pydantic import BaseModel, EmailStr, Field
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy.sql import func
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from sqlalchemy import Integer
-
+from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum
 
 Base = declarative_base()
 
 
-class UserCreate(BaseModel):
-    uname: str
-    passwd: str
 
 # -----------------------------------------------------
 
@@ -46,35 +40,9 @@ class AuthUserORM(Base):
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
     role = Column(String(100))
-    visa_status = Column(String(50))
+    visa_status = Column(String(100), nullable=True)
     notes = Column(Text)
 
-
-# ----------------------------------------------
-class ContactForm(BaseModel):
-    firstName: str
-    lastName: str
-    email: str
-    phone: str
-    message: str
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class EmailRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPassword(BaseModel):
-    token: str
-    new_password: str
 
 
 # ------------------------------------------- Leads----------------------------------------
@@ -87,7 +55,7 @@ class LeadORM(Base):
     entry_date = Column(DateTime)
     phone = Column(String(20))
     email = Column(String(255), nullable=False)
-    workstatus = Column(String(50), default="Waiting for Status")
+    workstatus = Column(String(100), nullable=True)
     status = Column(String(45), nullable=False, server_default="Open")
     secondary_email = Column(String(255))
     secondary_phone = Column(String(20))
@@ -206,7 +174,7 @@ class CandidateORM(Base):
     phone = Column(String(100), nullable=True)
     status = Column(Enum('active', 'inactive', 'discontinued',
                     'break', 'closed', name='status_enum'), nullable=True)
-    workstatus = Column(String(50), nullable=True)
+    workstatus = Column(String(100), nullable=True)
     education = Column(String(200), nullable=True)
     workexperience = Column(String(200), nullable=True)
     ssn = Column(String(11), nullable=True)
@@ -214,6 +182,7 @@ class CandidateORM(Base):
     secondaryemail = Column(String(100), nullable=True)
     secondaryphone = Column(String(45), nullable=True)
     address = Column(String(300), nullable=True)
+    # zip_code = Column(String(20), nullable=True)
     linkedin_id = Column(String(100), nullable=True)
     dob = Column(Date, nullable=True)
     emergcontactname = Column(String(100), nullable=True)
@@ -227,6 +196,7 @@ class CandidateORM(Base):
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
 
+
     interviews = relationship(
         "CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
     preparations = relationship(
@@ -235,20 +205,16 @@ class CandidateORM(Base):
         "CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship(
         "CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate")
-    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
 
+    # Extra relationship aliases with 'overlaps' to satisfy SQLAlchemy warnings
+    preparation_records = relationship(
+        "CandidatePreparation", back_populates="candidate", overlaps="preparations")
     interview_records = relationship(
-        "CandidateInterview", back_populates="candidate")
+        "CandidateInterview", back_populates="candidate", overlaps="interviews")
     placement_records = relationship(
-        "CandidatePlacementORM", back_populates="candidate")
-    placement_records = relationship(
-        "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
+        "CandidatePlacementORM", back_populates="candidate", overlaps="placements")
 
     batch = relationship("Batch", back_populates="candidates")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
 
 # --------------------- Candidate Marketing -----------------
 
@@ -279,6 +245,8 @@ class CandidateMarketingORM(Base):
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
+    mass_email = Column(Boolean, nullable=False, server_default="0")
+    candidate_intro = Column(Text, nullable=True)
 
     # Relationships
     candidate = relationship(
@@ -295,7 +263,7 @@ class CandidateInterview(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-    candidate = relationship("CandidateORM", back_populates="interviews")
+    candidate = relationship("CandidateORM", back_populates="interviews", overlaps="interview_records")
 
     company = Column(String(200), nullable=False)
     company_type = Column(
@@ -345,8 +313,11 @@ class CandidateInterview(Base):
     )
 
     notes = Column(Text, nullable=True)
+    # position_id = Column(BigInteger, ForeignKey("position.id", ondelete="SET NULL"), nullable=True)
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    # position = relationship("PositionORM")
 
 
 # -------------------------------------- Candidate Placement -------------------------------
@@ -376,7 +347,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    candidate = relationship("CandidateORM", back_populates="placements")
+    candidate = relationship("CandidateORM", back_populates="placements", overlaps="placement_records")
 
 # -------------------------------------- Candidate Preparation -------------------------------
 
@@ -473,18 +444,10 @@ class EmployeeORM(Base):
     aadhaar = Column(String(20), nullable=True, unique=True)
     tasks = relationship("EmployeeTaskORM", back_populates="employee")
 
-class EmployeeTaskORM(Base):
-    __tablename__ = "employee_task" 
+    tasks = relationship("EmployeeTaskORM", back_populates="employee")
 
-    id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
-    task = Column(String(255), nullable=False)
-    assigned_date = Column(Date, nullable=False)
-    due_date = Column(Date, nullable=True)
-    status = Column(Enum("pending","in_progress","completed","blocked"), default="pending")
-    priority = Column(Enum("low","medium","high","urgent"), default="medium")
-    notes = Column(Text, nullable=True)
-    employee = relationship("EmployeeORM", back_populates="tasks")
+# Class EmployeeTaskORM moved to below ProjectORM to support relationship
+
 
 class CandidateStatus(str, enum.Enum):
     active = "active"
@@ -511,6 +474,8 @@ class VendorContactExtractsORM(Base):
     linkedin_internal_id = Column(String(255))
     extraction_date = Column(DateTime, nullable=True)
     source_email = Column(String(255), nullable=True)
+    notes = Column(String(500), nullable=True)
+    job_source = Column(String(100), nullable=True)
 
 # -------------------- ORM: vendor-daily-activity --------------------
 
@@ -678,7 +643,7 @@ class Session(Base):
     status = Column(String(45), nullable=False)
     link = Column(String(1024))
     videoid = Column(String(255))
-
+    backup_url = Column(String(200))
     type = Column(String(50))
     sessiondate = Column(DateTime)
     lastmoddatetime = Column(DateTime)
@@ -686,7 +651,7 @@ class Session(Base):
     subject_id = Column(Integer, nullable=False, default=0)
     # subject = relationship("Subject", back_populates="sessions")
     subject = Column(String(45))
-
+    notes = Column(String(100))
   # -------------------Internal documents--------------------
 
 
@@ -773,6 +738,7 @@ class JobAutomationKeywordORM(Base):
     )
 
 
+
 class CompanyHRContact(Base):
     __tablename__ = "company_hr_contacts"
 
@@ -785,3 +751,227 @@ class CompanyHRContact(Base):
     job_title = Column(String(255))
     is_immigration_team = Column(Boolean, default=False)
     extraction_date = Column(TIMESTAMP, server_default=func.now())
+
+
+
+# -------------------- Projects --------------------
+class ProjectORM(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    owner = Column(String(150), nullable=False)
+    start_date = Column(Date, nullable=False)
+    target_end_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    priority = Column(Enum('Low', 'Medium', 'High', 'Critical'), default='Medium')
+    status = Column(Enum('Planned', 'In Progress', 'Completed', 'On Hold', 'Cancelled'), default='Planned')
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    tasks = relationship("EmployeeTaskORM", back_populates="project")
+
+
+class EmployeeTaskORM(Base):
+    __tablename__ = "employee_task"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employee.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    task = Column(String(255), nullable=False)
+    assigned_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=True)
+    status = Column(Enum("pending", "in_progress", "completed", "blocked"), default="pending")
+    priority = Column(Enum("low", "medium", "high", "urgent"), default="medium")
+    notes = Column(Text, nullable=True)
+    
+    employee = relationship("EmployeeORM", back_populates="tasks")
+    project = relationship("ProjectORM", back_populates="tasks")
+
+
+# -------------------- Email Sender Engine --------------------
+class EmailSenderEngineORM(Base):
+    __tablename__ = "email_sender_engine"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    engine_name = Column(String(100), nullable=False)
+    provider = Column(String(30), nullable=False)  # smtp | aws_ses | sendgrid | mailgun
+    is_active = Column(Boolean, nullable=False, server_default="1")
+    priority = Column(Integer, nullable=False, server_default="1")
+    credentials_json = Column(Text, nullable=False)  # Use Text for JSON content compatibility
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+
+# -------------------- Job Definition --------------------
+class JobDefinitionORM(Base):
+    __tablename__ = "job_definition"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_type = Column(String(50), nullable=False)
+    status = Column(String(20), nullable=False, server_default="ACTIVE")
+    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=False)
+    config_json = Column(Text, nullable=True)  # JSON stored as TEXT
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
+
+    # Relationships
+    candidate_marketing = relationship("CandidateMarketingORM")
+    schedules = relationship("JobScheduleORM", back_populates="job_definition", cascade="all, delete-orphan")
+    runs = relationship("JobRunORM", back_populates="job_definition")
+
+
+# -------------------- Job Schedule --------------------
+class JobScheduleORM(Base):
+    __tablename__ = "job_schedule"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_definition_id = Column(BigInteger, ForeignKey("job_definition.id", ondelete="CASCADE"), nullable=False)
+    timezone = Column(String(64), nullable=False, server_default="America/Los_Angeles")
+    frequency = Column(String(20), nullable=False)
+    interval_value = Column(Integer, nullable=False, server_default="1")
+    next_run_at = Column(TIMESTAMP, nullable=False)
+    last_run_at = Column(TIMESTAMP, nullable=True)
+    lock_token = Column(String(64), nullable=True)
+    lock_expires_at = Column(TIMESTAMP, nullable=True)
+    enabled = Column(Boolean, nullable=False, server_default="1")
+    manually_triggered = Column(Boolean, nullable=False, server_default="0")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
+
+    # Relationships
+    job_definition = relationship("JobDefinitionORM", back_populates="schedules")
+    runs = relationship("JobRunORM", back_populates="job_schedule")
+
+
+# -------------------- Job Run --------------------
+class JobRunORM(Base):
+    __tablename__ = "job_run"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_definition_id = Column(BigInteger, ForeignKey("job_definition.id"), nullable=False)
+    job_schedule_id = Column(BigInteger, ForeignKey("job_schedule.id"), nullable=False)
+    run_status = Column(String(20), nullable=False, server_default="RUNNING")
+    started_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    finished_at = Column(TIMESTAMP, nullable=True)
+    items_total = Column(Integer, server_default="0")
+    items_succeeded = Column(Integer, server_default="0")
+    items_failed = Column(Integer, server_default="0")
+    error_message = Column(Text, nullable=True)
+    details_json = Column(Text, nullable=True)  # JSON stored as TEXT
+
+    # Relationships
+    job_definition = relationship("JobDefinitionORM", back_populates="runs")
+    job_schedule = relationship("JobScheduleORM", back_populates="runs")
+
+
+# -------------------- Job Request --------------------
+class JobRequestORM(Base):
+    __tablename__ = "job_request"
+    __table_args__ = (
+        UniqueConstraint('job_type', 'candidate_marketing_id', 'status', name='uq_jobreq'),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_type = Column(String(50), nullable=False)
+    candidate_marketing_id = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False, server_default="PENDING")
+    requested_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    processed_at = Column(TIMESTAMP, nullable=True)
+
+
+# -------------------- Outreach Contact --------------------
+class OutreachContactORM(Base):
+    __tablename__ = "outreach_contacts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, unique=True)
+    email_lc = Column(String(255), server_default=FetchedValue(), unique=True)
+    source_type = Column(String(50))  # CAMPAIGN | MANUAL | CSV
+    source_id = Column(Integer, nullable=True)
+    status = Column(String(30), nullable=False, server_default="active")
+    unsubscribe_flag = Column(Boolean, nullable=False, server_default="0")
+    unsubscribe_at = Column(TIMESTAMP, nullable=True)
+    unsubscribe_reason = Column(String(255), nullable=True)
+    bounce_flag = Column(Boolean, nullable=False, server_default="0")
+    complaint_flag = Column(Boolean, nullable=False, server_default="0")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+
+class RawPositionORM(Base):
+    __tablename__ = "raw_position"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
+    source = Column(String(50), nullable=False,
+                    comment='linkedin, email, job_board, scraper')
+    source_uid = Column(String(255), nullable=True,
+                        comment='external job id or message id')
+    extracted_at = Column(
+        TIMESTAMP, nullable=False, server_default=func.now())
+    extractor_version = Column(String(50), nullable=True)
+    raw_title = Column(String(500), nullable=True)
+    raw_company = Column(String(255), nullable=True)
+    raw_location = Column(String(255), nullable=True)
+    raw_zip = Column(String(20), nullable=True)
+    raw_description = Column(Text, nullable=True)
+    raw_contact_info = Column(
+        Text, nullable=True, comment='emails, phones, linkedin, free text')
+    raw_notes = Column(Text, nullable=True,
+                       comment='any additional extractor notes')
+    raw_payload = Column(
+        JSON, nullable=True, comment='full extractor payload if available')
+    processing_status = Column(SQLAEnum(ProcessingStatusEnum),
+                               nullable=False, server_default='new')
+    error_message = Column(Text, nullable=True)
+    processed_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False,
+                        server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_source_uid', 'source', 'source_uid'),
+        Index('idx_processing_status', 'processing_status'),
+        Index('idx_extracted_at', 'extracted_at'),
+    )
+
+
+class PositionORM(Base):
+    __tablename__ = "position"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    normalized_title = Column(
+        String(255), nullable=True, comment='standardized role name')
+    company_name = Column(String(255), nullable=False)
+    company_id = Column(Integer, nullable=True,
+                        comment='future reference to company table')
+    position_type = Column(SQLAEnum(PositionTypeEnum), nullable=True)
+    employment_mode = Column(SQLAEnum(EmploymentModeEnum), nullable=True)
+    source = Column(String(50), nullable=False,
+                    comment='linkedin, job_board, vendor, email')
+    source_uid = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    zip = Column(String(20), nullable=True)
+    country = Column(String(100), nullable=True)
+    contact_email = Column(String(255), nullable=True)
+    contact_phone = Column(String(50), nullable=True)
+    contact_linkedin = Column(String(255), nullable=True)
+    job_url = Column(String(500), nullable=True)
+    description = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    status = Column(SQLAEnum(PositionStatusEnum),
+                    nullable=False, server_default='open')
+    confidence_score = Column(DECIMAL(
+        5, 2), nullable=True, comment='extraction or matching confidence')
+    created_from_raw_id = Column(BigInteger, ForeignKey(
+        "raw_position.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('source', 'source_uid', name='uniq_source_job'),
+    )

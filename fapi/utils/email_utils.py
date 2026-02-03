@@ -8,8 +8,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
 from dotenv import load_dotenv
 
-from fapi.db.models import EmailRequest,  ContactForm
-from fapi.db.schemas import UserRegistration
+from fapi.db.schemas import UserRegistration, EmailRequest, ContactForm
 from fapi.mail.templets.registerMailTemplet import get_user_email_content, get_admin_email_content
 from fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
 from fapi.mail.templets.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template

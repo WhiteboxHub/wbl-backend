@@ -69,6 +69,8 @@ def create_user(db: Session, user: AuthUserCreate):
         team=user.team,
         role=user.role,
         status=user.status,
+        visa_status=user.visa_status,
+        lastmoddatetime=datetime.utcnow(),
         registereddate=datetime.utcnow(),
     )
     db.add(db_user)
@@ -89,6 +91,8 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
 
     for key, value in update_data.items():
         setattr(db_user, key, value)
+    
+    db_user.lastmoddatetime = datetime.utcnow()
 
     db.commit()
     db.refresh(db_user)
