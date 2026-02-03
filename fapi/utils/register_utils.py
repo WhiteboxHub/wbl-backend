@@ -57,6 +57,7 @@ def create_user_and_lead(db: Session, user: UserRegistration):
         role=user.role,
         visa_status=user.visa_status,
         notes=notes_text,
+        lastmoddatetime=datetime.utcnow()
        
     )
 

@@ -546,6 +546,7 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
             .joinedload(CandidatePreparation.instructor3),
+            joinedload(CandidateInterview.position)
         )
         .filter(CandidateInterview.id == interview_id)
         .first()
@@ -566,6 +567,7 @@ def list_interviews_with_instructors(db: Session):
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
             .joinedload(CandidatePreparation.instructor3),
+            joinedload(CandidateInterview.position)
         )
         .order_by(CandidateInterview.interview_date.desc())
         .all()
@@ -586,6 +588,10 @@ def serialize_interview(interview: CandidateInterview) -> dict:
             data["instructor2_name"] = prep.instructor2.name
         if prep.instructor3:
             data["instructor3_name"] = prep.instructor3.name
+
+    if interview.position:
+        data["position_title"] = interview.position.title
+        data["position_company"] = interview.position.company_name
 
     return data
 
