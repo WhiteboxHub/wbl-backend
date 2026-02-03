@@ -525,9 +525,6 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
         data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
-    # Remove position_id if present as it's not in DB
-    if "position_id" in data:
-        data.pop("position_id")
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
@@ -549,7 +546,7 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
             .joinedload(CandidatePreparation.instructor3),
-            # joinedload(CandidateInterview.position)
+            joinedload(CandidateInterview.position)
         )
         .filter(CandidateInterview.id == interview_id)
         .first()
@@ -570,7 +567,7 @@ def list_interviews_with_instructors(db: Session):
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
             .joinedload(CandidatePreparation.instructor3),
-            # joinedload(CandidateInterview.position)
+            joinedload(CandidateInterview.position)
         )
         .order_by(CandidateInterview.interview_date.desc())
         .all()
@@ -592,9 +589,9 @@ def serialize_interview(interview: CandidateInterview) -> dict:
         if prep.instructor3:
             data["instructor3_name"] = prep.instructor3.name
 
-    # if interview.position:
-    #     data["position_title"] = interview.position.title
-    #     data["position_company"] = interview.position.company_name
+    if interview.position:
+        data["position_title"] = interview.position.title
+        data["position_company"] = interview.position.company_name
 
     return data
 
@@ -612,8 +609,6 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
         )
 
     for key, value in update_data.items():
-        if key == "position_id":
-             continue
         setattr(db_obj, key, value)
 
     db.commit()
@@ -739,17 +734,6 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
                 status="active"
             )
             db.add(new_marketing)
-            db.flush() # Get marketing ID if needed, though req uses candidate_marketing_id
-            
-            # Create Job Request automatically
-            from fapi.db.models import JobRequestORM
-            new_request = JobRequestORM(
-                job_type="MASS_EMAIL",
-                candidate_marketing_id=new_marketing.id,
-                status="PENDING"
-            )
-            db.add(new_request)
-            logger.info(f"Triggered automatic JobRequest for candidate {candidate.id}")
 
     # Keep flag in sync with actual active marketing status
     final_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()
@@ -1195,4 +1179,3 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         
     except Exception as e:
         return {"error": str(e), "sessions_took": [], "sessions_attended": []}
-
