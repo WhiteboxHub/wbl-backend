@@ -212,7 +212,7 @@ class CandidateORM(Base):
     secondaryemail = Column(String(100), nullable=True)
     secondaryphone = Column(String(45), nullable=True)
     address = Column(String(300), nullable=True)
-    # zip_code = Column(String(20), nullable=True)
+    zip_code = Column(String(20), nullable=True)
     linkedin_id = Column(String(100), nullable=True)
     dob = Column(Date, nullable=True)
     emergcontactname = Column(String(100), nullable=True)
@@ -242,7 +242,7 @@ class CandidateORM(Base):
     interview_records = relationship(
         "CandidateInterview", back_populates="candidate", overlaps="interviews")
     placement_records = relationship(
-        "CandidatePlacementORM", back_populates="candidate", overlaps="placements")
+        "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
     batch = relationship("Batch", back_populates="candidates")
 
