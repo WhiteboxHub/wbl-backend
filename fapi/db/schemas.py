@@ -158,6 +158,39 @@ class RawPositionOut(RawPositionBase):
         from_attributes = True
 
 
+
+# Visa Status Enum
+class VisaStatusEnum(str, enum.Enum):
+    US_CITIZEN = "US_CITIZEN"
+    GREEN_CARD = "GREEN_CARD"
+    GC_EAD = "GC_EAD"
+    I485_EAD = "I485_EAD"
+    I140_APPROVED = "I140_APPROVED"
+    F1 = "F1"
+    F1_OPT = "F1_OPT"
+    F1_CPT = "F1_CPT"
+    J1 = "J1"
+    J1_AT = "J1_AT"
+    H1B = "H1B"
+    H1B_TRANSFER = "H1B_TRANSFER"
+    H1B_CAP_EXEMPT = "H1B_CAP_EXEMPT"
+    H4 = "H4"
+    H4_EAD = "H4_EAD"
+    L1A = "L1A"
+    L1B = "L1B"
+    L2 = "L2"
+    L2_EAD = "L2_EAD"
+    O1 = "O1"
+    TN = "TN"
+    E3 = "E3"
+    E3_EAD = "E3_EAD"
+    E2 = "E2"
+    E2_EAD = "E2_EAD"
+    TPS_EAD = "TPS_EAD"
+    ASYLUM_EAD = "ASYLUM_EAD"
+    REFUGEE_EAD = "REFUGEE_EAD"
+    DACA_EAD = "DACA_EAD"
+
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -298,7 +331,7 @@ class ResetPassword(BaseModel):
     reset_token: Optional[str] = None
     token_expiry: Optional[datetime] = None
     role: Optional[str] = None
-    visa_status: Optional[str] = None
+    visa_status: Optional[VisaStatusEnum] = None
     experience: Optional[str] = None
     education: Optional[str] = None
     referby: Optional[str] = None
@@ -322,7 +355,7 @@ class AuthUserBase(BaseModel):
     country: Optional[str] = None
     message: Optional[str] = None
     notes: Optional[str] = None
-    visa_status: Optional[str] = None
+    visa_status: Optional[VisaStatusEnum] = None
     googleId: Optional[str] = None
 
     @validator("uname", pre=True)
@@ -378,7 +411,7 @@ class LeadBase(BaseModel):
     entry_date: Optional[datetime] = None
     phone: Optional[str] = None
     email: EmailStr
-    workstatus: Optional[str] = None
+    workstatus: Optional[VisaStatusEnum] = None
     status: Optional[str] = "open"
     secondary_email: Optional[str] = None
     secondary_phone: Optional[str] = None
@@ -454,7 +487,7 @@ class CandidateBase(BaseModel):
     phone: Optional[str] = None
     status: Optional[Literal['active', 'inactive',
                              'discontinued', 'break', 'closed']] = None
-    workstatus: Optional[str] = None
+    workstatus: Optional[VisaStatusEnum] = None
     education: Optional[str] = None
     workexperience: Optional[str] = None
     ssn: Optional[str] = None
@@ -514,7 +547,7 @@ class CandidateUpdate(BaseModel):
     phone: Optional[str] = None
     status: Optional[Literal['active', 'inactive',
                              'discontinued', 'break', 'closed']] = None
-    workstatus: Optional[str] = None
+    workstatus: Optional[VisaStatusEnum] = None
     education: Optional[str] = None
     workexperience: Optional[str] = None
     ssn: Optional[str] = None
@@ -938,6 +971,7 @@ class PlacementFeeUpdate(BaseModel):
 class PlacementFeeOut(PlacementFeeBase):
     id: int
     candidate_name: Optional[str] = None
+    company_name: Optional[str] = None
     lastmod_user_name: Optional[str] = None
     last_mod_date: Optional[datetime] = None
 
