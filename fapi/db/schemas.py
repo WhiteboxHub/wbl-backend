@@ -617,6 +617,8 @@ class CandidateMarketingBase(BaseModel):
     linkedin_premium_end_date: Optional[date] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
+    mass_email: Optional[bool] = False
+    candidate_intro: Optional[str] = None
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -649,6 +651,8 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_premium_end_date: Optional[date] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
+    mass_email: Optional[bool] = None
+    candidate_intro: Optional[str] = None
 
 # -----------------------PLACEMENT---------------------------------
 
@@ -712,9 +716,6 @@ class InstructorOut(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# =====================================employee  --hkd ========================
 
 
 # ------------------hkd-------------------------
@@ -807,9 +808,6 @@ class CandidatePreparationOut(BaseModel):
 
 # ---------Interview-------------------------------
 
-# --- Updated Enums ---
-
-
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
     in_person = "In Person"
@@ -829,7 +827,6 @@ class FeedbackEnum(str, Enum):
     pending = "Pending"
     positive = "Positive"
     negative = "Negative"
-
 
 class CompanyTypeEnum(str, Enum):
     client = "client"
@@ -937,11 +934,8 @@ class ActiveMarketingCandidate(BaseModel):
 
     class Config:
         from_attributes = True
-# -----------------------------------------------------------------------------------
-
 
 # -----------------------------Placement_Fee_Collection---------------------------------
-
 
 class AmountCollectedEnum(str, enum.Enum):
     yes = "yes"
@@ -1230,7 +1224,6 @@ class VendorMetrics(BaseModel):
         from_attributes = True
 
 # ---------------daily-vendor-activity --------------
-
 
 class YesNoEnum(str, Enum):
     YES = "YES"
@@ -2223,6 +2216,224 @@ class CompanyHRContactOut(CompanyHRContactBase):
 
     class Config:
         from_attributes = True
+
+
+# -------------------- Job Definition Schemas --------------------
+class JobDefinitionBase(BaseModel):
+    job_type: str
+    status: str = "ACTIVE"
+    candidate_marketing_id: int
+    config_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobDefinitionCreate(JobDefinitionBase):
+    pass
+
+
+class JobDefinitionUpdate(BaseModel):
+    job_type: Optional[str] = None
+    status: Optional[str] = None
+    candidate_marketing_id: Optional[int] = None
+    config_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobDefinitionOut(JobDefinitionBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Schedule Schemas --------------------
+class JobScheduleBase(BaseModel):
+    job_definition_id: int
+    timezone: str = "America/Los_Angeles"
+    frequency: str
+    interval_value: int = 1
+    next_run_at: datetime
+    last_run_at: Optional[datetime] = None
+    lock_token: Optional[str] = None
+    lock_expires_at: Optional[datetime] = None
+    enabled: bool = True
+    manually_triggered: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobScheduleCreate(JobScheduleBase):
+    pass
+
+
+class JobScheduleUpdate(BaseModel):
+    job_definition_id: Optional[int] = None
+    timezone: Optional[str] = None
+    frequency: Optional[str] = None
+    interval_value: Optional[int] = None
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None
+    lock_token: Optional[str] = None
+    lock_expires_at: Optional[datetime] = None
+    enabled: Optional[bool] = None
+    manually_triggered: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobScheduleOut(JobScheduleBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Run Schemas --------------------
+class JobRunBase(BaseModel):
+    job_definition_id: int
+    job_schedule_id: int
+    run_status: str = "RUNNING"
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    items_total: int = 0
+    items_succeeded: int = 0
+    items_failed: int = 0
+    error_message: Optional[str] = None
+    details_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRunCreate(JobRunBase):
+    pass
+
+
+class JobRunUpdate(BaseModel):
+    job_definition_id: Optional[int] = None
+    job_schedule_id: Optional[int] = None
+    run_status: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    items_total: Optional[int] = None
+    items_succeeded: Optional[int] = None
+    items_failed: Optional[int] = None
+    error_message: Optional[str] = None
+    details_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRunOut(JobRunBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Request Schemas --------------------
+class JobRequestBase(BaseModel):
+    job_type: str
+    candidate_marketing_id: int
+    status: str = "PENDING"
+    requested_at: datetime
+    processed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRequestCreate(BaseModel):
+    job_type: str
+    candidate_marketing_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRequestUpdate(BaseModel):
+    status: Optional[str] = None
+    processed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class JobRequestOut(JobRequestBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Email Sender Engine Schemas --------------------
+class EmailSenderEngineBase(BaseModel):
+    engine_name: str
+    provider: str
+    is_active: bool = True
+    priority: int = 1
+    credentials_json: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EmailSenderEngineCreate(EmailSenderEngineBase):
+    pass
+
+
+class EmailSenderEngineUpdate(BaseModel):
+    engine_name: Optional[str] = None
+    provider: Optional[str] = None
+    is_active: Optional[bool] = None
+    priority: Optional[int] = None
+    credentials_json: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EmailSenderEngineOut(EmailSenderEngineBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Outreach Contact Schemas --------------------
+class OutreachContactBase(BaseModel):
+    email: str
+    source_type: Optional[str] = "CAMPAIGN"
+    source_id: Optional[int] = None
+    status: str = "active"
+    unsubscribe_flag: bool = False
+    bounce_flag: bool = False
+    complaint_flag: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OutreachContactCreate(OutreachContactBase):
+    pass
+
+
+class OutreachContactUpdate(BaseModel):
+    email: Optional[str] = None
+    source_type: Optional[str] = None
+    source_id: Optional[int] = None
+    status: Optional[str] = None
+    unsubscribe_flag: Optional[bool] = None
+    bounce_flag: Optional[bool] = None
+    complaint_flag: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OutreachContactOut(OutreachContactBase):
+    id: int
+    email_lc: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 class EmployeeDashboardMetrics(BaseModel):

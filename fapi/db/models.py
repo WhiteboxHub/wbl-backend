@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -249,7 +249,6 @@ class CandidateORM(Base):
     batch = relationship("Batch", back_populates="candidates")
     preparation_records = relationship(
         "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
-
 # --------------------- Candidate Marketing -----------------
 
 
@@ -279,6 +278,8 @@ class CandidateMarketingORM(Base):
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
+    mass_email = Column(Boolean, nullable=False, server_default="0")
+    candidate_intro = Column(Text, nullable=True)
 
     # Relationships
     candidate = relationship(
@@ -820,6 +821,116 @@ class EmployeeTaskORM(Base):
     
     employee = relationship("EmployeeORM", back_populates="tasks")
     project = relationship("ProjectORM", back_populates="tasks")
+
+
+# -------------------- Email Sender Engine --------------------
+class EmailSenderEngineORM(Base):
+    __tablename__ = "email_sender_engine"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    engine_name = Column(String(100), nullable=False)
+    provider = Column(String(30), nullable=False)  # smtp | aws_ses | sendgrid | mailgun
+    is_active = Column(Boolean, nullable=False, server_default="1")
+    priority = Column(Integer, nullable=False, server_default="1")
+    credentials_json = Column(Text, nullable=False)  # Use Text for JSON content compatibility
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+
+# -------------------- Job Definition --------------------
+class JobDefinitionORM(Base):
+    __tablename__ = "job_definition"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_type = Column(String(50), nullable=False)
+    status = Column(String(20), nullable=False, server_default="ACTIVE")
+    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=False)
+    config_json = Column(Text, nullable=True)  # JSON stored as TEXT
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
+
+    # Relationships
+    candidate_marketing = relationship("CandidateMarketingORM")
+    schedules = relationship("JobScheduleORM", back_populates="job_definition", cascade="all, delete-orphan")
+    runs = relationship("JobRunORM", back_populates="job_definition")
+
+
+# -------------------- Job Schedule --------------------
+class JobScheduleORM(Base):
+    __tablename__ = "job_schedule"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_definition_id = Column(BigInteger, ForeignKey("job_definition.id", ondelete="CASCADE"), nullable=False)
+    timezone = Column(String(64), nullable=False, server_default="America/Los_Angeles")
+    frequency = Column(String(20), nullable=False)
+    interval_value = Column(Integer, nullable=False, server_default="1")
+    next_run_at = Column(TIMESTAMP, nullable=False)
+    last_run_at = Column(TIMESTAMP, nullable=True)
+    lock_token = Column(String(64), nullable=True)
+    lock_expires_at = Column(TIMESTAMP, nullable=True)
+    enabled = Column(Boolean, nullable=False, server_default="1")
+    manually_triggered = Column(Boolean, nullable=False, server_default="0")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
+
+    # Relationships
+    job_definition = relationship("JobDefinitionORM", back_populates="schedules")
+    runs = relationship("JobRunORM", back_populates="job_schedule")
+
+
+# -------------------- Job Run --------------------
+class JobRunORM(Base):
+    __tablename__ = "job_run"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_definition_id = Column(BigInteger, ForeignKey("job_definition.id"), nullable=False)
+    job_schedule_id = Column(BigInteger, ForeignKey("job_schedule.id"), nullable=False)
+    run_status = Column(String(20), nullable=False, server_default="RUNNING")
+    started_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    finished_at = Column(TIMESTAMP, nullable=True)
+    items_total = Column(Integer, server_default="0")
+    items_succeeded = Column(Integer, server_default="0")
+    items_failed = Column(Integer, server_default="0")
+    error_message = Column(Text, nullable=True)
+    details_json = Column(Text, nullable=True)  # JSON stored as TEXT
+
+    # Relationships
+    job_definition = relationship("JobDefinitionORM", back_populates="runs")
+    job_schedule = relationship("JobScheduleORM", back_populates="runs")
+
+
+# -------------------- Job Request --------------------
+class JobRequestORM(Base):
+    __tablename__ = "job_request"
+    __table_args__ = (
+        UniqueConstraint('job_type', 'candidate_marketing_id', 'status', name='uq_jobreq'),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    job_type = Column(String(50), nullable=False)
+    candidate_marketing_id = Column(Integer, nullable=False)
+    status = Column(String(20), nullable=False, server_default="PENDING")
+    requested_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    processed_at = Column(TIMESTAMP, nullable=True)
+
+
+# -------------------- Outreach Contact --------------------
+class OutreachContactORM(Base):
+    __tablename__ = "outreach_contacts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, unique=True)
+    email_lc = Column(String(255), server_default=FetchedValue(), unique=True)
+    source_type = Column(String(50))  # CAMPAIGN | MANUAL | CSV
+    source_id = Column(Integer, nullable=True)
+    status = Column(String(30), nullable=False, server_default="active")
+    unsubscribe_flag = Column(Boolean, nullable=False, server_default="0")
+    unsubscribe_at = Column(TIMESTAMP, nullable=True)
+    unsubscribe_reason = Column(String(255), nullable=True)
+    bounce_flag = Column(Boolean, nullable=False, server_default="0")
+    complaint_flag = Column(Boolean, nullable=False, server_default="0")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
 
 
 class RawPositionORM(Base):

@@ -18,7 +18,7 @@ def get_talent_search(
     availability: Optional[str] = None,
     skills: Optional[str] = None,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = None,
 ):
     try:
         candidates = get_talent_search_filtered(db, role, experience, location, availability, skills)

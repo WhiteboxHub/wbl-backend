@@ -6,9 +6,11 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
-    jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects, position, raw_position,employee_dashboard
-
+    jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
+    position, raw_position, employee_dashboard, job_definition, job_schedule, job_run, 
+    job_request, email_engine, outreach_contact, job_trigger, remote_worker
 )
+from fapi.email_orchestrator import start_background_orchestrator
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,14 +22,19 @@ app = FastAPI(title="WBL Backend")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wbl")
 
+
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://whitebox-learning.com",
         "https://www.whitebox-learning.com",
+        "https://innova-path.com",
+        "https://www.innova-path.com",
         "https://wbl-frontend-560359652969.us-central1.run.app",
         "http://localhost:3000",
-        "http://localhost:8000"  
+        "http://127.0.0.1:8000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -44,6 +51,8 @@ async def log_exceptions(request: Request, call_next):
                      request.method, request.url)
         logger.error(traceback.format_exc())
         raise
+
+
 
 
 def get_db():
@@ -107,7 +116,23 @@ app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], depend
 app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
+
+# New Job Automation Routers
+app.include_router(job_definition.router, prefix="/api", tags=["Job Definition"], dependencies=[Depends(enforce_access)])
+app.include_router(job_schedule.router, prefix="/api", tags=["Job Schedule"], dependencies=[Depends(enforce_access)])
+app.include_router(job_run.router, prefix="/api", tags=["Job Run"], dependencies=[Depends(enforce_access)])
+app.include_router(job_request.router, prefix="/api", tags=["Job Request"], dependencies=[Depends(enforce_access)])
+app.include_router(email_engine.router, prefix="/api", tags=["Email Engine"], dependencies=[Depends(enforce_access)])
+app.include_router(outreach_contact.router, prefix="/api", tags=["Outreach Contact"], dependencies=[Depends(enforce_access)])
+app.include_router(job_trigger.router, prefix="/api", tags=["Job Trigger"], dependencies=[Depends(enforce_access)])
+app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
+
+
+
+
+
+
 
