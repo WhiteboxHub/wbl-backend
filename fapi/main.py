@@ -18,15 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import traceback
 
+app = FastAPI(title="WBL Backend")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wbl")
 
-app = FastAPI(title="WBL Backend")
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Starting background services...")
-    start_background_orchestrator()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,9 +54,6 @@ async def log_exceptions(request: Request, call_next):
         raise
 
 
-@app.get("/api/ping")
-def ping():
-    return {"status": "ok", "message": "Backend is alive and reloading"}
 
 
 def get_db():
@@ -133,3 +128,5 @@ app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
+
+
