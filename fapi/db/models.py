@@ -235,17 +235,20 @@ class CandidateORM(Base):
         "CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship(
         "CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
-
-    # Extra relationship aliases with 'overlaps' to satisfy SQLAlchemy warnings
     preparation_records = relationship(
         "CandidatePreparation", back_populates="candidate")
+    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
+
     interview_records = relationship(
-        "CandidateInterview", back_populates="candidate", overlaps="interviews")
+        "CandidateInterview", back_populates="candidate")
+    placement_records = relationship(
+        "CandidatePlacementORM", back_populates="candidate")
     placement_records = relationship(
         "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
 
     batch = relationship("Batch", back_populates="candidates")
-
+    preparation_records = relationship(
+        "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
 # --------------------- Candidate Marketing -----------------
 
 
