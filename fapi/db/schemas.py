@@ -102,7 +102,6 @@ class UserRegistration(BaseModel):
     passwd: str
     team: Optional[str] = None
     status: Optional[str] = None
-    # lastlogin: Optional[datetime] = None
     logincount: Optional[int] = None
     firstname: Optional[str] = None
     lastname: Optional[str] = None
@@ -500,9 +499,6 @@ class InstructorOut(BaseModel):
         from_attributes = True
 
 
-# =====================================employee  --hkd ========================
-
-
 # ------------------hkd-------------------------
 class CandidatePreparationBase(BaseModel):
     id: int
@@ -544,7 +540,6 @@ class CandidatePreparationCreate(BaseModel):
     target_date: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = False
-    # linkedin_id: Optional[str] = None
     github_url: Optional[str] = None
     resume_url: Optional[str] = None
 
@@ -561,7 +556,6 @@ class CandidatePreparationUpdate(BaseModel):
     target_date: Optional[date] = None
     notes: Optional[str] = None
     move_to_mrkt: Optional[bool] = None
-    # linkedin_id: Optional[str] = None
     github_url: Optional[str] = None
     resume_url: Optional[str] = None
 
@@ -577,7 +571,6 @@ class CandidatePreparationOut(BaseModel):
     notes: Optional[str] = None
     last_mod_datetime: Optional[datetime] = None
     move_to_mrkt: Optional[bool] = None
-    # linkedin_id: Optional[str] = None
     github_url: Optional[str] = None
     resume_url: Optional[str] = None
 
@@ -591,9 +584,6 @@ class CandidatePreparationOut(BaseModel):
         populate_by_name = True
 
 # ---------Interview-------------------------------
-
-# --- Updated Enums ---
-
 
 class ModeOfInterviewEnum(str, Enum):
     virtual = "Virtual"
@@ -614,7 +604,6 @@ class FeedbackEnum(str, Enum):
     pending = "Pending"
     positive = "Positive"
     negative = "Negative"
-
 
 class CompanyTypeEnum(str, Enum):
     client = "client"
@@ -716,11 +705,8 @@ class ActiveMarketingCandidate(BaseModel):
 
     class Config:
         from_attributes = True
-# -----------------------------------------------------------------------------------
-
 
 # -----------------------------Placement_Fee_Collection---------------------------------
-
 
 class AmountCollectedEnum(str, enum.Enum):
     yes = "yes"
@@ -932,7 +918,6 @@ class VendorMetrics(BaseModel):
         from_attributes = True
 
 # ---------------daily-vendor-activity --------------
-
 
 class YesNoEnum(str, Enum):
     YES = "YES"
