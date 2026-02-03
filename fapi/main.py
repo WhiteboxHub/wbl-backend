@@ -69,11 +69,11 @@ app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact E
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])
 app.include_router(employee.router, prefix="/api", tags=["Employee"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_tasks.router, prefix="/api", tags=["Employee Tasks"])
-app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"])
+app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"], dependencies=[Depends(enforce_access)]))
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(password.router, prefix="/api", tags=["Password"])
 app.include_router(request_demo.router, prefix="/api",
-                   tags=["Request Demo"])
+                   tags=["Request Demo"], dependencies=[Depends(enforce_access)]))
 app.include_router(user_dashboard.router, prefix="/api",
                    tags=["User Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(batch.router, prefix="/api",
@@ -127,6 +127,7 @@ app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
+
 
 
 
