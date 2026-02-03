@@ -37,10 +37,6 @@ app.add_middleware(
         "https://www.innova-path.com",
         "https://wbl-frontend-560359652969.us-central1.run.app",
         "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:8000",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
         "http://127.0.0.1:8000"
     ],
     allow_credentials=True,
@@ -79,11 +75,11 @@ app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact E
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])
 app.include_router(employee.router, prefix="/api", tags=["Employee"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_tasks.router, prefix="/api", tags=["Employee Tasks"])
-app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"], dependencies=[Depends(enforce_access)])
+app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"])
 app.include_router(user_role.router, prefix="/api", tags=["User Role"])
 app.include_router(password.router, prefix="/api", tags=["Password"])
 app.include_router(request_demo.router, prefix="/api",
-                   tags=["Request Demo"], dependencies=[Depends(enforce_access)])
+                   tags=["Request Demo"])
 app.include_router(user_dashboard.router, prefix="/api",
                    tags=["User Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(batch.router, prefix="/api",
