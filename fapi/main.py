@@ -1,4 +1,3 @@
-# Force server reload for AuthUser updates
 from fapi.utils.permission_gate import enforce_access
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
@@ -128,5 +127,6 @@ app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
+
 
 
