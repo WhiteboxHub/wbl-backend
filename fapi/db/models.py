@@ -238,7 +238,7 @@ class CandidateORM(Base):
 
     # Extra relationship aliases with 'overlaps' to satisfy SQLAlchemy warnings
     preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate", overlaps="preparations")
+        "CandidatePreparation", back_populates="candidate")
     interview_records = relationship(
         "CandidateInterview", back_populates="candidate", overlaps="interviews")
     placement_records = relationship(
