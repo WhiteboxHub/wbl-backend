@@ -41,8 +41,8 @@ class PositionBase(BaseModel):
     normalized_title: Optional[str] = None
     company_name: str
     company_id: Optional[int] = None
-    position_type: Optional[PositionTypeEnum] = None
-    employment_mode: Optional[EmploymentModeEnum] = None
+    position_type: PositionTypeEnum = PositionTypeEnum.full_time
+    employment_mode: EmploymentModeEnum = EmploymentModeEnum.hybrid
     source: str
     source_uid: Optional[str] = None
     location: Optional[str] = None
