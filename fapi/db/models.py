@@ -979,8 +979,8 @@ class PositionORM(Base):
     company_name = Column(String(255), nullable=False)
     company_id = Column(Integer, nullable=True,
                         comment='future reference to company table')
-    position_type = Column(SQLAEnum(PositionTypeEnum), nullable=True)
-    employment_mode = Column(SQLAEnum(EmploymentModeEnum), nullable=True)
+    position_type = Column(SQLAEnum(PositionTypeEnum), nullable=False, server_default=PositionTypeEnum.full_time.value)
+    employment_mode = Column(SQLAEnum(EmploymentModeEnum), nullable=False, server_default=EmploymentModeEnum.hybrid.value)
     source = Column(String(50), nullable=False,
                     comment='linkedin, job_board, vendor, email')
     source_uid = Column(String(255), nullable=True)
