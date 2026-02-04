@@ -5,7 +5,7 @@ from fapi.db.schemas import PositionCreate, PositionUpdate
 from typing import List, Optional
 
 def get_positions(db: Session, skip: int = 0, limit: int = 100) -> List[PositionORM]:
-    return db.query(PositionORM).offset(skip).limit(limit).all()
+    return db.query(PositionORM).order_by(PositionORM.id.desc()).offset(skip).limit(limit).all()
 
 def get_position(db: Session, position_id: int) -> Optional[PositionORM]:
     return db.query(PositionORM).filter(PositionORM.id == position_id).first()
