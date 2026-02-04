@@ -13,14 +13,12 @@ def get_keyword(db: Session, keyword_id: int) -> Optional[models.JobAutomationKe
 
 def get_keywords(
     db: Session,
-    skip: int = 0,
-    limit: int = 100,
     category: Optional[str] = None,
     source: Optional[str] = None,
     is_active: Optional[bool] = None,
     action: Optional[str] = None
 ) -> tuple[List[models.JobAutomationKeywordORM], int]:
-    """Get keywords with optional filtering and pagination"""
+    """Get keywords with optional filtering"""
     query = db.query(models.JobAutomationKeywordORM)
     
     # Apply filters
@@ -36,11 +34,11 @@ def get_keywords(
     # Get total count
     total = query.count()
     
-    # Apply ordering and pagination
+    # Apply ordering
     keywords = query.order_by(
         asc(models.JobAutomationKeywordORM.priority),
         desc(models.JobAutomationKeywordORM.created_at)
-    ).offset(skip).limit(limit).all()
+    ).all()
     
     return keywords, total
 

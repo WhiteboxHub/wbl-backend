@@ -928,9 +928,14 @@ class OutreachContactORM(Base):
     unsubscribe_at = Column(TIMESTAMP, nullable=True)
     unsubscribe_reason = Column(String(255), nullable=True)
     bounce_flag = Column(Boolean, nullable=False, server_default="0")
+    bounce_type = Column(String(20), nullable=True)
+    bounce_reason = Column(String(255), nullable=True)
+    bounce_code = Column(String(100), nullable=True)
+    bounced_at = Column(TIMESTAMP, nullable=True)
     complaint_flag = Column(Boolean, nullable=False, server_default="0")
+    complained_at = Column(TIMESTAMP, nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
 
 
 class RawPositionORM(Base):

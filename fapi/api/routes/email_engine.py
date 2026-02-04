@@ -12,13 +12,11 @@ security = HTTPBearer()
 @router.get("/email-engine", response_model=List[schemas.EmailSenderEngineOut])
 def read_engines(
     search: Optional[str] = Query(None, description="Search by engine name or provider"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """Get all email engines"""
-    return email_engine_utils.get_all_engines(db, skip=skip, limit=limit, search=search)
+    return email_engine_utils.get_all_engines(db, search=search)
 
 @router.get("/email-engine/{engine_id}", response_model=schemas.EmailSenderEngineOut)
 def read_engine(

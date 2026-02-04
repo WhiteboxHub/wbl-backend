@@ -11,12 +11,10 @@ security = HTTPBearer()
 
 @router.get("/outreach-contact", response_model=List[schemas.OutreachContactOut])
 def read_contacts(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return db.query(OutreachContactORM).offset(skip).limit(limit).all()
+    return db.query(OutreachContactORM).all()
 
 @router.post("/outreach-contact", response_model=schemas.OutreachContactOut)
 def create_contact(

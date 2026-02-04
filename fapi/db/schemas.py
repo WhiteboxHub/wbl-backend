@@ -2405,7 +2405,14 @@ class OutreachContactBase(BaseModel):
     status: str = "active"
     unsubscribe_flag: bool = False
     bounce_flag: bool = False
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
     complaint_flag: bool = False
+    complained_at: Optional[datetime] = None
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -2421,7 +2428,14 @@ class OutreachContactUpdate(BaseModel):
     status: Optional[str] = None
     unsubscribe_flag: Optional[bool] = None
     bounce_flag: Optional[bool] = None
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
     complaint_flag: Optional[bool] = None
+    complained_at: Optional[datetime] = None
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

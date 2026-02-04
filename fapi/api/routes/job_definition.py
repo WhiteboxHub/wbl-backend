@@ -16,13 +16,11 @@ security = HTTPBearer()
 @router.get("/job-definition", response_model=List[schemas.JobDefinitionOut])
 def read_job_definitions(
     search: Optional[str] = Query(None, description="Search by job type or status"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """Get all job definitions"""
-    return job_definition_utils.get_all_job_definitions(db, skip=skip, limit=limit, search=search)
+    return job_definition_utils.get_all_job_definitions(db, search=search)
 
 
 @router.get("/job-definition/{job_definition_id}", response_model=schemas.JobDefinitionOut)

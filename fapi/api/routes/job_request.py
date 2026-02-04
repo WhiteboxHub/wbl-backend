@@ -16,13 +16,11 @@ security = HTTPBearer()
 @router.get("/job-request", response_model=List[schemas.JobRequestOut])
 def read_job_requests(
     search: Optional[str] = Query(None, description="Search by job type or status"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """Get all job requests"""
-    return job_request_utils.get_all_job_requests(db, skip=skip, limit=limit, search=search)
+    return job_request_utils.get_all_job_requests(db, search=search)
 
 
 @router.get("/job-request/{job_request_id}", response_model=schemas.JobRequestOut)
