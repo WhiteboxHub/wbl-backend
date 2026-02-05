@@ -36,7 +36,7 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
 
 
     
-    if method in ["GET", "HEAD"]:
+    if method == "GET":
         for prefix in ALLOWED_GET_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
