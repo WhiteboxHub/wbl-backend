@@ -18,7 +18,7 @@ def read_contacts(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return db.query(OutreachContactORM).all()
+    return db.query(OutreachContactORM).order_by(OutreachContactORM.created_at.desc()).all()
 
 @router.post("/outreach-contact", response_model=schemas.OutreachContactOut)
 def create_contact(
