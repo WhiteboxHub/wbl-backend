@@ -46,5 +46,3 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
     )
 
 
-
-
