@@ -15,10 +15,49 @@ security = HTTPBearer()
 @router.get("/outreach-contact", response_model=List[schemas.OutreachContactOut])
 @router.head("/outreach-contact")
 def read_contacts(
+    search: Optional[str] = Query(None, description="Search by email"),
+    date_from: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    unsubscribed_only: Optional[bool] = Query(None, description="Show only unsubscribed"),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return db.query(OutreachContactORM).order_by(OutreachContactORM.created_at.desc()).all()
+    from datetime import datetime
+    
+    query = db.query(OutreachContactORM)
+    
+    # Search by email
+    if search:
+        query = query.filter(OutreachContactORM.email.contains(search))
+    
+    # Filter by date range
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, "%Y-%m-%d")
+            query = query.filter(OutreachContactORM.created_at >= date_from_obj)
+        except ValueError:
+            pass  # Ignore invalid date format
+    
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, "%Y-%m-%d")
+            # Add one day to include the entire end date
+            from datetime import timedelta
+            date_to_obj = date_to_obj + timedelta(days=1)
+            query = query.filter(OutreachContactORM.created_at < date_to_obj)
+        except ValueError:
+            pass  # Ignore invalid date format
+    
+    # Filter by status
+    if status:
+        query = query.filter(OutreachContactORM.status == status)
+    
+    # Filter by unsubscribe flag
+    if unsubscribed_only:
+        query = query.filter(OutreachContactORM.unsubscribe_flag == True)
+    
+    return query.order_by(OutreachContactORM.created_at.desc()).all()
 
 @router.post("/outreach-contact", response_model=schemas.OutreachContactOut)
 def create_contact(
