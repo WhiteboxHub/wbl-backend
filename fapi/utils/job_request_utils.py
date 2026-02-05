@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_all_job_requests(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[JobRequestORM]:
+def get_all_job_requests(db: Session, search: Optional[str] = None) -> List[JobRequestORM]:
     """Get all job requests with optional search"""
     query = db.query(JobRequestORM)
     
@@ -19,7 +19,7 @@ def get_all_job_requests(db: Session, skip: int = 0, limit: int = 100, search: O
             (JobRequestORM.status.contains(search))
         )
     
-    return query.order_by(JobRequestORM.requested_at.desc()).offset(skip).limit(limit).all()
+    return query.order_by(JobRequestORM.requested_at.desc()).all()
 
 
 def get_job_request_by_id(db: Session, job_request_id: int) -> Optional[JobRequestORM]:

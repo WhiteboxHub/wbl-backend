@@ -9,9 +9,8 @@ router = APIRouter()
 
 
 @router.get("/job-automation-keywords", response_model=schemas.PaginatedJobAutomationKeywords)
+@router.head("/job-automation-keywords")
 def get_keywords(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(50, ge=1, le=100),
     category: Optional[str] = None,
     source: Optional[str] = None,
     is_active: Optional[bool] = None,
@@ -19,11 +18,8 @@ def get_keywords(
     db: Session = Depends(get_db)
 ):
    
-    skip = (page - 1) * per_page
     keywords, total = job_automation_keyword_utils.get_keywords(
         db=db,
-        skip=skip,
-        limit=per_page,
         category=category,
         source=source,
         is_active=is_active,
@@ -32,8 +28,8 @@ def get_keywords(
     
     return schemas.PaginatedJobAutomationKeywords(
         total=total,
-        page=page,
-        per_page=per_page,
+        page=1,
+        per_page=total,
         keywords=keywords
     )
 

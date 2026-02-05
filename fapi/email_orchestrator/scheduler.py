@@ -6,7 +6,7 @@ from fapi.db.models import (
     JobScheduleORM, JobDefinitionORM, JobRunORM, 
     CandidateMarketingORM, EmailSenderEngineORM, OutreachContactORM
 )
-from sqlalchemy import func
+from sqlalchemy import func, or_
 import base64
 import os
 
@@ -22,10 +22,10 @@ class JobScheduler:
         """
         now = datetime.now()
         schedules = self.db.query(JobScheduleORM).filter(
-            (
-                (JobScheduleORM.enabled == True) & 
-                (JobScheduleORM.next_run_at <= now)
-            ) | (JobScheduleORM.manually_triggered == True)
+            or_(
+                (JobScheduleORM.manually_triggered == True),
+                (JobScheduleORM.enabled == True) & (JobScheduleORM.next_run_at <= now)
+            )
         ).all()
         
         if schedules:
@@ -88,12 +88,20 @@ class JobScheduler:
                 job_config = definition.config_json or {}
 
             # 4. Fetch Email Engine
-            engine_id = job_config.get("engine_id")
-            email_engine_name = job_config.get("email_engine")
             engine = None
             
-            # Priority 1: Explicit Engine ID in config
-            if engine_id:
+            # Priority 0: Direct DB Field (NEW)
+            if definition.email_engine_id:
+                 engine = self.db.query(EmailSenderEngineORM).filter(
+                    EmailSenderEngineORM.id == definition.email_engine_id,
+                    EmailSenderEngineORM.is_active == True
+                ).first()
+
+            engine_id = job_config.get("engine_id")
+            email_engine_name = job_config.get("email_engine")
+            
+            # Priority 1: Explicit Engine ID in config (Legacy fallback)
+            if not engine and engine_id:
                 engine = self.db.query(EmailSenderEngineORM).filter(
                     EmailSenderEngineORM.id == engine_id,
                     EmailSenderEngineORM.is_active == True
@@ -163,6 +171,7 @@ class JobScheduler:
                             if unsub == '1' or bounce == '1' or complaint == '1':
                                 continue
                             all_emails.append(email_clean)
+                logger.info(f"[Prep] Loaded {len(all_emails)} emails from CSV {csv_file}")
             except Exception as e:
                 logger.error(f"[Prep] FAILED: Error reading CSV: {e}")
                 return None
@@ -182,7 +191,7 @@ class JobScheduler:
 
             # 8. Build Batch
             recipients_payload = []
-            base_url = os.getenv("PUBLIC_API_URL", "http://localhost:8000")
+            base_url = os.getenv("PUBLIC_API_URL", "")
             
             idx = current_offset
             processed_in_this_run = 0
@@ -194,18 +203,8 @@ class JobScheduler:
                 if email in suppressed_emails:
                     continue
                 
-                # Unsubscribe link (pointing to Premium UI on port 3001)
-                unsub_base = os.getenv("PUBLIC_UNSUBSCRIBE_URL")
-                if not unsub_base:
-                    # Fallback: If we are on localhost:8000, the UI is likely on localhost:3001
-                    ui_base = base_url.replace(":8000", ":3001")
-                    unsub_base = f"{ui_base}/solutions/unsubscribe"
-                
-                unsub_link = f"{unsub_base}?email={email}"
-                
                 recipients_payload.append({
-                    "email": email,
-                    "unsubscribe_link": unsub_link
+                    "email": email
                 })
 
             if not recipients_payload:
@@ -214,6 +213,15 @@ class JobScheduler:
                 definition.config_json = json.dumps(job_config)
                 self.db.commit()
                 return None
+
+            # 8.5 Mark Leads as Sent in DB (if source is LEADS_DB)
+            if recipient_source == "LEADS_DB":
+                target_emails = [r["email"] for r in recipients_payload]
+                if target_emails:
+                    self.db.query(LeadORM).filter(LeadORM.email.in_(target_emails)).update(
+                        {LeadORM.massemail_email_sent: True}, synchronize_session=False
+                    )
+                    logger.info(f"[Prep] Marked {len(target_emails)} leads as sent in database")
 
             # 9. Create Job Run
             job_run = JobRunORM(
@@ -320,15 +328,25 @@ class JobScheduler:
                 )
                 
                 if date_filter == "TODAY":
-                    query = query.filter(func.date(OutreachContactORM.created_at) == func.current_date())
+                    query = query.filter(
+                        or_(
+                            func.date(OutreachContactORM.created_at) == func.current_date(),
+                            func.date(OutreachContactORM.updated_at) == func.current_date()
+                        )
+                    )
                 elif date_filter == "LAST_N_DAYS" and lookback_days > 0:
                     delta = datetime.now() - timedelta(days=lookback_days)
-                    query = query.filter(OutreachContactORM.created_at >= delta)
+                    query = query.filter(
+                        or_(
+                            OutreachContactORM.created_at >= delta,
+                            OutreachContactORM.updated_at >= delta
+                        )
+                    )
                 
                 # Fetch recipients (limit by batch size to avoid massive payloads)
                 batch_size = job_config.get("batch_size", 200)
                 contacts = query.limit(batch_size).all()
-                dynamic_recipients = [c.email for c in contacts]
+                dynamic_recipients = [c.email for c in contacts if c.email]
                 logger.info(f"Loaded {len(dynamic_recipients)} recipients from OUTREACH_DB (Filter: {date_filter})")
 
             # 6. Create Job Run

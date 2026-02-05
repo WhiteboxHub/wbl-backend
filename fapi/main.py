@@ -8,7 +8,7 @@ from fapi.api.routes import (
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
     position, raw_position, employee_dashboard, job_definition, job_schedule, job_run, 
-    job_request, email_engine, outreach_contact, job_trigger, remote_worker
+    job_request, email_engine, outreach_contact, job_trigger, remote_worker, email_service
 )
 from fapi.email_orchestrator import start_background_orchestrator
 from fapi.db.database import SessionLocal
@@ -34,6 +34,7 @@ app.add_middleware(
         "https://www.innova-path.com",
         "https://wbl-frontend-560359652969.us-central1.run.app",
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://127.0.0.1:8000"
     ],
     allow_credentials=True,
@@ -129,10 +130,6 @@ app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
-
-
-
-
-
+app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 
 

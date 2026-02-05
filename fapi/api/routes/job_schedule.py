@@ -17,13 +17,11 @@ security = HTTPBearer()
 @router.head("/job-schedule")
 def read_job_schedules(
     search: Optional[str] = Query(None, description="Search by frequency or timezone"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """Get all job schedules"""
-    return job_schedule_utils.get_all_job_schedules(db, skip=skip, limit=limit, search=search)
+    return job_schedule_utils.get_all_job_schedules(db, search=search)
 
 
 @router.get("/job-schedule/{job_schedule_id}", response_model=schemas.JobScheduleOut)

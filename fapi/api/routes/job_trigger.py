@@ -12,7 +12,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Configurations
-EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://localhost:8050")
+EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "")
 
 def execute_job_task(schedule_id: int, db_session_factory):
     """Background task to run the job immediately"""
