@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Query, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -6,10 +7,13 @@ from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.db.models import OutreachContactORM
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 security = HTTPBearer()
 
 @router.get("/outreach-contact", response_model=List[schemas.OutreachContactOut])
+@router.head("/outreach-contact")
 def read_contacts(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
@@ -59,6 +63,15 @@ def update_contact(
         
     for key, value in update_data.items():
         setattr(db_contact, key, value)
+    
+    # If users didn't provide updated_at, force it to now.
+    # If they DID provide it, respect their value (allows manual override)
+    if 'updated_at' not in update_data:
+        from sqlalchemy import func
+        db_contact.updated_at = func.now()
+        logger.info(f"Auto-updating updated_at for contact {contact_id}")
+    else:
+        logger.info(f"Manual updated_at provided for contact {contact_id}: {update_data['updated_at']}")
     
     db.commit()
     db.refresh(db_contact)

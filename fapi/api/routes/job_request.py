@@ -14,6 +14,7 @@ security = HTTPBearer()
 
 
 @router.get("/job-request", response_model=List[schemas.JobRequestOut])
+@router.head("/job-request")
 def read_job_requests(
     search: Optional[str] = Query(None, description="Search by job type or status"),
     db: Session = Depends(get_db),

@@ -48,14 +48,14 @@ def process_approved_job_requests(db: Session):
             config = {
                 "csv_filename": "vendors.csv" if req.job_type == "MASS_EMAIL" else "leads.csv",
                 "batch_size": 200,
-                "csv_offset": 0,
-                "engine_id": engine.id
+                "csv_offset": 0
             }
             
             new_def = JobDefinitionORM(
                 job_type=req.job_type,
                 candidate_marketing_id=req.candidate_marketing_id,
                 status="ACTIVE",
+                email_engine_id=engine.id,
                 config_json=json.dumps(config)
             )
             db.add(new_def)
@@ -67,8 +67,8 @@ def process_approved_job_requests(db: Session):
                 frequency="DAILY",
                 interval_value=1,
                 next_run_at=datetime.now(),
-                enabled=True,
-                manually_triggered=False
+                enabled=True
+                # manually_triggered removed - column doesn't exist in DB
             )
             db.add(new_schedule)
             

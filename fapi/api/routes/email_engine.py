@@ -10,6 +10,7 @@ router = APIRouter()
 security = HTTPBearer()
 
 @router.get("/email-engine", response_model=List[schemas.EmailSenderEngineOut])
+@router.head("/email-engine")
 def read_engines(
     search: Optional[str] = Query(None, description="Search by engine name or provider"),
     db: Session = Depends(get_db),

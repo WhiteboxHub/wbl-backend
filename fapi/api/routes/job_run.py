@@ -14,6 +14,7 @@ security = HTTPBearer()
 
 
 @router.get("/job-run", response_model=List[schemas.JobRunOut])
+@router.head("/job-run")
 def read_job_runs(
     search: Optional[str] = Query(None, description="Search by run status"),
     db: Session = Depends(get_db),

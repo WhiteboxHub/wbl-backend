@@ -9,6 +9,7 @@ router = APIRouter()
 
 
 @router.get("/job-automation-keywords", response_model=schemas.PaginatedJobAutomationKeywords)
+@router.head("/job-automation-keywords")
 def get_keywords(
     category: Optional[str] = None,
     source: Optional[str] = None,

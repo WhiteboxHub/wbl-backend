@@ -93,7 +93,7 @@ def handle_feedback(
     # 3. Check if 'json' is in query params (backup)
     wants_json = request.query_params.get("format") == "json"
     
-    frontend_url = os.getenv("PUBLIC_UNSUBSCRIBE_SUCCESS_URL", "http://localhost:3001/solutions/unsubscribe-success")
+    frontend_url = os.getenv("PUBLIC_UNSUBSCRIBE_SUCCESS_URL", "/solutions/unsubscribe-success")
     
     if "application/json" in accept_header or is_ajax or wants_json:
         # For manual form submissions (manual page)
