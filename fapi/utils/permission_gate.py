@@ -36,7 +36,7 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
 
 
     
-    if method in ["GET", "HEAD"]:
+    if method == "GET":
         for prefix in ALLOWED_GET_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
@@ -44,7 +44,5 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
         status_code=status.HTTP_403_FORBIDDEN,
         detail="You do not have permission to access this resource."
     )
-
-
 
 
