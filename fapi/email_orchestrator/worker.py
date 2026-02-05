@@ -9,7 +9,9 @@ from .dispatcher import EmailDispatcher
 from fapi.utils.job_processor import process_approved_job_requests
 
 # Configurations
-EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://localhost:8050")
+# Default to internal email service if not set
+EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "")
+
 CHECK_INTERVAL_SECONDS = 5
 
 logging.basicConfig(level=logging.INFO)

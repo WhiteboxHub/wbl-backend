@@ -8,7 +8,7 @@ from fapi.db import schemas
 
 logger = logging.getLogger(__name__)
 
-def get_all_engines(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[EmailSenderEngineORM]:
+def get_all_engines(db: Session, search: Optional[str] = None) -> List[EmailSenderEngineORM]:
     """Get all email engines with optional search"""
     query = db.query(EmailSenderEngineORM)
     
@@ -18,7 +18,7 @@ def get_all_engines(db: Session, skip: int = 0, limit: int = 100, search: Option
             (EmailSenderEngineORM.provider.contains(search))
         )
     
-    return query.order_by(EmailSenderEngineORM.priority.asc()).offset(skip).limit(limit).all()
+    return query.order_by(EmailSenderEngineORM.priority.asc()).all()
 
 def get_engine_by_id(db: Session, engine_id: int) -> EmailSenderEngineORM:
     """Get an engine by ID"""

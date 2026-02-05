@@ -2222,7 +2222,8 @@ class CompanyHRContactOut(CompanyHRContactBase):
 class JobDefinitionBase(BaseModel):
     job_type: str
     status: str = "ACTIVE"
-    candidate_marketing_id: int
+    candidate_marketing_id: Optional[int] = None
+    email_engine_id: Optional[int] = None
     config_json: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -2236,6 +2237,7 @@ class JobDefinitionUpdate(BaseModel):
     job_type: Optional[str] = None
     status: Optional[str] = None
     candidate_marketing_id: Optional[int] = None
+    email_engine_id: Optional[int] = None
     config_json: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -2243,7 +2245,7 @@ class JobDefinitionUpdate(BaseModel):
 
 class JobDefinitionOut(JobDefinitionBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -2255,7 +2257,7 @@ class JobScheduleBase(BaseModel):
     timezone: str = "America/Los_Angeles"
     frequency: str
     interval_value: int = 1
-    next_run_at: datetime
+    next_run_at: Optional[datetime] = None
     last_run_at: Optional[datetime] = None
     lock_token: Optional[str] = None
     lock_expires_at: Optional[datetime] = None
@@ -2286,7 +2288,7 @@ class JobScheduleUpdate(BaseModel):
 
 class JobScheduleOut(JobScheduleBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -2297,7 +2299,7 @@ class JobRunBase(BaseModel):
     job_definition_id: int
     job_schedule_id: int
     run_status: str = "RUNNING"
-    started_at: datetime
+    started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     items_total: int = 0
     items_succeeded: int = 0
@@ -2338,7 +2340,7 @@ class JobRequestBase(BaseModel):
     job_type: str
     candidate_marketing_id: int
     status: str = "PENDING"
-    requested_at: datetime
+    requested_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -2391,7 +2393,7 @@ class EmailSenderEngineUpdate(BaseModel):
 
 class EmailSenderEngineOut(EmailSenderEngineBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -2400,12 +2402,19 @@ class EmailSenderEngineOut(EmailSenderEngineBase):
 # -------------------- Outreach Contact Schemas --------------------
 class OutreachContactBase(BaseModel):
     email: str
-    source_type: Optional[str] = "CAMPAIGN"
+    source_type: str
     source_id: Optional[int] = None
-    status: str = "active"
+    status: str = "ACTIVE"
     unsubscribe_flag: bool = False
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
     bounce_flag: bool = False
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
     complaint_flag: bool = False
+    complained_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -2421,15 +2430,23 @@ class OutreachContactUpdate(BaseModel):
     status: Optional[str] = None
     unsubscribe_flag: Optional[bool] = None
     bounce_flag: Optional[bool] = None
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
     complaint_flag: Optional[bool] = None
+    complained_at: Optional[datetime] = None
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class OutreachContactOut(OutreachContactBase):
     id: int
-    email_lc: str
-    created_at: datetime
+    email_lc: Optional[str] = None
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

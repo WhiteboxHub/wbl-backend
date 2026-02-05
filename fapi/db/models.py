@@ -844,13 +844,15 @@ class JobDefinitionORM(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     job_type = Column(String(50), nullable=False)
     status = Column(String(20), nullable=False, server_default="ACTIVE")
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=False)
+    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=True)
+    email_engine_id = Column(Integer, ForeignKey("email_sender_engine.id"), nullable=True)
     config_json = Column(Text, nullable=True)  # JSON stored as TEXT
     created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
 
     # Relationships
     candidate_marketing = relationship("CandidateMarketingORM")
+    email_engine = relationship("EmailSenderEngineORM")
     schedules = relationship("JobScheduleORM", back_populates="job_definition", cascade="all, delete-orphan")
     runs = relationship("JobRunORM", back_populates="job_definition")
 
@@ -919,18 +921,23 @@ class OutreachContactORM(Base):
     __tablename__ = "outreach_contacts"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    email = Column(String(255), nullable=False, unique=True)
+    email = Column(String(255), nullable=False)
     email_lc = Column(String(255), server_default=FetchedValue(), unique=True)
-    source_type = Column(String(50))  # CAMPAIGN | MANUAL | CSV
-    source_id = Column(Integer, nullable=True)
-    status = Column(String(30), nullable=False, server_default="active")
+    source_type = Column(String(50), nullable=False)
+    source_id = Column(BigInteger, nullable=True)
+    status = Column(String(50), nullable=False, server_default="ACTIVE")
     unsubscribe_flag = Column(Boolean, nullable=False, server_default="0")
     unsubscribe_at = Column(TIMESTAMP, nullable=True)
     unsubscribe_reason = Column(String(255), nullable=True)
     bounce_flag = Column(Boolean, nullable=False, server_default="0")
+    bounce_type = Column(String(20), nullable=True)
+    bounce_reason = Column(String(255), nullable=True)
+    bounce_code = Column(String(100), nullable=True)
+    bounced_at = Column(TIMESTAMP, nullable=True)
     complaint_flag = Column(Boolean, nullable=False, server_default="0")
+    complained_at = Column(TIMESTAMP, nullable=True)
     created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
 
 
 class RawPositionORM(Base):

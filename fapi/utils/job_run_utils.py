@@ -9,14 +9,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_all_job_runs(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[JobRunORM]:
+def get_all_job_runs(db: Session, search: Optional[str] = None) -> List[JobRunORM]:
     """Get all job runs with optional search"""
     query = db.query(JobRunORM)
     
     if search:
         query = query.filter(JobRunORM.run_status.contains(search))
     
-    return query.order_by(JobRunORM.started_at.desc()).offset(skip).limit(limit).all()
+    return query.order_by(JobRunORM.started_at.desc()).all()
 
 
 def get_job_run_by_id(db: Session, job_run_id: int) -> Optional[JobRunORM]:

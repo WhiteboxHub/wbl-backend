@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_all_job_schedules(db: Session, skip: int = 0, limit: int = 100, search: Optional[str] = None) -> List[JobScheduleORM]:
+def get_all_job_schedules(db: Session, search: Optional[str] = None) -> List[JobScheduleORM]:
     """Get all job schedules with optional search"""
     query = db.query(JobScheduleORM)
     
@@ -19,7 +19,7 @@ def get_all_job_schedules(db: Session, skip: int = 0, limit: int = 100, search: 
             (JobScheduleORM.timezone.contains(search))
         )
     
-    return query.offset(skip).limit(limit).all()
+    return query.all()
 
 
 def get_job_schedule_by_id(db: Session, job_schedule_id: int) -> Optional[JobScheduleORM]:

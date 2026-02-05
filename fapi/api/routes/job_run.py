@@ -14,15 +14,14 @@ security = HTTPBearer()
 
 
 @router.get("/job-run", response_model=List[schemas.JobRunOut])
+@router.head("/job-run")
 def read_job_runs(
     search: Optional[str] = Query(None, description="Search by run status"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """Get all job runs"""
-    return job_run_utils.get_all_job_runs(db, skip=skip, limit=limit, search=search)
+    return job_run_utils.get_all_job_runs(db, search=search)
 
 
 @router.get("/job-run/{job_run_id}", response_model=schemas.JobRunOut)

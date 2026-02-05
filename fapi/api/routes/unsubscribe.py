@@ -36,9 +36,10 @@ def handle_feedback(
     if not target_email:
         raise HTTPException(status_code=400, detail="Token or email required")
 
-    # Find the record - strictly unique by email_lc
+    # Find the record - check both email and email_lc for robustness
     contact = db.query(OutreachContactORM).filter(
-        OutreachContactORM.email_lc == target_email
+        (OutreachContactORM.email_lc == target_email) | 
+        (OutreachContactORM.email == target_email)
     ).first()
 
     if not contact:
@@ -46,6 +47,7 @@ def handle_feedback(
         logger.info(f"Creating new suppressed record for {target_email} ({type})")
         contact = OutreachContactORM(
             email=target_email,
+            email_lc=target_email,  # Explicitly set this to avoid NULL issues
             source_type="MANUAL_UNSUB",
             status=type if type != "unsubscribe" else "unsubscribed",
             unsubscribe_flag=(type == "unsubscribe"),
@@ -56,6 +58,10 @@ def handle_feedback(
         )
         db.add(contact)
     else:
+        # Ensure email_lc is set if it was missing
+        if not contact.email_lc:
+            contact.email_lc = target_email
+            
         if type == "unsubscribe":
             contact.unsubscribe_flag = True
             contact.unsubscribe_at = func.now()
@@ -63,12 +69,21 @@ def handle_feedback(
             contact.status = "unsubscribed"
         elif type == "bounce":
             contact.bounce_flag = True
+            contact.bounced_at = func.now()
             contact.status = "bounced"
         elif type == "complaint":
             contact.complaint_flag = True
+            contact.complained_at = func.now()
             contact.status = "complaint"
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error saving feedback for {target_email}: {e}")
+        # If it's a duplicate error (race condition), just ignore it as it means they are already unsubscribed
+        if "Duplicate entry" not in str(e):
+            raise HTTPException(status_code=500, detail="Database error occurred")
     
     # Check if this is an API call (AJAX) or a browser click
     # 1. Check Accept header
@@ -78,7 +93,7 @@ def handle_feedback(
     # 3. Check if 'json' is in query params (backup)
     wants_json = request.query_params.get("format") == "json"
     
-    frontend_url = os.getenv("PUBLIC_UNSUBSCRIBE_SUCCESS_URL", "http://localhost:3001/solutions/unsubscribe-success")
+    frontend_url = os.getenv("PUBLIC_UNSUBSCRIBE_SUCCESS_URL", "/solutions/unsubscribe-success")
     
     if "application/json" in accept_header or is_ajax or wants_json:
         # For manual form submissions (manual page)
