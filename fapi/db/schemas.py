@@ -2220,8 +2220,8 @@ class CompanyHRContactOut(CompanyHRContactBase):
 
 # -------------------- Job Definition Schemas --------------------
 class JobDefinitionBase(BaseModel):
-    job_type: str
-    status: str = "ACTIVE"
+    job_type: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
     candidate_marketing_id: Optional[int] = None
     email_engine_id: Optional[int] = None
     config_json: Optional[str] = None
@@ -2253,16 +2253,16 @@ class JobDefinitionOut(JobDefinitionBase):
 
 # -------------------- Job Schedule Schemas --------------------
 class JobScheduleBase(BaseModel):
-    job_definition_id: int
-    timezone: str = "America/Los_Angeles"
-    frequency: str
-    interval_value: int = 1
+    job_definition_id: Optional[int] = None
+    timezone: Optional[str] = "America/Los_Angeles"
+    frequency: Optional[str] = None
+    interval_value: Optional[int] = 1
     next_run_at: Optional[datetime] = None
     last_run_at: Optional[datetime] = None
     lock_token: Optional[str] = None
     lock_expires_at: Optional[datetime] = None
-    enabled: bool = True
-    manually_triggered: bool = False
+    enabled: Optional[bool] = True
+    manually_triggered: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -2296,9 +2296,9 @@ class JobScheduleOut(JobScheduleBase):
 
 # -------------------- Job Run Schemas --------------------
 class JobRunBase(BaseModel):
-    job_definition_id: int
-    job_schedule_id: int
-    run_status: str = "RUNNING"
+    job_definition_id: Optional[int] = None
+    job_schedule_id: Optional[int] = None
+    run_status: Optional[str] = "RUNNING"
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     items_total: int = 0
