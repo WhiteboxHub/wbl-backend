@@ -71,7 +71,7 @@ class JobScheduler:
                     "reply_to_email": marketing.email,
                     "candidate_email": marketing.email,
                     "candidate_intro": marketing.candidate_intro,
-                    "linkedin_url": marketing.linkedin_username,
+                    "linkedin_id": marketing.linkedin_username,
                 }
             
             # --- LEADS Logic ---
@@ -292,7 +292,7 @@ class JobScheduler:
                         "reply_to_email": marketing.email,
                         "candidate_email": marketing.email,
                         "candidate_intro": marketing.candidate_intro,
-                        "linkedin_url": marketing.linkedin_username,
+                        "linkedin_id": marketing.linkedin_username,
                     }
             
             # 3. Config
