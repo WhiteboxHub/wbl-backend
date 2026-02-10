@@ -6,58 +6,68 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
 
-from fapi.db.models import VendorContactExtractsORM, Vendor
-from fapi.db.schemas import VendorContactExtractCreate, VendorContactExtractUpdate
+from fapi.db.models import VendorContactExtractsORM, Vendor, VendorTypeEnum
+from fapi.db.schemas import VendorContactExtractCreate, VendorContactExtractUpdate, VendorBase
 
 logger = logging.getLogger(__name__)
 
+def _clean_id_field(val: Optional[str]) -> Optional[str]:
+    """Clean identity fields by removing common placeholders and whitespace."""
+    if val is None:
+        return None
+    v = str(val).strip()
+    if not v or v.lower() in ["none", "null", "undefined"]:
+        return None
+    return v
+
 
 def find_existing_vendor(db: Session, extract: VendorContactExtractsORM) -> Optional[Vendor]:
-    """Find existing vendor by linkedin_internal_id, linkedin_id, or email"""
-    if extract.linkedin_internal_id:
-        vendor = db.query(Vendor).filter(
-            Vendor.linkedin_internal_id == extract.linkedin_internal_id
-        ).first()
-        if vendor:
-            return vendor
-
-    if extract.linkedin_id:
-        vendor = db.query(Vendor).filter(
-            Vendor.linkedin_id == extract.linkedin_id
-        ).first()
-        if vendor:
-            return vendor
-
-    if extract.email:
-        vendor = db.query(Vendor).filter(
-            Vendor.email == extract.email
-        ).first()
-        if vendor:
-            return vendor
-
-    return None
+    """Find existing vendor by identity, prioritizing email uniqueness."""
+    ext_email = _clean_id_field(extract.email)
+    
+    # 1. ALWAYS check email first. If this email exists, we MUST merge to this record.
+    if ext_email:
+        v_by_email = db.query(Vendor).filter(Vendor.email == ext_email).first()
+        if v_by_email:
+            return v_by_email
+            
+    # 2. No email match, check LinkedIn identity
+    ext_internal_id = _clean_id_field(extract.linkedin_internal_id)
+    ext_linkedin_id = _clean_id_field(extract.linkedin_id)
+    
+    filters = []
+    if ext_internal_id:
+        filters.append(Vendor.linkedin_internal_id == ext_internal_id)
+    if ext_linkedin_id:
+        filters.append(Vendor.linkedin_id == ext_linkedin_id)
+    
+    if not filters:
+        return None
+        
+    return db.query(Vendor).filter(or_(*filters)).first()
 
 
 def build_duplicate_notes(vendor: Vendor, extract: VendorContactExtractsORM) -> str:
-    """Build notes for duplicate vendor detection"""
+    """Build notes for duplicate vendor detection dynamically"""
     notes = ["Duplicate detected via identity match"]
 
-    if extract.full_name and extract.full_name != vendor.full_name:
-        notes.append(f"Alt name: {extract.full_name}")
-
-    if extract.email and extract.email != vendor.email:
-        notes.append(f"Alt email: {extract.email}")
-
-    if extract.phone and extract.phone != vendor.phone_number:
-        notes.append(f"Alt phone: {extract.phone}")
-
-    if extract.company_name and extract.company_name != vendor.company_name:
-        notes.append(f"Alt company: {extract.company_name}")
-
-    if extract.location and extract.location != vendor.location:
-        notes.append(f"Alt location: {extract.location}")
-
-    notes.append(f"Source extract ID: {extract.id}")
+    field_map = {
+        'full_name': ('full_name', 'Alt name'),
+        'email': ('email', 'Alt email'),
+        'phone': ('phone_number', 'Alt phone'),
+        'company_name': ('company_name', 'Alt company'),
+        'location': ('location', 'Alt location'),
+        'linkedin_id': ('linkedin_id', 'Alt LinkedIn ID'),
+        'linkedin_internal_id': ('linkedin_internal_id', 'Alt LinkedIn Internal ID')
+    }
+    
+    for ex_field, (ven_field, label) in field_map.items():
+        ex_val = getattr(extract, ex_field, None)
+        ven_val = getattr(vendor, ven_field, None)
+        
+        # Only add if we have a real value that is different from existing
+        if ex_val and str(ex_val).strip() and str(ex_val).lower() != "none" and ex_val != ven_val:
+            notes.append(f"{label}: {str(ex_val).strip()}")
 
     return "\n".join(notes)
 
@@ -81,16 +91,8 @@ async def insert_vendor_contact(contact: VendorContactExtractCreate, db: Session
     
     try:
        
-        db_contact = VendorContactExtractsORM(
-            full_name=contact.full_name,
-            source_email=contact.source_email,
-            email=contact.email,
-            phone=contact.phone,
-            linkedin_id=contact.linkedin_id,
-            company_name=contact.company_name,
-            location=contact.location,
-            moved_to_vendor=False
-        )
+        db_contact = VendorContactExtractsORM(**contact.dict())
+        db_contact.moved_to_vendor = False
         
         db.add(db_contact)
         db.commit()
@@ -159,69 +161,26 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
     failed_contacts = []
     duplicate_contacts = []
     
-    processed_identifiers = set()
-    
     try:
         for contact in contacts:
             try:
-                # 1. Check for duplicates within the current batch
-                identifier = f"{contact.email if contact.email else ''}-{contact.linkedin_id if contact.linkedin_id else ''}"
-                if identifier in processed_identifiers and (contact.email or contact.linkedin_id):
-                    duplicates += 1
-                    duplicate_contacts.append({
-                        "full_name": contact.full_name,
-                        "email": contact.email,
-                        "reason": "Duplicate in the same batch"
-                    })
-                    continue
-
-                # 2. Check for duplicates in the database
-                existing = None
-                if contact.email or contact.linkedin_id:
-                    existing = db.query(VendorContactExtractsORM).filter(
-                        or_(
-                            VendorContactExtractsORM.email == contact.email if contact.email else False,
-                            VendorContactExtractsORM.linkedin_id == contact.linkedin_id if contact.linkedin_id else False
-                        )
-                    ).first()
-                
-                if existing:
-                    duplicates += 1
-                    duplicate_contacts.append({
-                        "full_name": contact.full_name,
-                        "email": contact.email,
-                        "reason": "Duplicate email or LinkedIn ID in database"
-                    })
-                    continue
-                
-                # Insert new contact
-                db_contact = VendorContactExtractsORM(
-                    full_name=contact.full_name,
-                    source_email=contact.source_email,
-                    email=contact.email,
-                    phone=contact.phone,
-                    linkedin_id=contact.linkedin_id,
-                    company_name=contact.company_name,
-                    location=contact.location,
-                    moved_to_vendor=False
-                )
-                
-                db.add(db_contact)
-                db.flush()  # Flush so subsequent checks see it, and unique constraint is checked early
-                
-                # Mark as processed in this batch
-                if contact.email or contact.linkedin_id:
-                    processed_identifiers.add(identifier)
+                # Use begin_nested to allow individual row rollback on failure
+                # Database unique constraints handle all duplicate checks (email, linkedin_id)
+                with db.begin_nested():
+                    db_contact = VendorContactExtractsORM(**contact.dict())
+                    db_contact.moved_to_vendor = False
+                    db.add(db_contact)
+                    db.flush()
                 
                 inserted += 1
                 
             except IntegrityError:
-                db.rollback() # Rollback the flush
+                # Savepoint is automatically rolled back on IntegrityError
                 duplicates += 1
                 duplicate_contacts.append({
                     "full_name": contact.full_name,
                     "email": contact.email,
-                    "reason": "IntegrityError (Conflict detected by database)"
+                    "reason": "Duplicate entry (Database constraint violated)"
                 })
             except Exception as e:
                 failed += 1
@@ -309,47 +268,65 @@ async def move_contacts_to_vendor(contact_ids: List[int], db: Session) -> Dict:
             ).all()
             
             for extract in extracts:
-                # Check for existing vendor
+                # Clean fields for robust logic
+                ex_email = _clean_id_field(extract.email)
+                ex_linkedin_id = _clean_id_field(extract.linkedin_id)
+                ex_internal_id = _clean_id_field(extract.linkedin_internal_id)
+                
+                # 1. Find a potential vendor match (Email priority or LinkedIn ID fallback)
                 vendor = find_existing_vendor(db, extract)
                 
                 if vendor:
-                    # Duplicate found - append notes using ORM
+                    # Identity match found - append ALL differences to notes
                     notes = build_duplicate_notes(vendor, extract)
-                    combined_notes = ((vendor.notes or "") + "\n" + notes)[:255]
+                    # Note: Using 255 limit as per database schema varchar(255)
+                    combined_notes = ((vendor.notes or "") + "\n" + notes).strip()[:255]
                     vendor.notes = combined_notes
+                    
+                    # If existing vendor is missing contact info, enrich it
+                    # But ONLY if we aren't creating a conflict (handled by priority search)
+                    if not vendor.email and ex_email:
+                        vendor.email = ex_email
+                    if not vendor.phone_number and extract.phone:
+                        vendor.phone_number = extract.phone
+                    if not vendor.linkedin_id and ex_linkedin_id:
+                        vendor.linkedin_id = ex_linkedin_id
+                    if not vendor.linkedin_internal_id and ex_internal_id:
+                        vendor.linkedin_internal_id = ex_internal_id
+                        
                     vendor_id = vendor.id
                 else:
-                    # Create new vendor using ORM
+                    # Create new vendor using ORM with explicit mapping to prevent data loss
                     new_vendor = Vendor(
                         full_name=extract.full_name,
-                        email=extract.email,
-                        linkedin_id=extract.linkedin_id,
-                        linkedin_internal_id=extract.linkedin_internal_id,
+                        email=ex_email,
+                        linkedin_id=ex_linkedin_id,
+                        linkedin_internal_id=ex_internal_id,
                         company_name=extract.company_name or '',
                         location=extract.location or '',
-                        type='third-party-vendor',
+                        phone_number=extract.phone,
+                        type=VendorTypeEnum.third_party_vendor,
                         status='prospect',
                         notes=f'Created from extract ID: {extract.id}'[:255],
                         linkedin_connected='NO',
                         intro_email_sent='NO',
-                        intro_call='NO',
-                        phone_number=extract.phone
+                        intro_call='NO'
                     )
                     
-                    # Append extra info to notes
+                    # Dynamically append extra info to notes from unique extract fields
                     extra_notes = []
-                    if extract.source_email:
-                        extra_notes.append(f"Source Email: {extract.source_email}")
-                    if extract.job_source:
-                        extra_notes.append(f"Job Source: {extract.job_source}")
-                    if extract.notes:
-                        extra_notes.append(f"Original Notes: {extract.notes}")
+                    for f in ['source_email', 'job_source', 'notes']:
+                        val = getattr(extract, f, None)
+                        if val:
+                             label = f.replace('_', ' ').title()
+                             extra_notes.append(f"{label}: {val}")
                         
                     if extra_notes:
                         current_notes = new_vendor.notes or ""
-                        new_vendor.notes = (current_notes + "\n" + "\n".join(extra_notes))[:65535] # Text type is large enough, but keeping safe
+                        new_vendor.notes = (current_notes + "\n" + "\n".join(extra_notes))[:65535]
+                    
                     db.add(new_vendor)
-                    db.flush()  # Get the ID without committing
+                    db.flush()
                     vendor_id = new_vendor.id
                 
                 # Update extract using ORM
