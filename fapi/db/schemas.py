@@ -1007,9 +1007,12 @@ class VendorContactExtract(BaseModel):
     location: Optional[str] = None
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
+    moved_at: Optional[datetime] = None
+    vendor_id: Optional[int] = None
     created_at: Optional[datetime] = None
     linkedin_internal_id: Optional[str] = None
     notes: Optional[str] = None
+    last_modified_datetime: Optional[datetime] = None
     job_source: Optional[str] = None
     model_config = {
         "from_attributes": True
@@ -1116,6 +1119,9 @@ class VendorContactExtractCreate(BaseModel):
     linkedin_internal_id: Optional[str] = None
     notes: Optional[str] = None
     job_source: Optional[str] = None
+    moved_at: Optional[datetime] = None
+    vendor_id: Optional[int] = None
+    last_modified_datetime: Optional[datetime] = None
 
     @validator("email", "linkedin_id", "linkedin_internal_id", pre=True)
     def empty_to_none(cls, v):
@@ -1134,6 +1140,8 @@ class VendorContactExtractUpdate(BaseModel):
     location: Optional[str] = None
     extraction_date: Optional[date] = None
     moved_to_vendor: Optional[bool] = None
+    moved_at: Optional[datetime] = None
+    vendor_id: Optional[int] = None
     linkedin_internal_id: Optional[str] = None
     notes: Optional[str] = None
     job_source: Optional[str] = None
@@ -1178,6 +1186,7 @@ class VendorBase(BaseModel):
     intro_email_sent: Optional[str] = "NO"
     intro_call: Optional[str] = "NO"
     linkedin_internal_id: Optional[str] = None
+    last_modified_datetime: Optional[datetime] = None
 
     @validator("email", pre=True)
     def empty_string_to_none(cls, v):

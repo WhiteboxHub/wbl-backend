@@ -170,7 +170,7 @@ class Vendor(Base):
     )
     created_at = Column(TIMESTAMP, server_default=func.now())
     linkedin_internal_id = Column(String(255))
-
+    last_modified_datetime = Column(TIMESTAMP, nullable=True)
 
 # ------------------------------------------
 
@@ -507,8 +507,9 @@ class VendorContactExtractsORM(Base):
     linkedin_internal_id = Column(String(255))
     extraction_date = Column(DateTime, nullable=True)
     source_email = Column(String(255), nullable=True)
-    notes = Column(String(500), nullable=True)
+    notes = Column(String(525), nullable=True)
     job_source = Column(String(100), nullable=True)
+    last_modified_datetime = Column(TIMESTAMP, nullable=True)
 
 # -------------------- ORM: vendor-daily-activity --------------------
 
