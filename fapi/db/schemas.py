@@ -1111,9 +1111,17 @@ class VendorContactExtractCreate(BaseModel):
     phone: Optional[str] = None
     linkedin_id: Optional[str] = None
     company_name: Optional[str] = None
+    extraction_date: Optional[date] = None
     location: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
     notes: Optional[str] = None
     job_source: Optional[str] = None
+
+    @validator("email", "linkedin_id", "linkedin_internal_id", pre=True)
+    def empty_to_none(cls, v):
+        if v == "" or (isinstance(v, str) and v.lower() == "none"):
+            return None
+        return v
 
 
 class VendorContactExtractUpdate(BaseModel):
@@ -1168,7 +1176,7 @@ class VendorBase(BaseModel):
     vendor_type: Optional[VendorTypeEnum] = None
     linkedin_connected: Optional[str] = "NO"
     intro_email_sent: Optional[str] = "NO"
-    intro_call: Optional[str] = "No"
+    intro_call: Optional[str] = "NO"
     linkedin_internal_id: Optional[str] = None
 
     @validator("email", pre=True)
