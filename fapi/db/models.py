@@ -504,7 +504,7 @@ class VendorContactExtractsORM(Base):
     location = Column(String(255), nullable=True)
     moved_to_vendor = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
-    linkedin_internal_id = Column(String(255))
+    linkedin_internal_id = Column(String(255), nullable=True)
     extraction_date = Column(DateTime, nullable=True)
     source_email = Column(String(255), nullable=True)
     notes = Column(String(525), nullable=True)
