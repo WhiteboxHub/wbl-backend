@@ -54,6 +54,7 @@ class PositionBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    source_job_id: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: PositionStatusEnum = PositionStatusEnum.open
@@ -83,6 +84,7 @@ class PositionUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    source_job_id: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[PositionStatusEnum] = None
