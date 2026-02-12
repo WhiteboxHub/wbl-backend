@@ -979,6 +979,7 @@ class PositionORM(Base):
     source = Column(String(50), nullable=False,
                     comment='linkedin, job_board, vendor, email')
     source_uid = Column(String(255), nullable=True)
+    source_job_id = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True)
     state = Column(String(100), nullable=True)
