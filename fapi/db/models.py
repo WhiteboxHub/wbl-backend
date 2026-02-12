@@ -495,21 +495,23 @@ class CandidateStatus(str, enum.Enum):
 class VendorContactExtractsORM(Base):
     __tablename__ = "vendor_contact_extracts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     full_name = Column(String(255), nullable=True)
-    email = Column(String(255), nullable=True, unique=False)
+    email = Column(String(255), nullable=True, unique=True)
     phone = Column(String(50), nullable=True)
     linkedin_id = Column(String(255), nullable=True)
     company_name = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
+    extraction_date = Column(Date, nullable=True)
     moved_to_vendor = Column(Boolean, default=False)
+    moved_at = Column(DateTime, nullable=True)
+    vendor_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     linkedin_internal_id = Column(String(255), nullable=True)
-    extraction_date = Column(DateTime, nullable=True)
+    notes = Column(String(100), nullable=True)
+    job_source = Column(String(40), nullable=True)
     source_email = Column(String(255), nullable=True)
-    notes = Column(String(525), nullable=True)
-    job_source = Column(String(100), nullable=True)
-    last_modified_datetime = Column(TIMESTAMP, nullable=True)
+    last_modified_datetime = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 # -------------------- ORM: vendor-daily-activity --------------------
 
@@ -517,21 +519,6 @@ class VendorContactExtractsORM(Base):
 class YesNoEnum(str, enum.Enum):
     YES = "YES"
     NO = "NO"
-
-
-class DailyVendorActivityORM(Base):
-    __tablename__ = "vendor_daily_activity"
-
-    activity_id = Column(Integer, primary_key=True, index=True)
-    vendor_id = Column(Integer, ForeignKey("vendor.id"), nullable=False)
-    application_date = Column(Date, nullable=True)
-    linkedin_connected = Column(SQLAEnum(YesNoEnum), nullable=True)
-    extraction_date = Column(DateTime, nullable=True)
-    source_email = Column(String(255), nullable=True)
-    contacted_on_linkedin = Column(SQLAEnum(YesNoEnum), nullable=True)
-    notes = Column(String(1000), nullable=True)
-    employee_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 # ---------linkedin_activity_log----------------------
