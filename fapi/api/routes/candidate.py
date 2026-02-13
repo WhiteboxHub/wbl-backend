@@ -200,7 +200,10 @@ def create_interview(
     interview: CandidateInterviewCreate,
     db: Session = Depends(get_db),
 ):
-    return candidate_utils.create_candidate_interview(db, interview)
+    db_obj = candidate_utils.create_candidate_interview(db, interview)
+    # Fetch with relationships for proper serialization
+    full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
+    return serialize_interview(full_obj or db_obj)
 
 
 
@@ -228,7 +231,9 @@ def update_interview(
     db_obj = candidate_utils.update_candidate_interview(db, interview_id, updates)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
-    return db_obj
+    # Fetch with relationships for proper serialization
+    full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
+    return serialize_interview(full_obj or db_obj)
 
 
 @router.delete("/interviews/{interview_id}")

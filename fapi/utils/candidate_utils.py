@@ -535,7 +535,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
 def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     return (
         db.query(CandidateInterview)
-        .join(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
+        .outerjoin(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
         .options(
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
@@ -556,7 +556,7 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
 def list_interviews_with_instructors(db: Session):
     return (
         db.query(CandidateInterview)
-        .join(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
+        .outerjoin(CandidatePreparation, CandidateInterview.candidate_id == CandidatePreparation.candidate_id)
         .options(
             joinedload(CandidateInterview.candidate)
             .joinedload(CandidateORM.preparations)
@@ -590,8 +590,14 @@ def serialize_interview(interview: CandidateInterview) -> dict:
             data["instructor3_name"] = prep.instructor3.name
 
     if interview.position:
+        # Prioritize data from the linked position for a 'dynamic' experience
+        data["company"] = interview.position.company_name or interview.company
         data["position_title"] = interview.position.title
         data["position_company"] = interview.position.company_name
+    else:
+        # Fallback to interview record's stored company if no position is linked
+        data["position_title"] = None
+        data["position_company"] = None
 
     return data
 
@@ -602,6 +608,12 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
         return None
 
     update_data = updates.dict(exclude_unset=True)
+
+    if "company" in update_data and db_obj.position_id:
+        pos = db_obj.position
+        if pos and update_data["company"] != pos.company_name:
+            if "position_id" not in update_data:
+                db_obj.position_id = None
 
     if update_data.get("interviewer_emails"):
         update_data["interviewer_emails"] = ",".join(

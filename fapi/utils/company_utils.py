@@ -5,19 +5,6 @@ from fapi.db.schemas import CompanyCreate, CompanyUpdate
 from typing import List, Optional
 
 def get_companies(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[Company]:
-    """
-    Get companies with pagination.
-    
-    Args:
-        db: Database session
-        skip: Number of records to skip (offset)
-        limit: Maximum number of records to return. If None, defaults to 5000 to prevent timeouts.
-              To get ALL records, use a very large limit (e.g., limit=999999)
-    
-    Returns:
-        List of Company objects
-    """
-    # Default limit to prevent fetching all 200k records at once
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999  # Effectively unlimited, but may cause timeout
     
