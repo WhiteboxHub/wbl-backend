@@ -441,6 +441,34 @@ class LeadSchema(LeadBase):
 
     class Config:
         from_attributes = True
+
+
+class PotentialLeadBase(BaseModel):
+    full_name: str
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    profession: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    internal_linkedin_id: Optional[str] = None
+    entry_date: Optional[datetime] = None
+    work_status: Optional[str] = None
+    location: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PotentialLeadCreate(PotentialLeadBase):
+    pass
+
+class PotentialLeadUpdate(PotentialLeadBase):
+    pass
+
+
+class PotentialLeadSchema(PotentialLeadBase):
+    id: int
+    lastmoddatetime: datetime
+
+    class Config:
+        from_attributes = True
 # --------------------------------------------------------candidate-------------------------------------------------------
 
 

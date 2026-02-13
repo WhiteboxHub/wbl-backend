@@ -8,7 +8,7 @@ from fapi.api.routes import (
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
     position, raw_position, employee_dashboard, job_definition, job_schedule, job_run, 
-    job_request, email_engine, outreach_contact, job_trigger, remote_worker, email_service
+    job_request, email_engine, outreach_contact, job_trigger, remote_worker, email_service, potential_leads
 )
 from fapi.email_orchestrator import start_background_orchestrator
 from fapi.db.database import SessionLocal
@@ -131,5 +131,6 @@ app.include_router(position.router, prefix="/api", tags=["Positions"], dependenc
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
+app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])
 
 
