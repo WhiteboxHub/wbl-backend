@@ -299,6 +299,10 @@ class CandidateMarketingORM(Base):
     mass_email = Column(Boolean, nullable=False, server_default="0")
     candidate_intro = Column(Text, nullable=True)
 
+    # Outreach Automation Flags
+    run_daily_workflow = Column(Boolean, nullable=False, server_default="0")
+    run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
+
     # Relationships
     candidate = relationship(
         "CandidateORM", back_populates="marketing_records")
@@ -829,123 +833,6 @@ class EmployeeTaskORM(Base):
     project = relationship("ProjectORM", back_populates="tasks")
 
 
-# -------------------- Email Sender Engine --------------------
-class EmailSenderEngineORM(Base):
-    __tablename__ = "email_sender_engine"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    engine_name = Column(String(100), nullable=False)
-    provider = Column(String(30), nullable=False)  # smtp | aws_ses | sendgrid | mailgun
-    is_active = Column(Boolean, nullable=False, server_default="1")
-    priority = Column(Integer, nullable=False, server_default="1")
-    credentials_json = Column(Text, nullable=False)  # Use Text for JSON content compatibility
-    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    updated_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-
-
-# -------------------- Job Definition --------------------
-class JobDefinitionORM(Base):
-    __tablename__ = "job_definition"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    job_type = Column(String(50), nullable=False)
-    status = Column(String(20), nullable=False, server_default="ACTIVE")
-    candidate_marketing_id = Column(Integer, ForeignKey("candidate_marketing.id", ondelete="CASCADE"), nullable=True)
-    email_engine_id = Column(Integer, ForeignKey("email_sender_engine.id"), nullable=True)
-    config_json = Column(Text, nullable=True)  # JSON stored as TEXT
-    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
-
-    # Relationships
-    candidate_marketing = relationship("CandidateMarketingORM")
-    email_engine = relationship("EmailSenderEngineORM")
-    schedules = relationship("JobScheduleORM", back_populates="job_definition", cascade="all, delete-orphan")
-    runs = relationship("JobRunORM", back_populates="job_definition")
-
-
-# -------------------- Job Schedule --------------------
-class JobScheduleORM(Base):
-    __tablename__ = "job_schedule"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    job_definition_id = Column(BigInteger, ForeignKey("job_definition.id", ondelete="CASCADE"), nullable=False)
-    timezone = Column(String(64), nullable=False, server_default="America/Los_Angeles")
-    frequency = Column(String(20), nullable=False)
-    interval_value = Column(Integer, nullable=False, server_default="1")
-    next_run_at = Column(TIMESTAMP, nullable=False)
-    last_run_at = Column(TIMESTAMP, nullable=True)
-    lock_token = Column(String(64), nullable=True)
-    lock_expires_at = Column(TIMESTAMP, nullable=True)
-    enabled = Column(Boolean, nullable=False, server_default="1")
-    manually_triggered = Column(Boolean, nullable=False, server_default="0")
-    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
-
-    # Relationships
-    job_definition = relationship("JobDefinitionORM", back_populates="schedules")
-    runs = relationship("JobRunORM", back_populates="job_schedule")
-
-
-# -------------------- Job Run --------------------
-class JobRunORM(Base):
-    __tablename__ = "job_run"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    job_definition_id = Column(BigInteger, ForeignKey("job_definition.id"), nullable=False)
-    job_schedule_id = Column(BigInteger, ForeignKey("job_schedule.id"), nullable=False)
-    run_status = Column(String(20), nullable=False, server_default="RUNNING")
-    started_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    finished_at = Column(TIMESTAMP, nullable=True)
-    items_total = Column(Integer, server_default="0")
-    items_succeeded = Column(Integer, server_default="0")
-    items_failed = Column(Integer, server_default="0")
-    error_message = Column(Text, nullable=True)
-    details_json = Column(Text, nullable=True)  # JSON stored as TEXT
-
-    # Relationships
-    job_definition = relationship("JobDefinitionORM", back_populates="runs")
-    job_schedule = relationship("JobScheduleORM", back_populates="runs")
-
-
-# -------------------- Job Request --------------------
-class JobRequestORM(Base):
-    __tablename__ = "job_request"
-    __table_args__ = (
-        UniqueConstraint('job_type', 'candidate_marketing_id', 'status', name='uq_jobreq'),
-    )
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    job_type = Column(String(50), nullable=False)
-    candidate_marketing_id = Column(Integer, nullable=False)
-    status = Column(String(20), nullable=False, server_default="PENDING")
-    requested_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    processed_at = Column(TIMESTAMP, nullable=True)
-
-
-# -------------------- Outreach Contact --------------------
-class OutreachContactORM(Base):
-    __tablename__ = "outreach_contacts"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    email = Column(String(255), nullable=False)
-    email_lc = Column(String(255), server_default=FetchedValue(), unique=True)
-    source_type = Column(String(50), nullable=False)
-    source_id = Column(BigInteger, nullable=True)
-    status = Column(String(50), nullable=False, server_default="ACTIVE")
-    unsubscribe_flag = Column(Boolean, nullable=False, server_default="0")
-    unsubscribe_at = Column(TIMESTAMP, nullable=True)
-    unsubscribe_reason = Column(String(255), nullable=True)
-    bounce_flag = Column(Boolean, nullable=False, server_default="0")
-    bounce_type = Column(String(20), nullable=True)
-    bounce_reason = Column(String(255), nullable=True)
-    bounce_code = Column(String(100), nullable=True)
-    bounced_at = Column(TIMESTAMP, nullable=True)
-    complaint_flag = Column(Boolean, nullable=False, server_default="0")
-    complained_at = Column(TIMESTAMP, nullable=True)
-    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
-
-
 class RawPositionORM(Base):
     __tablename__ = "raw_position"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -1021,6 +908,164 @@ class PositionORM(Base):
 
     __table_args__ = (
         UniqueConstraint('source', 'source_uid', name='uniq_source_job'),
+    )
+
+
+# -------------------- Delivery Engines --------------------
+class DeliveryEngineORM(Base):
+    __tablename__ = "delivery_engines"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    engine_type = Column(SQLAEnum("smtp", "mailgun", "sendgrid", "aws_ses", "outlook_api"), nullable=False)
+    host = Column(String(255), nullable=True)
+    port = Column(Integer, nullable=True)
+    api_key = Column(String(255), nullable=True)
+    username = Column(String(255), nullable=True)
+    password = Column(String(255), nullable=True)
+    from_email = Column(String(255), nullable=False)
+    from_name = Column(String(255), nullable=True)
+    max_recipients_per_run = Column(Integer, nullable=True)
+    batch_size = Column(Integer, nullable=True, server_default="50")
+    rate_limit_per_minute = Column(Integer, nullable=True, server_default="60")
+    dedupe_window_minutes = Column(Integer, nullable=True)
+    retry_policy = Column(JSON, nullable=True)
+    max_retries = Column(Integer, nullable=False, server_default="3")
+    timeout_seconds = Column(Integer, nullable=False, server_default="600")
+    status = Column(SQLAEnum("active", "inactive", "deprecated"), server_default="active")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+
+# -------------------- Email Templates --------------------
+class EmailTemplateORM(Base):
+    __tablename__ = "email_templates"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    template_key = Column(String(100), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    subject = Column(String(255), nullable=False)
+    content_html = Column(Text, nullable=False)
+    content_text = Column(Text, nullable=True)
+    parameters = Column(JSON, nullable=True)
+    status = Column(SQLAEnum("draft", "active", "inactive"), server_default="draft")
+    version = Column(Integer, server_default="1")
+    created_time = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    last_mod_time = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    last_mod_user_id = Column(BigInteger, nullable=True)
+
+
+# -------------------- Automation Workflows --------------------
+class AutomationWorkflowORM(Base):
+    __tablename__ = "automation_workflows"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    workflow_key = Column(String(128), nullable=False, unique=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    workflow_type = Column(SQLAEnum("email_sender", "extractor", "transformer", "webhook", "sync"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
+    status = Column(SQLAEnum("draft", "active", "paused", "inactive"), nullable=False, server_default="draft")
+    email_template_id = Column(BigInteger, ForeignKey("email_templates.id"), nullable=True)
+    delivery_engine_id = Column(BigInteger, ForeignKey("delivery_engines.id"), nullable=True)
+    credentials_list_sql = Column(Text, nullable=True)
+    recipient_list_sql = Column(Text, nullable=True)
+    parameters_config = Column(JSON, nullable=True)
+    version = Column(Integer, nullable=False, server_default="1")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    last_mod_user_id = Column(BigInteger, nullable=True)
+
+    # Relationships
+    owner = relationship("EmployeeORM")
+    template = relationship("EmailTemplateORM")
+    delivery_engine = relationship("DeliveryEngineORM")
+
+
+# -------------------- Automation Workflows Schedule --------------------
+class AutomationWorkflowScheduleORM(Base):
+    __tablename__ = "automation_workflows_schedule"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    automation_workflow_id = Column(BigInteger, ForeignKey("automation_workflows.id"), nullable=False)
+    timezone = Column(String(64), nullable=False, server_default="America/Los_Angeles")
+    cron_expression = Column(String(64), nullable=True)
+    frequency = Column(SQLAEnum("once", "daily", "weekly", "monthly", "custom"), nullable=False)
+    interval_value = Column(Integer, nullable=False, server_default="1")
+    next_run_at = Column(TIMESTAMP, nullable=True)
+    last_run_at = Column(TIMESTAMP, nullable=True)
+    run_parameters = Column(JSON, nullable=True)
+    enabled = Column(Boolean, nullable=False, server_default="1")
+    is_running = Column(Boolean, nullable=False, server_default="0")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    # Relationships
+    workflow = relationship("AutomationWorkflowORM")
+
+
+# -------------------- Automation Workflow Logs --------------------
+class AutomationWorkflowLogORM(Base):
+    __tablename__ = "automation_workflow_logs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    workflow_id = Column(BigInteger, ForeignKey("automation_workflows.id"), nullable=False)
+    schedule_id = Column(BigInteger, ForeignKey("automation_workflows_schedule.id"), nullable=True)
+    run_id = Column(String(64), nullable=False)
+    status = Column(SQLAEnum("queued", "running", "success", "failed", "partial_success", "timed_out"), nullable=False, server_default="queued")
+    parameters_used = Column(JSON, nullable=True)
+    execution_metadata = Column(JSON, nullable=True)
+    records_processed = Column(Integer, server_default="0")
+    records_failed = Column(Integer, server_default="0")
+    error_summary = Column(String(255), nullable=True)
+    error_details = Column(Text, nullable=True)
+    started_at = Column(TIMESTAMP, nullable=True)
+    finished_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    # Relationships
+    workflow = relationship("AutomationWorkflowORM")
+    schedule = relationship("AutomationWorkflowScheduleORM")
+
+
+# -------------------- Outreach Contacts --------------------
+class OutreachContactORM(Base):
+    __tablename__ = "outreach_contacts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False)
+    # email_lc is generated at DB level, we can map it but exclude from inserts
+    email_lc = Column(String(255), FetchedValue())
+
+    source_type = Column(String(50), nullable=False)
+    source_id = Column(BigInteger, nullable=True)
+
+    status = Column(String(50), nullable=False, server_default="ACTIVE")
+
+    unsubscribe_flag = Column(Boolean, nullable=False, server_default="0")
+    unsubscribe_at = Column(TIMESTAMP, nullable=True)
+    unsubscribe_reason = Column(String(255), nullable=True)
+
+    bounce_flag = Column(Boolean, nullable=False, server_default="0")
+    bounce_type = Column(String(20), nullable=True)
+    bounce_reason = Column(String(255), nullable=True)
+    bounce_code = Column(String(100), nullable=True)
+    bounced_at = Column(TIMESTAMP, nullable=True)
+
+    complaint_flag = Column(Boolean, nullable=False, server_default="0")
+    complained_at = Column(TIMESTAMP, nullable=True)
+
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('email_lc', name='uq_outreach_email'),
+        Index('idx_outreach_status', 'status'),
+        Index('idx_outreach_unsub', 'unsubscribe_flag'),
+        Index('idx_outreach_bounce', 'bounce_flag'),
+        Index('idx_outreach_complaint', 'complaint_flag'),
     )
 
 
