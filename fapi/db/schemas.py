@@ -944,6 +944,7 @@ class CandidateInterviewOut(CandidateInterviewBase):
     instructor3_name: Optional[str] = None
     position_title: Optional[str] = None
     position_company: Optional[str] = None
+    # source_job_id: Optional[str] = None
     last_mod_datetime: Optional[datetime] = None
 
     class Config:

@@ -69,7 +69,7 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
             selectinload(CandidateORM.preparations).joinedload(CandidatePreparation.instructor3),
             selectinload(CandidateORM.marketing_records).joinedload(CandidateMarketingORM.marketing_manager_obj),
             selectinload(CandidateORM.placements),
-            selectinload(CandidateORM.interviews),
+            selectinload(CandidateORM.interviews).joinedload(CandidateInterview.position),
         )
         .filter(CandidateORM.id == candidate_id)
         .first()
@@ -89,11 +89,11 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
 
     interview_stats = _calculate_interview_stats(candidate.interviews)
 
-    recent_interviews = sorted(
+    all_interviews = sorted(
         candidate.interviews,
         key=lambda x: x.interview_date or date.min,
         reverse=True
-    )[:5]
+    )
 
     alerts = _generate_candidate_alerts(candidate, db)
 
@@ -103,7 +103,7 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "phase_metrics": phase_metrics,
         "team_info": team_info,
         "interview_stats": interview_stats,
-        "recent_interviews": [_serialize_interview_summary(i) for i in recent_interviews],
+        "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
     }
 
@@ -312,6 +312,7 @@ def _serialize_interview_summary(interview: CandidateInterview) -> Dict[str, Any
         "feedback": interview.feedback,
         "has_recording": bool(interview.recording_link),
         "has_transcript": bool(interview.transcript),
+        "source_job_id": interview.position.source_job_id if interview.position else None,
     }
 
 
@@ -328,13 +329,6 @@ def _generate_candidate_alerts(candidate: CandidateORM, db: Session) -> List[Dic
                 "message": f"Preparation target date ({prep.target_date}) has passed",
             })
 
-    pending_count = sum(1 for i in candidate.interviews if i.feedback == "Pending")
-    if pending_count > 5:
-        alerts.append({
-            "type": "info",
-            "phase": "marketing",
-            "message": f"{pending_count} interviews have pending feedback",
-        })
 
     marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
     if marketing and marketing.status == "active":
