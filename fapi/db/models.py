@@ -1016,3 +1016,58 @@ class PositionORM(Base):
     __table_args__ = (
         UniqueConstraint('source', 'source_uid', name='uniq_source_job'),
     )
+
+
+class Company(Base):
+    __tablename__ = "company"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(255))
+    address1 = Column(String(255))
+    address2 = Column(String(255))
+    city = Column(String(100))
+    state = Column(String(50))
+    postal_code = Column(String(20))
+    country = Column(String(100))
+    phone = Column(String(50))
+    phone_ext = Column(String(20))
+    domain = Column(String(255))
+    notes = Column(Text)
+    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_userid = Column(String(128), nullable=False, server_default='system')
+    lastmod_datetime = Column(DateTime(6), server_default=func.now(), onupdate=func.now(), nullable=False)
+    lastmod_userid = Column(String(128), nullable=False, server_default='system')
+
+    contacts = relationship("CompanyContact", back_populates="company", cascade="all, delete-orphan")
+
+
+class CompanyContact(Base):
+    __tablename__ = "company_contact"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    company_id = Column(BigInteger, ForeignKey("company.id"), nullable=False)
+    name = Column(String(310))
+    job_title = Column(String(255))
+    address1 = Column(String(255))
+    address2 = Column(String(255))
+    city = Column(String(100))
+    state = Column(String(50))
+    postal_code = Column(String(20))
+    country = Column(String(50))
+    phone = Column(String(50))
+    phone_ext = Column(String(20))
+    email = Column(String(255), unique=True)
+    notes = Column(Text)
+    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_userid = Column(String(128), nullable=False, server_default='system')
+    lastmod_datetime = Column(DateTime(6), server_default=func.now(), onupdate=func.now(), nullable=False)
+    lastmod_userid = Column(String(128), nullable=False, server_default='system')
+    linkedin_id = Column(String(255))
+    linkedin_internal_id = Column(String(255))
+
+    company = relationship("Company", back_populates="contacts")
+
+    __table_args__ = (
+        Index('idx_company_contact_linkedin_id', 'linkedin_id'),
+        Index('idx_company_contact_linkedin_internal_id', 'linkedin_internal_id'),
+    )
