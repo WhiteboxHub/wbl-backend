@@ -5,9 +5,30 @@ from fapi.db.schemas import CompanyContactCreate, CompanyContactUpdate
 from typing import List, Optional
 
 def get_company_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[CompanyContact]:
+    """
+    Get company contacts with pagination.
+    
+    Args:
+        db: Database session
+        skip: Number of records to skip (offset)
+        limit: Maximum number of records to return. If None, defaults to 5000 to prevent timeouts.
+    
+    Returns:
+        List of CompanyContact objects
+    """
+    # Default limit to prevent fetching all 200k records at once
+    DEFAULT_LIMIT = 5000
+    MAX_LIMIT = 999999
+    
     query = db.query(CompanyContact).order_by(CompanyContact.id.desc()).offset(skip)
-    if limit:
-        query = query.limit(limit)
+    
+    # Apply limit with sensible defaults
+    if limit is None:
+        query = query.limit(DEFAULT_LIMIT)
+    else:
+        # Cap at MAX_LIMIT to prevent abuse
+        query = query.limit(min(limit, MAX_LIMIT))
+    
     return query.all()
 
 def get_company_contact(db: Session, contact_id: int) -> Optional[CompanyContact]:
@@ -53,3 +74,7 @@ def search_company_contacts(db: Session, term: str) -> List[CompanyContact]:
 
 def get_contacts_by_company(db: Session, company_id: int) -> List[CompanyContact]:
     return db.query(CompanyContact).filter(CompanyContact.company_id == company_id).all()
+
+def count_company_contacts(db: Session) -> int:
+    """Get total count of company contacts for pagination"""
+    return db.query(CompanyContact).count()
