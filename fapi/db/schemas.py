@@ -649,6 +649,8 @@ class CandidateMarketingBase(BaseModel):
     move_to_placement: Optional[bool] = False
     mass_email: Optional[bool] = False
     candidate_intro: Optional[str] = None
+    run_daily_workflow: bool = False
+    run_weekly_workflow: bool = False
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -683,6 +685,8 @@ class CandidateMarketingUpdate(BaseModel):
     move_to_placement: Optional[bool] = None
     mass_email: Optional[bool] = None
     candidate_intro: Optional[str] = None
+    run_daily_workflow: Optional[bool] = None
+    run_weekly_workflow: Optional[bool] = None
 
 # -----------------------PLACEMENT---------------------------------
 
@@ -2579,3 +2583,228 @@ class CompanyContactOut(CompanyContactBase):
 
     class Config:
         from_attributes = True
+
+
+# -------------------- Delivery Engines --------------------
+class DeliveryEngineBase(BaseModel):
+    name: str
+    engine_type: Literal["smtp", "mailgun", "sendgrid", "aws_ses", "outlook_api"]
+    host: Optional[str] = None
+    port: Optional[int] = None
+    api_key: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    from_email: str
+    from_name: Optional[str] = None
+    max_recipients_per_run: Optional[int] = None
+    batch_size: Optional[int] = 50
+    rate_limit_per_minute: Optional[int] = 60
+    dedupe_window_minutes: Optional[int] = None
+    retry_policy: Optional[Dict[str, Any]] = None
+    max_retries: int = 3
+    timeout_seconds: int = 600
+    status: Literal["active", "inactive", "deprecated"] = "active"
+
+class DeliveryEngineCreate(DeliveryEngineBase):
+    pass
+
+class DeliveryEngineUpdate(BaseModel):
+    name: Optional[str] = None
+    engine_type: Optional[Literal["smtp", "mailgun", "sendgrid", "aws_ses", "outlook_api"]] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    api_key: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    from_email: Optional[str] = None
+    from_name: Optional[str] = None
+    max_recipients_per_run: Optional[int] = None
+    batch_size: Optional[int] = None
+    rate_limit_per_minute: Optional[int] = None
+    dedupe_window_minutes: Optional[int] = None
+    retry_policy: Optional[Dict[str, Any]] = None
+    max_retries: Optional[int] = None
+    timeout_seconds: Optional[int] = None
+    status: Optional[Literal["active", "inactive", "deprecated"]] = None
+
+class DeliveryEngine(DeliveryEngineBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Email Templates --------------------
+class EmailTemplateBase(BaseModel):
+    template_key: str
+    name: str
+    description: Optional[str] = None
+    subject: str
+    content_html: str
+    content_text: Optional[str] = None
+    parameters: Optional[List[str]] = None
+    status: Literal["draft", "active", "inactive"] = "draft"
+    version: int = 1
+
+class EmailTemplateCreate(EmailTemplateBase):
+    pass
+
+class EmailTemplateUpdate(BaseModel):
+    template_key: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    subject: Optional[str] = None
+    content_html: Optional[str] = None
+    content_text: Optional[str] = None
+    parameters: Optional[List[str]] = None
+    status: Optional[Literal["draft", "active", "inactive"]] = None
+    version: Optional[int] = None
+
+class EmailTemplate(EmailTemplateBase):
+    id: int
+    created_time: datetime
+    last_mod_time: datetime
+    last_mod_user_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Automation Workflows --------------------
+class AutomationWorkflowBase(BaseModel):
+    workflow_key: str
+    name: str
+    description: Optional[str] = None
+    workflow_type: Literal["email_sender", "extractor", "transformer", "webhook", "sync"]
+    owner_id: Optional[int] = None
+    status: Literal["draft", "active", "paused", "inactive"] = "draft"
+    email_template_id: Optional[int] = None
+    delivery_engine_id: Optional[int] = None
+    credentials_list_sql: Optional[str] = None
+    recipient_list_sql: Optional[str] = None
+    parameters_config: Optional[Dict[str, Any]] = None
+    version: int = 1
+
+class AutomationWorkflowCreate(AutomationWorkflowBase):
+    pass
+
+class AutomationWorkflowUpdate(BaseModel):
+    workflow_key: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    workflow_type: Optional[Literal["email_sender", "extractor", "transformer", "webhook", "sync"]] = None
+    owner_id: Optional[int] = None
+    status: Optional[Literal["draft", "active", "paused", "inactive"]] = None
+    email_template_id: Optional[int] = None
+    delivery_engine_id: Optional[int] = None
+    credentials_list_sql: Optional[str] = None
+    recipient_list_sql: Optional[str] = None
+    parameters_config: Optional[Dict[str, Any]] = None
+    version: Optional[int] = None
+
+class AutomationWorkflow(AutomationWorkflowBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    last_mod_user_id: Optional[int] = None
+    template: Optional[EmailTemplate] = None
+    delivery_engine: Optional[DeliveryEngine] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Automation Workflows Schedule --------------------
+class AutomationWorkflowScheduleBase(BaseModel):
+    automation_workflow_id: int
+    timezone: str = "America/Los_Angeles"
+    cron_expression: Optional[str] = None
+    frequency: Literal["once", "daily", "weekly", "monthly", "custom"]
+    interval_value: int = 1
+    run_parameters: Optional[Dict[str, Any]] = None
+    enabled: bool = True
+
+class AutomationWorkflowScheduleCreate(AutomationWorkflowScheduleBase):
+    pass
+
+class AutomationWorkflowScheduleUpdate(BaseModel):
+    automation_workflow_id: Optional[int] = None
+    timezone: Optional[str] = None
+    cron_expression: Optional[str] = None
+    frequency: Optional[Literal["once", "daily", "weekly", "monthly", "custom"]] = None
+    interval_value: Optional[int] = None
+    run_parameters: Optional[Dict[str, Any]] = None
+    enabled: Optional[bool] = None
+
+class AutomationWorkflowSchedule(AutomationWorkflowScheduleBase):
+    id: int
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None
+    is_running: bool = False
+    workflow: Optional[AutomationWorkflow] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Automation Workflow Logs --------------------
+class AutomationWorkflowLogBase(BaseModel):
+    workflow_id: int
+    schedule_id: Optional[int] = None
+    run_id: str
+    status: Literal["queued", "running", "success", "failed", "partial_success", "timed_out"] = "queued"
+    parameters_used: Optional[Dict[str, Any]] = None
+    execution_metadata: Optional[Dict[str, Any]] = None
+    records_processed: int = 0
+    records_failed: int = 0
+    error_summary: Optional[str] = None
+    error_details: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+class AutomationWorkflowLog(AutomationWorkflowLogBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    workflow: Optional[AutomationWorkflow] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Outreach Contacts --------------------
+class OutreachContactBase(BaseModel):
+    email: str
+    source_type: str
+    source_id: Optional[int] = None
+    status: str = "ACTIVE"
+    unsubscribe_flag: bool = False
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
+    bounce_flag: bool = False
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
+    complaint_flag: bool = False
+    complained_at: Optional[datetime] = None
+
+class OutreachContactCreate(OutreachContactBase):
+    pass
+
+class OutreachContactUpdate(BaseModel):
+    email: Optional[str] = None
+    source_type: Optional[str] = None
+    source_id: Optional[int] = None
+    status: Optional[str] = None
+    unsubscribe_flag: Optional[bool] = None
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
+    bounce_flag: Optional[bool] = None
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
+    complaint_flag: Optional[bool] = None
+    complained_at: Optional[datetime] = None
+
+class OutreachContact(OutreachContactBase):
+    id: int
+    email_lc: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
