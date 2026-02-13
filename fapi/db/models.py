@@ -91,6 +91,24 @@ class LeadORM(Base):
         onupdate=func.now()       # update automatically when record changes
     )
 
+
+class PotentialLeadORM(Base):
+    __tablename__ = "potential_leads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(150), nullable=False)
+    email = Column(String(150), unique=True)
+    phone = Column(String(30))
+    profession = Column(String(150))
+    linkedin_id = Column(String(255), unique=True)
+    internal_linkedin_id = Column(String(255))
+    entry_date = Column(DateTime, server_default=func.now())
+    work_status = Column(String(50))
+    location = Column(String(150))
+    notes = Column(Text)
+    lastmoddatetime = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
 # -------------------------------------------------------------------------------
 
 

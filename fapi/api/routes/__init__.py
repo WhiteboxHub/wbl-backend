@@ -10,5 +10,5 @@ from . import (
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords,
     hr_contact, projects, position, raw_position, employee_dashboard,
     job_definition, job_schedule, job_run, job_request, email_engine,
-    outreach_contact, job_trigger, remote_worker
+    outreach_contact, job_trigger, remote_worker, potential_leads
 )
