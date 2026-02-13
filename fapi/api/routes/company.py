@@ -30,44 +30,12 @@ def read_companies_paginated(
     page_size: int = 5000, 
     db: Session = Depends(get_db)
 ):
-    """
-    Get companies with pagination metadata.
-    
-    Parameters:
-    - page: Page number (starts at 1)
-    - page_size: Number of records per page (default: 5000, max: 10000)
-    
-    Returns:
-    {
-        "data": [...],           // Array of records
-        "page": 1,               // Current page number
-        "page_size": 5000,       // Records per page
-        "total_records": 200000, // Total number of records
-        "total_pages": 40,       // Total number of pages
-        "has_next": true,        // Whether there's a next page
-        "has_prev": false        // Whether there's a previous page
-    }
-    
-    Examples:
-    - /api/companies/paginated → Page 1, 5000 records
-    - /api/companies/paginated?page=2 → Page 2, 5000 records
-    - /api/companies/paginated?page=1&page_size=10000 → Page 1, 10000 records
-    """
-    # Validate and cap page_size
     page_size = min(max(1, page_size), 10000)
-    page = max(1, page)  # Ensure page is at least 1
-    
-    # Calculate skip
+    page = max(1, page)
     skip = (page - 1) * page_size
-    
-    # Get total count
     total_records = company_utils.count_companies(db)
-    
-    # Get paginated data
     data = company_utils.get_companies(db, skip=skip, limit=page_size)
-    
-    # Calculate pagination metadata
-    total_pages = (total_records + page_size - 1) // page_size  # Ceiling division
+    total_pages = (total_records + page_size - 1) // page_size  
     
     return {
         "data": data,

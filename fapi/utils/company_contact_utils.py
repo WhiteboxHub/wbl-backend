@@ -5,18 +5,6 @@ from fapi.db.schemas import CompanyContactCreate, CompanyContactUpdate
 from typing import List, Optional
 
 def get_company_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[CompanyContact]:
-    """
-    Get company contacts with pagination.
-    
-    Args:
-        db: Database session
-        skip: Number of records to skip (offset)
-        limit: Maximum number of records to return. If None, defaults to 5000 to prevent timeouts.
-    
-    Returns:
-        List of CompanyContact objects
-    """
-    # Default limit to prevent fetching all 200k records at once
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999
     
