@@ -45,6 +45,7 @@ class PositionBase(BaseModel):
     employment_mode: EmploymentModeEnum = EmploymentModeEnum.hybrid
     source: str
     source_uid: Optional[str] = None
+    source_job_id: Optional[str] = None
     location: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
@@ -74,6 +75,7 @@ class PositionUpdate(BaseModel):
     employment_mode: Optional[EmploymentModeEnum] = None
     source: Optional[str] = None
     source_uid: Optional[str] = None
+    source_job_id: Optional[str] = None
     location: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
@@ -436,6 +438,34 @@ class LeadUpdate(LeadBase):
 
 class LeadSchema(LeadBase):
     id: int
+
+    class Config:
+        from_attributes = True
+
+
+class PotentialLeadBase(BaseModel):
+    full_name: str
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    profession: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    internal_linkedin_id: Optional[str] = None
+    entry_date: Optional[datetime] = None
+    work_status: Optional[str] = None
+    location: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class PotentialLeadCreate(PotentialLeadBase):
+    pass
+
+class PotentialLeadUpdate(PotentialLeadBase):
+    pass
+
+
+class PotentialLeadSchema(PotentialLeadBase):
+    id: int
+    lastmoddatetime: datetime
 
     class Config:
         from_attributes = True

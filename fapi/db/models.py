@@ -91,6 +91,24 @@ class LeadORM(Base):
         onupdate=func.now()       # update automatically when record changes
     )
 
+
+class PotentialLeadORM(Base):
+    __tablename__ = "potential_leads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    full_name = Column(String(150), nullable=False)
+    email = Column(String(150), unique=True)
+    phone = Column(String(30))
+    profession = Column(String(150))
+    linkedin_id = Column(String(255), unique=True)
+    internal_linkedin_id = Column(String(255))
+    entry_date = Column(DateTime, server_default=func.now())
+    work_status = Column(String(50))
+    location = Column(String(150))
+    notes = Column(Text)
+    lastmoddatetime = Column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
 # -------------------------------------------------------------------------------
 
 
@@ -495,21 +513,23 @@ class CandidateStatus(str, enum.Enum):
 class VendorContactExtractsORM(Base):
     __tablename__ = "vendor_contact_extracts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     full_name = Column(String(255), nullable=True)
-    email = Column(String(255), nullable=True, unique=False)
+    email = Column(String(255), nullable=True, unique=True)
     phone = Column(String(50), nullable=True)
     linkedin_id = Column(String(255), nullable=True)
     company_name = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
+    extraction_date = Column(Date, nullable=True)
     moved_to_vendor = Column(Boolean, default=False)
+    moved_at = Column(DateTime, nullable=True)
+    vendor_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
-    linkedin_internal_id = Column(String(255))
-    extraction_date = Column(DateTime, nullable=True)
+    linkedin_internal_id = Column(String(255), nullable=True)
+    notes = Column(String(100), nullable=True)
+    job_source = Column(String(40), nullable=True)
     source_email = Column(String(255), nullable=True)
-    notes = Column(String(525), nullable=True)
-    job_source = Column(String(100), nullable=True)
-    last_modified_datetime = Column(TIMESTAMP, nullable=True)
+    last_modified_datetime = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 # -------------------- ORM: vendor-daily-activity --------------------
 
@@ -517,21 +537,6 @@ class VendorContactExtractsORM(Base):
 class YesNoEnum(str, enum.Enum):
     YES = "YES"
     NO = "NO"
-
-
-class DailyVendorActivityORM(Base):
-    __tablename__ = "vendor_daily_activity"
-
-    activity_id = Column(Integer, primary_key=True, index=True)
-    vendor_id = Column(Integer, ForeignKey("vendor.id"), nullable=False)
-    application_date = Column(Date, nullable=True)
-    linkedin_connected = Column(SQLAEnum(YesNoEnum), nullable=True)
-    extraction_date = Column(DateTime, nullable=True)
-    source_email = Column(String(255), nullable=True)
-    contacted_on_linkedin = Column(SQLAEnum(YesNoEnum), nullable=True)
-    notes = Column(String(1000), nullable=True)
-    employee_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 # ---------linkedin_activity_log----------------------
@@ -992,6 +997,7 @@ class PositionORM(Base):
     source = Column(String(50), nullable=False,
                     comment='linkedin, job_board, vendor, email')
     source_uid = Column(String(255), nullable=True)
+    source_job_id = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True)
     state = Column(String(100), nullable=True)
