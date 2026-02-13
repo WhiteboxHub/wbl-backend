@@ -11,4 +11,8 @@ from . import (
     hr_contact, projects, position, raw_position, employee_dashboard,
     job_definition, job_schedule, job_run, job_request, email_engine,
     outreach_contact, job_trigger, remote_worker, potential_leads
+    email_service,
+    delivery_engine, email_template, automation_workflow,
+    automation_workflow_schedule, automation_workflow_log,
+    outreach_contact, outreach_orchestrator
 )

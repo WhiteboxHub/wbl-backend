@@ -7,6 +7,11 @@ from fapi.api.routes import (
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
+    position, raw_position, employee_dashboard, email_service,
+    delivery_engine, email_template, automation_workflow, 
+    automation_workflow_schedule, automation_workflow_log,
+    outreach_contact, outreach_orchestrator
+)
     position, raw_position, employee_dashboard, job_definition, job_schedule, job_run,
     job_request, email_engine, outreach_contact, job_trigger, remote_worker, email_service,potential_leads,
     company, company_contact
@@ -120,15 +125,6 @@ app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placem
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
 
-# New Job Automation Routers
-app.include_router(job_definition.router, prefix="/api", tags=["Job Definition"], dependencies=[Depends(enforce_access)])
-app.include_router(job_schedule.router, prefix="/api", tags=["Job Schedule"], dependencies=[Depends(enforce_access)])
-app.include_router(job_run.router, prefix="/api", tags=["Job Run"], dependencies=[Depends(enforce_access)])
-app.include_router(job_request.router, prefix="/api", tags=["Job Request"], dependencies=[Depends(enforce_access)])
-app.include_router(email_engine.router, prefix="/api", tags=["Email Engine"], dependencies=[Depends(enforce_access)])
-app.include_router(outreach_contact.router, prefix="/api", tags=["Outreach Contact"], dependencies=[Depends(enforce_access)])
-app.include_router(job_trigger.router, prefix="/api", tags=["Job Trigger"], dependencies=[Depends(enforce_access)])
-app.include_router(remote_worker.router, prefix="/api", tags=["Remote Worker"])
 app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
@@ -136,5 +132,14 @@ app.include_router(email_service.router, prefix="/api", tags=["Internal Email Se
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])
+
+# Automation Workflow Routes
+app.include_router(delivery_engine.router, prefix="/api", tags=["Delivery Engine"], dependencies=[Depends(enforce_access)])
+app.include_router(email_template.router, prefix="/api", tags=["Email Template"], dependencies=[Depends(enforce_access)])
+app.include_router(automation_workflow.router, prefix="/api", tags=["Automation Workflow"], dependencies=[Depends(enforce_access)])
+app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Automation Workflow Schedule"], dependencies=[Depends(enforce_access)])
+app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
+app.include_router(outreach_contact.router, prefix="/api", tags=["Outreach Contact"], dependencies=[Depends(enforce_access)])
+app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 
 
