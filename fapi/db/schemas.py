@@ -2514,3 +2514,68 @@ class EmployeeDashboardMetrics(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+
+# -------------------- Company & Company Contact Schemas --------------------
+
+class CompanyBase(BaseModel):
+    name: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    phone_ext: Optional[str] = None
+    domain: Optional[str] = None
+    notes: Optional[str] = None
+
+class CompanyCreate(CompanyBase):
+    pass
+
+class CompanyUpdate(CompanyBase):
+    pass
+
+class CompanyOut(CompanyBase):
+    id: int
+    created_datetime: datetime
+    created_userid: str
+    lastmod_datetime: datetime
+    lastmod_userid: str
+
+    class Config:
+        from_attributes = True
+
+class CompanyContactBase(BaseModel):
+    company_id: int
+    name: Optional[str] = None
+    job_title: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    phone_ext: Optional[str] = None
+    email: Optional[str] = None
+    notes: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+
+class CompanyContactCreate(CompanyContactBase):
+    pass
+
+class CompanyContactUpdate(CompanyContactBase):
+    company_id: Optional[int] = None
+
+class CompanyContactOut(CompanyContactBase):
+    id: int
+    created_datetime: datetime
+    created_userid: str
+    lastmod_datetime: datetime
+    lastmod_userid: str
+
+    class Config:
+        from_attributes = True
