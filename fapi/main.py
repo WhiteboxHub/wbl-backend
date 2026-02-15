@@ -7,7 +7,7 @@ from fapi.api.routes import (
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
-    position, raw_position, employee_dashboard, email_service,
+    job_listing, raw_job_listing, employee_dashboard, email_service,
     delivery_engine, email_template, automation_workflow, 
     automation_workflow_schedule, automation_workflow_log,
     outreach_contact, outreach_orchestrator,
@@ -99,8 +99,8 @@ app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Aut
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
 
 # Job and Outreach Routers
-app.include_router(position.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
-app.include_router(raw_position.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
+app.include_router(job_listing.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
+app.include_router(raw_job_listing.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
