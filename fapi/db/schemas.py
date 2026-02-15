@@ -1196,7 +1196,6 @@ class VendorContactExtractCreate(BaseModel):
     linkedin_internal_id: Optional[str] = None
     notes: Optional[str] = None
     job_source: Optional[str] = None
-    moved_at: Optional[datetime] = None
     vendor_id: Optional[int] = None
     last_modified_datetime: Optional[datetime] = None
 
