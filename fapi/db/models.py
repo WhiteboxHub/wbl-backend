@@ -368,11 +368,11 @@ class CandidateInterview(Base):
     )
 
     notes = Column(Text, nullable=True)
-    position_id = Column(BigInteger, ForeignKey("position.id", ondelete="SET NULL"), nullable=True)
+    position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
-    position = relationship("PositionORM")
+    position = relationship("JobListingORM")
 
 
 # -------------------------------------- Candidate Placement -------------------------------
@@ -833,8 +833,8 @@ class EmployeeTaskORM(Base):
     project = relationship("ProjectORM", back_populates="tasks")
 
 
-class RawPositionORM(Base):
-    __tablename__ = "raw_position"
+class RawJobListingORM(Base):
+    __tablename__ = "raw_job_listings"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
     source = Column(String(50), nullable=False,
@@ -869,8 +869,8 @@ class RawPositionORM(Base):
     )
 
 
-class PositionORM(Base):
-    __tablename__ = "position"
+class JobListingORM(Base):
+    __tablename__ = "job_listing"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     title = Column(String(255), nullable=False)
@@ -901,7 +901,7 @@ class PositionORM(Base):
     confidence_score = Column(DECIMAL(
         5, 2), nullable=True, comment='extraction or matching confidence')
     created_from_raw_id = Column(BigInteger, ForeignKey(
-        "raw_position.id", ondelete="SET NULL"), nullable=True)
+        "raw_job_listings.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     updated_at = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)

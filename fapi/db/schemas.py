@@ -36,7 +36,7 @@ class ProcessingStatusEnum(str, enum.Enum):
     error = 'error'
 
 
-class PositionBase(BaseModel):
+class JobListingBase(BaseModel):
     title: str
     normalized_title: Optional[str] = None
     company_name: str
@@ -61,12 +61,20 @@ class PositionBase(BaseModel):
     confidence_score: Optional[float] = None
     created_from_raw_id: Optional[int] = None
 
+    @field_validator('contact_email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
 
-class PositionCreate(PositionBase):
+
+class JobListingCreate(JobListingBase):
     pass
 
 
-class PositionUpdate(BaseModel):
+class JobListingUpdate(BaseModel):
     title: Optional[str] = None
     normalized_title: Optional[str] = None
     company_name: Optional[str] = None
@@ -91,8 +99,16 @@ class PositionUpdate(BaseModel):
     confidence_score: Optional[float] = None
     created_from_raw_id: Optional[int] = None
 
+    @field_validator('contact_email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
 
-class PositionOut(PositionBase):
+
+class JobListingOut(JobListingBase):
     id: int
     created_at: datetime
     updated_at: datetime
@@ -101,7 +117,7 @@ class PositionOut(PositionBase):
         from_attributes = True
 
 
-class RawPositionBase(BaseModel):
+class RawJobListingBase(BaseModel):
     candidate_id: Optional[int] = None
     source: str
     source_uid: Optional[str] = None
@@ -117,12 +133,26 @@ class RawPositionBase(BaseModel):
     processing_status: ProcessingStatusEnum = ProcessingStatusEnum.new
     error_message: Optional[str] = None
 
+    @field_validator('raw_contact_info')
+    @classmethod
+    def normalize_contact_info(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize emails in contact info to lowercase"""
+        if v:
+            # Use regex to find and normalize email addresses
+            import re
+            def lowercase_email(match):
+                return match.group(0).lower()
+            # Pattern to match email addresses
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            return re.sub(email_pattern, lowercase_email, v)
+        return v
 
-class RawPositionCreate(RawPositionBase):
+
+class RawJobListingCreate(RawJobListingBase):
     pass
 
 
-class RawPositionUpdate(BaseModel):
+class RawJobListingUpdate(BaseModel):
     source: Optional[str] = None
     source_uid: Optional[str] = None
     extractor_version: Optional[str] = None
@@ -138,19 +168,31 @@ class RawPositionUpdate(BaseModel):
     error_message: Optional[str] = None
     processed_at: Optional[datetime] = None
 
+    @field_validator('raw_contact_info')
+    @classmethod
+    def normalize_contact_info(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize emails in contact info to lowercase"""
+        if v:
+            import re
+            def lowercase_email(match):
+                return match.group(0).lower()
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            return re.sub(email_pattern, lowercase_email, v)
+        return v
 
-class RawPositionBulkCreate(BaseModel):
-    positions: List[RawPositionCreate]
+
+class RawJobListingBulkCreate(BaseModel):
+    positions: List[RawJobListingCreate]
 
 
-class RawPositionBulkResponse(BaseModel):
+class RawJobListingBulkResponse(BaseModel):
     inserted: int
     skipped: int
     total: int
     failed_contacts: List[dict] = []
 
 
-class RawPositionOut(RawPositionBase):
+class RawJobListingOut(RawJobListingBase):
     id: int
     extracted_at: datetime
     processed_at: Optional[datetime]
@@ -2569,11 +2611,27 @@ class CompanyContactBase(BaseModel):
     linkedin_id: Optional[str] = None
     linkedin_internal_id: Optional[str] = None
 
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
+
 class CompanyContactCreate(CompanyContactBase):
     pass
 
 class CompanyContactUpdate(CompanyContactBase):
     company_id: Optional[int] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
 
 class CompanyContactOut(CompanyContactBase):
     id: int
