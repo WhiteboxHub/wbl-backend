@@ -1174,3 +1174,29 @@ class CompanyContact(Base):
         Index('idx_company_contact_linkedin_id', 'linkedin_id'),
         Index('idx_company_contact_linkedin_internal_id', 'linkedin_internal_id'),
     )
+
+
+# -------------------- Linkedin Only Contact --------------------
+class LinkedinOnlyContact(Base):
+    __tablename__ = "linkedin_only_contact"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(310), nullable=True)
+    job_title = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    country = Column(String(50), nullable=True)
+    phone = Column(String(50), nullable=True)
+    linkedin_id = Column(String(255), nullable=True)
+    linkedin_internal_id = Column(String(255), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_userid = Column(String(128), nullable=False, server_default='system')
+    lastmod_datetime = Column(DateTime(6), nullable=False, server_default=func.now(), onupdate=func.now())
+    lastmod_userid = Column(String(128), nullable=False, server_default='system')
+
+    __table_args__ = (
+        UniqueConstraint('linkedin_id', 'linkedin_internal_id', name='uq_linkedin_pair'),
+        Index('idx_linkedin_id', 'linkedin_id'),
+        Index('idx_linkedin_internal_id', 'linkedin_internal_id'),
+    )
