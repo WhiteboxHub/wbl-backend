@@ -949,6 +949,8 @@ class CandidateInterviewCreate(BaseModel):
     feedback: Optional[FeedbackEnum] = FeedbackEnum.pending
     notes: Optional[str] = None
     position_id: Optional[int] = None
+    position_title: Optional[str] = None
+    position_location: Optional[str] = None
 
 
 model_config = {
