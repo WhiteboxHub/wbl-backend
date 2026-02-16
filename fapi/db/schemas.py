@@ -3046,3 +3046,75 @@ class OutreachEmailRecipientOut(OutreachEmailRecipientBase):
 
     class Config:
         from_attributes = True
+
+
+# -------------------- Linkedin Only Contact Schemas --------------------
+class LinkedinOnlyContactBase(BaseModel):
+    name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator('phone')
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize phone number by removing spaces"""
+        if v:
+            return v.replace(" ", "")
+        return v
+
+class LinkedinOnlyContactCreate(LinkedinOnlyContactBase):
+    pass
+
+class LinkedinOnlyContactUpdate(BaseModel):
+    name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_string_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                k: (None if v == "" else v)
+                for k, v in data.items()
+            }
+        return data
+
+    @field_validator('phone')
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize phone number by removing spaces"""
+        if v:
+            return v.replace(" ", "")
+        return v
+
+class LinkedinOnlyContactOut(LinkedinOnlyContactBase):
+    id: int
+    created_datetime: datetime
+    created_userid: str
+    lastmod_datetime: datetime
+    lastmod_userid: str
+
+    class Config:
+        from_attributes = True
+
+class PaginatedLinkedinOnlyContactResponse(BaseModel):
+    data: List[LinkedinOnlyContactOut]
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
