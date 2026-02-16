@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -798,6 +798,58 @@ class CompanyHRContact(Base):
 
 
 # -------------------- Projects --------------------
+
+# -------------------- Personal Domain Contact --------------------
+class PersonalDomainContact(Base):
+    __tablename__ = "personal_domain_contact"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(310), nullable=True)
+    job_title = Column(String(255), nullable=True)
+    address1 = Column(String(255), nullable=True)
+    address2 = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    state = Column(String(50), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    country = Column(String(50), nullable=True)
+    phone = Column(String(50), nullable=True)
+    phone_ext = Column(String(20), nullable=True)
+    linkedin_id = Column(String(255), nullable=True)
+    linkedin_internal_id = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=False, unique=True)
+    notes = Column(Text, nullable=True)
+    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_userid = Column(String(128), nullable=False, server_default='system')
+    lastmod_datetime = Column(DateTime(6), nullable=False, server_default=func.now(), onupdate=func.now())
+    lastmod_userid = Column(String(128), nullable=False, server_default='system')
+
+
+# -------------------- Outreach Email Recipients --------------------
+class OutreachEmailRecipient(Base):
+    __tablename__ = "outreach_email_recipients"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False)
+    email_invalid = Column(Boolean, nullable=False, default=False)
+    domain_invalid = Column(Boolean, nullable=False, default=False)
+    email_lc = Column(String(255), Computed("lower(email)"), unique=True)
+    source_type = Column(String(50), nullable=False)
+    source_id = Column(BigInteger, nullable=True)
+    status = Column(String(50), nullable=False, default='ACTIVE')
+    unsubscribe_flag = Column(Boolean, nullable=False, default=False)
+    unsubscribe_at = Column(TIMESTAMP, nullable=True)
+    unsubscribe_reason = Column(String(255), nullable=True)
+    bounce_flag = Column(Boolean, nullable=False, default=False)
+    bounce_type = Column(String(20), nullable=True)
+    bounce_reason = Column(String(255), nullable=True)
+    bounce_code = Column(String(100), nullable=True)
+    bounced_at = Column(TIMESTAMP, nullable=True)
+    complaint_flag = Column(Boolean, nullable=False, default=False)
+    complained_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.now())
+
+
 class ProjectORM(Base):
     __tablename__ = "projects"
 

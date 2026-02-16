@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Enum, UniqueConstraint, BigInteger, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal, model_validator
 from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
 import enum
@@ -2577,6 +2577,15 @@ class CompanyBase(BaseModel):
     domain: Optional[str] = None
     notes: Optional[str] = None
 
+    @field_validator('phone')
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize phone number by removing spaces"""
+        if v:
+            return v.replace(" ", "")
+        return v
+
+
 class CompanyCreate(CompanyBase):
     pass
 
@@ -2609,6 +2618,15 @@ class CompanyContactBase(BaseModel):
     notes: Optional[str] = None
     linkedin_id: Optional[str] = None
     linkedin_internal_id: Optional[str] = None
+
+    @field_validator('phone')
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize phone number by removing spaces"""
+        if v:
+            return v.replace(" ", "")
+        return v
+
 
     @field_validator('email')
     @classmethod
@@ -2866,3 +2884,165 @@ class OutreachContact(OutreachContactBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Personal Domain Contact Schemas --------------------
+class PersonalDomainContactBase(BaseModel):
+    name: Optional[str] = None
+    job_title: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    phone_ext: Optional[str] = None
+    email: str
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator('phone')
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize phone number by removing spaces"""
+        if v:
+            return v.replace(" ", "")
+        return v
+
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
+
+class PersonalDomainContactCreate(PersonalDomainContactBase):
+    pass
+
+class PersonalDomainContactUpdate(BaseModel):
+    name: Optional[str] = None
+    job_title: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    phone_ext: Optional[str] = None
+    email: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_string_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                k: (None if v == "" else v)
+                for k, v in data.items()
+            }
+        return data
+
+    @field_validator('phone')
+    @classmethod
+    def normalize_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize phone number by removing spaces"""
+        if v:
+            return v.replace(" ", "")
+        return v
+
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
+
+class PersonalDomainContactOut(PersonalDomainContactBase):
+    id: int
+    created_datetime: datetime
+    created_userid: str
+    lastmod_datetime: datetime
+    lastmod_userid: str
+
+    class Config:
+        from_attributes = True
+
+
+# -------------------- Outreach Email Recipients Schemas --------------------
+class OutreachEmailRecipientBase(BaseModel):
+    email: str
+    email_invalid: bool = False
+    domain_invalid: bool = False
+    source_type: str
+    source_id: Optional[int] = None
+    status: str = "ACTIVE"
+    unsubscribe_flag: bool = False
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
+    bounce_flag: bool = False
+    bounce_type: Optional[str] = None
+    bounce_reason: Optional[str] = None
+    bounce_code: Optional[str] = None
+    bounced_at: Optional[datetime] = None
+    complaint_flag: bool = False
+    complained_at: Optional[datetime] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
+
+class OutreachEmailRecipientCreate(OutreachEmailRecipientBase):
+    pass
+
+class OutreachEmailRecipientUpdate(BaseModel):
+    email: Optional[str] = None
+    email_invalid: Optional[bool] = None
+    domain_invalid: Optional[bool] = None
+    source_type: Optional[str] = None
+    source_id: Optional[int] = None
+    status: Optional[str] = None
+    unsubscribe_flag: Optional[bool] = None
+    unsubscribe_at: Optional[datetime] = None
+    unsubscribe_reason: Optional[str] = None
+    bounce_flag: Optional[bool] = None
+    complained_at: Optional[datetime] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_string_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                k: (None if v == "" else v)
+                for k, v in data.items()
+            }
+        return data
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize email to lowercase"""
+        if v:
+            return v.lower().strip()
+        return v
+
+class OutreachEmailRecipientOut(OutreachEmailRecipientBase):
+    id: int
+    email_lc: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
