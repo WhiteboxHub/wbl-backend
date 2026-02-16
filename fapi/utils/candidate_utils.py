@@ -6,6 +6,8 @@ from fapi.db.database import SessionLocal,get_db
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
+from fapi.db.models import JobListingORM
+from fapi.db.schemas import PositionStatusEnum, PositionTypeEnum, EmploymentModeEnum
 from fastapi import HTTPException,APIRouter,Depends
 from typing import List, Dict,Any, Optional 
 from datetime import date
@@ -525,6 +527,40 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
         data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in data["interviewer_emails"].split(",")]
         )
+    # Logic to create Job Listing if not exists
+    if not data.get("position_id") and data.get("position_title") and data.get("company"):
+        import uuid
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            new_job = JobListingORM(
+                title=data.get("position_title"),
+                company_name=data.get("company"),
+                location=data.get("position_location"),
+                contact_email=data.get("interviewer_emails"),     
+                contact_phone=data.get("interviewer_contact"),
+                contact_linkedin=data.get("interviewer_linkedin"),
+                source="Interview Modal",
+                source_uid=str(uuid.uuid4()), # Generate unique ID to satisfy unique constraint
+                status=PositionStatusEnum.open,
+                position_type=PositionTypeEnum.full_time,
+                employment_mode=EmploymentModeEnum.hybrid
+            )
+            db.add(new_job)
+            db.flush() # Get the ID
+            data["position_id"] = new_job.id
+            logger.info(f"Created new Job Listing with ID: {new_job.id}")
+        except Exception as e:
+            print(f"ERROR Creating Job Listing: {e}")
+            logger.error(f"Failed to create Job Listing: {str(e)}")
+            # Do not block interview creation, just log error
+            pass
+
+    # Clean up fields not present in CandidateInterview model before creating
+    # These fields were added to the Pydantic schema for transport but don't exist in the DB table
+    data.pop("position_title", None)
+    data.pop("position_location", None)
+
     db_obj = CandidateInterview(**data)
     db.add(db_obj)
     db.commit()
