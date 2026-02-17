@@ -9,7 +9,8 @@ from fapi.db.models import (
     AutomationWorkflowLogORM,
     DeliveryEngineORM,
     EmailTemplateORM,
-    CandidateMarketingORM
+    CandidateMarketingORM,
+    CandidateORM
 )
 from pydantic import BaseModel
 import logging
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/orchestrator", tags=["Outreach Orchestrator"])
 logger = logging.getLogger(__name__)
 
 # --- Models ---
-# Deployment version: 2026-02-18-01
+
 class RecipientResult(BaseModel):
     email: str
     name: Optional[str]
@@ -199,15 +200,31 @@ def execute_reset_sql(workflow_id: int, req: SqlExecutionRequest, db: Session = 
 
 @router.get("/candidate-credentials/{candidate_id}")
 def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
-    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate_id, CandidateMarketingORM.status == 'active').first()
-    if not cm:
+    # Join CandidateMarketing with Candidate to get full name and linkedin url
+    res = db.query(
+        CandidateMarketingORM.email,
+        CandidateMarketingORM.password,
+        CandidateMarketingORM.imap_password,
+        CandidateMarketingORM.start_date,
+        CandidateORM.full_name,
+        CandidateORM.linkedin_id
+    ).join(
+        CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id
+    ).filter(
+        CandidateMarketingORM.candidate_id == candidate_id, 
+        CandidateMarketingORM.status == 'active'
+    ).first()
+
+    if not res:
         raise HTTPException(status_code=404, detail="Active marketing record not found")
     
     return {
-        "email": cm.email,
-        "password": cm.password,
-        "imap_password": cm.imap_password,
-        "start_date": str(cm.start_date) if cm.start_date else None
+        "email": res.email,
+        "password": res.password,
+        "imap_password": res.imap_password,
+        "start_date": str(res.start_date) if res.start_date else None,
+        "candidate_name": res.full_name,
+        "linkedin_url": res.linkedin_id
     }
 
 @router.get("/delivery-engine/{engine_id}")
