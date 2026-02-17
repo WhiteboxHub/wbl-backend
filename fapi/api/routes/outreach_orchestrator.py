@@ -37,10 +37,11 @@ class SqlExecutionRequest(BaseModel):
 
 class LogCreate(BaseModel):
     workflow_id: int
+    schedule_id: Optional[int] = None
     run_id: str
     status: str
     started_at: str
-    parameters_used: Optional[str] = None
+    parameters_used: Optional[Any] = None
 
 class LogUpdate(BaseModel):
     status: Optional[str] = None
@@ -258,14 +259,24 @@ def get_template(template_id: int, db: Session = Depends(get_db)):
          raise HTTPException(status_code=404, detail="Template not found")
     return tpl
 
+@router.get("/logs")
+def list_logs(workflow_id: Optional[int] = None, run_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(AutomationWorkflowLogORM)
+    if workflow_id:
+        query = query.filter(AutomationWorkflowLogORM.workflow_id == workflow_id)
+    if run_id:
+        query = query.filter(AutomationWorkflowLogORM.run_id == run_id)
+    return query.order_by(AutomationWorkflowLogORM.created_at.desc()).limit(100).all()
+
 @router.post("/logs")
 def create_log(log: LogCreate, db: Session = Depends(get_db)):
     try:
         new_log = AutomationWorkflowLogORM(
             workflow_id=log.workflow_id,
+            schedule_id=log.schedule_id,
             run_id=log.run_id,
             status=log.status,
-            started_at=log.started_at, # Assumes string is ISO format or compatible
+            started_at=log.started_at,
             parameters_used=log.parameters_used
         )
         db.add(new_log)
