@@ -258,6 +258,15 @@ def get_template(template_id: int, db: Session = Depends(get_db)):
          raise HTTPException(status_code=404, detail="Template not found")
     return tpl
 
+@router.get("/logs")
+def list_logs(workflow_id: Optional[int] = None, run_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(AutomationWorkflowLogORM)
+    if workflow_id:
+        query = query.filter(AutomationWorkflowLogORM.workflow_id == workflow_id)
+    if run_id:
+        query = query.filter(AutomationWorkflowLogORM.run_id == run_id)
+    return query.order_by(AutomationWorkflowLogORM.created_at.desc()).limit(100).all()
+
 @router.post("/logs")
 def create_log(log: LogCreate, db: Session = Depends(get_db)):
     try:
