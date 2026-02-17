@@ -18,6 +18,7 @@ router = APIRouter(prefix="/orchestrator", tags=["Outreach Orchestrator"])
 logger = logging.getLogger(__name__)
 
 # --- Models ---
+# Deployment version: 2026-02-18-01
 class RecipientResult(BaseModel):
     email: str
     name: Optional[str]
