@@ -252,18 +252,15 @@ def _build_team_info(candidate: CandidateORM) -> Dict[str, Any]:
     if prep:
         if prep.instructor1:
             team["preparation"]["instructors"].append({
-                **_serialize_employee(prep.instructor1),
-                "role": "Primary Instructor"
+                **_serialize_employee(prep.instructor1)
             })
         if prep.instructor2:
             team["preparation"]["instructors"].append({
-                **_serialize_employee(prep.instructor2),
-                "role": "Co-Instructor"
+                **_serialize_employee(prep.instructor2)
             })
         if prep.instructor3:
             team["preparation"]["instructors"].append({
-                **_serialize_employee(prep.instructor3),
-                "role": "Assistant Instructor"
+                **_serialize_employee(prep.instructor3)
             })
 
     marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
@@ -523,19 +520,16 @@ def get_preparation_phase_details(
     if current_prep.instructor1:
         result["instructors"].append({
             **_serialize_employee(current_prep.instructor1),
-            "role": "Primary Instructor",
             "position": 1,
         })
     if current_prep.instructor2:
         result["instructors"].append({
             **_serialize_employee(current_prep.instructor2),
-            "role": "Co-Instructor",
             "position": 2,
         })
     if current_prep.instructor3:
         result["instructors"].append({
             **_serialize_employee(current_prep.instructor3),
-            "role": "Assistant Instructor",
             "position": 3,
         })
 
