@@ -168,6 +168,23 @@ def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Workflow not found")
     return wf
 
+@router.put("/workflows/{workflow_id}")
+def update_workflow(workflow_id: int, updates: Dict[str, Any], db: Session = Depends(get_db)):
+    try:
+        wf = db.query(AutomationWorkflowORM).filter(AutomationWorkflowORM.id == workflow_id).first()
+        if not wf:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        
+        for k, v in updates.items():
+            if hasattr(wf, k):
+                setattr(wf, k, v)
+        
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/workflows/{workflow_id}/execute-recipient-sql")
 def execute_recipient_sql(workflow_id: int, req: SqlExecutionRequest, db: Session = Depends(get_db)):
     """Execute the SELECT query to find recipients. RESTRICTED: Only SELECT allowed."""
