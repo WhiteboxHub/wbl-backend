@@ -2827,8 +2827,8 @@ class AutomationWorkflowLogBase(BaseModel):
     schedule_id: Optional[int] = None
     run_id: str
     status: Literal["queued", "running", "success", "failed", "partial_success", "timed_out"] = "queued"
-    parameters_used: Optional[Dict[str, Any]] = None
-    execution_metadata: Optional[Dict[str, Any]] = None
+    parameters_used: Optional[Any] = None
+    execution_metadata: Optional[Any] = None
     records_processed: int = 0
     records_failed: int = 0
     error_summary: Optional[str] = None
