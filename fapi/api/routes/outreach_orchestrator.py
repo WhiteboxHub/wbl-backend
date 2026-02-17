@@ -18,6 +18,7 @@ router = APIRouter(prefix="/orchestrator", tags=["Outreach Orchestrator"])
 logger = logging.getLogger(__name__)
 
 # --- Models ---
+# Deployment version: 2026-02-18-01
 class RecipientResult(BaseModel):
     email: str
     name: Optional[str]
@@ -56,7 +57,7 @@ def get_due_schedules(db: Session = Depends(get_db)):
         sql = text("""
             SELECT s.*, w.status as workflow_status 
             FROM automation_workflows_schedule s 
-            JOIN automation_workflows w ON s.workflow_id = w.id 
+            JOIN automation_workflows w ON s.automation_workflow_id = w.id 
             WHERE s.enabled = 1 
               AND w.status = 'active'
               AND (s.next_run_at IS NOT NULL AND s.next_run_at <= NOW())
@@ -77,7 +78,13 @@ def get_due_schedules(db: Session = Depends(get_db)):
         # Let's verify models.py content again to be safe.
         
         result = db.execute(sql).mappings().all()
-        return [dict(r) for r in result]
+        schedules = []
+        for r in result:
+            d = dict(r)
+            d["status"] = d.get("workflow_status")
+            d["workflow_id"] = d.get("automation_workflow_id")
+            schedules.append(d)
+        return schedules
     except Exception as e:
         logger.error(f"Error fetching due schedules: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -96,6 +103,33 @@ def lock_schedule(schedule_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         logger.error(f"Error locking schedule {schedule_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/schedules/{schedule_id}")
+def get_schedule(schedule_id: int, db: Session = Depends(get_db)):
+    """Fetch a single schedule by ID with workflow status."""
+    try:
+        sql = text("""
+            SELECT s.*, w.status as workflow_status 
+            FROM automation_workflows_schedule s 
+            JOIN automation_workflows w ON s.automation_workflow_id = w.id 
+            WHERE s.id = :id
+        """)
+        result = db.execute(sql, {"id": schedule_id}).mappings().first()
+        if not result:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        # Merge workflow_status as status for the client if needed, 
+        # but let's just return the full mapping.
+        data = dict(result)
+        # Aliases for Outreach Service compatibility
+        data["status"] = data.get("workflow_status")
+        data["workflow_id"] = data.get("automation_workflow_id")
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching schedule {schedule_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/schedules/{schedule_id}")
