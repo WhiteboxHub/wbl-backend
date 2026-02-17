@@ -12,7 +12,7 @@ from . import (
     email_service,
     delivery_engine, email_template, automation_workflow,
     automation_workflow_schedule, automation_workflow_log,
-    outreach_contact, outreach_orchestrator,
+    outreach_orchestrator,
     company, company_contact, potential_leads,
     personal_domain_contact, outreach_email_recipient,
     linkedin_only_contact
