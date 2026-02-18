@@ -9,7 +9,8 @@ from fapi.db.models import (
     AutomationWorkflowLogORM,
     DeliveryEngineORM,
     EmailTemplateORM,
-    CandidateMarketingORM
+    CandidateMarketingORM,
+    CandidateORM
 )
 from pydantic import BaseModel
 import logging
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/orchestrator", tags=["Outreach Orchestrator"])
 logger = logging.getLogger(__name__)
 
 # --- Models ---
+
 class RecipientResult(BaseModel):
     email: str
     name: Optional[str]
@@ -35,16 +37,19 @@ class SqlExecutionRequest(BaseModel):
 
 class LogCreate(BaseModel):
     workflow_id: int
+    schedule_id: Optional[int] = None
     run_id: str
     status: str
     started_at: str
-    parameters_used: Optional[str] = None
+    parameters_used: Optional[Any] = None
+    execution_metadata: Optional[Any] = None
 
 class LogUpdate(BaseModel):
     status: Optional[str] = None
     records_processed: Optional[int] = None
     records_failed: Optional[int] = None
     error_summary: Optional[str] = None
+    execution_metadata: Optional[Any] = None
     finished_at: Optional[str] = None
 
 # --- Endpoints ---
@@ -56,7 +61,7 @@ def get_due_schedules(db: Session = Depends(get_db)):
         sql = text("""
             SELECT s.*, w.status as workflow_status 
             FROM automation_workflows_schedule s 
-            JOIN automation_workflows w ON s.workflow_id = w.id 
+            JOIN automation_workflows w ON s.automation_workflow_id = w.id 
             WHERE s.enabled = 1 
               AND w.status = 'active'
               AND (s.next_run_at IS NOT NULL AND s.next_run_at <= NOW())
@@ -77,7 +82,13 @@ def get_due_schedules(db: Session = Depends(get_db)):
         # Let's verify models.py content again to be safe.
         
         result = db.execute(sql).mappings().all()
-        return [dict(r) for r in result]
+        schedules = []
+        for r in result:
+            d = dict(r)
+            d["status"] = d.get("workflow_status")
+            d["workflow_id"] = d.get("automation_workflow_id")
+            schedules.append(d)
+        return schedules
     except Exception as e:
         logger.error(f"Error fetching due schedules: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -96,6 +107,33 @@ def lock_schedule(schedule_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         logger.error(f"Error locking schedule {schedule_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/schedules/{schedule_id}")
+def get_schedule(schedule_id: int, db: Session = Depends(get_db)):
+    """Fetch a single schedule by ID with workflow status."""
+    try:
+        sql = text("""
+            SELECT s.*, w.status as workflow_status 
+            FROM automation_workflows_schedule s 
+            JOIN automation_workflows w ON s.automation_workflow_id = w.id 
+            WHERE s.id = :id
+        """)
+        result = db.execute(sql, {"id": schedule_id}).mappings().first()
+        if not result:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        # Merge workflow_status as status for the client if needed, 
+        # but let's just return the full mapping.
+        data = dict(result)
+        # Aliases for Outreach Service compatibility
+        data["status"] = data.get("workflow_status")
+        data["workflow_id"] = data.get("automation_workflow_id")
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching schedule {schedule_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/schedules/{schedule_id}")
@@ -133,6 +171,23 @@ def get_workflow(workflow_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Workflow not found")
     return wf
 
+@router.put("/workflows/{workflow_id}")
+def update_workflow(workflow_id: int, updates: Dict[str, Any], db: Session = Depends(get_db)):
+    try:
+        wf = db.query(AutomationWorkflowORM).filter(AutomationWorkflowORM.id == workflow_id).first()
+        if not wf:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        
+        for k, v in updates.items():
+            if hasattr(wf, k):
+                setattr(wf, k, v)
+        
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/workflows/{workflow_id}/execute-recipient-sql")
 def execute_recipient_sql(workflow_id: int, req: SqlExecutionRequest, db: Session = Depends(get_db)):
     """Execute the SELECT query to find recipients. RESTRICTED: Only SELECT allowed."""
@@ -165,15 +220,31 @@ def execute_reset_sql(workflow_id: int, req: SqlExecutionRequest, db: Session = 
 
 @router.get("/candidate-credentials/{candidate_id}")
 def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
-    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate_id, CandidateMarketingORM.status == 'active').first()
-    if not cm:
+    # Join CandidateMarketing with Candidate to get full name and linkedin url
+    res = db.query(
+        CandidateMarketingORM.email,
+        CandidateMarketingORM.password,
+        CandidateMarketingORM.imap_password,
+        CandidateMarketingORM.start_date,
+        CandidateORM.full_name,
+        CandidateORM.linkedin_id
+    ).join(
+        CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id
+    ).filter(
+        CandidateMarketingORM.candidate_id == candidate_id, 
+        CandidateMarketingORM.status == 'active'
+    ).first()
+
+    if not res:
         raise HTTPException(status_code=404, detail="Active marketing record not found")
     
     return {
-        "email": cm.email,
-        "password": cm.password,
-        "imap_password": cm.imap_password,
-        "start_date": str(cm.start_date) if cm.start_date else None
+        "email": res.email,
+        "password": res.password,
+        "imap_password": res.imap_password,
+        "start_date": str(res.start_date) if res.start_date else None,
+        "candidate_name": res.full_name,
+        "linkedin_url": res.linkedin_id
     }
 
 @router.get("/delivery-engine/{engine_id}")
@@ -190,15 +261,26 @@ def get_template(template_id: int, db: Session = Depends(get_db)):
          raise HTTPException(status_code=404, detail="Template not found")
     return tpl
 
+@router.get("/logs")
+def list_logs(workflow_id: Optional[int] = None, run_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(AutomationWorkflowLogORM)
+    if workflow_id:
+        query = query.filter(AutomationWorkflowLogORM.workflow_id == workflow_id)
+    if run_id:
+        query = query.filter(AutomationWorkflowLogORM.run_id == run_id)
+    return query.order_by(AutomationWorkflowLogORM.created_at.desc()).limit(100).all()
+
 @router.post("/logs")
 def create_log(log: LogCreate, db: Session = Depends(get_db)):
     try:
         new_log = AutomationWorkflowLogORM(
             workflow_id=log.workflow_id,
+            schedule_id=log.schedule_id,
             run_id=log.run_id,
             status=log.status,
-            started_at=log.started_at, # Assumes string is ISO format or compatible
-            parameters_used=log.parameters_used
+            started_at=log.started_at,
+            parameters_used=log.parameters_used,
+            execution_metadata=log.execution_metadata
         )
         db.add(new_log)
         db.commit()
