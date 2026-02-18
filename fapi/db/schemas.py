@@ -93,15 +93,9 @@ class AutomationContactExtractUpdate(BaseModel):
     postal_code: Optional[str] = None
     linkedin_id: Optional[str] = None
     linkedin_internal_id: Optional[str] = None
-    source_type: Optional[str] = None
+    source_type: str
     source_reference: Optional[str] = None
     raw_payload: Optional[Dict[str, Any]] = None
-    classification: Optional[ContactClassificationEnum] = None
-    processing_status: Optional[ContactProcessingStatusEnum] = None
-    processed_at: Optional[datetime] = None
-    target_table: Optional[str] = None
-    target_id: Optional[int] = None
-    error_message: Optional[str] = None
 
     @model_validator(mode='before')
     @classmethod
