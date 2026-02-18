@@ -797,7 +797,27 @@ class CompanyHRContact(Base):
 
 
 
+
 # -------------------- Projects --------------------
+class EmailSMTPCredentialsORM(Base):
+    __tablename__ = "email_smtp_credentials"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(150), nullable=False, unique=True)
+    password = Column(String(255), nullable=False)
+    app_password = Column(String(255), nullable=True)
+    daily_limit = Column(Integer, nullable=False)
+    note = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, 
+        nullable=False, 
+        server_default=func.now(), 
+        onupdate=func.now()
+    )
+
 
 # -------------------- Personal Domain Contact --------------------
 class PersonalDomainContact(Base):

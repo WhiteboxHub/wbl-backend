@@ -12,7 +12,7 @@ from fapi.api.routes import (
     automation_workflow_schedule, automation_workflow_log,
     outreach_contact, outreach_orchestrator,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
-    linkedin_only_contact
+    linkedin_only_contact, email_smtp_credentials
 )
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -110,6 +110,7 @@ app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads
 app.include_router(personal_domain_contact.router, prefix="/api", tags=["Personal Domain Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_email_recipient.router, prefix="/api", tags=["Outreach Email Recipients"], dependencies=[Depends(enforce_access)])
 app.include_router(linkedin_only_contact.router, prefix="/api", tags=["Linkedin Only Contacts"], dependencies=[Depends(enforce_access)])
+app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
 
 # Automation Workflow Routers
 app.include_router(delivery_engine.router, prefix="/api", tags=["Delivery Engine"], dependencies=[Depends(enforce_access)])
