@@ -10,10 +10,11 @@ from fapi.api.routes import (
     job_listing, raw_job_listing, employee_dashboard, email_service,
     delivery_engine, email_template, automation_workflow, 
     automation_workflow_schedule, automation_workflow_log,
-    outreach_contact, outreach_orchestrator,
-    company, company_contact, potential_leads, personal_domain_contact, outreach_email_recipient,
+    outreach_orchestrator,
+    company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract
 )
+
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
