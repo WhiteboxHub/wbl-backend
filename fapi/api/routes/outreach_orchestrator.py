@@ -42,12 +42,14 @@ class LogCreate(BaseModel):
     status: str
     started_at: str
     parameters_used: Optional[Any] = None
+    execution_metadata: Optional[Any] = None
 
 class LogUpdate(BaseModel):
     status: Optional[str] = None
     records_processed: Optional[int] = None
     records_failed: Optional[int] = None
     error_summary: Optional[str] = None
+    execution_metadata: Optional[Any] = None
     finished_at: Optional[str] = None
 
 # --- Endpoints ---
@@ -277,7 +279,8 @@ def create_log(log: LogCreate, db: Session = Depends(get_db)):
             run_id=log.run_id,
             status=log.status,
             started_at=log.started_at,
-            parameters_used=log.parameters_used
+            parameters_used=log.parameters_used,
+            execution_metadata=log.execution_metadata
         )
         db.add(new_log)
         db.commit()
