@@ -36,6 +36,107 @@ class ProcessingStatusEnum(str, enum.Enum):
     error = 'error'
 
 
+class ContactClassificationEnum(str, enum.Enum):
+    company_contact = 'company_contact'
+    personal_domain_contact = 'personal_domain_contact'
+    linkedin_only_contact = 'linkedin_only_contact'
+    company_only = 'company_only'
+    unknown = 'unknown'
+
+
+class ContactProcessingStatusEnum(str, enum.Enum):
+    new = 'new'
+    classified = 'classified'
+    moved = 'moved'
+    duplicate = 'duplicate'
+    error = 'error'
+
+
+# -------------------- Automation Contact Extract Schemas --------------------
+class AutomationContactExtractBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    source_type: str
+    source_reference: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+
+class AutomationContactExtractCreate(AutomationContactExtractBase):
+    pass
+
+
+class AutomationContactExtractUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    source_type: str
+    source_reference: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_string_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                k: (None if v == "" else v)
+                for k, v in data.items()
+            }
+        return data
+
+
+class AutomationContactExtractOut(AutomationContactExtractBase):
+    id: int
+    classification: ContactClassificationEnum = ContactClassificationEnum.unknown
+    processing_status: ContactProcessingStatusEnum = ContactProcessingStatusEnum.new
+    processed_at: Optional[datetime] = None
+    target_table: Optional[str] = None
+    target_id: Optional[int] = None
+    error_message: Optional[str] = None
+    email_lc: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AutomationContactExtractBulkCreate(BaseModel):
+    extracts: List[AutomationContactExtractCreate]
+
+
+class AutomationContactExtractBulkResponse(BaseModel):
+    total: int
+    inserted: int
+    duplicates: int
+    failed: int
+    errors: List[Dict[str, Any]] = []
+
+
+
 class JobListingBase(BaseModel):
     title: str
     normalized_title: Optional[str] = None
