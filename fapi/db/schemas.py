@@ -2910,6 +2910,8 @@ class AutomationWorkflowScheduleUpdate(BaseModel):
     interval_value: Optional[int] = None
     run_parameters: Optional[Dict[str, Any]] = None
     enabled: Optional[bool] = None
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None
 
 class AutomationWorkflowSchedule(AutomationWorkflowScheduleBase):
     id: int
