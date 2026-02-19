@@ -216,6 +216,15 @@ class JobListingOut(JobListingBase):
 
     class Config:
         from_attributes = True
+class JobListingBulkCreate(BaseModel):
+    positions: List[JobListingCreate]
+
+
+class JobListingBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
+    failed_contacts: List[dict] = []
 
 
 class RawJobListingBase(BaseModel):
