@@ -3223,3 +3223,50 @@ class PaginatedLinkedinOnlyContactResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+# ------------------ Email SMTP Credentials ------------------
+
+class EmailSMTPCredentialsBase(BaseModel):
+    name: str
+    email: EmailStr
+    daily_limit: int
+    note: Optional[str] = None
+    is_active: bool = True
+
+    @field_validator('daily_limit')
+    @classmethod
+    def validate_daily_limit(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError('daily_limit must be greater than 0')
+        return v
+
+class EmailSMTPCredentialsCreate(EmailSMTPCredentialsBase):
+    password: str
+    app_password: Optional[str] = None
+
+class EmailSMTPCredentialsUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    app_password: Optional[str] = None
+    daily_limit: Optional[int] = None
+    note: Optional[str] = None
+    is_active: Optional[bool] = None
+
+    @field_validator('daily_limit')
+    @classmethod
+    def validate_daily_limit(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError('daily_limit must be greater than 0')
+        return v
+
+class EmailSMTPCredentialsOut(EmailSMTPCredentialsBase):
+    id: int
+    password: str
+    app_password: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

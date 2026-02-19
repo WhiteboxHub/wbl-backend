@@ -12,7 +12,7 @@ from fapi.api.routes import (
     automation_workflow_schedule, automation_workflow_log,
     outreach_orchestrator,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
-    linkedin_only_contact, automation_contact_extract
+    linkedin_only_contact, automation_contact_extract, email_smtp_credentials
 )
 
 from fapi.db.database import SessionLocal
@@ -120,3 +120,4 @@ app.include_router(automation_workflow.router, prefix="/api", tags=["Automation 
 app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Automation Workflow Schedule"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
+app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
