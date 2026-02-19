@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException
@@ -31,6 +31,31 @@ def _normalize_email(email: Optional[str]) -> Optional[str]:
     except ValidationError:
         logger.warning("Invalid email encountered while normalizing")
         return None
+
+
+def get_vendor_suggestions(db: Session, search_term: str):
+    """Get vendor suggestions based on search term for name or email."""
+    try:
+        results = (
+            db.query(Vendor.id, Vendor.full_name, Vendor.email)
+            .filter(
+                or_(
+                    Vendor.full_name.ilike(f"%{search_term}%"),
+                    Vendor.email.ilike(f"%{search_term}%")
+                )
+            )
+            .limit(10)
+            .all()
+        )
+        return [{"id": r.id, "name": r.full_name, "email": r.email} for r in results]
+    except Exception as e:
+        logger.error(f"Error fetching vendor suggestions: {e}")
+        return []
+def get_vendor_by_id(db: Session, vendor_id: int) -> Optional[Vendor]:
+    vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+    if vendor:
+        vendor.email = _normalize_email(vendor.email)
+    return vendor
 
 
 # ---------- CRUD: Vendor ----------
