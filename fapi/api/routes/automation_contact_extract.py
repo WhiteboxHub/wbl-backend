@@ -17,6 +17,31 @@ router = APIRouter(prefix="/automation-extracts", tags=["Automation Extracts"])
 async def read_automation_extracts(status: Optional[str] = None, db: Session = Depends(get_db)):
     return await automation_contact_utils.get_all_automation_extracts(db, status=status)
 
+@router.get("/paginated")
+def read_automation_extracts_paginated(
+    page: int = 1, 
+    page_size: int = 5000, 
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Get automation extracts with page-based pagination"""
+    page_size = min(max(1, page_size), 10000)
+    page = max(1, page)
+    skip = (page - 1) * page_size
+    total_records = automation_contact_utils.count_automation_extracts(db, status=status)
+    data = automation_contact_utils.get_automation_extracts_paginated(db, skip=skip, limit=page_size, status=status)
+    total_pages = (total_records + page_size - 1) // page_size  
+    
+    return {
+        "data": data,
+        "page": page,
+        "page_size": page_size,
+        "total_records": total_records,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1
+    }
+
 @router.post("/", response_model=AutomationContactExtractOut, status_code=status.HTTP_201_CREATED)
 async def create_automation_extract(extract: AutomationContactExtractCreate, db: Session = Depends(get_db)):
     return await automation_contact_utils.insert_automation_extract(extract, db)
