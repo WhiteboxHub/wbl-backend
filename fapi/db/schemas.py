@@ -3222,6 +3222,7 @@ class PaginatedLinkedinOnlyContactResponse(BaseModel):
     total_records: int
     total_pages: int
     has_next: bool
+    has_prev: bool
 
 # ------------------ Email SMTP Credentials ------------------
 
