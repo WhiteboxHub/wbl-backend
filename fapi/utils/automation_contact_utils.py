@@ -23,6 +23,26 @@ async def get_all_automation_extracts(db: Session, status: Optional[str] = None)
         logger.error(f"Error fetching automation extracts: {str(e)}")
         raise HTTPException(status_code=500, detail="Error fetching automation extracts")
 
+def count_automation_extracts(db: Session, status: Optional[str] = None) -> int:
+    try:
+        query = db.query(AutomationContactExtractORM)
+        if status:
+            query = query.filter(AutomationContactExtractORM.processing_status == status)
+        return query.count()
+    except SQLAlchemyError as e:
+        logger.error(f"Error counting automation extracts: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error counting automation extracts")
+
+def get_automation_extracts_paginated(db: Session, skip: int = 0, limit: int = 100, status: Optional[str] = None) -> List[AutomationContactExtractORM]:
+    try:
+        query = db.query(AutomationContactExtractORM)
+        if status:
+            query = query.filter(AutomationContactExtractORM.processing_status == status)
+        return query.order_by(AutomationContactExtractORM.id.desc()).offset(skip).limit(limit).all()
+    except SQLAlchemyError as e:
+        logger.error(f"Error fetching paginated automation extracts: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error fetching paginated automation extracts")
+
 async def get_automation_extract_by_id(extract_id: int, db: Session) -> AutomationContactExtractORM:
     extract = db.query(AutomationContactExtractORM).filter(AutomationContactExtractORM.id == extract_id).first()
     if not extract:
