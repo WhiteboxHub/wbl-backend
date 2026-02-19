@@ -166,3 +166,24 @@ def get_lead_info_mark_move_to_candidate_true(db: Session, lead_id: int):
     lead.moved_to_candidate = True
     db.commit()
     return lead
+
+def get_lead_suggestions(search_term: str, db: Session):
+    """
+    Get lead suggestions based on search term for name or email.
+    """
+    try:
+        results = (
+            db.query(LeadORM.id, LeadORM.full_name, LeadORM.email)
+            .filter(
+                or_(
+                    LeadORM.full_name.ilike(f"%{search_term}%"),
+                    LeadORM.email.ilike(f"%{search_term}%")
+                )
+            )
+            .limit(10)
+            .all()
+        )
+        return [{"id": r.id, "name": r.full_name, "email": r.email} for r in results]
+    except Exception as e:
+        print(f"Error fetching lead suggestions: {e}")
+        return []

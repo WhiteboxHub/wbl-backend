@@ -58,6 +58,23 @@ def create_vendor(
         logger.error(f"Error creating vendor: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@router.get("/vendors/{vendor_id}", response_model=Vendor)
+def get_vendor(
+    vendor_id: int, 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    try:
+        vendor = vendor_utils.get_vendor_by_id(db, vendor_id)
+        if not vendor:
+            raise HTTPException(status_code=404, detail="Vendor not found")
+        return vendor
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching vendor {vendor_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 @router.put("/vendors/{vendor_id}", response_model=Vendor)
 def update_vendor_route(
@@ -128,3 +145,15 @@ async def bulk_delete_vendors(
         logger.error(f"Error in bulk delete: {e}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+@router.get("/vendors/search-names/{search_term}")
+def get_vendor_suggestions_endpoint(
+    search_term: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        results = vendor_utils.get_vendor_suggestions(db, search_term)
+        return results
+    except Exception as e:
+        logger.error(f"Error fetching vendor suggestions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
