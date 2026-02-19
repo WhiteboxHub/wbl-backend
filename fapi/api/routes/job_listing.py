@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
-from fapi.db.schemas import JobListingCreate, JobListingUpdate, JobListingOut
+from fapi.db.schemas import (
+    JobListingCreate, 
+    JobListingUpdate, 
+    JobListingOut,
+    JobListingBulkCreate,
+    JobListingBulkResponse
+)
 from fapi.utils import job_listing_utils
 
 router = APIRouter(prefix="/positions", tags=["Positions"], redirect_slashes=False)
@@ -55,6 +61,13 @@ def read_position(position_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=JobListingOut, status_code=status.HTTP_201_CREATED)
 def create_position(position: JobListingCreate, db: Session = Depends(get_db)):
     return job_listing_utils.create_position(db, position=position)
+
+@router.post("/bulk", response_model=JobListingBulkResponse)
+async def create_positions_bulk(
+    bulk_data: JobListingBulkCreate,
+    db: Session = Depends(get_db)
+):
+    return await job_listing_utils.insert_positions_bulk(bulk_data.positions, db)
 
 @router.put("/{position_id}", response_model=JobListingOut)
 def update_position(position_id: int, position: JobListingUpdate, db: Session = Depends(get_db)):
