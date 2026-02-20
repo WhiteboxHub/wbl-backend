@@ -746,6 +746,7 @@ class CandidatePlacementBase(BaseModel):
     position: Optional[str] = None
     company: str
     placement_date: date
+    joining_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
     status: Literal['Active', 'Inactive']
@@ -774,6 +775,7 @@ class CandidatePlacementUpdate(BaseModel):
     position: Optional[str] = None
     company: Optional[str] = None
     placement_date: Optional[date] = None
+    joining_date: Optional[date] = None
     type: Optional[Literal['Company', 'Client',
                            'Vendor', 'Implementation Partner']] = None
     status: Optional[Literal['Active', 'Inactive']]
