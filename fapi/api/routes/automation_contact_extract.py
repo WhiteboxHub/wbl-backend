@@ -45,10 +45,7 @@ def bulk_insert_contact_extracts(
     if not contacts:
         return AutomationContactExtractBulkResponse(inserted=0, skipped=0, total=0)
 
-    rows = [
-        {k: v for k, v in c.model_dump().items() if v is not None}
-        for c in contacts
-    ]
+    rows = [c.model_dump() for c in contacts]
 
     try:
         stmt = mysql_insert(AutomationContactExtractORM).values(rows)
