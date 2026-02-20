@@ -8,7 +8,9 @@ from fapi.db.schemas import (
     AutomationContactExtractUpdate, 
     AutomationContactExtractOut,
     AutomationContactExtractBulkCreate,
-    AutomationContactExtractBulkResponse
+    AutomationContactExtractBulkResponse,
+    CheckEmailsRequest,
+    CheckEmailsResponse,
 )
 from fapi.utils import automation_contact_utils
 
@@ -19,10 +21,11 @@ security = HTTPBearer()
 @router.get("/automation-extracts", response_model=List[AutomationContactExtractOut])
 async def read_automation_extracts(
     status: Optional[str] = None, 
+    source_email: Optional[str] = None,
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
-    return await automation_contact_utils.get_all_automation_extracts(db, status=status)
+    return await automation_contact_utils.get_all_automation_extracts(db, status=status, source_email=source_email)
 
 @router.get("/automation-extracts/paginated")
 def read_automation_extracts_paginated(
@@ -99,3 +102,17 @@ async def delete_automation_extract(
 ):
     await automation_contact_utils.delete_automation_extract(extract_id, db)
     return None
+
+
+@router.post("/automation-extracts/check-emails", response_model=CheckEmailsResponse)
+async def check_existing_emails(
+    payload: CheckEmailsRequest,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """
+    Check which of the provided emails already exist in automation_contact_extracts.
+    Used for global deduplication before inserting.
+    """
+    found = await automation_contact_utils.check_existing_emails_bulk(payload.emails, db)
+    return CheckEmailsResponse(existing_emails=found)

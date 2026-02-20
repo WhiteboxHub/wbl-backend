@@ -1291,3 +1291,4 @@ class LinkedinOnlyContact(Base):
         Index('idx_linkedin_id', 'linkedin_id'),
         Index('idx_linkedin_internal_id', 'linkedin_internal_id'),
     )
+
