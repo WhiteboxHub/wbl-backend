@@ -387,6 +387,7 @@ class CandidatePlacementORM(Base):
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)
+    joining_date = Column(Date, nullable=True)
     type = Column(Enum('Company', 'Client', 'Vendor',
                   'Implementation Partner'), nullable=True)
 
