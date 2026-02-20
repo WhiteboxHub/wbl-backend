@@ -136,6 +136,14 @@ class AutomationContactExtractBulkResponse(BaseModel):
     errors: List[Dict[str, Any]] = []
 
 
+class CheckEmailsRequest(BaseModel):
+    emails: List[str]
+
+
+class CheckEmailsResponse(BaseModel):
+    existing_emails: List[str]
+
+
 
 class JobListingBase(BaseModel):
     title: str
@@ -2943,6 +2951,20 @@ class AutomationWorkflowLogBase(BaseModel):
     execution_metadata: Optional[Any] = None
     records_processed: int = 0
     records_failed: int = 0
+    error_summary: Optional[str] = None
+    error_details: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+class AutomationWorkflowLogCreate(AutomationWorkflowLogBase):
+    pass
+
+class AutomationWorkflowLogUpdate(BaseModel):
+    status: Optional[str] = None
+    parameters_used: Optional[Any] = None
+    execution_metadata: Optional[Any] = None
+    records_processed: Optional[int] = None
+    records_failed: Optional[int] = None
     error_summary: Optional[str] = None
     error_details: Optional[str] = None
     started_at: Optional[datetime] = None

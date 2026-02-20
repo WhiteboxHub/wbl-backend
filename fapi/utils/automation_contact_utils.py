@@ -13,11 +13,13 @@ from fapi.db.schemas import (
 
 logger = logging.getLogger(__name__)
 
-async def get_all_automation_extracts(db: Session, status: Optional[str] = None) -> List[AutomationContactExtractORM]:
+async def get_all_automation_extracts(db: Session, status: Optional[str] = None, source_email: Optional[str] = None) -> List[AutomationContactExtractORM]:
     try:
         query = db.query(AutomationContactExtractORM)
         if status:
             query = query.filter(AutomationContactExtractORM.processing_status == status)
+        if source_email:
+            query = query.filter(AutomationContactExtractORM.source_reference == source_email)
         return query.order_by(AutomationContactExtractORM.id.desc()).all()
     except SQLAlchemyError as e:
         logger.error(f"Error fetching automation extracts: {str(e)}")
@@ -127,3 +129,19 @@ async def delete_automation_extracts_bulk(extract_ids: List[int], db: Session) -
         db.rollback()
         logger.error(f"Bulk delete error: {str(e)}")
         raise HTTPException(status_code=500, detail="Bulk delete error")
+
+async def check_existing_emails_bulk(emails: List[str], db: Session) -> List[str]:
+    """Check which of the provided emails already exist in the extract table"""
+    if not emails:
+        return []
+    try:
+        normalized = [e.strip().lower() for e in emails if e]
+        rows = (
+            db.query(AutomationContactExtractORM.email)
+            .filter(AutomationContactExtractORM.email.in_(normalized))
+            .all()
+        )
+        return [row[0].strip().lower() for row in rows if row[0]]
+    except Exception as e:
+        logger.error(f"Bulk email check failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Bulk email check failed")
