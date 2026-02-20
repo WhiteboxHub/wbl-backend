@@ -10,6 +10,7 @@ from fapi.api.routes import (
     job_listing, raw_job_listing, employee_dashboard, email_service,
     delivery_engine, email_template, automation_workflow, 
     automation_workflow_schedule, automation_workflow_log,
+    automation_contact_extract,
     outreach_contact, outreach_orchestrator,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact
@@ -117,4 +118,5 @@ app.include_router(email_template.router, prefix="/api", tags=["Email Template"]
 app.include_router(automation_workflow.router, prefix="/api", tags=["Automation Workflow"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Automation Workflow Schedule"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
+app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])

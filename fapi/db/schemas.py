@@ -2809,6 +2809,7 @@ class AutomationWorkflowScheduleUpdate(BaseModel):
     interval_value: Optional[int] = None
     run_parameters: Optional[Dict[str, Any]] = None
     enabled: Optional[bool] = None
+    last_run_at: Optional[datetime] = None
 
 class AutomationWorkflowSchedule(AutomationWorkflowScheduleBase):
     id: int
@@ -3120,3 +3121,71 @@ class PaginatedLinkedinOnlyContactResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+
+# -------------------- Automation Contact Extracts --------------------
+
+class AutomationContactExtractCreate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    source_type: Optional[str] = "email"
+    source_reference: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+    processing_status: Optional[str] = "new"
+    classification: Optional[str] = "unknown"
+
+
+class AutomationContactExtractOut(AutomationContactExtractCreate):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AutomationContactExtractBulkCreate(BaseModel):
+    contacts: List[AutomationContactExtractCreate]
+
+
+class AutomationContactExtractBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
+
+
+class CheckEmailsRequest(BaseModel):
+    emails: List[str]
+
+
+class CheckEmailsResponse(BaseModel):
+    existing_emails: List[str]
+
+
+
+# -------------------- Automation Workflow Log CRUD --------------------
+
+class AutomationWorkflowLogCreate(BaseModel):
+    workflow_id: int
+    schedule_id: Optional[int] = None
+    run_id: str
+    status: str = "running"
+    parameters_used: Optional[Dict[str, Any]] = None
+    started_at: Optional[datetime] = None
+    records_processed: int = 0
+    records_failed: int = 0
+
+
+class AutomationWorkflowLogUpdate(BaseModel):
+    status: Optional[str] = None
+    records_processed: Optional[int] = None
+    records_failed: Optional[int] = None
+    error_summary: Optional[str] = None
+    error_details: Optional[str] = None
+    execution_metadata: Optional[Dict[str, Any]] = None
+    finished_at: Optional[datetime] = None

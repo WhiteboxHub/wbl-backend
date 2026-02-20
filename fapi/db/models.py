@@ -1200,3 +1200,28 @@ class LinkedinOnlyContact(Base):
         Index('idx_linkedin_id', 'linkedin_id'),
         Index('idx_linkedin_internal_id', 'linkedin_internal_id'),
     )
+
+
+# -------------------- Automation Contact Extracts --------------------
+class AutomationContactExtractORM(Base):
+    __tablename__ = "automation_contact_extracts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    company_name = Column(String(255), nullable=True)
+    job_title = Column(String(255), nullable=True)
+    city = Column(String(255), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    linkedin_id = Column(String(255), nullable=True)
+    source_type = Column(String(50), nullable=True)
+    source_reference = Column(String(255), nullable=True)
+    raw_payload = Column(JSON, nullable=True)
+    processing_status = Column(String(50), nullable=True, server_default="new")
+    classification = Column(String(50), nullable=True, server_default="unknown")
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('email', 'linkedin_id', name='uq_ace_email_linkedin'),
+    )
