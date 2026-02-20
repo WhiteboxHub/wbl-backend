@@ -36,6 +36,115 @@ class ProcessingStatusEnum(str, enum.Enum):
     error = 'error'
 
 
+class ContactClassificationEnum(str, enum.Enum):
+    company_contact = 'company_contact'
+    personal_domain_contact = 'personal_domain_contact'
+    linkedin_only_contact = 'linkedin_only_contact'
+    company_only = 'company_only'
+    unknown = 'unknown'
+
+
+class ContactProcessingStatusEnum(str, enum.Enum):
+    new = 'new'
+    classified = 'classified'
+    moved = 'moved'
+    duplicate = 'duplicate'
+    error = 'error'
+
+
+# -------------------- Automation Contact Extract Schemas --------------------
+class AutomationContactExtractBase(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    source_type: str
+    source_reference: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+
+class AutomationContactExtractCreate(AutomationContactExtractBase):
+    pass
+
+
+class AutomationContactExtractUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
+    linkedin_id: Optional[str] = None
+    linkedin_internal_id: Optional[str] = None
+    source_type: str
+    source_reference: Optional[str] = None
+    raw_payload: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def empty_string_to_none(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {
+                k: (None if v == "" else v)
+                for k, v in data.items()
+            }
+        return data
+
+
+class AutomationContactExtractOut(AutomationContactExtractBase):
+    id: int
+    classification: ContactClassificationEnum = ContactClassificationEnum.unknown
+    processing_status: ContactProcessingStatusEnum = ContactProcessingStatusEnum.new
+    processed_at: Optional[datetime] = None
+    target_table: Optional[str] = None
+    target_id: Optional[int] = None
+    error_message: Optional[str] = None
+    email_lc: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AutomationContactExtractBulkCreate(BaseModel):
+    extracts: List[AutomationContactExtractCreate]
+
+
+class AutomationContactExtractBulkResponse(BaseModel):
+    total: int
+    inserted: int
+    duplicates: int
+    failed: int
+    errors: List[Dict[str, Any]] = []
+
+
+class CheckEmailsRequest(BaseModel):
+    emails: List[str]
+
+
+class CheckEmailsResponse(BaseModel):
+    existing_emails: List[str]
+
+
+
 class JobListingBase(BaseModel):
     title: str
     normalized_title: Optional[str] = None
@@ -115,6 +224,15 @@ class JobListingOut(JobListingBase):
 
     class Config:
         from_attributes = True
+class JobListingBulkCreate(BaseModel):
+    positions: List[JobListingCreate]
+
+
+class JobListingBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
+    failed_contacts: List[dict] = []
 
 
 class RawJobListingBase(BaseModel):
@@ -2809,6 +2927,7 @@ class AutomationWorkflowScheduleUpdate(BaseModel):
     interval_value: Optional[int] = None
     run_parameters: Optional[Dict[str, Any]] = None
     enabled: Optional[bool] = None
+    next_run_at: Optional[datetime] = None
     last_run_at: Optional[datetime] = None
 
 class AutomationWorkflowSchedule(AutomationWorkflowScheduleBase):
@@ -2828,10 +2947,24 @@ class AutomationWorkflowLogBase(BaseModel):
     schedule_id: Optional[int] = None
     run_id: str
     status: Literal["queued", "running", "success", "failed", "partial_success", "timed_out"] = "queued"
-    parameters_used: Optional[Dict[str, Any]] = None
-    execution_metadata: Optional[Dict[str, Any]] = None
+    parameters_used: Optional[Any] = None
+    execution_metadata: Optional[Any] = None
     records_processed: int = 0
     records_failed: int = 0
+    error_summary: Optional[str] = None
+    error_details: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+class AutomationWorkflowLogCreate(AutomationWorkflowLogBase):
+    pass
+
+class AutomationWorkflowLogUpdate(BaseModel):
+    status: Optional[str] = None
+    parameters_used: Optional[Any] = None
+    execution_metadata: Optional[Any] = None
+    records_processed: Optional[int] = None
+    records_failed: Optional[int] = None
     error_summary: Optional[str] = None
     error_details: Optional[str] = None
     started_at: Optional[datetime] = None
@@ -3122,70 +3255,49 @@ class PaginatedLinkedinOnlyContactResponse(BaseModel):
     has_next: bool
     has_prev: bool
 
+# ------------------ Email SMTP Credentials ------------------
 
-# -------------------- Automation Contact Extracts --------------------
+class EmailSMTPCredentialsBase(BaseModel):
+    name: str
+    email: EmailStr
+    daily_limit: int
+    note: Optional[str] = None
+    is_active: bool = True
 
-class AutomationContactExtractCreate(BaseModel):
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    company_name: Optional[str] = None
-    job_title: Optional[str] = None
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    linkedin_id: Optional[str] = None
-    source_type: Optional[str] = "email"
-    source_reference: Optional[str] = None
-    raw_payload: Optional[Dict[str, Any]] = None
-    processing_status: Optional[str] = "new"
-    classification: Optional[str] = "unknown"
+    @field_validator('daily_limit')
+    @classmethod
+    def validate_daily_limit(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError('daily_limit must be greater than 0')
+        return v
 
+class EmailSMTPCredentialsCreate(EmailSMTPCredentialsBase):
+    password: str
+    app_password: Optional[str] = None
 
-class AutomationContactExtractOut(AutomationContactExtractCreate):
+class EmailSMTPCredentialsUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    app_password: Optional[str] = None
+    daily_limit: Optional[int] = None
+    note: Optional[str] = None
+    is_active: Optional[bool] = None
+
+    @field_validator('daily_limit')
+    @classmethod
+    def validate_daily_limit(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError('daily_limit must be greater than 0')
+        return v
+
+class EmailSMTPCredentialsOut(EmailSMTPCredentialsBase):
     id: int
+    password: str
+    app_password: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
 
-
-class AutomationContactExtractBulkCreate(BaseModel):
-    contacts: List[AutomationContactExtractCreate]
-
-
-class AutomationContactExtractBulkResponse(BaseModel):
-    inserted: int
-    skipped: int
-    total: int
-
-
-class CheckEmailsRequest(BaseModel):
-    emails: List[str]
-
-
-class CheckEmailsResponse(BaseModel):
-    existing_emails: List[str]
-
-
-
-# -------------------- Automation Workflow Log CRUD --------------------
-
-class AutomationWorkflowLogCreate(BaseModel):
-    workflow_id: int
-    schedule_id: Optional[int] = None
-    run_id: str
-    status: str = "running"
-    parameters_used: Optional[Dict[str, Any]] = None
-    started_at: Optional[datetime] = None
-    records_processed: int = 0
-    records_failed: int = 0
-
-
-class AutomationWorkflowLogUpdate(BaseModel):
-    status: Optional[str] = None
-    records_processed: Optional[int] = None
-    records_failed: Optional[int] = None
-    error_summary: Optional[str] = None
-    error_details: Optional[str] = None
-    execution_metadata: Optional[Dict[str, Any]] = None
-    finished_at: Optional[datetime] = None

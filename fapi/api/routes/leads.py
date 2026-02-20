@@ -17,6 +17,7 @@ from fapi.utils.lead_utils import (
     delete_candidate_by_email_and_phone,
     create_candidate_from_lead,
     get_lead_info_mark_move_to_candidate_true,
+    get_lead_suggestions,
 )
 from fapi.utils.avatar_dashboard_utils import get_lead_metrics
 
@@ -142,3 +143,15 @@ def remove_lead_from_candidate(lead_id: int, db: Session = Depends(get_db)):
     lead.moved_to_candidate = False
     db.commit()
     return {"detail": f"Lead {lead_id} removed from candidate"}
+
+@router.get("/leads/search-names/{search_term}")
+def get_lead_suggestions_endpoint(
+    search_term: str,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        results = get_lead_suggestions(search_term, db)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

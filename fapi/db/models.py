@@ -797,7 +797,27 @@ class CompanyHRContact(Base):
 
 
 
+
 # -------------------- Projects --------------------
+class EmailSMTPCredentialsORM(Base):
+    __tablename__ = "email_smtp_credentials"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(150), nullable=False, unique=True)
+    password = Column(String(255), nullable=False)
+    app_password = Column(String(255), nullable=True)
+    daily_limit = Column(Integer, nullable=False)
+    note = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, 
+        nullable=False, 
+        server_default=func.now(), 
+        onupdate=func.now()
+    )
+
 
 # -------------------- Personal Domain Contact --------------------
 class PersonalDomainContact(Base):
@@ -918,6 +938,77 @@ class RawJobListingORM(Base):
         Index('idx_source_uid', 'source', 'source_uid'),
         Index('idx_processing_status', 'processing_status'),
         Index('idx_extracted_at', 'extracted_at'),
+    )
+
+
+class AutomationContactExtractORM(Base):
+    __tablename__ = "automation_contact_extracts"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+
+    # Identity
+    full_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    email_lc = Column(Computed("LOWER(email)", persisted=True), nullable=True)
+    phone = Column(String(50), nullable=True)
+
+    # Company Information
+    company_name = Column(String(255), nullable=True)
+    job_title = Column(String(255), nullable=True)
+
+    # Location
+    city = Column(String(100), nullable=True)
+    state = Column(String(100), nullable=True)
+    country = Column(String(100), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+
+    # LinkedIn
+    linkedin_id = Column(String(255), nullable=True)
+    linkedin_internal_id = Column(String(255), nullable=True)
+
+    # Source metadata
+    source_type = Column(String(50), nullable=False, comment='email_extractor, linkedin_scraper, job_scraper')
+    source_reference = Column(String(255), nullable=True, comment='message_id, job_id, etc')
+    raw_payload = Column(JSON, nullable=True)
+
+    # Routing control
+    classification = Column(
+        SQLAEnum(
+            'company_contact',
+            'personal_domain_contact',
+            'linkedin_only_contact',
+            'company_only',
+            'unknown',
+            name='contact_classification_enum'
+        ),
+        server_default='unknown'
+    )
+
+    processing_status = Column(
+        SQLAEnum(
+            'new',
+            'classified',
+            'moved',
+            'duplicate',
+            'error',
+            name='contact_processing_status_enum'
+        ),
+        nullable=False,
+        server_default='new'
+    )
+
+    target_table = Column(String(50), nullable=True, comment='where it was moved')
+    target_id = Column(BigInteger, nullable=True, comment='id in target table')
+
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index('idx_automation_email', 'email'),
+        Index('idx_automation_linkedin', 'linkedin_id'),
+        Index('idx_automation_status', 'processing_status'),
     )
 
 
@@ -1201,27 +1292,3 @@ class LinkedinOnlyContact(Base):
         Index('idx_linkedin_internal_id', 'linkedin_internal_id'),
     )
 
-
-# -------------------- Automation Contact Extracts --------------------
-class AutomationContactExtractORM(Base):
-    __tablename__ = "automation_contact_extracts"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    full_name = Column(String(255), nullable=True)
-    email = Column(String(255), nullable=True)
-    phone = Column(String(50), nullable=True)
-    company_name = Column(String(255), nullable=True)
-    job_title = Column(String(255), nullable=True)
-    city = Column(String(255), nullable=True)
-    postal_code = Column(String(20), nullable=True)
-    linkedin_id = Column(String(255), nullable=True)
-    source_type = Column(String(50), nullable=True)
-    source_reference = Column(String(255), nullable=True)
-    raw_payload = Column(JSON, nullable=True)
-    processing_status = Column(String(50), nullable=True, server_default="new")
-    classification = Column(String(50), nullable=True, server_default="unknown")
-    created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
-
-    __table_args__ = (
-        UniqueConstraint('email', 'linkedin_id', name='uq_ace_email_linkedin'),
-    )

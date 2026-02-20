@@ -1,100 +1,118 @@
-"""
-automation_contact_extract.py
-==============================
-API routes for the automation_contact_extracts table.
-
-Endpoints:
-  POST /api/automation-contact-extracts/bulk        — bulk INSERT IGNORE
-  POST /api/automation-contact-extracts/check-emails — return which emails already exist
-"""
-
-import logging
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from sqlalchemy.dialects.mysql import insert as mysql_insert
-
+from typing import List, Optional
 from fapi.db.database import get_db
-from fapi.db.models import AutomationContactExtractORM
 from fapi.db.schemas import (
+    AutomationContactExtractCreate, 
+    AutomationContactExtractUpdate, 
+    AutomationContactExtractOut,
     AutomationContactExtractBulkCreate,
     AutomationContactExtractBulkResponse,
     CheckEmailsRequest,
     CheckEmailsResponse,
 )
+from fapi.utils import automation_contact_utils
 
-logger = logging.getLogger(__name__)
+router = APIRouter(tags=["Automation Extracts"])
 
-router = APIRouter(
-    prefix="/automation-contact-extracts",
-    tags=["Automation Contact Extracts"],
-)
+security = HTTPBearer()
 
-
-@router.post("/bulk", response_model=AutomationContactExtractBulkResponse)
-def bulk_insert_contact_extracts(
-    payload: AutomationContactExtractBulkCreate,
+@router.get("/automation-extracts", response_model=List[AutomationContactExtractOut])
+async def read_automation_extracts(
+    status: Optional[str] = None, 
+    source_email: Optional[str] = None,
     db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
 ):
-    """
-    Bulk-insert contacts into automation_contact_extracts.
-    Duplicate rows (by unique key on email/linkedin_id) are silently skipped
-    via INSERT IGNORE, matching the previous raw SQL behaviour.
-    """
-    contacts = payload.contacts
-    if not contacts:
-        return AutomationContactExtractBulkResponse(inserted=0, skipped=0, total=0)
+    return await automation_contact_utils.get_all_automation_extracts(db, status=status, source_email=source_email)
 
-    rows = [c.model_dump() for c in contacts]
+@router.get("/automation-extracts/paginated")
+def read_automation_extracts_paginated(
+    page: int = 1, 
+    page_size: int = 5000, 
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    """Get automation extracts with page-based pagination"""
+    page_size = min(max(1, page_size), 10000)
+    page = max(1, page)
+    skip = (page - 1) * page_size
+    total_records = automation_contact_utils.count_automation_extracts(db, status=status)
+    data = automation_contact_utils.get_automation_extracts_paginated(db, skip=skip, limit=page_size, status=status)
+    total_pages = (total_records + page_size - 1) // page_size  
+    
+    return {
+        "data": data,
+        "page": page,
+        "page_size": page_size,
+        "total_records": total_records,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1
+    }
 
-    try:
-        stmt = mysql_insert(AutomationContactExtractORM).values(rows)
-        stmt = stmt.prefix_with("IGNORE")  # INSERT IGNORE
-        result = db.execute(stmt)
-        db.commit()
+@router.post("/automation-extracts", response_model=AutomationContactExtractOut, status_code=status.HTTP_201_CREATED)
+async def create_automation_extract(
+    extract: AutomationContactExtractCreate, 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    return await automation_contact_utils.insert_automation_extract(extract, db)
 
-        inserted = result.rowcount
-        skipped = len(rows) - inserted
-        logger.info(
-            "automation_contact_extracts bulk: %d rows → %d inserted, %d skipped (duplicates)",
-            len(rows), inserted, skipped,
-        )
-        return AutomationContactExtractBulkResponse(
-            inserted=inserted,
-            skipped=skipped,
-            total=len(rows),
-        )
-    except Exception as e:
-        db.rollback()
-        logger.error("Bulk insert into automation_contact_extracts failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Bulk insert failed: {str(e)}")
+@router.post("/automation-extracts/bulk", response_model=AutomationContactExtractBulkResponse)
+async def create_automation_extracts_bulk(
+    bulk_data: AutomationContactExtractBulkCreate,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    return await automation_contact_utils.insert_automation_extracts_bulk(bulk_data.extracts, db)
+
+@router.delete("/automation-extracts/bulk", status_code=status.HTTP_200_OK)
+async def delete_automation_extracts_bulk(
+    extract_ids: List[int] = Body(...), 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    return await automation_contact_utils.delete_automation_extracts_bulk(extract_ids, db)
+
+@router.get("/automation-extracts/{extract_id}", response_model=AutomationContactExtractOut)
+async def read_automation_extract(
+    extract_id: int, 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    return await automation_contact_utils.get_automation_extract_by_id(extract_id, db)
+
+@router.put("/automation-extracts/{extract_id}", response_model=AutomationContactExtractOut)
+async def update_automation_extract(
+    extract_id: int, 
+    update_data: AutomationContactExtractUpdate, 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    return await automation_contact_utils.update_automation_extract(extract_id, update_data, db)
+
+@router.delete("/automation-extracts/{extract_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_automation_extract(
+    extract_id: int, 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    await automation_contact_utils.delete_automation_extract(extract_id, db)
+    return None
 
 
-@router.post("/check-emails", response_model=CheckEmailsResponse)
-def check_existing_emails(
+@router.post("/automation-extracts/check-emails", response_model=CheckEmailsResponse)
+async def check_existing_emails(
     payload: CheckEmailsRequest,
     db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
 ):
     """
     Check which of the provided emails already exist in automation_contact_extracts.
-    Returns the subset that is already present — used for global deduplication before inserting.
+    Used for global deduplication before inserting.
     """
-    if not payload.emails:
-        return CheckEmailsResponse(existing_emails=[])
-
-    normalised = [e.strip().lower() for e in payload.emails if e]
-    if not normalised:
-        return CheckEmailsResponse(existing_emails=[])
-
-    try:
-        rows = (
-            db.query(AutomationContactExtractORM.email)
-            .filter(AutomationContactExtractORM.email.in_(normalised))
-            .all()
-        )
-        found = [row[0].strip().lower() for row in rows if row[0]]
-        logger.info("check-emails: %d queried → %d already exist", len(normalised), len(found))
-        return CheckEmailsResponse(existing_emails=found)
-    except Exception as e:
-        logger.error("check-emails query failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Email check failed: {str(e)}")
+    found = await automation_contact_utils.check_existing_emails_bulk(payload.emails, db)
+    return CheckEmailsResponse(existing_emails=found)
