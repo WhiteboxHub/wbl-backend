@@ -6,7 +6,7 @@ from fapi.api.routes import (
     user_dashboard, password, employee, course, subject, course_subject,
     course_content, course_material, batch, authuser, avatar_dashboard,
     session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
-    jobs, placement_fee_collection, employee_tasks, job_automation_keywords, hr_contact, projects,
+    jobs, placement_fee_collection, placement_commission, employee_tasks, job_automation_keywords, hr_contact, projects,
     job_listing, raw_job_listing, employee_dashboard, email_service,
     delivery_engine, email_template, automation_workflow, 
     automation_workflow_schedule, automation_workflow_log,
@@ -97,6 +97,7 @@ app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
 app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
+app.include_router(placement_commission.router, prefix="/api", tags=["Placement Commission"], dependencies=[Depends(enforce_access)])
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
 

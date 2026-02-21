@@ -477,8 +477,77 @@ class PlacementFeeCollection(Base):
         onupdate=func.current_timestamp()
     )
 
+# ----------------------------- Placement Commission --------------------------------
 
-# ---------------------------------------------------------------
+class PlacementCommissionORM(Base):
+    __tablename__ = "placement_commission"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    placement_id = Column(
+        Integer,
+        ForeignKey("candidate_placement.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    employee_id = Column(
+        Integer,
+        ForeignKey("employee.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    amount = Column(DECIMAL(10, 2), nullable=False)
+    lastmod_user_id = Column(
+        Integer,
+        ForeignKey("employee.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp())
+    lastmod_datetime = Column(
+        TIMESTAMP,
+        nullable=True,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("placement_id", "employee_id", name="unique_placement_employee"),
+    )
+
+    placement = relationship("CandidatePlacementORM", foreign_keys=[placement_id])
+    employee = relationship("EmployeeORM", foreign_keys=[employee_id])
+    lastmod_user = relationship("EmployeeORM", foreign_keys=[lastmod_user_id])
+    scheduler_entries = relationship(
+        "PlacementCommissionSchedulerORM",
+        back_populates="commission",
+        cascade="all, delete-orphan",
+    )
+
+
+class PlacementCommissionSchedulerORM(Base):
+    __tablename__ = "placement_commission_scheduler"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    placement_commission_id = Column(
+        Integer,
+        ForeignKey("placement_commission.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    installment_no = Column(Integer, nullable=False)
+    installment_amount = Column(DECIMAL(10, 2), nullable=False)
+    scheduled_date = Column(Date, nullable=False)
+    payment_status = Column(
+        Enum("Pending", "Paid", name="commission_payment_status_enum"),
+        nullable=True,
+        default="Pending",
+        server_default="Pending",
+    )
+    created_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "placement_commission_id", "installment_no", name="unique_installment"
+        ),
+    )
+
+    commission = relationship("PlacementCommissionORM", back_populates="scheduler_entries")
 
 
 class EmployeeORM(Base):

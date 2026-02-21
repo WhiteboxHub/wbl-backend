@@ -1165,6 +1165,82 @@ class PlacementFeeOut(PlacementFeeBase):
 
 # -----------------------------------------------------------------------------------
 
+# ----------------------------- Placement Commission Schemas --------------------------------
+
+class CommissionPaymentStatusEnum(str, enum.Enum):
+    pending = "Pending"
+    paid = "Paid"
+
+
+class PlacementCommissionBase(BaseModel):
+    placement_id: int
+    employee_id: int
+    amount: Decimal2
+
+    model_config = {"from_attributes": True}
+
+
+class PlacementCommissionCreate(PlacementCommissionBase):
+    pass
+
+
+class PlacementCommissionUpdate(BaseModel):
+    amount: Optional[Decimal2] = None
+    employee_id: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PlacementCommissionSchedulerOut(BaseModel):
+    id: int
+    placement_commission_id: int
+    installment_no: int
+    installment_amount: Decimal2
+    scheduled_date: date
+    payment_status: Optional[CommissionPaymentStatusEnum] = CommissionPaymentStatusEnum.pending
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PlacementCommissionOut(PlacementCommissionBase):
+    id: int
+    lastmod_user_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    lastmod_datetime: Optional[datetime] = None
+    employee_name: Optional[str] = None
+    candidate_name: Optional[str] = None
+    company_name: Optional[str] = None
+    scheduler_entries: List[PlacementCommissionSchedulerOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+# ---- Scheduler ----
+
+class PlacementCommissionSchedulerBase(BaseModel):
+    placement_commission_id: int
+    installment_no: int
+    installment_amount: Decimal2
+    scheduled_date: date
+    payment_status: Optional[CommissionPaymentStatusEnum] = CommissionPaymentStatusEnum.pending
+
+    model_config = {"from_attributes": True}
+
+
+class PlacementCommissionSchedulerCreate(PlacementCommissionSchedulerBase):
+    pass
+
+
+class PlacementCommissionSchedulerUpdate(BaseModel):
+    installment_amount: Optional[Decimal2] = None
+    scheduled_date: Optional[date] = None
+    payment_status: Optional[CommissionPaymentStatusEnum] = None
+
+    model_config = {"from_attributes": True}
+
+# -----------------------------------------------------------------------------------
+
 
 class GoogleUserCreate(BaseModel):
     name: str
