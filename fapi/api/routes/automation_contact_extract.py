@@ -72,29 +72,51 @@ def check_automation_extracts_version(
 
 @router.get("/automation-extracts", response_model=List[AutomationContactExtractOut])
 async def read_automation_extracts(
-    status: Optional[str] = None, 
+    status: Optional[str] = None,
     source_email: Optional[str] = None,
+    email_invalid: Optional[bool] = None,
+    domain_invalid: Optional[bool] = None,
+    mailbox_invalid: Optional[bool] = None,
+    bounced_flag: Optional[bool] = None,
+    unsubscribed_flag: Optional[bool] = None,
+    complained_flag: Optional[bool] = None,
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
-    return await automation_contact_utils.get_all_automation_extracts(db, status=status, source_email=source_email)
+    return await automation_contact_utils.get_all_automation_extracts(
+        db, status=status, source_email=source_email
+    )
 
 @router.get("/automation-extracts/paginated")
 def read_automation_extracts_paginated(
-    page: int = 1, 
-    page_size: int = 5000, 
+    page: int = 1,
+    page_size: int = 5000,
     status: Optional[str] = None,
+    email_invalid: Optional[bool] = None,
+    domain_invalid: Optional[bool] = None,
+    mailbox_invalid: Optional[bool] = None,
+    bounced_flag: Optional[bool] = None,
+    unsubscribed_flag: Optional[bool] = None,
+    complained_flag: Optional[bool] = None,
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
-    """Get automation extracts with page-based pagination"""
+    """Get automation extracts with page-based pagination and optional filters"""
     page_size = min(max(1, page_size), 10000)
     page = max(1, page)
     skip = (page - 1) * page_size
-    total_records = automation_contact_utils.count_automation_extracts(db, status=status)
-    data = automation_contact_utils.get_automation_extracts_paginated(db, skip=skip, limit=page_size, status=status)
-    total_pages = (total_records + page_size - 1) // page_size  
-    
+    filters = dict(
+        status=status,
+        email_invalid=email_invalid,
+        domain_invalid=domain_invalid,
+        mailbox_invalid=mailbox_invalid,
+        bounced_flag=bounced_flag,
+        unsubscribed_flag=unsubscribed_flag,
+        complained_flag=complained_flag,
+    )
+    total_records = automation_contact_utils.count_automation_extracts(db, **filters)
+    data = automation_contact_utils.get_automation_extracts_paginated(db, skip=skip, limit=page_size, **filters)
+    total_pages = max(1, (total_records + page_size - 1) // page_size)
     return {
         "data": data,
         "page": page,
