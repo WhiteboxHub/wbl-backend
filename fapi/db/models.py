@@ -1018,7 +1018,8 @@ class AutomationContactExtractORM(Base):
     # Identity
     full_name = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
-    email_lc = Column(Computed("LOWER(email)", persisted=True), nullable=True)
+    email_lc = Column(String(255), FetchedValue())
+    email_key = Column(String(255), FetchedValue())
     phone = Column(String(50), nullable=True)
 
     # Company Information
@@ -1034,6 +1035,7 @@ class AutomationContactExtractORM(Base):
     # LinkedIn
     linkedin_id = Column(String(255), nullable=True)
     linkedin_internal_id = Column(String(255), nullable=True)
+    linkedin_key = Column(String(255), FetchedValue())
 
     # Source metadata
     source_type = Column(String(50), nullable=False, comment='email_extractor, linkedin_scraper, job_scraper')
@@ -1071,14 +1073,31 @@ class AutomationContactExtractORM(Base):
 
     error_message = Column(Text, nullable=True)
 
+    # Email Validation
+    email_invalid = Column(Boolean, nullable=False, server_default='0')
+    domain_invalid = Column(Boolean, nullable=False, server_default='0')
+    mailbox_invalid = Column(Boolean, nullable=False, server_default='0')
+
+    last_email_sent_at = Column(DateTime, nullable=True)
+
+    bounced_flag = Column(Boolean, nullable=False, server_default='0')
+    unsubscribed_flag = Column(Boolean, nullable=False, server_default='0')
+    complained_flag = Column(Boolean, nullable=False, server_default='0')
+
+    bounced_at = Column(DateTime, nullable=True)
+    unsubscribed_at = Column(DateTime, nullable=True)
+    complained_at = Column(DateTime, nullable=True)
+
     # Timestamps
     created_at = Column(TIMESTAMP, server_default=func.now())
+    processed_at = Column(TIMESTAMP, nullable=True)
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
-        Index('idx_automation_email', 'email'),
-        Index('idx_automation_linkedin', 'linkedin_id'),
-        Index('idx_automation_status', 'processing_status'),
+        UniqueConstraint('email_key', 'linkedin_key', name='uq_email_linkedin'),
+        Index('idx_status', 'processing_status'),
+        Index('idx_classification', 'classification'),
+        Index('idx_company', 'company_name'),
     )
 
 
