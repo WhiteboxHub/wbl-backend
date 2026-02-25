@@ -1,11 +1,15 @@
 
 
 
-from fastapi import APIRouter, Depends, HTTPException, Security, Query
+import hashlib
+from fastapi import APIRouter, Depends, HTTPException, Security, Query, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from fapi.db.database import get_db
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fapi.db.models import InternalDocument
 from fapi.db.schemas import (
     InternalDocumentCreate,
     InternalDocumentUpdate,
@@ -23,6 +27,42 @@ router = APIRouter()
 
 #  Add authentication scheme
 security = HTTPBearer()
+
+@router.head("/")
+def check_documents_version(db: Session = Depends(get_db)):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(InternalDocument.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        InternalDocument.id,
+                        func.coalesce(InternalDocument.title, ''),
+                        func.coalesce(InternalDocument.file, ''),
+                        func.coalesce(InternalDocument.description, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+        return response
+    except Exception:
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
+
 
 #  Get all documents (protected)
 @router.get("/", response_model=List[InternalDocumentOut])

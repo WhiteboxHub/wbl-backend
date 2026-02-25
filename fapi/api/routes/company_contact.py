@@ -2,10 +2,53 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
+from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import CompanyContactCreate, CompanyContactUpdate, CompanyContactOut
 from fapi.utils import company_contact_utils
+import hashlib
+from fastapi import Response
+from sqlalchemy import func
+from fapi.db.models import CompanyContact
 
 router = APIRouter(prefix="/company-contacts", tags=["Company Contacts"], redirect_slashes=False)
+
+@router.head("/")
+@router.head("/paginated")
+def check_company_contacts_version(db: Session = Depends(get_db)):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(CompanyContact.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        CompanyContact.id,
+                        func.coalesce(CompanyContact.name, ''),
+                        func.coalesce(CompanyContact.email, ''),
+                        func.coalesce(CompanyContact.phone, ''),
+                        func.coalesce(CompanyContact.job_title, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception:
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 @router.get("/", response_model=List[CompanyContactOut])
 def read_company_contacts(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

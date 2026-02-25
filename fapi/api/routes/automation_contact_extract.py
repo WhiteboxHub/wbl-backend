@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
+from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import (
     AutomationContactExtractCreate, 
     AutomationContactExtractUpdate, 
@@ -13,10 +14,61 @@ from fapi.db.schemas import (
     CheckEmailsResponse,
 )
 from fapi.utils import automation_contact_utils
+from fapi.db.models import AutomationContactExtractORM
+import hashlib
+from fastapi import Response
+from sqlalchemy import func
 
 router = APIRouter(tags=["Automation Extracts"])
 
 security = HTTPBearer()
+
+@router.head("/automation-extracts")
+@router.head("/automation-extracts/paginated")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, AutomationContactExtractORM)
+
+def check_automation_extracts_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(AutomationContactExtractORM.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        AutomationContactExtractORM.id,
+                        func.coalesce(AutomationContactExtractORM.full_name, ''),
+                        func.coalesce(AutomationContactExtractORM.email, ''),
+                        func.coalesce(AutomationContactExtractORM.status, ''),
+                        func.coalesce(AutomationContactExtractORM.source_email, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 @router.get("/automation-extracts", response_model=List[AutomationContactExtractOut])
 async def read_automation_extracts(

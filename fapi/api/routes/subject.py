@@ -3,6 +3,7 @@
 # from typing import List
 
 # from fapi.db.database import get_db
+from fapi.utils.table_fingerprint import generate_version_for_model
 # from fapi.db import schemas
 # from fapi.utils import subject_utils
 
@@ -43,18 +44,59 @@
 #         return {"status": "success", "message": "Subject deleted successfully"}
 #     except ValueError as e:
 #         raise HTTPException(status_code=404, detail=str(e))    
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, HTTPException, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from fapi.db.database import get_db
-from fapi.db import schemas
+from fapi.db import schemas, models
 from fapi.utils import subject_utils
+import hashlib
 
 router = APIRouter()
 
 # Use HTTPBearer for Swagger authentication
 security = HTTPBearer()
+
+@router.head("/subjects")
+def check_subjects_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(models.Subject.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        models.Subject.id,
+                        func.coalesce(models.Subject.name, ''),
+                        func.coalesce(models.Subject.courseid, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        print(f"[ERROR] HEAD /subjects failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 @router.get("/subjects", response_model=List[schemas.SubjectResponse])
 def get_subjects(

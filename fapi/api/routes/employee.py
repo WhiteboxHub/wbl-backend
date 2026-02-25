@@ -26,10 +26,30 @@ from fapi.utils.employee_utils import (
 )
 from fapi.utils.avatar_dashboard_utils import get_employee_birthdays
 
+import hashlib
+from fastapi import Response, FastAPI, HTTPException, status, APIRouter, Depends, Security
+from sqlalchemy import func
+
 app = FastAPI()
 router = APIRouter()
 
 security = HTTPBearer()
+
+from fapi.utils.table_fingerprint import generate_version_for_model
+
+@router.head("/employees")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, EmployeeORM)
+
+def check_employees_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, EmployeeORM)
+
 
 @router.get("/employees", response_model=List[Employee])
 def get_employees(
@@ -40,6 +60,8 @@ def get_employees(
         return [Employee(**row) for row in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 @router.post("/employees", response_model=Employee)

@@ -1,6 +1,7 @@
 
 # WBL_Backend\fapi\api\routes\jobs.py
 from fapi.utils.user_dashboard_utils import get_current_user
+from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.models import AuthUserORM
 import logging
 from typing import List
@@ -33,6 +34,60 @@ def get_all_job_activity_logs(
 ):
     """Get all job activity logs with job name, candidate name, and employee name"""
     return jobs_utils.get_all_job_activity_logs(db)
+
+@router.head("/job_activity_logs")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, JobActivityLogORM)
+
+def check_job_activity_logs_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        from fastapi import Response
+        import hashlib
+        from sqlalchemy import func
+        from fapi.db.models import JobActivityLogORM
+        
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(JobActivityLogORM.id).label("max_id"),
+            func.max(JobActivityLogORM.lastmod_date_time).label("max_mod"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        JobActivityLogORM.id,
+                        func.coalesce(JobActivityLogORM.job_type_id, 0),
+                        func.coalesce(JobActivityLogORM.candidate_id, 0),
+                        func.coalesce(JobActivityLogORM.employee_id, 0),
+                        func.coalesce(JobActivityLogORM.activity_count, 0),
+                        func.coalesce(JobActivityLogORM.status, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.max_mod}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] HEAD /job_activity_logs failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 
 @router.get("/job_activity_logs/{log_id}", response_model=JobActivityLogOut)
@@ -113,6 +168,58 @@ def get_all_job_types(
 ):
     """Get all job types"""
     return jobs_utils.get_all_job_types(db)
+
+@router.head("/job-types")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, JobTypeORM)
+
+def check_job_types_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        from fastapi import Response
+        import hashlib
+        from sqlalchemy import func
+        from fapi.db.models import JobTypeORM
+        
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(JobTypeORM.id).label("max_id"),
+            func.max(JobTypeORM.lastmod_date_time).label("max_mod"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        JobTypeORM.id,
+                        func.coalesce(JobTypeORM.name, ''),
+                        func.coalesce(JobTypeORM.category, ''),
+                        func.coalesce(JobTypeORM.description, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.max_mod}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] HEAD /job-types failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 
 @router.get("/job-types/{job_type_id}", response_model=JobTypeOut)

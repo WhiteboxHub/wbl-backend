@@ -49,52 +49,15 @@ def get_all_leads(
     return fetch_all_leads(db, search, search_by, sort, filters)
 
 
+from fapi.utils.table_fingerprint import generate_version_for_model
+
 @router.head("/leads")
 def check_leads_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(LeadORM.id).label("max_id"),
-            func.date_format(func.max(LeadORM.entry_date), '%Y-%m-%d %H:%i:%s').label("max_entry"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        LeadORM.id,
-                        func.coalesce(LeadORM.full_name, ''),
-                        func.coalesce(LeadORM.email, ''),
-                        func.coalesce(LeadORM.phone, ''),
-                        func.coalesce(LeadORM.status, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-        
-        response = Response(status_code=200)
-        if result:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.max_entry}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["X-Total-Count"] = str(result.cnt)
-            response.headers["X-Max-ID"] = str(result.max_id)
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-        
-        return response
-        
-    except Exception as e:
-        print(f"[ERROR] HEAD /leads failed: {e}")
-        import traceback
-        traceback.print_exc()
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return generate_version_for_model(db, LeadORM)
+
 
 
 @router.get("/leads/metrics", response_model=LeadMetricsResponse)

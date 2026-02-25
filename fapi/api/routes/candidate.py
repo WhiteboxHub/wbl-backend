@@ -7,6 +7,7 @@ from fapi.utils.avatar_dashboard_utils import (
     candidate_interview_performance,
     get_candidate_preparation_metrics
 )
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 from fastapi import APIRouter, Query, Path, HTTPException,Depends
 from fapi.utils import candidate_utils                                         
@@ -21,13 +22,11 @@ from fapi.db import schemas
 from typing import Dict, Any, List
 from sqlalchemy import or_, func
 import re
+import hashlib
+from fastapi import Response
 
 router = APIRouter()
-
-
-
 logger = logging.getLogger(__name__)
-router = APIRouter()
 security = HTTPBearer()
 
 
@@ -42,6 +41,57 @@ def list_candidates(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
+
+@router.head("/candidates")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, CandidateORM)
+
+def check_candidates_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(CandidateORM.id).label("max_id"),
+            func.date_format(func.max(CandidateORM.enrolled_date), '%Y-%m-%d %H:%i:%s').label("max_enrolled"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        CandidateORM.id,
+                        func.coalesce(CandidateORM.full_name, ''),
+                        func.coalesce(CandidateORM.email, ''),
+                        func.coalesce(CandidateORM.status, ''),
+                        func.coalesce(CandidateORM.workstatus, ''),
+                        func.coalesce(CandidateORM.phone, ''),
+                        func.coalesce(CandidateORM.city, ''),
+                        func.coalesce(CandidateORM.state, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.max_enrolled}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] HEAD /candidates failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
 def search_candidates(
@@ -107,6 +157,53 @@ def read_all_marketing(
 ):
     return candidate_utils.get_all_marketing_records( page, limit)
 
+@router.head("/candidate/marketing")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, CandidateMarketingORM)
+
+def check_marketing_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(CandidateMarketingORM.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        CandidateMarketingORM.id,
+                        func.coalesce(CandidateMarketingORM.candidate_id, ''),
+                        func.coalesce(CandidateMarketingORM.status, ''),
+                        func.coalesce(CandidateMarketingORM.marketing_date, ''),
+                        func.coalesce(CandidateMarketingORM.marketer_id, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] HEAD /candidate/marketing failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
+
 
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
 def read_marketing_record(record_id: int = Path(...)):
@@ -134,6 +231,54 @@ def read_all_placements(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return candidate_utils.get_all_placements(page, limit)
+
+@router.head("/candidate/placements")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return generate_version_for_model(db, CandidatePlacementORM)
+
+def check_placements_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(CandidatePlacementORM.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        CandidatePlacementORM.id,
+                        func.coalesce(CandidatePlacementORM.candidate_id, ''),
+                        func.coalesce(CandidatePlacementORM.company, ''),
+                        func.coalesce(CandidatePlacementORM.status, ''),
+                        func.coalesce(CandidatePlacementORM.placement_date, ''),
+                        func.coalesce(CandidatePlacementORM.salary, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] HEAD /candidate/placements failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 
 @router.get("/candidate/placements/metrics", response_model=PlacementMetrics)
@@ -194,6 +339,48 @@ def get_candidate_interview_performance(
     }
 
 # -------------------Candidate_interview -------------------
+
+@router.head("/interviews")
+def check_interviews_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(CandidateInterview.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        CandidateInterview.id,
+                        func.coalesce(CandidateInterview.candidate_id, ''),
+                        func.coalesce(CandidateInterview.company, ''),
+                        func.coalesce(CandidateInterview.interview_date, ''),
+                        func.coalesce(CandidateInterview.status, ''),
+                        func.coalesce(CandidateInterview.feedback, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception as e:
+        logger.error(f"[ERROR] HEAD /interviews failed: {e}")
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 @router.post("/interviews", response_model=CandidateInterviewOut)
 def create_interview(
@@ -257,6 +444,43 @@ def get_prep(prep_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return prep
 
+
+@router.head("/candidate_preparations")
+def check_prep_version(db: Session = Depends(get_db)):
+    try:
+        result = db.query(
+            func.count().label("cnt"),
+            func.max(CandidatePreparation.id).label("max_id"),
+            func.sum(
+                func.crc32(
+                    func.concat_ws(
+                        '|',
+                        CandidatePreparation.id,
+                        func.coalesce(CandidatePreparation.candidate_id, ''),
+                        func.coalesce(CandidatePreparation.status, ''),
+                        func.coalesce(CandidatePreparation.start_date, ''),
+                        func.coalesce(CandidatePreparation.end_date, '')
+                    )
+                )
+            ).label("checksum")
+        ).first()
+
+        response = Response(status_code=200)
+        if result and result.cnt > 0:
+            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
+            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
+            response.headers["X-Data-Version"] = version_hash
+            response.headers["Last-Modified"] = version_hash
+        else:
+            response.headers["X-Data-Version"] = "empty"
+            response.headers["Last-Modified"] = "empty"
+
+        return response
+    except Exception:
+        response = Response(status_code=200)
+        response.headers["X-Data-Version"] = "error"
+        response.headers["Last-Modified"] = "error"
+        return response
 
 @router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
 def list_preps(
