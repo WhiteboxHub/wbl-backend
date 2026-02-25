@@ -2921,6 +2921,7 @@ class AutomationWorkflowScheduleUpdate(BaseModel):
     enabled: Optional[bool] = None
     next_run_at: Optional[datetime] = None
     last_run_at: Optional[datetime] = None
+    is_running: Optional[bool] = None
 
 class AutomationWorkflowSchedule(AutomationWorkflowScheduleBase):
     id: int
