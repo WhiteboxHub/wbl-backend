@@ -64,6 +64,8 @@ def get_due_schedules(db: Session = Depends(get_db)):
             JOIN automation_workflows w ON s.automation_workflow_id = w.id 
             WHERE s.enabled = 1 
               AND w.status = 'active'
+              AND w.workflow_type = 'email_sender'
+              AND w.workflow_key IN ('daily_vendor_outreach', 'weekly_vendor_outreach', 'weekly_leads_outreach', 'weekly_potential_leads_outreach')
               AND (s.next_run_at IS NOT NULL AND s.next_run_at <= NOW())
               AND s.is_running = 0
         """)
