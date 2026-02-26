@@ -387,6 +387,7 @@ class CandidatePlacementORM(Base):
     position = Column(String(255), nullable=True)
     company = Column(String(200), nullable=False)
     placement_date = Column(Date, nullable=False)
+    joining_date = Column(Date, nullable=True)
     type = Column(Enum('Company', 'Client', 'Vendor',
                   'Implementation Partner'), nullable=True)
 
@@ -476,8 +477,77 @@ class PlacementFeeCollection(Base):
         onupdate=func.current_timestamp()
     )
 
+# ----------------------------- Placement Commission --------------------------------
 
-# ---------------------------------------------------------------
+class PlacementCommissionORM(Base):
+    __tablename__ = "placement_commission"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    placement_id = Column(
+        Integer,
+        ForeignKey("candidate_placement.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    employee_id = Column(
+        Integer,
+        ForeignKey("employee.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    amount = Column(DECIMAL(10, 2), nullable=False)
+    lastmod_user_id = Column(
+        Integer,
+        ForeignKey("employee.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp())
+    lastmod_datetime = Column(
+        TIMESTAMP,
+        nullable=True,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("placement_id", "employee_id", name="unique_placement_employee"),
+    )
+
+    placement = relationship("CandidatePlacementORM", foreign_keys=[placement_id])
+    employee = relationship("EmployeeORM", foreign_keys=[employee_id])
+    lastmod_user = relationship("EmployeeORM", foreign_keys=[lastmod_user_id])
+    scheduler_entries = relationship(
+        "PlacementCommissionSchedulerORM",
+        back_populates="commission",
+        cascade="all, delete-orphan",
+    )
+
+
+class PlacementCommissionSchedulerORM(Base):
+    __tablename__ = "placement_commission_scheduler"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    placement_commission_id = Column(
+        Integer,
+        ForeignKey("placement_commission.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    installment_no = Column(Integer, nullable=False)
+    installment_amount = Column(DECIMAL(10, 2), nullable=False)
+    scheduled_date = Column(Date, nullable=False)
+    payment_status = Column(
+        Enum("Pending", "Paid", name="commission_payment_status_enum"),
+        nullable=True,
+        default="Pending",
+        server_default="Pending",
+    )
+    created_at = Column(TIMESTAMP, nullable=True, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "placement_commission_id", "installment_no", name="unique_installment"
+        ),
+    )
+
+    commission = relationship("PlacementCommissionORM", back_populates="scheduler_entries")
 
 
 class EmployeeORM(Base):
@@ -948,7 +1018,8 @@ class AutomationContactExtractORM(Base):
     # Identity
     full_name = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
-    email_lc = Column(Computed("LOWER(email)", persisted=True), nullable=True)
+    email_lc = Column(String(255), FetchedValue())
+    email_key = Column(String(255), FetchedValue())
     phone = Column(String(50), nullable=True)
 
     # Company Information
@@ -964,6 +1035,7 @@ class AutomationContactExtractORM(Base):
     # LinkedIn
     linkedin_id = Column(String(255), nullable=True)
     linkedin_internal_id = Column(String(255), nullable=True)
+    linkedin_key = Column(String(255), FetchedValue())
 
     # Source metadata
     source_type = Column(String(50), nullable=False, comment='email_extractor, linkedin_scraper, job_scraper')
@@ -1001,14 +1073,31 @@ class AutomationContactExtractORM(Base):
 
     error_message = Column(Text, nullable=True)
 
+    # Email Validation
+    email_invalid = Column(Boolean, nullable=False, server_default='0')
+    domain_invalid = Column(Boolean, nullable=False, server_default='0')
+    mailbox_invalid = Column(Boolean, nullable=False, server_default='0')
+
+    last_email_sent_at = Column(DateTime, nullable=True)
+
+    bounced_flag = Column(Boolean, nullable=False, server_default='0')
+    unsubscribed_flag = Column(Boolean, nullable=False, server_default='0')
+    complained_flag = Column(Boolean, nullable=False, server_default='0')
+
+    bounced_at = Column(DateTime, nullable=True)
+    unsubscribed_at = Column(DateTime, nullable=True)
+    complained_at = Column(DateTime, nullable=True)
+
     # Timestamps
     created_at = Column(TIMESTAMP, server_default=func.now())
+    processed_at = Column(TIMESTAMP, nullable=True)
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
-        Index('idx_automation_email', 'email'),
-        Index('idx_automation_linkedin', 'linkedin_id'),
-        Index('idx_automation_status', 'processing_status'),
+        UniqueConstraint('email_key', 'linkedin_key', name='uq_email_linkedin'),
+        Index('idx_status', 'processing_status'),
+        Index('idx_classification', 'classification'),
+        Index('idx_company', 'company_name'),
     )
 
 
@@ -1291,3 +1380,4 @@ class LinkedinOnlyContact(Base):
         Index('idx_linkedin_id', 'linkedin_id'),
         Index('idx_linkedin_internal_id', 'linkedin_internal_id'),
     )
+
