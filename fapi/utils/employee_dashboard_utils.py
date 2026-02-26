@@ -1,6 +1,6 @@
 import re
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy import or_, and_, case
 from typing import Dict, Any, List
 from datetime import date, timedelta
 from fapi.db.models import (
@@ -17,26 +17,30 @@ def get_employee_sessions_and_recordings_internal(db: Session, employee_id: int)
 
     emp_name_orig = employee.name.lower().strip()
     emp_name_parts = emp_name_orig.split()
-    all_sessions = db.query(SessionORM).all()
-    all_recordings = db.query(Recording).all()
+    
+    # Build filters for database-side matching
+    session_filters = [SessionORM.title.ilike(f"%{part}%") for part in emp_name_parts if len(part) > 2]
+    recording_filters = [
+        or_(
+            Recording.description.ilike(f"%{part}%"),
+            Recording.subject.ilike(f"%{part}%")
+        ) for part in emp_name_parts if len(part) > 2
+    ]
+    
     matched_sessions = []
     matched_recordings = []
-
-    def is_match(text):
-        if not text: return False
-        t = text.lower()
-        if "sai teja" in t and "sai teja" not in emp_name_orig:
-            return False
-        return any(part in t for part in emp_name_parts)
-
-    for s in all_sessions:
-        if is_match(s.title):
-            matched_sessions.append(s)
-
-    for r in all_recordings:
-        text = " ".join(filter(None, [r.description, r.subject or ""]))
-        if is_match(text):
-            matched_recordings.append(r)
+    
+    if session_filters:
+        query = db.query(SessionORM).filter(or_(*session_filters))
+        if "sai teja" not in emp_name_orig:
+            query = query.filter(~SessionORM.title.ilike("%sai teja%"))
+        matched_sessions = query.order_by(SessionORM.sessiondate.desc()).limit(20).all()
+        
+    if recording_filters:
+        query = db.query(Recording).filter(or_(*recording_filters))
+        if "sai teja" not in emp_name_orig:
+            query = query.filter(~Recording.description.ilike("%sai teja%"))
+        matched_recordings = query.order_by(Recording.classdate.desc()).limit(20).all()
 
     return matched_recordings, matched_sessions
 
@@ -47,7 +51,8 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     if not employee:
         return None
     placements_found = (
-        db.query(CandidatePlacementORM)
+        db.query(CandidatePlacementORM, CandidateORM.full_name)
+        .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
         .join(CandidatePreparation, CandidatePlacementORM.candidate_id == CandidatePreparation.candidate_id)
         .filter(
             or_(
@@ -61,13 +66,11 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     )
     
     placements = []
-    for p in placements_found:
-        
-        candidate = db.query(CandidateORM).filter(CandidateORM.id == p.candidate_id).first()
+    for p, full_name in placements_found:
         p_dict = {
             "id": p.id,
             "candidate_id": p.candidate_id,
-            "candidate_name": candidate.full_name if candidate else "Anonymous",
+            "candidate_name": full_name or "Anonymous",
             "company": p.company,
             "position": p.position,
             "placement_date": p.placement_date.isoformat() if p.placement_date else None,
@@ -77,54 +80,59 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     
     placements.sort(key=lambda x: x["placement_date"] or "", reverse=True)
     
-    all_associated_ids = [r[0] for r in db.query(CandidatePreparation.candidate_id).filter(
-        or_(
-            CandidatePreparation.instructor1_id == employee_id,
-            CandidatePreparation.instructor2_id == employee_id,
-            CandidatePreparation.instructor3_id == employee_id
-        )
-    ).all()]
-    all_associated_ids = list(set(all_associated_ids))
-
+    # Optimized combined candidates query
+    I1 = aliased(EmployeeORM)
+    I2 = aliased(EmployeeORM)
+    I3 = aliased(EmployeeORM)
     
-    prep_candidates_raw = (
-        db.query(CandidatePreparation, CandidateORM.full_name)
+    candidates_raw = (
+        db.query(
+            CandidatePreparation,
+            CandidateORM.full_name,
+            I1.name.label("inst1_name"),
+            I2.name.label("inst2_name"),
+            I3.name.label("inst3_name"),
+            CandidateMarketingORM.status.label("mkt_status")
+        )
         .join(CandidateORM, CandidatePreparation.candidate_id == CandidateORM.id)
+        .outerjoin(I1, CandidatePreparation.instructor1_id == I1.id)
+        .outerjoin(I2, CandidatePreparation.instructor2_id == I2.id)
+        .outerjoin(I3, CandidatePreparation.instructor3_id == I3.id)
+        .outerjoin(CandidateMarketingORM, and_(
+            CandidatePreparation.candidate_id == CandidateMarketingORM.candidate_id,
+            CandidateMarketingORM.status == "active"
+        ))
         .filter(
-            CandidatePreparation.candidate_id.in_(all_associated_ids),
+            or_(
+                CandidatePreparation.instructor1_id == employee_id,
+                CandidatePreparation.instructor2_id == employee_id,
+                CandidatePreparation.instructor3_id == employee_id
+            ),
             CandidatePreparation.status == "active"
         )
         .all()
     )
     
-    prep_candidates = []
-    for prep, full_name in prep_candidates_raw:
-        prep_candidates.append({
+    consolidated_candidates = []
+    for prep, full_name, i1, i2, i3, mkt_status in candidates_raw:
+        # Determine status
+        status = "In Marketing" if mkt_status == "active" else "In Preparation"
+        
+        # Get other instructors
+        instructors = []
+        if prep.instructor1_id and prep.instructor1_id != employee_id:
+            instructors.append(i1 or "Unknown")
+        if prep.instructor2_id and prep.instructor2_id != employee_id:
+            instructors.append(i2 or "Unknown")
+        if prep.instructor3_id and prep.instructor3_id != employee_id:
+            instructors.append(i3 or "Unknown")
+            
+        consolidated_candidates.append({
             "id": prep.id,
             "candidate_id": prep.candidate_id,
             "full_name": full_name,
-            "status": prep.status,
-            "start_date": str(prep.start_date) if prep.start_date else None,
-        })
-    
-    marketing_candidates_raw = (
-        db.query(CandidateMarketingORM, CandidateORM.full_name)
-        .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
-        .filter(
-            CandidateMarketingORM.candidate_id.in_(all_associated_ids),
-            CandidateMarketingORM.status == "active"
-        )
-        .all()
-    )
-
-    marketing_candidates = []
-    for marketing, full_name in marketing_candidates_raw:
-        marketing_candidates.append({
-            "id": marketing.id,
-            "candidate_id": marketing.candidate_id,
-            "full_name": full_name,
-            "status": marketing.status,
-            "start_date": str(marketing.start_date) if marketing.start_date else None,
+            "status": status,
+            "other_instructors": ", ".join(instructors) if instructors else "None"
         })
     
     
@@ -159,7 +167,8 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     
     
     job_help_found = (
-        db.query(CandidatePlacementORM)
+        db.query(CandidatePlacementORM, CandidateORM.full_name)
+        .join(CandidateORM, CandidatePlacementORM.candidate_id == CandidateORM.id)
         .join(CandidatePreparation, CandidatePlacementORM.candidate_id == CandidatePreparation.candidate_id)
         .filter(
             and_(
@@ -176,12 +185,11 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     )
     
     job_help_candidates = []
-    for p in job_help_found:
-        candidate = db.query(CandidateORM).filter(CandidateORM.id == p.candidate_id).first()
+    for p, full_name in job_help_found:
         jh_dict = {
             "id": p.id,
             "candidate_id": p.candidate_id,
-            "candidate_name": candidate.full_name if candidate else "Anonymous",
+            "candidate_name": full_name or "Anonymous",
             "company": p.company,
             "position": p.position,
             "placement_date": p.placement_date.isoformat() if p.placement_date else None,
@@ -213,8 +221,6 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     
 
     recordings, sessions = get_employee_sessions_and_recordings_internal(db, employee_id)
-    recordings = sorted(recordings, key=lambda x: x.classdate or date.min, reverse=True)[:20]
-    sessions = sorted(sessions, key=lambda x: x.sessiondate or date.min, reverse=True)[:20]
     
     return {
         "employee_info": {
@@ -232,11 +238,11 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
             "notes": re.sub(r'<[^>]*>', '', employee.notes) if employee.notes else ""
         },
         "placements": placements,
-        "assigned_prep_candidates": prep_candidates,
-        "assigned_marketing_candidates": marketing_candidates,
+        "candidates": consolidated_candidates,
         "candidate_metrics": {
-            "prep_count": len(prep_candidates),
-            "marketing_count": len(marketing_candidates),
+            "total_count": len(consolidated_candidates),
+            "prep_count": len([c for c in consolidated_candidates if c["status"] == "In Preparation"]),
+            "marketing_count": len([c for c in consolidated_candidates if c["status"] == "In Marketing"]),
             "placement_count": len(placements)
         },
         "task_metrics": {
