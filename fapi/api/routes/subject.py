@@ -43,18 +43,27 @@
 #         return {"status": "success", "message": "Subject deleted successfully"}
 #     except ValueError as e:
 #         raise HTTPException(status_code=404, detail=str(e))    
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, HTTPException, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from fapi.db.database import get_db
-from fapi.db import schemas
+from fapi.db import schemas, models
 from fapi.utils import subject_utils
-
+import hashlib
+from fapi.utils.table_fingerprint import generate_version_for_model
 router = APIRouter()
 
 # Use HTTPBearer for Swagger authentication
 security = HTTPBearer()
+
+@router.head("/subjects")
+def check_subjects_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_subjects_version(db)
 
 @router.get("/subjects", response_model=List[schemas.SubjectResponse])
 def get_subjects(

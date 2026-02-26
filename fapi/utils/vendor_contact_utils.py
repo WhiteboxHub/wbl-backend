@@ -8,6 +8,8 @@ from fastapi import HTTPException
 
 from fapi.db.models import VendorContactExtractsORM, Vendor, VendorTypeEnum
 from fapi.db.schemas import VendorContactExtractCreate, VendorContactExtractUpdate, VendorBase
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 logger = logging.getLogger(__name__)
 
@@ -351,4 +353,6 @@ async def move_contacts_to_vendor(contact_ids: List[int], db: Session) -> Dict:
         db.rollback()
         logger.error(f"Error moving contacts to vendor: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+def get_vendor_contacts_version(db: Session) -> Response:
+    return generate_version_for_model(db, VendorContactExtractsORM)
 

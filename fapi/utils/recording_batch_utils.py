@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db import models, schemas
+from fastapi import Response
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 def get_all_recording_batches(db: Session) -> List[models.RecordingBatch]:
     """Get all recording batch mappings"""
@@ -56,3 +58,6 @@ def delete_recording_batch(db: Session, recording_id: int, batch_id: int) -> boo
     db.delete(db_recording_batch)
     db.commit()
     return True
+
+def get_recording_batches_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.RecordingBatch)

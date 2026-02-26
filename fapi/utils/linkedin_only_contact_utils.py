@@ -65,3 +65,9 @@ def search_linkedin_only_contacts(db: Session, term: str) -> List[LinkedinOnlyCo
 def count_linkedin_only_contacts(db: Session) -> int:
     """Get total count of company contacts for pagination"""
     return db.query(LinkedinOnlyContact).count()
+
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
+
+def get_linkedin_only_contacts_version(db: Session) -> Response:
+    return generate_version_for_model(db, LinkedinOnlyContact)

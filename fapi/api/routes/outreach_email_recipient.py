@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db.schemas import OutreachEmailRecipientCreate, OutreachEmailRecipientUpdate, OutreachEmailRecipientOut
 from fapi.utils import outreach_email_recipient_utils as utils
+from fapi.utils.outreach_email_recipient_utils import get_recipients_version
 
 router = APIRouter(prefix="/outreach-email-recipients", tags=["Outreach Email Recipients"], redirect_slashes=False)
+
+@router.head("/")
+@router.head("/paginated")
+def check_recipients_version(db: Session = Depends(get_db)):
+    return get_recipients_version(db)
 
 @router.get("/", response_model=List[OutreachEmailRecipientOut])
 def read_recipients(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

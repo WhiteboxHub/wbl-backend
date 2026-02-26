@@ -1,13 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, HTTPException, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import recording_batch_utils
+from fapi.utils.recording_batch_utils import get_recording_batches_version
 
 router = APIRouter()
 security = HTTPBearer()
+
+@router.head("/recording-batches")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_recording_batches_version(db)
 
 @router.get("/recording-batches", response_model=List[schemas.RecordingBatch])
 def get_recording_batches(

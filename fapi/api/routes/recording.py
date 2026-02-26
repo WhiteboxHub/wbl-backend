@@ -1,22 +1,29 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from fapi.db import schemas, database
 from fapi.utils import recording_utils
+from fapi.utils.recording_utils import get_recordings_version
 
 router = APIRouter()
 
 security = HTTPBearer()
 
-@router.get("/recordings", response_model=list[schemas.RecordingOut])
+@router.get("/recordings", response_model=List[schemas.RecordingOut])
 def get_recordings(
     search: Optional[str] = Query(None, description="Search by ID, batch name, subject, or description"),
     db: Session = Depends(database.get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return recording_utils.get_all_recordings(db, search=search)
+
+@router.head("/recordings")
+def check_recordings_version(
+    db: Session = Depends(database.get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_recordings_version(db)
 
 
 @router.get("/recordings/{recording_id}", response_model=schemas.RecordingOut)

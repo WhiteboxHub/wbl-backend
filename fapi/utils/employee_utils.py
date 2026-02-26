@@ -3,6 +3,9 @@
 from datetime import date
 from fapi.db.database import SessionLocal
 from fapi.db.models import EmployeeORM
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
+from sqlalchemy.orm import Session
 
 
 def clean_invalid_values(row: dict) -> dict:
@@ -75,3 +78,6 @@ def delete_employee_db(employee_id: int) -> None:
 
         session.delete(employee)
         session.commit()
+
+def get_employees_version(db: Session) -> Response:
+    return generate_version_for_model(db, EmployeeORM)

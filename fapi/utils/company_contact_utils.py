@@ -3,6 +3,8 @@ from sqlalchemy import or_
 from fapi.db.models import CompanyContact
 from fapi.db.schemas import CompanyContactCreate, CompanyContactUpdate
 from typing import List, Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_company_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[CompanyContact]:
     DEFAULT_LIMIT = 5000
@@ -66,3 +68,6 @@ def get_contacts_by_company(db: Session, company_id: int) -> List[CompanyContact
 def count_company_contacts(db: Session) -> int:
     """Get total count of company contacts for pagination"""
     return db.query(CompanyContact).count()
+
+def get_company_contacts_version(db: Session) -> Response:
+    return generate_version_for_model(db, CompanyContact)

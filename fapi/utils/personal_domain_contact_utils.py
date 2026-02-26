@@ -3,6 +3,8 @@ from sqlalchemy import or_
 from fapi.db.models import PersonalDomainContact
 from fapi.db.schemas import PersonalDomainContactCreate, PersonalDomainContactUpdate
 from typing import List, Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_personal_domain_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[PersonalDomainContact]:
     DEFAULT_LIMIT = 5000
@@ -61,3 +63,5 @@ def search_personal_domain_contacts(db: Session, term: str) -> List[PersonalDoma
 
 def count_personal_domain_contacts(db: Session) -> int:
     return db.query(PersonalDomainContact).count()
+def get_personal_domain_contacts_version(db: Session) -> Response:
+    return generate_version_for_model(db, PersonalDomainContact)

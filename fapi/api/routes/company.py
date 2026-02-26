@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db.schemas import CompanyCreate, CompanyUpdate, CompanyOut
 from fapi.utils import company_utils
+from fapi.utils.company_utils import get_companies_version
 
 router = APIRouter(prefix="/companies", tags=["Companies"], redirect_slashes=False)
+
+@router.head("/")
+@router.head("/paginated")
+def check_companies_version(db: Session = Depends(get_db)):
+    return get_companies_version(db)
 
 @router.get("/", response_model=List[CompanyOut])
 def read_companies(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

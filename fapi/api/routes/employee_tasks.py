@@ -7,10 +7,15 @@ from fapi.utils.employeetasks_utils import (
     get_all_tasks,
     create_task,
     update_task,
-    delete_task
+    delete_task,
+    get_employee_tasks_version
 )
 
 router = APIRouter()
+
+@router.head("/employee-tasks/")
+def check_tasks_version(db: Session = Depends(get_db)):
+    return get_employee_tasks_version(db)
 
 
 @router.get("/employee-tasks/", response_model=List[schemas.EmployeeTask])

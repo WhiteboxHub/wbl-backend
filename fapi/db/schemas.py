@@ -603,7 +603,7 @@ class LeadBase(BaseModel):
     full_name: Optional[str] = None
     entry_date: Optional[datetime] = None
     phone: Optional[str] = None
-    email: EmailStr
+    email: Optional[EmailStr] = None
     workstatus: Optional[VisaStatusEnum] = None
     status: Optional[str] = "open"
     secondary_email: Optional[str] = None
@@ -620,10 +620,13 @@ class LeadBase(BaseModel):
 
 
 class LeadCreate(LeadBase):
-    pass
+    """For creation: full_name is required, email defaults to '' to satisfy DB NOT NULL."""
+    full_name: str  # required on create
+    email: Optional[EmailStr] = None  # optional but will default to '' in create_lead util
 
 
 class LeadUpdate(LeadBase):
+    """For updates: all fields optional — only send what changed."""
     pass
 
 

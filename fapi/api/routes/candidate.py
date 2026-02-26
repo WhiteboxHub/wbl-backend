@@ -1,6 +1,22 @@
 import logging
-from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security
+import re
+from typing import Dict, Any, List
+from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
+from fapi.db.database import get_db
+from fapi.utils import candidate_utils
+from fapi.db.schemas import (
+    CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,
+    CandidateMarketing, CandidatePlacementCreate, CandidateMarketingCreate,
+    CandidateInterviewOut, CandidateCreate, CandidateInterviewCreate,
+    CandidateInterviewUpdate, CandidatePreparationCreate, CandidatePreparationUpdate,
+    CandidatePreparationOut, PlacementMetrics, InterviewMetrics,
+    CandidateInterviewPerformanceResponse, CandidatePreparationMetrics
+)
+from fapi.db.models import CandidateORM, AuthUserORM
+from sqlalchemy import func, or_
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
     get_interview_metrics,
@@ -8,26 +24,8 @@ from fapi.utils.avatar_dashboard_utils import (
     get_candidate_preparation_metrics
 )
 
-from fastapi import APIRouter, Query, Path, HTTPException,Depends
-from fapi.utils import candidate_utils                                         
-from fapi.db.schemas import CandidateBase, CandidateUpdate, PaginatedCandidateResponse,CandidatePlacementUpdate,CandidatePlacement,  CandidateMarketing,CandidatePlacementCreate,CandidateMarketingCreate,CandidateInterviewOut, CandidateCreate,CandidateInterviewCreate, CandidateInterviewUpdate,CandidatePreparationCreate,CandidatePreparationUpdate,CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateInterviewPerformanceResponse,CandidatePreparationMetrics
-from fapi.db.models import CandidateInterview,CandidateORM,CandidatePreparation, CandidateMarketingORM, CandidatePlacementORM, Batch , AuthUserORM
-
-from sqlalchemy.orm import Session,joinedload,selectinload
-
-from fapi.db.database import get_db,SessionLocal 
-from fapi.utils.candidate_utils import get_all_candidates_paginated, serialize_interview 
-from fapi.db import schemas
-from typing import Dict, Any, List
-from sqlalchemy import or_, func
-import re
-
 router = APIRouter()
-
-
-
 logger = logging.getLogger(__name__)
-router = APIRouter()
 security = HTTPBearer()
 
 
@@ -41,7 +39,14 @@ def list_candidates(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return get_all_candidates_paginated(db, page, limit, search, search_by, sort)
+    return candidate_utils.get_all_candidates_paginated(db, page, limit, search, search_by, sort)
+
+@router.head("/candidates")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_candidates_version(db)
 
 @router.get("/candidates/search", response_model=Dict[str, Any])
 def search_candidates(
@@ -107,6 +112,13 @@ def read_all_marketing(
 ):
     return candidate_utils.get_all_marketing_records( page, limit)
 
+@router.head("/candidate/marketing")
+def check_version_marketing(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_marketing_version(db)
+
 
 @router.get("/candidate/marketing/{record_id}", summary="Get marketing record by ID")
 def read_marketing_record(record_id: int = Path(...)):
@@ -134,6 +146,13 @@ def read_all_placements(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return candidate_utils.get_all_placements(page, limit)
+
+@router.head("/candidate/placements")
+def check_version_placements(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_placements_version(db)
 
 
 @router.get("/candidate/placements/metrics", response_model=PlacementMetrics)
@@ -194,6 +213,13 @@ def get_candidate_interview_performance(
     }
 
 # -------------------Candidate_interview -------------------
+
+@router.head("/interviews")
+def check_interviews_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_interviews_version(db)
 
 @router.post("/interviews", response_model=CandidateInterviewOut)
 def create_interview(
@@ -257,6 +283,10 @@ def get_prep(prep_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate preparation not found")
     return prep
 
+
+@router.head("/candidate_preparations")
+def check_prep_version(db: Session = Depends(get_db)):
+    return candidate_utils.get_preparations_version(db)
 
 @router.get("/candidate_preparations", response_model=list[CandidatePreparationOut])
 def list_preps(

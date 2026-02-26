@@ -3,6 +3,8 @@ from typing import List, Optional
 from datetime import datetime
 from fapi.db import models
 from fapi.db import schemas
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_all_course_subjects(db: Session):
     return (
@@ -110,4 +112,9 @@ def delete_course_subject(db: Session, course_id: int, subject_id: int) -> bool:
     db.delete(course_subject)
     db.commit()
     return True
+
+
+
+def get_course_subjects_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.CourseSubject)
 

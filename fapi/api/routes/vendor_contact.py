@@ -1,12 +1,9 @@
-# vendor_contact.py
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Security, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
-
 from fapi.db.database import get_db
-from fapi.db.models import VendorContactExtractsORM
 from fapi.db.schemas import (
     VendorContactExtract,
     VendorContactExtractCreate,
@@ -24,10 +21,20 @@ from fapi.utils.vendor_contact_utils import (
     delete_vendor_contact,
     delete_vendor_contacts_bulk,
     move_contacts_to_vendor,
+    get_vendor_contacts_version
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+security = HTTPBearer()
+
+@router.head("/vendor_contact_extracts")
+def check_vendor_contacts_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_vendor_contacts_version(db)
 
 @router.get("/vendor_contact_extracts", response_model=List[VendorContactExtract])
 async def read_vendor_contact_extracts(db: Session = Depends(get_db)):

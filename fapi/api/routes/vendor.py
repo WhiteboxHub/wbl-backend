@@ -1,14 +1,12 @@
-# vendor.py
 import logging
 from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, Path, Security
+from fastapi import APIRouter, Depends, HTTPException, Path, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from fapi.db.database import get_db
 from fapi.db.schemas import VendorCreate, VendorUpdate, Vendor
 from fapi.utils import vendor_utils
+from fapi.utils.vendor_utils import get_vendors_version
 from fapi.utils.avatar_dashboard_utils import get_vendor_stats
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,6 +28,13 @@ def read_vendors(
     except Exception as e:
         logger.error(f"Error fetching vendors: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.head("/vendors")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_vendors_version(db)
 
 @router.get("/vendors/metrics")
 def get_vendor_metrics_endpoint(

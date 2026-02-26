@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
@@ -10,8 +11,19 @@ from fapi.db.schemas import (
     RawJobListingBulkResponse
 )
 from fapi.utils import raw_job_listing_utils
+from fapi.utils.raw_job_listing_utils import get_raw_positions_version
 
 router = APIRouter(prefix="/raw-positions", tags=["Raw Positions"])
+
+security = HTTPBearer()
+
+@router.head("/")
+@router.head("/paginated")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_raw_positions_version(db)
 
 @router.get("/", response_model=List[RawJobListingOut])
 def read_raw_job_listings(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

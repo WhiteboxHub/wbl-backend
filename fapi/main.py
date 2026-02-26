@@ -41,6 +41,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
 )
 
 @app.middleware("http")

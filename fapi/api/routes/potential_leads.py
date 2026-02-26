@@ -8,11 +8,19 @@ from fapi.utils.potential_lead_utils import (
     get_potential_lead_by_id,
     create_potential_lead,
     update_potential_lead,
-    delete_potential_lead
+    delete_potential_lead,
+    get_potential_leads_version
 )
 
 router = APIRouter()
 security = HTTPBearer()
+
+@router.head("/potential-leads")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_potential_leads_version(db)
 
 @router.get("/potential-leads")
 def get_potential_leads(

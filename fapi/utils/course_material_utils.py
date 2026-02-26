@@ -1,8 +1,9 @@
-
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db import models
 from fapi.db import schemas
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 COURSE_MATERIAL_TYPE_MAPPING = {
     "P": "Presentations",
@@ -220,3 +221,5 @@ def get_orphaned_course_materials(db: Session) -> List[models.CourseMaterial]:
             orphaned_materials.append(material)
     
     return orphaned_materials
+def get_course_materials_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.CourseMaterial)

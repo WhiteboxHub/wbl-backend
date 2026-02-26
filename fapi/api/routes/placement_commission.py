@@ -1,8 +1,11 @@
+from fastapi import Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
 from fapi.db.database import get_db
+from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import (
     PlacementCommissionCreate,
     PlacementCommissionUpdate,
@@ -12,8 +15,18 @@ from fapi.db.schemas import (
     PlacementCommissionSchedulerOut,
 )
 from fapi.utils import placement_commission_utils as utils
+from fapi.utils.placement_commission_utils import get_placement_commissions_version
 
 router = APIRouter()
+
+security = HTTPBearer()
+
+@router.head("/placement-commission")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_placement_commissions_version(db)
 
 
 # ---------------------------------------------------------------------------

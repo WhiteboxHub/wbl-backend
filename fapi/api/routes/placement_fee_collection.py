@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import PlacementFeeCreate, PlacementFeeUpdate, PlacementFeeOut
 from fapi.utils import placement_fee_collection_utils as utils
+from fapi.utils.placement_fee_collection_utils import get_placement_fees_version
 from fapi.utils.auth_dependencies import get_current_user
 
 router = APIRouter()
+
+@router.head("/placement-fee")
+def check_placement_fees_version(db: Session = Depends(get_db)):
+    return get_placement_fees_version(db)
 
 
 @router.get("/placement-fee", response_model=list[PlacementFeeOut])

@@ -1,15 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Security, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import Optional
 from fapi.db import schemas
 from fapi.db.database import get_db
 from fapi.utils import job_automation_keyword_utils
+from fapi.utils.job_automation_keyword_utils import get_keywords_version
 
 router = APIRouter()
 
 
-@router.get("/job-automation-keywords", response_model=schemas.PaginatedJobAutomationKeywords)
+security = HTTPBearer()
+
 @router.head("/job-automation-keywords")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_keywords_version(db)
+
+@router.get("/job-automation-keywords", response_model=schemas.PaginatedJobAutomationKeywords)
 def get_keywords(
     category: Optional[str] = None,
     source: Optional[str] = None,

@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db import models
 from fapi.db import schemas
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_all_course_contents(db: Session) -> List[models.CourseContent]:
     """Get all course contents"""
@@ -57,3 +59,5 @@ def delete_course_content(db: Session, content_id: int) -> bool:
     db.delete(course_content)
     db.commit()
     return True
+def get_course_contents_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.CourseContent)

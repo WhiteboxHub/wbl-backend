@@ -2,7 +2,8 @@ import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 from fapi.db.models import AutomationContactExtractORM
 from fapi.db.schemas import (
@@ -194,3 +195,6 @@ async def check_existing_emails_bulk(emails: List[str], db: Session) -> List[str
     except Exception as e:
         logger.error(f"Bulk email check failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Bulk email check failed")
+
+def get_automation_extracts_version(db: Session) -> Response:
+    return generate_version_for_model(db, AutomationContactExtractORM)

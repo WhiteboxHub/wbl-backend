@@ -1,11 +1,12 @@
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Security
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db import schemas
 from fapi.db.database import get_db
 from fapi.utils import batch_utils
+from fapi.utils.batch_utils import get_batches_version
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,6 +21,13 @@ def read_batches(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return batch_utils.get_all_batches(db, search=search)
+
+@router.head("/batch")
+def check_batches_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_batches_version(db)
 
 
 @router.get("/batch/{batch_id}", response_model=schemas.BatchOut)

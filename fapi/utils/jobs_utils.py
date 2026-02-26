@@ -5,9 +5,10 @@ import logging
 from sqlalchemy import func, and_
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from fapi.db.models import JobActivityLogORM, JobTypeORM, CandidateORM, EmployeeORM
 from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeCreate, JobTypeUpdate, JobActivityLogOut, JobTypeOut
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 logger = logging.getLogger(__name__)
 
@@ -483,3 +484,8 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         db.rollback()
         logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+def get_job_activity_logs_version(db: Session) -> Response:
+    return generate_version_for_model(db, JobActivityLogORM)
+
+def get_job_types_version(db: Session) -> Response:
+    return generate_version_for_model(db, JobTypeORM)
