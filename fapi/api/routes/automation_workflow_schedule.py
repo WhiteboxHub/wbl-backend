@@ -1,6 +1,7 @@
 from fastapi import Security, APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List
 from fapi.db.database import get_db
 from fapi.db.schemas import AutomationWorkflowSchedule, AutomationWorkflowScheduleCreate, AutomationWorkflowScheduleUpdate
@@ -24,13 +25,40 @@ def get_automation_workflow_schedules(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=AutomationWorkflowSchedule, status_code=status.HTTP_201_CREATED)
 def create_automation_workflow_schedule(schedule: AutomationWorkflowScheduleCreate, db: Session = Depends(get_db)):
+<<<<<<< HEAD
     return automation_workflow_schedule_utils.create_automation_workflow_schedule(db, schedule)
+=======
+    db_schedule = AutomationWorkflowScheduleORM(**schedule.model_dump())
+    db.add(db_schedule)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Related Automation Workflow does not exist or database constraint failed.")
+    db.refresh(db_schedule)
+    return db_schedule
+>>>>>>> 0702c00 (fixed all workflow issues also added single api for workflow related stuff)
 
 @router.put("/{schedule_id}", response_model=AutomationWorkflowSchedule)
 def update_automation_workflow_schedule(schedule_id: int, schedule: AutomationWorkflowScheduleUpdate, db: Session = Depends(get_db)):
     db_schedule = automation_workflow_schedule_utils.update_automation_workflow_schedule(db, schedule_id, schedule)
     if not db_schedule:
         raise HTTPException(status_code=404, detail="Automation Workflow Schedule not found")
+<<<<<<< HEAD
+=======
+    
+    update_data = schedule.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_schedule, key, value)
+    
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Related Automation Workflow does not exist or database constraint failed.")
+    
+    db.refresh(db_schedule)
+>>>>>>> 0702c00 (fixed all workflow issues also added single api for workflow related stuff)
     return db_schedule
 
 @router.delete("/{schedule_id}")

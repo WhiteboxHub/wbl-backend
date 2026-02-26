@@ -32,6 +32,20 @@ def update_delivery_engine(engine_id: int, engine: DeliveryEngineUpdate, db: Ses
     db_engine = delivery_engine_utils.update_delivery_engine(db, engine_id, engine)
     if not db_engine:
         raise HTTPException(status_code=404, detail="Delivery Engine not found")
+<<<<<<< HEAD
+=======
+    
+    update_data = engine.model_dump(exclude_unset=True)
+    # These columns are NOT NULL in the DB — skip if None to preserve existing value
+    NOT_NULLABLE = {"name", "engine_type", "from_email", "max_retries", "timeout_seconds"}
+    for key, value in update_data.items():
+        if key in NOT_NULLABLE and value is None:
+            continue
+        setattr(db_engine, key, value)
+    
+    db.commit()
+    db.refresh(db_engine)
+>>>>>>> 0702c00 (fixed all workflow issues also added single api for workflow related stuff)
     return db_engine
 
 @router.delete("/{engine_id}")
