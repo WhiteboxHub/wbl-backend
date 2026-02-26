@@ -78,7 +78,10 @@ class AutomationContactExtractBase(BaseModel):
 
 
 class AutomationContactExtractCreate(AutomationContactExtractBase):
-    pass
+    # Bot can submit initial email validation status
+    email_invalid: bool = False
+    domain_invalid: bool = False
+    mailbox_invalid: bool = False
 
 
 class AutomationContactExtractUpdate(BaseModel):
@@ -93,9 +96,22 @@ class AutomationContactExtractUpdate(BaseModel):
     postal_code: Optional[str] = None
     linkedin_id: Optional[str] = None
     linkedin_internal_id: Optional[str] = None
-    source_type: str
+    source_type: Optional[str] = None
     source_reference: Optional[str] = None
     raw_payload: Optional[Dict[str, Any]] = None
+
+    # Email Validation & Reputation updates
+    email_invalid: Optional[bool] = None
+    domain_invalid: Optional[bool] = None
+    mailbox_invalid: Optional[bool] = None
+    last_email_sent_at: Optional[datetime] = None
+    bounced_flag: Optional[bool] = None
+    bounced_at: Optional[datetime] = None
+    unsubscribed_flag: Optional[bool] = None
+    unsubscribed_at: Optional[datetime] = None
+    complained_flag: Optional[bool] = None
+    complained_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
 
     @model_validator(mode='before')
     @classmethod
@@ -117,8 +133,23 @@ class AutomationContactExtractOut(AutomationContactExtractBase):
     target_id: Optional[int] = None
     error_message: Optional[str] = None
     email_lc: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    email_key: Optional[str] = None
+    linkedin_key: Optional[str] = None
+
+    # Email Validation & Reputation
+    email_invalid: bool = False
+    domain_invalid: bool = False
+    mailbox_invalid: bool = False
+    last_email_sent_at: Optional[datetime] = None
+    bounced_flag: bool = False
+    unsubscribed_flag: bool = False
+    complained_flag: bool = False
+    bounced_at: Optional[datetime] = None
+    unsubscribed_at: Optional[datetime] = None
+    complained_at: Optional[datetime] = None
+
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
