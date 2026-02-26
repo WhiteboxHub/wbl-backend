@@ -1,13 +1,10 @@
-
-# WBL_Backend\fapi\api\routes\jobs.py
-from fapi.utils.user_dashboard_utils import get_current_user
-from fapi.db.models import AuthUserORM
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Security
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
+from fapi.utils.user_dashboard_utils import get_current_user
 from fapi.db.schemas import (
     JobActivityLogCreate,
     JobActivityLogUpdate,
@@ -18,7 +15,9 @@ from fapi.db.schemas import (
     JobTypeCreate,
     JobTypeUpdate
 )
+from fapi.db.models import AuthUserORM
 from fapi.utils import jobs_utils
+from fapi.utils.jobs_utils import get_job_activity_logs_version, get_job_types_version
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -33,6 +32,13 @@ def get_all_job_activity_logs(
 ):
     """Get all job activity logs with job name, candidate name, and employee name"""
     return jobs_utils.get_all_job_activity_logs(db)
+
+@router.head("/job_activity_logs")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_job_activity_logs_version(db)
 
 
 @router.get("/job_activity_logs/{log_id}", response_model=JobActivityLogOut)
@@ -113,6 +119,13 @@ def get_all_job_types(
 ):
     """Get all job types"""
     return jobs_utils.get_all_job_types(db)
+
+@router.head("/job-types")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_job_types_version(db)
 
 
 @router.get("/job-types/{job_type_id}", response_model=JobTypeOut)

@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db import models, schemas
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 def create_project(db: Session, project: schemas.ProjectCreate):
     try:
@@ -51,3 +52,6 @@ def delete_project(db: Session, project_id: int):
     db.delete(project)
     db.commit()
     return {"message": "Project deleted successfully"}
+
+def get_projects_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.ProjectORM)

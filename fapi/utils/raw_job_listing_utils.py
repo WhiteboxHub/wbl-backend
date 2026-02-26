@@ -3,6 +3,8 @@ from sqlalchemy import or_
 from fapi.db.models import RawJobListingORM
 from fapi.db.schemas import RawJobListingCreate, RawJobListingUpdate
 from typing import List, Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_raw_job_listings(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[RawJobListingORM]:
     DEFAULT_LIMIT = 5000
@@ -112,3 +114,5 @@ async def insert_raw_job_listings_bulk(positions: List[RawJobListingCreate], db:
     except Exception as e:
         db.rollback()
         raise e
+def get_raw_positions_version(db: Session) -> Response:
+    return generate_version_for_model(db, RawJobListingORM)

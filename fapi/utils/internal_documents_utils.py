@@ -49,3 +49,8 @@ def delete_document(db: Session, doc_id: int):
         db.rollback()
         return False
 
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
+
+def get_internal_documents_version(db: Session) -> Response:
+    return generate_version_for_model(db, InternalDocument)

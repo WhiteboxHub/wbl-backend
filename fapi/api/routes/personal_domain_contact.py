@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db.schemas import PersonalDomainContactCreate, PersonalDomainContactUpdate, PersonalDomainContactOut
 from fapi.utils import personal_domain_contact_utils as utils
+from fapi.utils.personal_domain_contact_utils import get_personal_domain_contacts_version
 
 router = APIRouter(prefix="/personal-domain-contacts", tags=["Personal Domain Contacts"], redirect_slashes=False)
+
+@router.head("/")
+@router.head("/paginated")
+def check_personal_contacts_version(db: Session = Depends(get_db)):
+    return get_personal_domain_contacts_version(db)
 
 @router.get("/", response_model=List[PersonalDomainContactOut])
 def read_contacts(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

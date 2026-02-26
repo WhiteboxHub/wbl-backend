@@ -1,11 +1,9 @@
 import logging
 import traceback
-from typing import List, Optional
-from fapi.db.models import Session as SessionORM
-from fapi.db.schemas import CourseContentResponse, BatchMetrics, PaginatedRecordingOut, RecordingOut, Recording  
-from fapi.utils.resources_utils import fetch_kumar_recordings
-from datetime import datetime
+import jwt
+import os
 import anyio
+from typing import List, Optional
 from fastapi import (
     APIRouter,
     Depends,
@@ -14,18 +12,19 @@ from fastapi import (
     Request,
     Security,
     status,
+    Response
 )
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
 from fapi.db.schemas import CourseContentResponse, BatchMetrics
-from fapi.db.models import CourseContent
-from fapi.core.config import limiter
+from fapi.db.models import CourseContent, CourseContent as CourseContentORM, Batch as BatchORM, Recording as RecordingORM
+from fapi.core.config import limiter, SECRET_KEY
 from fapi.utils.resources_utils import (
+    fetch_kumar_recordings,
     fetch_subject_batch_recording,
     fetch_course_batches,
     fetch_session_types_by_team,
@@ -33,20 +32,16 @@ from fapi.utils.resources_utils import (
     fetch_keyword_presentation,
 )
 from fapi.utils.avatar_dashboard_utils import get_batch_metrics
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 router = APIRouter()
-security = HTTPBearer() 
-
-import jwt
-import os
+security = HTTPBearer()
 
 def extract_role_and_team_from_token(token: str):
     """
     Extract role and team from JWT token.
     """
     try:
-        # Use the same SECRET_KEY from your config
-        from fapi.core.config import SECRET_KEY
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         role = payload.get("role")
         team = payload.get("team")
@@ -55,6 +50,10 @@ def extract_role_and_team_from_token(token: str):
         logging.error(f"Error extracting role and team from token: {e}")
         return None, None
 
+
+@router.head("/course-content")
+def check_course_content_version(db: Session = Depends(get_db)):
+    return generate_version_for_model(db, CourseContentORM)
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
@@ -154,6 +153,10 @@ async def get_materials(
     return JSONResponse(content=data)
 
 
+@router.head("/batches")
+def check_batches_version(db: Session = Depends(get_db)):
+    return generate_version_for_model(db, BatchORM)
+
 @router.get("/batches")
 def get_batches(
     course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
@@ -166,6 +169,10 @@ def get_batches(
 def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
     return get_batch_metrics(db)
 
+
+@router.head("/recording")
+def check_recording_version(db: Session = Depends(get_db)):
+    return generate_version_for_model(db, RecordingORM)
 
 @router.get("/recording")
 def get_recordings(

@@ -1,12 +1,11 @@
 # utils that use the provided db session (do NOT open their own SessionLocal)
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from decimal import Decimal
 from typing import Dict, Any, Optional
-
 from fapi.db import models
-
-
-from sqlalchemy import func
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def list_placement_fees(db: Session):
     results = db.query(
@@ -120,3 +119,6 @@ def delete_placement_fee(db: Session, fee_id: int) -> None:
         raise ValueError("Placement fee not found")
     db.delete(obj)
     db.commit()
+
+def get_placement_fees_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.PlacementFeeCollection)

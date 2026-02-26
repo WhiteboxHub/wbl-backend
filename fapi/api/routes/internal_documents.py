@@ -1,10 +1,8 @@
-
-
-
-from fastapi import APIRouter, Depends, HTTPException, Security, Query
+import logging
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from typing import List
 from fapi.db.database import get_db
 from fapi.db.schemas import (
     InternalDocumentCreate,
@@ -17,12 +15,21 @@ from fapi.utils.internal_documents_utils import (
     create_document as create_document_util,
     update_document as update_document_util,
     delete_document as delete_document_util,
+    get_internal_documents_version
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-#  Add authentication scheme
 security = HTTPBearer()
+
+@router.head("/")
+def check_documents_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_internal_documents_version(db)
+
 
 #  Get all documents (protected)
 @router.get("/", response_model=List[InternalDocumentOut])

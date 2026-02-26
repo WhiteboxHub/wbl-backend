@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db.schemas import LinkedinOnlyContactCreate, LinkedinOnlyContactUpdate, LinkedinOnlyContactOut, PaginatedLinkedinOnlyContactResponse
 from fapi.utils import linkedin_only_contact_utils
+from fapi.utils.linkedin_only_contact_utils import get_linkedin_only_contacts_version
 
 router = APIRouter(prefix="/linkedin-only-contacts", tags=["Linkedin Only Contacts"], redirect_slashes=False)
+
+@router.head("/")
+@router.head("/paginated")
+def check_linkedin_contacts_version(db: Session = Depends(get_db)):
+    return get_linkedin_only_contacts_version(db)
 
 @router.get("/", response_model=List[LinkedinOnlyContactOut])
 def read_linkedin_only_contacts(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

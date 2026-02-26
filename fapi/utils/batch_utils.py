@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 from fapi.db import models, schemas
 from typing import Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_all_batches(db: Session, search: Optional[str] = None):
     query = db.query(models.Batch)
@@ -49,3 +51,5 @@ def delete_batch(db: Session, batch_id: int):
     db.delete(db_batch)
     db.commit()
     return db_batch
+def get_batches_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.Batch)

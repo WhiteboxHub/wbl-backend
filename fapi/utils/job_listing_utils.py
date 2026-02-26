@@ -3,6 +3,8 @@ from sqlalchemy import or_
 from fapi.db.models import JobListingORM
 from fapi.db.schemas import JobListingCreate, JobListingUpdate
 from typing import List, Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_positions(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[JobListingORM]:
     DEFAULT_LIMIT = 5000
@@ -110,3 +112,6 @@ async def insert_positions_bulk(positions: List[JobListingCreate], db: Session) 
     except Exception as e:
         db.rollback()
         raise e
+
+def get_positions_version(db: Session) -> Response:
+    return generate_version_for_model(db, JobListingORM)

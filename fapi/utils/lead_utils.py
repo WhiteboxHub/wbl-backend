@@ -5,8 +5,9 @@ import json
 from fapi.db.database import SessionLocal
 from fapi.db.models import LeadORM
 from fapi.db.schemas import LeadCreate, LeadUpdate
-from fastapi import HTTPException
-from sqlalchemy import or_, cast, String,func
+from sqlalchemy import or_, cast, String, func
+from fastapi import HTTPException, Response
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, search_by: str, sort: str):
     query = db.query(LeadORM)
@@ -187,3 +188,6 @@ def get_lead_suggestions(search_term: str, db: Session):
     except Exception as e:
         print(f"Error fetching lead suggestions: {e}")
         return []
+
+def get_leads_version(db: Session) -> Response:
+    return generate_version_for_model(db, LeadORM)

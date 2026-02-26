@@ -9,8 +9,12 @@ from fastapi import HTTPException
 from pydantic import BaseModel, EmailStr, ValidationError
 from fapi.db.models import CompanyHRContact
 from fapi.db.schemas import HRContactCreate, HRContactUpdate
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 logger = logging.getLogger(__name__)
+
+def get_hr_contacts_version(db: Session):
+    return generate_version_for_model(db, CompanyHRContact)
 
 
 # ---------- Helpers ----------

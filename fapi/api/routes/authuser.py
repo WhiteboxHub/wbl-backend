@@ -1,19 +1,26 @@
 import logging
 from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Security
+from fastapi import APIRouter, Depends, HTTPException, Query, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from fapi.db.database import get_db
 from fapi.db import schemas
-from fapi.utils import authuser_utils
 from fapi.db.models import AuthUserORM
+from fapi.utils import authuser_utils
+from fapi.utils.authuser_utils import get_users_version
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 security = HTTPBearer()
+
+@router.head("/users")
+@router.head("/user")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_users_version(db)
 
 
 @router.get("/users", response_model=List[schemas.AuthUserResponse])
@@ -22,8 +29,7 @@ def get_all_users(
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
     try:
-        users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).all()
-        return [authuser_utils.clean_dates(u) for u in users]
+        return authuser_utils.get_all_users(db)
     except Exception as e:
         logger.exception("Error fetching users")
         raise HTTPException(status_code=500, detail=str(e))

@@ -5,11 +5,12 @@ All functions receive an injected SQLAlchemy Session (do NOT open SessionLocal h
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 
 from fapi.db import models
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 
 # ---------------------------------------------------------------------------
@@ -239,3 +240,5 @@ def delete_scheduler(db: Session, scheduler_id: int) -> None:
         )
     db.delete(obj)
     db.commit()
+def get_placement_commissions_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.PlacementCommissionORM)

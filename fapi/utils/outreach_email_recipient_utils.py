@@ -3,6 +3,8 @@ from sqlalchemy import or_
 from fapi.db.models import OutreachEmailRecipient
 from fapi.db.schemas import OutreachEmailRecipientCreate, OutreachEmailRecipientUpdate
 from typing import List, Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_recipients(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[OutreachEmailRecipient]:
     DEFAULT_LIMIT = 5000
@@ -60,3 +62,6 @@ def search_recipients(db: Session, term: str) -> List[OutreachEmailRecipient]:
 
 def count_recipients(db: Session) -> int:
     return db.query(OutreachEmailRecipient).count()
+
+def get_recipients_version(db: Session) -> Response:
+    return generate_version_for_model(db, OutreachEmailRecipient)

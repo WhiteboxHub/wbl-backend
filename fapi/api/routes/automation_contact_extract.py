@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Security
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -13,10 +13,19 @@ from fapi.db.schemas import (
     CheckEmailsResponse,
 )
 from fapi.utils import automation_contact_utils
+from fapi.utils.automation_contact_utils import get_automation_extracts_version
 
 router = APIRouter(tags=["Automation Extracts"])
 
 security = HTTPBearer()
+
+@router.head("/automation-extracts")
+@router.head("/automation-extracts/paginated")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_automation_extracts_version(db)
 
 @router.get("/automation-extracts", response_model=List[AutomationContactExtractOut])
 async def read_automation_extracts(
