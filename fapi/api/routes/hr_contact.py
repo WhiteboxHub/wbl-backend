@@ -6,12 +6,20 @@ from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import HRContactCreate, HRContactUpdate, HRContact
 from fapi.utils import hr_contact_utils
+from fapi.utils.hr_contact_utils import get_hr_contacts_version
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Use HTTPBearer for Swagger auth
 security = HTTPBearer()
+
+@router.head("/hr-contacts")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_hr_contacts_version(db)
 
 @router.get("/hr-contacts", response_model=List[HRContact])
 def read_hr_contacts(

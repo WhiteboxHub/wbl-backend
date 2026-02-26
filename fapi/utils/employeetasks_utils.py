@@ -3,9 +3,11 @@ from sqlalchemy import func
 from typing import List, Optional
 from fapi.db import models, schemas
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from fastapi import HTTPException
-from difflib import get_close_matches
-from datetime import timedelta
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import HTTPException, Response
+
+def get_employee_tasks_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.EmployeeTaskORM)
 
 def get_all_tasks(db: Session, project_id: Optional[int] = None, employee_id: Optional[int] = None) -> list:
     query = db.query(models.EmployeeTaskORM).options(

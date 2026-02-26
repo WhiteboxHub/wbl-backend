@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, status, APIRouter, Depends, Security
+import logging
+from typing import List, Dict
+from fastapi import FastAPI, HTTPException, status, APIRouter, Depends, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db.models import EmployeeORM
@@ -22,33 +24,21 @@ from fapi.utils.employee_utils import (
     create_employee_db,
     update_employee_db,
     delete_employee_db,
-    clean_invalid_values
+    clean_invalid_values,
+    get_employees_version
 )
 from fapi.utils.avatar_dashboard_utils import get_employee_birthdays
 
-import hashlib
-from fastapi import Response, FastAPI, HTTPException, status, APIRouter, Depends, Security
-from sqlalchemy import func
-
 app = FastAPI()
 router = APIRouter()
-
 security = HTTPBearer()
-
-from fapi.utils.table_fingerprint import generate_version_for_model
 
 @router.head("/employees")
 def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return generate_version_for_model(db, EmployeeORM)
-
-def check_employees_version(
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    return generate_version_for_model(db, EmployeeORM)
+    return get_employees_version(db)
 
 
 @router.get("/employees", response_model=List[Employee])

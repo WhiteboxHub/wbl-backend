@@ -3,6 +3,8 @@ from sqlalchemy import or_
 from fapi.db.models import Company
 from fapi.db.schemas import CompanyCreate, CompanyUpdate
 from typing import List, Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_companies(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[Company]:
     DEFAULT_LIMIT = 5000
@@ -63,3 +65,5 @@ def search_companies(db: Session, term: str) -> List[Company]:
 def count_companies(db: Session) -> int:
     """Get total count of companies for pagination"""
     return db.query(Company).count()
+def get_companies_version(db: Session) -> Response:
+    return generate_version_for_model(db, Company)

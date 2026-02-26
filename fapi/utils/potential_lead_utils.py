@@ -2,7 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, cast, String
 from fapi.db.models import PotentialLeadORM
 from fapi.db.schemas import PotentialLeadCreate, PotentialLeadUpdate
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
+from fapi.utils.table_fingerprint import generate_version_for_model
 import json
 
 def fetch_all_potential_leads(db: Session, search: str = None, search_by: str = "all", sort: str = None, filters: str = None):
@@ -83,7 +84,6 @@ def update_potential_lead(db: Session, lead_id: int, lead: PotentialLeadUpdate):
     db.commit()
     db.refresh(db_lead)
     return db_lead
-
 def delete_potential_lead(db: Session, lead_id: int):
     db_lead = get_potential_lead_by_id(db, lead_id)
     if not db_lead:
@@ -91,3 +91,6 @@ def delete_potential_lead(db: Session, lead_id: int):
     db.delete(db_lead)
     db.commit()
     return {"detail": "Potential lead deleted successfully"}
+
+def get_potential_leads_version(db: Session) -> Response:
+    return generate_version_for_model(db, PotentialLeadORM)

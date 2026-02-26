@@ -8,11 +8,15 @@ from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,C
 
 from fapi.db.models import JobListingORM
 from fapi.db.schemas import PositionStatusEnum, PositionTypeEnum, EmploymentModeEnum
-from fastapi import HTTPException,APIRouter,Depends
-from typing import List, Dict,Any, Optional 
-from datetime import date
-from fapi.db.models import Session as SessionModel
-from datetime import datetime, timedelta
+from fastapi import HTTPException, APIRouter, Depends, Response
+from fapi.utils.table_fingerprint import generate_version_for_model
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta, date
+import re
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
       
 def get_all_candidates_paginated(
@@ -529,9 +533,6 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
         )
     # Logic to create Job Listing if not exists
     if not data.get("position_id") and data.get("position_title") and data.get("company"):
-        import uuid
-        import logging
-        logger = logging.getLogger(__name__)
         try:
             new_job = JobListingORM(
                 title=data.get("position_title"),
@@ -695,7 +696,6 @@ def get_active_marketing_candidates(db: Session):
 
 
 # -------------------Candidate_Preparation-------------
-from datetime import datetime
 def is_valid_date(date_str):
     if not date_str:
         return False
@@ -1074,8 +1074,6 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
     """
     try:
         
-        import re
-        
         
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
@@ -1227,4 +1225,19 @@ def get_candidate_sessions(candidate_id: int, db: Session) -> dict:
         
     except Exception as e:
         return {"error": str(e), "sessions_took": [], "sessions_attended": []}
+
+def get_candidates_version(db: Session) -> Response:
+    return generate_version_for_model(db, CandidateORM)
+
+def get_marketing_version(db: Session) -> Response:
+    return generate_version_for_model(db, CandidateMarketingORM)
+
+def get_placements_version(db: Session) -> Response:
+    return generate_version_for_model(db, CandidatePlacementORM)
+
+def get_interviews_version(db: Session) -> Response:
+    return generate_version_for_model(db, CandidateInterview)
+
+def get_preparations_version(db: Session) -> Response:
+    return generate_version_for_model(db, CandidatePreparation)
 

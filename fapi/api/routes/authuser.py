@@ -1,19 +1,13 @@
 import logging
 from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Security
+from fastapi import APIRouter, Depends, HTTPException, Query, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from fapi.db.database import get_db
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db import schemas
-from fapi.utils import authuser_utils
 from fapi.db.models import AuthUserORM
-
-import hashlib
-from fastapi import Response, APIRouter, Depends, HTTPException, Query, Security
-from sqlalchemy import func
+from fapi.utils import authuser_utils
+from fapi.utils.authuser_utils import get_users_version
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,43 +20,7 @@ def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return generate_version_for_model(db, AuthUserORM)
-
-def check_users_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(AuthUserORM.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        AuthUserORM.id,
-                        func.coalesce(AuthUserORM.uname, ''),
-                        func.coalesce(AuthUserORM.status, ''),
-                        func.coalesce(AuthUserORM.role, ''),
-                        func.coalesce(AuthUserORM.team, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_users_version(db)
 
 
 @router.get("/users", response_model=List[schemas.AuthUserResponse])
@@ -71,8 +29,7 @@ def get_all_users(
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
     try:
-        users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).all()
-        return [authuser_utils.clean_dates(u) for u in users]
+        return authuser_utils.get_all_users(db)
     except Exception as e:
         logger.exception("Error fetching users")
         raise HTTPException(status_code=500, detail=str(e))

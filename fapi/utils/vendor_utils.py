@@ -12,6 +12,8 @@ from pydantic import BaseModel, EmailStr, ValidationError
 
 from fapi.db.models import Vendor, VendorContactExtractsORM
 from fapi.db.schemas import VendorCreate, VendorUpdate
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 logger = logging.getLogger(__name__)
 
@@ -150,4 +152,6 @@ def delete_vendors_bulk(db: Session, vendor_ids: List[int]) -> int:
         db.rollback()
         logger.error(f"Bulk delete failed: {e}")
         raise HTTPException(status_code=500, detail=f"Bulk delete failed: {str(e)}")
+def get_vendors_version(db: Session) -> Response:
+    return generate_version_for_model(db, Vendor)
 

@@ -15,10 +15,7 @@ from fapi.db.schemas import (
     PlacementCommissionSchedulerOut,
 )
 from fapi.utils import placement_commission_utils as utils
-from fapi.db.models import PlacementCommissionORM
-import hashlib
-from fastapi import Response
-from sqlalchemy import func
+from fapi.utils.placement_commission_utils import get_placement_commissions_version
 
 router = APIRouter()
 
@@ -29,43 +26,7 @@ def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return generate_version_for_model(db, PlacementCommissionORM)
-
-def check_placement_commissions_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(PlacementCommissionORM.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        PlacementCommissionORM.id,
-                        func.coalesce(PlacementCommissionORM.candidate_id, ''),
-                        func.coalesce(PlacementCommissionORM.employee_id, ''),
-                        func.coalesce(PlacementCommissionORM.amount, ''),
-                        func.coalesce(PlacementCommissionORM.status, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception as e:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_placement_commissions_version(db)
 
 
 # ---------------------------------------------------------------------------

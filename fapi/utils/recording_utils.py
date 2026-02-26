@@ -4,6 +4,8 @@ from fapi.db.models import Recording
 from sqlalchemy import or_
 from fapi.db import schemas
 from typing import Optional
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 
 def get_all_recordings(db: Session, search: Optional[str] = None):
@@ -57,3 +59,6 @@ def delete_recording(db: Session, recording_id: int):
     db.delete(db_recording)
     db.commit()
     return db_recording
+
+def get_recordings_version(db: Session) -> Response:
+    return generate_version_for_model(db, Recording)

@@ -1,11 +1,8 @@
-from fastapi import APIRouter, Query, Depends, HTTPException, Security,Response
+from fastapi import APIRouter, Query, Depends, HTTPException, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
-from sqlalchemy import text, func
-import hashlib
 from fapi.db.schemas import LeadCreate, LeadUpdate, LeadMetricsResponse
-from fapi.db.models import LeadORM
 from fapi.utils.lead_utils import (
     fetch_all_leads_paginated,
     fetch_all_leads,
@@ -13,11 +10,9 @@ from fapi.utils.lead_utils import (
     create_lead,
     update_lead,
     delete_lead,
-    check_and_reset_moved_to_candidate,
-    delete_candidate_by_email_and_phone,
     create_candidate_from_lead,
-    get_lead_info_mark_move_to_candidate_true,
     get_lead_suggestions,
+    get_leads_version
 )
 from fapi.utils.avatar_dashboard_utils import get_lead_metrics
 
@@ -49,14 +44,12 @@ def get_all_leads(
     return fetch_all_leads(db, search, search_by, sort, filters)
 
 
-from fapi.utils.table_fingerprint import generate_version_for_model
-
 @router.head("/leads")
 def check_leads_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return generate_version_for_model(db, LeadORM)
+    return get_leads_version(db)
 
 
 

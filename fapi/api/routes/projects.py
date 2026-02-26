@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import projects_utils
+from fapi.utils.projects_utils import get_projects_version
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
+
+@router.head("/")
+def check_version(db: Session = Depends(get_db)):
+    return get_projects_version(db)
 
 # ----------------- Projects CRUD -----------------
 

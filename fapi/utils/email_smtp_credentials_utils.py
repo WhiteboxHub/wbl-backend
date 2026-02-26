@@ -4,6 +4,8 @@ from fapi.db.models import EmailSMTPCredentialsORM
 from fapi.db.schemas import EmailSMTPCredentialsCreate, EmailSMTPCredentialsUpdate
 from typing import List, Optional
 from datetime import datetime
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 def get_email_smtp_credential_by_id(db: Session, credential_id: int):
     return db.query(EmailSMTPCredentialsORM).filter(EmailSMTPCredentialsORM.id == credential_id).first()
@@ -62,3 +64,6 @@ def delete_email_smtp_credential(db: Session, credential_id: int):
     db.delete(db_credential)
     db.commit()
     return db_credential
+
+def get_email_smtp_credentials_version(db: Session) -> Response:
+    return generate_version_for_model(db, EmailSMTPCredentialsORM)

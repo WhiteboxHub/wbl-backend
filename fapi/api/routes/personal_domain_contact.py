@@ -1,53 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import PersonalDomainContactCreate, PersonalDomainContactUpdate, PersonalDomainContactOut
 from fapi.utils import personal_domain_contact_utils as utils
-import hashlib
-from fastapi import Response
-from sqlalchemy import func
-from fapi.db.models import PersonalDomainContact
+from fapi.utils.personal_domain_contact_utils import get_personal_domain_contacts_version
 
 router = APIRouter(prefix="/personal-domain-contacts", tags=["Personal Domain Contacts"], redirect_slashes=False)
 
 @router.head("/")
 @router.head("/paginated")
 def check_personal_contacts_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(PersonalDomainContact.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        PersonalDomainContact.id,
-                        func.coalesce(PersonalDomainContact.name, ''),
-                        func.coalesce(PersonalDomainContact.email, ''),
-                        func.coalesce(PersonalDomainContact.domain, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_personal_domain_contacts_version(db)
 
 @router.get("/", response_model=List[PersonalDomainContactOut])
 def read_contacts(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

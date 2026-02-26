@@ -1,54 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import CompanyCreate, CompanyUpdate, CompanyOut
 from fapi.utils import company_utils
-from fapi.db.models import Company
-import hashlib
-from fastapi import Response
-from sqlalchemy import func
+from fapi.utils.company_utils import get_companies_version
 
 router = APIRouter(prefix="/companies", tags=["Companies"], redirect_slashes=False)
 
 @router.head("/")
 @router.head("/paginated")
 def check_companies_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(Company.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        Company.id,
-                        func.coalesce(Company.name, ''),
-                        func.coalesce(Company.website, ''),
-                        func.coalesce(Company.city, ''),
-                        func.coalesce(Company.state, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception as e:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_companies_version(db)
 
 @router.get("/", response_model=List[CompanyOut])
 def read_companies(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

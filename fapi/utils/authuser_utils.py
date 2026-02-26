@@ -1,11 +1,13 @@
 # wbl-backend/fapi/utils/authuser_utils.py
 import re 
+from typing import List
 from sqlalchemy.orm import Session
 from fapi.db.models import AuthUserORM
 from fapi.db.schemas import AuthUserCreate, AuthUserUpdate
 from fapi.utils.auth_utils import hash_password
 from datetime import datetime
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
+from fapi.utils.table_fingerprint import generate_version_for_model
 
 
 def clean_dates(user):
@@ -105,3 +107,10 @@ def delete_user(db: Session, user_id: int):
         db.delete(db_user)
         db.commit()
     return db_user
+
+def get_all_users(db: Session) -> List[AuthUserORM]:
+    users = db.query(AuthUserORM).order_by(AuthUserORM.id.desc()).all()
+    return [clean_dates(u) for u in users]
+
+def get_users_version(db: Session) -> Response:
+    return generate_version_for_model(db, AuthUserORM)

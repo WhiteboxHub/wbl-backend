@@ -1,7 +1,3 @@
-import hashlib
-from sqlalchemy import func
-from fapi.db.models import PotentialLeadORM
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import APIRouter, Query, Depends, HTTPException, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -12,7 +8,8 @@ from fapi.utils.potential_lead_utils import (
     get_potential_lead_by_id,
     create_potential_lead,
     update_potential_lead,
-    delete_potential_lead
+    delete_potential_lead,
+    get_potential_leads_version
 )
 
 router = APIRouter()
@@ -23,40 +20,7 @@ def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return generate_version_for_model(db, PotentialLeadORM)
-
-def check_potential_leads_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(PotentialLeadORM.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        PotentialLeadORM.id,
-                        func.coalesce(PotentialLeadORM.full_name, ''),
-                        func.coalesce(PotentialLeadORM.email, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-        return response
-    except Exception:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_potential_leads_version(db)
 
 @router.get("/potential-leads")
 def get_potential_leads(

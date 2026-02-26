@@ -1,53 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import PlacementFeeCreate, PlacementFeeUpdate, PlacementFeeOut
 from fapi.utils import placement_fee_collection_utils as utils
+from fapi.utils.placement_fee_collection_utils import get_placement_fees_version
 from fapi.utils.auth_dependencies import get_current_user
-from fapi.db.models import PlacementFeeCollection
-import hashlib
-from fastapi import Response
-from sqlalchemy import func
 
 router = APIRouter()
 
 @router.head("/placement-fee")
 def check_placement_fees_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(PlacementFeeCollection.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        PlacementFeeCollection.id,
-                        func.coalesce(PlacementFeeCollection.candidate_id, ''),
-                        func.coalesce(PlacementFeeCollection.deposit_amount, ''),
-                        func.coalesce(PlacementFeeCollection.amount_collected, ''),
-                        func.coalesce(PlacementFeeCollection.status, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception as e:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_placement_fees_version(db)
 
 
 @router.get("/placement-fee", response_model=list[PlacementFeeOut])

@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 from typing import Optional, List
 from fapi.db import models, schemas
+from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
 
 
 def get_keyword(db: Session, keyword_id: int) -> Optional[models.JobAutomationKeywordORM]:
@@ -100,3 +102,5 @@ def get_active_keywords_by_category(
         query = query.filter(models.JobAutomationKeywordORM.source == source)
     
     return query.order_by(asc(models.JobAutomationKeywordORM.priority)).all()
+def get_keywords_version(db: Session) -> Response:
+    return generate_version_for_model(db, models.JobAutomationKeywordORM)

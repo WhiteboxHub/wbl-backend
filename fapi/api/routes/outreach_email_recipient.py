@@ -1,53 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import OutreachEmailRecipientCreate, OutreachEmailRecipientUpdate, OutreachEmailRecipientOut
 from fapi.utils import outreach_email_recipient_utils as utils
-import hashlib
-from fastapi import Response
-from sqlalchemy import func
-from fapi.db.models import OutreachEmailRecipient 
+from fapi.utils.outreach_email_recipient_utils import get_recipients_version
 
 router = APIRouter(prefix="/outreach-email-recipients", tags=["Outreach Email Recipients"], redirect_slashes=False)
 
 @router.head("/")
 @router.head("/paginated")
 def check_recipients_version(db: Session = Depends(get_db)):
-    try:
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(OutreachEmailRecipient.id).label("max_id"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                         OutreachEmailRecipient.id,
-                        func.coalesce( OutreachEmailRecipient.email, ''),
-                        func.coalesce( OutreachEmailRecipient.status, ''),
-                        func.coalesce( OutreachEmailRecipient.source, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception:
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_recipients_version(db)
 
 @router.get("/", response_model=List[OutreachEmailRecipientOut])
 def read_recipients(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):

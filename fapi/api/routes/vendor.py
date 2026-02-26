@@ -1,15 +1,12 @@
-# vendor.py
 import logging
 from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException, Path, Security
+from fastapi import APIRouter, Depends, HTTPException, Path, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from fapi.db.database import get_db
-from fapi.utils.table_fingerprint import generate_version_for_model
 from fapi.db.schemas import VendorCreate, VendorUpdate, Vendor
 from fapi.utils import vendor_utils
+from fapi.utils.vendor_utils import get_vendors_version
 from fapi.utils.avatar_dashboard_utils import get_vendor_stats
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -37,55 +34,7 @@ def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return generate_version_for_model(db, VendorORM)
-
-def check_vendors_version(
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
-):
-    try:
-        from fastapi import Response
-        import hashlib
-        from sqlalchemy import func
-        from fapi.db.models import Vendor as VendorORM
-        
-        result = db.query(
-            func.count().label("cnt"),
-            func.max(VendorORM.id).label("max_id"),
-            func.max(VendorORM.created_at).label("max_created"),
-            func.sum(
-                func.crc32(
-                    func.concat_ws(
-                        '|',
-                        VendorORM.id,
-                        func.coalesce(VendorORM.full_name, ''),
-                        func.coalesce(VendorORM.email, ''),
-                        func.coalesce(VendorORM.status, ''),
-                        func.coalesce(VendorORM.company_name, ''),
-                        func.coalesce(VendorORM.phone, ''),
-                        func.coalesce(VendorORM.address, '')
-                    )
-                )
-            ).label("checksum")
-        ).first()
-
-        response = Response(status_code=200)
-        if result and result.cnt > 0:
-            fingerprint = f"{result.cnt}|{result.max_id}|{result.max_created}|{result.checksum}"
-            version_hash = hashlib.md5(fingerprint.encode()).hexdigest()
-            response.headers["X-Data-Version"] = version_hash
-            response.headers["Last-Modified"] = version_hash
-        else:
-            response.headers["X-Data-Version"] = "empty"
-            response.headers["Last-Modified"] = "empty"
-
-        return response
-    except Exception as e:
-        logger.error(f"[ERROR] HEAD /vendors failed: {e}")
-        response = Response(status_code=200)
-        response.headers["X-Data-Version"] = "error"
-        response.headers["Last-Modified"] = "error"
-        return response
+    return get_vendors_version(db)
 
 @router.get("/vendors/metrics")
 def get_vendor_metrics_endpoint(

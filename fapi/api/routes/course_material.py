@@ -1,14 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Security
+from fastapi import APIRouter, Depends, HTTPException, status, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import course_material_utils
+from fapi.utils.course_material_utils import get_course_materials_version
 
 router = APIRouter()
 
 security = HTTPBearer()
+
+@router.head("/course-materials")
+def check_version(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return get_course_materials_version(db)
 
 @router.get("/course-materials", response_model=List[schemas.CourseMaterialResponse])
 def get_all_course_materials(
