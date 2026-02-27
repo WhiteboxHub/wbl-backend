@@ -32,8 +32,6 @@ def update_email_template(template_id: int, template: EmailTemplateUpdate, db: S
     db_template = email_template_utils.update_email_template(db, template_id, template)
     if not db_template:
         raise HTTPException(status_code=404, detail="Email Template not found")
-<<<<<<< HEAD
-=======
     
     update_data = template.model_dump(exclude_unset=True)
     # content_html is NOT NULL in DB — skip if None to preserve existing value
@@ -44,7 +42,6 @@ def update_email_template(template_id: int, template: EmailTemplateUpdate, db: S
     
     db.commit()
     db.refresh(db_template)
->>>>>>> 0702c00 (fixed all workflow issues also added single api for workflow related stuff)
     return db_template
 
 @router.delete("/{template_id}")
