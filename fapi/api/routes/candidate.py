@@ -15,7 +15,7 @@ from fapi.db.schemas import (
     CandidatePreparationOut, PlacementMetrics, InterviewMetrics,
     CandidateInterviewPerformanceResponse, CandidatePreparationMetrics
 )
-from fapi.db.models import CandidateORM, AuthUserORM
+from fapi.db.models import CandidateORM, AuthUserORM, CandidateInterview
 from sqlalchemy import func, or_
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
@@ -229,7 +229,7 @@ def create_interview(
     db_obj = candidate_utils.create_candidate_interview(db, interview)
     # Fetch with relationships for proper serialization
     full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
-    return serialize_interview(full_obj or db_obj)
+    return candidate_utils.serialize_interview(full_obj or db_obj)
 
 
 
@@ -239,13 +239,13 @@ def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
 
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
-    return serialize_interview(db_obj)
+    return candidate_utils.serialize_interview(db_obj)
 
 
 @router.get("/interviews", response_model=List[CandidateInterviewOut])
 def list_interviews(db: Session = Depends(get_db)):
     interviews = candidate_utils.list_interviews_with_instructors(db)
-    return [serialize_interview(i) for i in interviews]
+    return [candidate_utils.serialize_interview(i) for i in interviews]
 
 
 @router.put("/interviews/{interview_id}", response_model=CandidateInterviewOut)
@@ -259,7 +259,7 @@ def update_interview(
         raise HTTPException(status_code=404, detail="Interview not found")
     # Fetch with relationships for proper serialization
     full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
-    return serialize_interview(full_obj or db_obj)
+    return candidate_utils.serialize_interview(full_obj or db_obj)
 
 
 @router.delete("/interviews/{interview_id}")
