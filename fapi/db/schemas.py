@@ -846,6 +846,7 @@ class CandidateMarketingBase(BaseModel):
     candidate_intro: Optional[str] = None
     run_daily_workflow: bool = False
     run_weekly_workflow: bool = False
+    candidate_json: Optional[Dict[str, Any]] = None
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -860,6 +861,9 @@ class CandidateMarketing(CandidateMarketingBase):
 
     class Config:
         from_attributes = True
+
+
+CandidateMarketingOut = CandidateMarketing
 
 
 class CandidateMarketingUpdate(BaseModel):
@@ -882,6 +886,7 @@ class CandidateMarketingUpdate(BaseModel):
     candidate_intro: Optional[str] = None
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
+    candidate_json: Optional[Dict[str, Any]] = None
 
 # -----------------------PLACEMENT---------------------------------
 
