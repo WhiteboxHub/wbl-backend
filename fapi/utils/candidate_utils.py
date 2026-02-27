@@ -322,8 +322,15 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
             raise HTTPException(status_code=404, detail="Marketing record not found")
 
         update_data = payload.dict(exclude_unset=True)
+
+        # JSON column fields that should accept dict values
+        json_column_fields = {"candidate_json", "run_parameters", "config_json"}
+
         for key, value in update_data.items():
-            if hasattr(record, key) and not isinstance(value, dict):
+            if hasattr(record, key):
+                # Allow dict values for known JSON columns; skip dicts for scalar columns
+                if isinstance(value, dict) and key not in json_column_fields:
+                    continue
                 setattr(record, key, value)
 
         if getattr(record, "move_to_placement", False):
