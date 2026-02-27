@@ -4,7 +4,6 @@ import logging
 from sqlalchemy.orm import Session
 from typing import List
 from fapi.db.database import get_db
-<<<<<<< HEAD
 from fapi.db.schemas import AutomationWorkflow, AutomationWorkflowCreate, AutomationWorkflowUpdate
 from fapi.utils import automation_workflow_utils
 from fapi.utils.automation_workflow_utils import (
@@ -15,12 +14,12 @@ from fapi.utils.automation_workflow_utils import (
     get_all_workflows,
     delete_workflow
 )
-=======
+
 from fapi.db.models import AutomationWorkflowORM
 from fapi.db.schemas import AutomationWorkflow, AutomationWorkflowCreate, AutomationWorkflowUpdate, ExecutionBundleResponse
 from fapi.utils.permission_gate import enforce_access
 from fapi.utils.automation_workflow_utils import get_workflow_execution_bundle
->>>>>>> 0702c00 (fixed all workflow issues also added single api for workflow related stuff)
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/automation-workflow", tags=["Automation Workflow"])
