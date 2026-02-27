@@ -15,6 +15,12 @@ from fapi.utils.automation_workflow_utils import (
     delete_workflow
 )
 
+from fapi.db.models import AutomationWorkflowORM
+from fapi.db.schemas import AutomationWorkflow, AutomationWorkflowCreate, AutomationWorkflowUpdate, ExecutionBundleResponse
+from fapi.utils.permission_gate import enforce_access
+from fapi.utils.automation_workflow_utils import get_workflow_execution_bundle
+
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/automation-workflow", tags=["Automation Workflow"])
 
@@ -38,6 +44,12 @@ def get_automation_workflow_by_key(workflow_key: str, db: Session = Depends(get_
     workflow = get_workflow_by_key(db, workflow_key)
     logger.info("Fetched workflow config for key='%s' id=%s", workflow_key, workflow.id)
     return workflow
+
+@router.get("/{workflow_id}/execution-bundle", response_model=ExecutionBundleResponse)
+def get_automation_workflow_execution_bundle(workflow_id: int, db: Session = Depends(get_db)):
+    """Fetch all necessary configurations in a single atomic bundle for workflow execution."""
+    bundle = get_workflow_execution_bundle(db, workflow_id)
+    return bundle
 
 @router.post("/", response_model=AutomationWorkflow, status_code=status.HTTP_201_CREATED)
 def create_automation_workflow(workflow: AutomationWorkflowCreate, db: Session = Depends(get_db)):

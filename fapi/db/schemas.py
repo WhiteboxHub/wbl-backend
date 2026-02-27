@@ -6,6 +6,7 @@ from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
 import enum
 import re
+import json
 
 class PositionTypeEnum(str, enum.Enum):
     full_time = 'full_time'
@@ -2479,6 +2480,24 @@ class JobAutomationKeywordBase(BaseModel):
     context: Optional[str] = Field(None, description="Why this filter exists")
     is_active: bool = Field(default=True)
 
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'priority':
+                        processed[k] = 100
+                    else:
+                        processed[k] = None
+                elif k == 'is_active' and isinstance(v, str):
+                    processed[k] = v.lower() == 'true'
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
 
 class JobAutomationKeywordCreate(JobAutomationKeywordBase):
     pass
@@ -2493,6 +2512,25 @@ class JobAutomationKeywordUpdate(BaseModel):
     priority: Optional[int] = None
     context: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'priority':
+                        # Optional update, so None is fine or 100
+                        processed[k] = None
+                    else:
+                        processed[k] = None
+                elif k == 'is_active' and isinstance(v, str):
+                    processed[k] = v.lower() == 'true'
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 
 class JobAutomationKeywordOut(JobAutomationKeywordBase):
@@ -2913,6 +2951,39 @@ class DeliveryEngineBase(BaseModel):
     timeout_seconds: int = 600
     status: Literal["active", "inactive", "deprecated"] = "active"
 
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "active"
+                    elif k == 'batch_size':
+                        processed[k] = 50
+                    elif k == 'rate_limit_per_minute':
+                        processed[k] = 60
+                    elif k == 'max_retries':
+                        processed[k] = 3
+                    elif k == 'timeout_seconds':
+                        processed[k] = 600
+                    else:
+                        processed[k] = None
+                elif k == 'retry_policy' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'status' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                elif k == 'engine_type' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
 class DeliveryEngineCreate(DeliveryEngineBase):
     pass
 
@@ -2935,6 +3006,39 @@ class DeliveryEngineUpdate(BaseModel):
     timeout_seconds: Optional[int] = None
     status: Optional[Literal["active", "inactive", "deprecated"]] = None
 
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "active"
+                    elif k == 'batch_size':
+                        processed[k] = 50
+                    elif k == 'rate_limit_per_minute':
+                        processed[k] = 60
+                    elif k == 'max_retries':
+                        processed[k] = 3
+                    elif k == 'timeout_seconds':
+                        processed[k] = 600
+                    else:
+                        processed[k] = None
+                elif k == 'retry_policy' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'status' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                elif k == 'engine_type' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
 class DeliveryEngine(DeliveryEngineBase):
     id: int
     created_at: datetime
@@ -2948,11 +3052,40 @@ class EmailTemplateBase(BaseModel):
     name: str
     description: Optional[str] = None
     subject: str
-    content_html: str
+    content_html: Optional[str] = ""
     content_text: Optional[str] = None
     parameters: Optional[List[str]] = None
     status: Literal["draft", "active", "inactive"] = "draft"
     version: int = 1
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "draft"
+                    elif k == 'version':
+                        processed[k] = 1
+                    elif k in ('content_html', 'content_text'):
+                        processed[k] = ""  # preserve empty string for non-nullable text columns
+                    else:
+                        processed[k] = None
+                elif k == 'parameters' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'status' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                elif k == 'description' and isinstance(v, str):
+                    processed[k] = re.sub(r'<[^>]+>', '', v)
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 class EmailTemplateCreate(EmailTemplateBase):
     pass
@@ -2967,6 +3100,33 @@ class EmailTemplateUpdate(BaseModel):
     parameters: Optional[List[str]] = None
     status: Optional[Literal["draft", "active", "inactive"]] = None
     version: Optional[int] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "draft"
+                    elif k == 'version':
+                        processed[k] = 1
+                    else:
+                        processed[k] = None
+                elif k == 'parameters' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'status' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                elif k == 'description' and isinstance(v, str):
+                    processed[k] = re.sub(r'<[^>]+>', '', v)
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 class EmailTemplate(EmailTemplateBase):
     id: int
@@ -2983,13 +3143,42 @@ class AutomationWorkflowBase(BaseModel):
     description: Optional[str] = None
     workflow_type: Literal["email_sender", "extractor", "transformer", "webhook", "sync"]
     owner_id: Optional[int] = None
-    status: Literal["draft", "active", "paused", "inactive"] = "draft"
+    status: Optional[Literal["draft", "active", "paused", "inactive", "archived"]] = "draft"
     email_template_id: Optional[int] = None
     delivery_engine_id: Optional[int] = None
     credentials_list_sql: Optional[str] = None
     recipient_list_sql: Optional[str] = None
     parameters_config: Optional[Dict[str, Any]] = None
-    version: int = 1
+    version: Optional[int] = 1
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "draft"
+                    elif k == 'version':
+                        processed[k] = 1
+                    else:
+                        processed[k] = None
+                elif k in ('owner_id', 'email_template_id', 'delivery_engine_id') and v == 0:
+                    processed[k] = None
+                elif k == 'parameters_config' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'description' and isinstance(v, str):
+                    processed[k] = re.sub(r'<[^>]+>', '', v)
+                elif k in ('status', 'workflow_type') and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 class AutomationWorkflowCreate(AutomationWorkflowBase):
     pass
@@ -3000,13 +3189,42 @@ class AutomationWorkflowUpdate(BaseModel):
     description: Optional[str] = None
     workflow_type: Optional[Literal["email_sender", "extractor", "transformer", "webhook", "sync"]] = None
     owner_id: Optional[int] = None
-    status: Optional[Literal["draft", "active", "paused", "inactive"]] = None
+    status: Optional[Literal["draft", "active", "paused", "inactive", "archived"]] = None
     email_template_id: Optional[int] = None
     delivery_engine_id: Optional[int] = None
     credentials_list_sql: Optional[str] = None
     recipient_list_sql: Optional[str] = None
     parameters_config: Optional[Dict[str, Any]] = None
     version: Optional[int] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "draft"
+                    elif k == 'version':
+                        processed[k] = 1
+                    else:
+                        processed[k] = None
+                elif k in ('owner_id', 'email_template_id', 'delivery_engine_id') and v == 0:
+                    processed[k] = None
+                elif k == 'parameters_config' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'description' and isinstance(v, str):
+                    processed[k] = re.sub(r'<[^>]+>', '', v)
+                elif k in ('status', 'workflow_type') and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 class AutomationWorkflow(AutomationWorkflowBase):
     id: int
@@ -3016,6 +3234,22 @@ class AutomationWorkflow(AutomationWorkflowBase):
     template: Optional[EmailTemplate] = None
     delivery_engine: Optional[DeliveryEngine] = None
     model_config = ConfigDict(from_attributes=True)
+
+class AutomationWorkflowFlat(AutomationWorkflowBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    last_mod_user_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class ExecutionBundleResponse(BaseModel):
+    workflow: AutomationWorkflowFlat
+    schedule: Optional['AutomationWorkflowScheduleFlat'] = None
+    template: Optional[EmailTemplate] = None
+    delivery_engine: Optional[DeliveryEngine] = None
+    smtp_credentials: Optional[List['EmailSMTPCredentialsOut']] = None
+    keywords: Optional[List['JobAutomationKeywordOut']] = None
+    execution_metadata: Optional[Dict[str, Any]] = None
 
 
 # -------------------- Automation Workflows Schedule --------------------
@@ -3027,6 +3261,33 @@ class AutomationWorkflowScheduleBase(BaseModel):
     interval_value: int = 1
     run_parameters: Optional[Dict[str, Any]] = None
     enabled: bool = True
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'timezone':
+                        processed[k] = "America/Los_Angeles"
+                    elif k == 'interval_value':
+                        processed[k] = 1
+                    else:
+                        processed[k] = None
+                elif k == 'automation_workflow_id' and v == 0:
+                    processed[k] = None
+                elif k == 'run_parameters' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'frequency' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 class AutomationWorkflowScheduleCreate(AutomationWorkflowScheduleBase):
     pass
@@ -3043,12 +3304,48 @@ class AutomationWorkflowScheduleUpdate(BaseModel):
     last_run_at: Optional[datetime] = None
     is_running: Optional[bool] = None
 
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'timezone':
+                        processed[k] = "America/Los_Angeles"
+                    elif k == 'interval_value':
+                        processed[k] = 1
+                    else:
+                        processed[k] = None
+                elif k == 'automation_workflow_id' and v == 0:
+                    processed[k] = None
+                elif k == 'run_parameters' and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'frequency' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
 class AutomationWorkflowSchedule(AutomationWorkflowScheduleBase):
     id: int
     next_run_at: Optional[datetime] = None
     last_run_at: Optional[datetime] = None
     is_running: bool = False
     workflow: Optional[AutomationWorkflow] = None
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class AutomationWorkflowScheduleFlat(AutomationWorkflowScheduleBase):
+    id: int
+    next_run_at: Optional[datetime] = None
+    last_run_at: Optional[datetime] = None
+    is_running: bool = False
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -3069,6 +3366,33 @@ class AutomationWorkflowLogBase(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "queued"
+                    elif k in ('records_processed', 'records_failed'):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('workflow_id', 'schedule_id') and v == 0:
+                    processed[k] = None
+                elif k in ('parameters_used', 'execution_metadata') and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'status' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
 class AutomationWorkflowLogCreate(AutomationWorkflowLogBase):
     pass
 
@@ -3082,6 +3406,33 @@ class AutomationWorkflowLogUpdate(BaseModel):
     error_details: Optional[str] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "queued"
+                    elif k in ('records_processed', 'records_failed'):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('workflow_id', 'schedule_id') and v == 0:
+                    processed[k] = None
+                elif k in ('parameters_used', 'execution_metadata') and isinstance(v, str):
+                    try:
+                        processed[k] = json.loads(v)
+                    except json.JSONDecodeError:
+                        processed[k] = v
+                elif k == 'status' and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
 class AutomationWorkflowLog(AutomationWorkflowLogBase):
     id: int
@@ -3377,6 +3728,31 @@ class EmailSMTPCredentialsBase(BaseModel):
     note: Optional[str] = None
     is_active: bool = True
 
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'is_active':
+                        processed[k] = True
+                    else:
+                        processed[k] = None
+                elif k == 'is_active' and isinstance(v, str):
+                    if v.lower() == 'true':
+                        processed[k] = True
+                    elif v.lower() == 'false':
+                        processed[k] = False
+                    else:
+                        processed[k] = v
+                elif k == 'daily_limit' and isinstance(v, str) and v.isdigit():
+                     processed[k] = int(v)
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
     @field_validator('daily_limit')
     @classmethod
     def validate_daily_limit(cls, v: int) -> int:
@@ -3396,6 +3772,23 @@ class EmailSMTPCredentialsUpdate(BaseModel):
     daily_limit: Optional[int] = None
     note: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    processed[k] = None
+                elif k == 'is_active' and isinstance(v, str):
+                    processed[k] = v.lower() == 'true'
+                elif k == 'daily_limit' and isinstance(v, str) and v.isdigit():
+                     processed[k] = int(v)
+                else:
+                    processed[k] = v
+            return processed
+        return data
 
     @field_validator('daily_limit')
     @classmethod

@@ -49,7 +49,11 @@ def update_email_smtp_credential(
         return None
     
     update_data = credential_in.model_dump(exclude_unset=True)
+    # These columns are NOT NULL in the DB — skip if None to preserve existing value
+    NOT_NULLABLE = {"name", "email", "password", "daily_limit", "is_active"}
     for field, value in update_data.items():
+        if field in NOT_NULLABLE and value is None:
+            continue
         setattr(db_credential, field, value)
     
     db.commit()
