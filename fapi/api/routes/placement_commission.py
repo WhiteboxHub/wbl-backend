@@ -3,9 +3,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-
 from fapi.db.database import get_db
 from fapi.utils.table_fingerprint import generate_version_for_model
+
 from fapi.db.schemas import (
     PlacementCommissionCreate,
     PlacementCommissionUpdate,
@@ -28,6 +28,7 @@ def check_version(
 ):
     return get_placement_commissions_version(db)
 
+router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # placement_commission endpoints

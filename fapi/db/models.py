@@ -1198,7 +1198,7 @@ class AutomationWorkflowORM(Base):
     description = Column(Text, nullable=True)
     workflow_type = Column(SQLAEnum("email_sender", "extractor", "transformer", "webhook", "sync"), nullable=False)
     owner_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
-    status = Column(SQLAEnum("draft", "active", "paused", "inactive"), nullable=False, server_default="draft")
+    status = Column(SQLAEnum("draft", "active", "paused", "inactive", "archived"), nullable=False, server_default="draft")
     email_template_id = Column(BigInteger, ForeignKey("email_templates.id"), nullable=True)
     delivery_engine_id = Column(BigInteger, ForeignKey("delivery_engines.id"), nullable=True)
     credentials_list_sql = Column(Text, nullable=True)
