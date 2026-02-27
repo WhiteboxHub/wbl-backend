@@ -11,6 +11,7 @@ from fapi.api.routes import (
     delivery_engine, email_template, automation_workflow, 
     automation_workflow_schedule, automation_workflow_log,
     outreach_orchestrator,
+    weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials
 )
@@ -123,4 +124,5 @@ app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Au
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
+app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"], dependencies=[Depends(enforce_access)])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
