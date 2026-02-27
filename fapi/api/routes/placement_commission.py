@@ -1,17 +1,11 @@
-<<<<<<< HEAD
 from fastapi import Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-=======
->>>>>>> 229439f (created schemas, models,routes and utils for placement_commission and scheduler)
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-
 from fapi.db.database import get_db
-<<<<<<< HEAD
 from fapi.utils.table_fingerprint import generate_version_for_model
-=======
->>>>>>> 229439f (created schemas, models,routes and utils for placement_commission and scheduler)
+
 from fapi.db.schemas import (
     PlacementCommissionCreate,
     PlacementCommissionUpdate,
@@ -21,7 +15,6 @@ from fapi.db.schemas import (
     PlacementCommissionSchedulerOut,
 )
 from fapi.utils import placement_commission_utils as utils
-<<<<<<< HEAD
 from fapi.utils.placement_commission_utils import get_placement_commissions_version
 
 router = APIRouter()
@@ -35,11 +28,7 @@ def check_version(
 ):
     return get_placement_commissions_version(db)
 
-=======
-
 router = APIRouter()
-
->>>>>>> 229439f (created schemas, models,routes and utils for placement_commission and scheduler)
 
 # ---------------------------------------------------------------------------
 # placement_commission endpoints
