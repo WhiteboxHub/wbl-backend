@@ -17,7 +17,7 @@ def generate_version_for_model(db: Session, model_class) -> Response:
         date_columns = [c for c in columns if isinstance(c.type, (Date, DateTime, TIMESTAMP))]
         
         last_mod_col = None
-        for col_name in ['last_modified', 'lastmoddatetime', 'updated_at', 'last_modified_datetime', 'last_mod_date']:
+        for col_name in ['last_modified', 'lastmoddatetime', 'updated_at', 'last_modified_datetime', 'last_mod_date', 'last_mod_datetime']:
             if col_name in columns:
                 last_mod_col = columns[col_name]
                 break
