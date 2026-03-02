@@ -63,7 +63,7 @@ def check_subjects_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return get_subjects_version(db)
+    return subject_utils.get_subjects_version(db)
 
 @router.get("/subjects", response_model=List[schemas.SubjectResponse])
 def get_subjects(

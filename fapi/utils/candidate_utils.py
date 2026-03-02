@@ -9,7 +9,8 @@ from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,C
 from fapi.db.models import JobListingORM
 from fapi.db.schemas import PositionStatusEnum, PositionTypeEnum, EmploymentModeEnum
 from fastapi import HTTPException, APIRouter, Depends, Response
-from fapi.utils.table_fingerprint import generate_version_for_model
+import hashlib
+from fapi.utils.table_fingerprint import generate_version_for_model, get_model_fingerprint
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, date
 import re
@@ -1237,7 +1238,26 @@ def get_candidates_version(db: Session) -> Response:
     return generate_version_for_model(db, CandidateORM)
 
 def get_marketing_version(db: Session) -> Response:
-    return generate_version_for_model(db, CandidateMarketingORM)
+    """
+    Combined version of Marketing depends on Marketing records, 
+    active Preparation mappings (instructors), Employee/Instructor details, 
+    and core Candidate details.
+    """
+    f1 = get_model_fingerprint(db, CandidateMarketingORM)
+    f2 = get_model_fingerprint(db, CandidatePreparation)
+    f3 = get_model_fingerprint(db, EmployeeORM)
+    f4 = get_model_fingerprint(db, CandidateORM)
+    
+    combined_fingerprint = f"{f1}|{f2}|{f3}|{f4}"
+    version_hash = hashlib.md5(combined_fingerprint.encode()).hexdigest()
+    
+    response = Response(status_code=200)
+    response.headers["X-Data-Version"] = version_hash
+    response.headers["Last-Modified"] = version_hash
+    # Total count from marketing table
+    cnt = f1.split("|")[0] if "|" in f1 else "0"
+    response.headers["X-Total-Count"] = cnt
+    return response
 
 def get_placements_version(db: Session) -> Response:
     return generate_version_for_model(db, CandidatePlacementORM)
@@ -1246,5 +1266,22 @@ def get_interviews_version(db: Session) -> Response:
     return generate_version_for_model(db, CandidateInterview)
 
 def get_preparations_version(db: Session) -> Response:
-    return generate_version_for_model(db, CandidatePreparation)
+    """
+    Combined version of Preparation depends on Preparation records,
+    Employee/Instructor details, and core Candidate details.
+    """
+    f1 = get_model_fingerprint(db, CandidatePreparation)
+    f2 = get_model_fingerprint(db, EmployeeORM)
+    f3 = get_model_fingerprint(db, CandidateORM)
+    
+    combined_fingerprint = f"{f1}|{f2}|{f3}"
+    version_hash = hashlib.md5(combined_fingerprint.encode()).hexdigest()
+    
+    response = Response(status_code=200)
+    response.headers["X-Data-Version"] = version_hash
+    response.headers["Last-Modified"] = version_hash
+    # Total count from preparation table
+    cnt = f1.split("|")[0] if "|" in f1 else "0"
+    response.headers["X-Total-Count"] = cnt
+    return response
 
