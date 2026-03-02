@@ -12,6 +12,8 @@ from fapi.db.schemas import (
     CandidateMarketing, CandidatePlacementCreate, CandidateMarketingCreate,
     CandidateInterviewOut, CandidateCreate, CandidateInterviewCreate,
     CandidateInterviewUpdate, CandidatePreparationCreate, CandidatePreparationUpdate,
+    CandidatePreparationOut, PlacementMetrics, InterviewMetrics, CandidateMarketingUpdate,
+    CandidateInterviewUpdate, CandidatePreparationCreate, CandidatePreparationUpdate,
     CandidatePreparationOut, PlacementMetrics, InterviewMetrics,
     CandidateInterviewPerformanceResponse, CandidatePreparationMetrics
 )
@@ -129,7 +131,7 @@ def create_marketing_record(record: CandidateMarketingCreate):
     return candidate_utils.create_marketing(record)
 
 @router.put("/candidate/marketing/{record_id}", response_model=CandidateMarketing)
-def update_marketing_record(record_id: int, record: CandidateMarketingCreate):
+def update_marketing_record(record_id: int, record: CandidateMarketingUpdate):
     return candidate_utils.update_marketing(record_id, record)
 
 @router.delete("/candidate/marketing/{record_id}")

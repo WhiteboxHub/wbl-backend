@@ -484,6 +484,7 @@ def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
         db.rollback()
         logger.error(f"Delete failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
 def get_job_activity_logs_version(db: Session) -> Response:
     return generate_version_for_model(db, JobActivityLogORM)
 

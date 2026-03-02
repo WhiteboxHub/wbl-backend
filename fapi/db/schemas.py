@@ -850,6 +850,24 @@ class CandidateMarketingBase(BaseModel):
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
+    @field_validator("candidate_json", mode="before")
+    @classmethod
+    def parse_candidate_json(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return None
+            try:
+                import json
+                parsed = json.loads(v)
+                if isinstance(parsed, str):
+                    parsed = json.loads(parsed)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Parsed JSON is not a dictionary")
+                return parsed
+            except Exception as e:
+                raise ValueError(f"Invalid JSON string for candidate_json: {str(e)}")
+        return v
+
 
 class CandidateMarketingCreate(CandidateMarketingBase):
     pass
@@ -887,6 +905,24 @@ class CandidateMarketingUpdate(BaseModel):
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
+
+    @field_validator("candidate_json", mode="before")
+    @classmethod
+    def parse_candidate_json_update(cls, v):
+        if isinstance(v, str):
+            if not v.strip():
+                return None
+            try:
+                import json
+                parsed = json.loads(v)
+                if isinstance(parsed, str):
+                    parsed = json.loads(parsed)
+                if not isinstance(parsed, dict):
+                    raise ValueError("Parsed JSON is not a dictionary")
+                return parsed
+            except Exception as e:
+                raise ValueError(f"Invalid JSON string for candidate_json: {str(e)}")
+        return v
 
 # -----------------------PLACEMENT---------------------------------
 
