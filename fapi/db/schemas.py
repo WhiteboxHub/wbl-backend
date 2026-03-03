@@ -385,6 +385,16 @@ class VisaStatusEnum(str, enum.Enum):
     REFUGEE_EAD = "REFUGEE_EAD"
     DACA_EAD = "DACA_EAD"
 
+class OutreachConnectionStatusEnum(str, enum.Enum):
+    not_sent = "not_sent"
+    sent = "sent"
+    accepted = "accepted"
+
+class OutreachMessageStatusEnum(str, enum.Enum):
+    not_sent = "not_sent"
+    sent = "sent"
+    responded = "responded"
+
 class EmployeeBase(BaseModel):
     id: Optional[int] = None
     name: Optional[str] = None
@@ -639,7 +649,7 @@ class LeadSchema(LeadBase):
 
 
 class PotentialLeadBase(BaseModel):
-    full_name: str
+    full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     profession: Optional[str] = None
@@ -649,10 +659,13 @@ class PotentialLeadBase(BaseModel):
     work_status: Optional[str] = None
     location: Optional[str] = None
     notes: Optional[str] = None
+    outreach_connection_status: Optional[OutreachConnectionStatusEnum] = OutreachConnectionStatusEnum.not_sent
+    outreach_message_status: Optional[OutreachMessageStatusEnum] = OutreachMessageStatusEnum.not_sent
 
 
 class PotentialLeadCreate(PotentialLeadBase):
-    pass
+    full_name: str
+
 
 class PotentialLeadUpdate(PotentialLeadBase):
     pass
