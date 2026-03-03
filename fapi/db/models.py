@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum
+from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum
 
 Base = declarative_base()
 
@@ -108,6 +108,16 @@ class PotentialLeadORM(Base):
     notes = Column(Text)
     lastmoddatetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    outreach_connection_status = Column(
+        SQLAEnum(OutreachConnectionStatusEnum, values_callable=lambda x: [e.value for e in x]),
+        default=OutreachConnectionStatusEnum.not_sent.value,
+        server_default="not_sent"
+    )
+    outreach_message_status = Column(
+        SQLAEnum(OutreachMessageStatusEnum, values_callable=lambda x: [e.value for e in x]),
+        default=OutreachMessageStatusEnum.not_sent.value,
+        server_default="not_sent"
+    )
 
 # -------------------------------------------------------------------------------
 

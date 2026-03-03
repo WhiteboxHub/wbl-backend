@@ -30,6 +30,8 @@ def fetch_all_potential_leads(db: Session, search: str = None, search_by: str = 
                     PotentialLeadORM.profession.ilike(f"%{search}%"),
                     PotentialLeadORM.linkedin_id.ilike(f"%{search}%"),
                     PotentialLeadORM.location.ilike(f"%{search}%"),
+                    PotentialLeadORM.outreach_connection_status.ilike(f"%{search}%"),
+                    PotentialLeadORM.outreach_message_status.ilike(f"%{search}%"),
                 )
             )
 
