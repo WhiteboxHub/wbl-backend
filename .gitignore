@@ -10,3 +10,8 @@ venv/
 node_modules
 backend-env.yaml
 temp_candidates.json
+check_user.py
+check_user_output.txt
+db_create_error.txt
+db_error.txt
+wbl.db
