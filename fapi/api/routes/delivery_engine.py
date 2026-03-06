@@ -32,6 +32,7 @@ def update_delivery_engine(engine_id: int, engine: DeliveryEngineUpdate, db: Ses
     db_engine = delivery_engine_utils.update_delivery_engine(db, engine_id, engine)
     if not db_engine:
         raise HTTPException(status_code=404, detail="Delivery Engine not found")
+
     
     update_data = engine.model_dump(exclude_unset=True)
     # These columns are NOT NULL in the DB — skip if None to preserve existing value
@@ -43,7 +44,9 @@ def update_delivery_engine(engine_id: int, engine: DeliveryEngineUpdate, db: Ses
     
     db.commit()
     db.refresh(db_engine)
+
     return db_engine
+
 
 @router.delete("/{engine_id}")
 def delete_delivery_engine(engine_id: int, db: Session = Depends(get_db)):
