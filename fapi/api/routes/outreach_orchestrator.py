@@ -12,9 +12,7 @@ router = APIRouter(prefix="/orchestrator", tags=["Outreach Orchestrator"])
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
-# ---------------------------------------------------------------------------
 # Pydantic models
-# ---------------------------------------------------------------------------
 
 class SqlExecutionRequest(BaseModel):
     sql_query: str
@@ -40,9 +38,7 @@ class LogUpdate(BaseModel):
     finished_at: Optional[str] = None
 
 
-# ---------------------------------------------------------------------------
 # Schedules
-# ---------------------------------------------------------------------------
 
 @router.get("/schedules/due")
 def get_due_schedules(db: Session = Depends(get_db)):
@@ -98,9 +94,7 @@ def update_schedule(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---------------------------------------------------------------------------
 # Workflows
-# ---------------------------------------------------------------------------
 
 @router.get("/workflows/key/{key}")
 def get_workflow_by_key(key: str, db: Session = Depends(get_db)):
@@ -131,9 +125,7 @@ def update_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---------------------------------------------------------------------------
 # Dynamic SQL execution endpoints
-# ---------------------------------------------------------------------------
 
 @router.post("/workflows/{workflow_id}/execute-recipient-sql")
 def execute_recipient_sql(
@@ -155,20 +147,14 @@ def execute_reset_sql(
     orc_utils.execute_reset_sql(db, req.sql_query, req.parameters)
     return {"success": True}
 
-
-# ---------------------------------------------------------------------------
 # Candidate credentials
-# ---------------------------------------------------------------------------
 
 @router.get("/candidate-credentials/{candidate_id}")
 def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
     """Return sender email/password/IMAP credentials for an active candidate marketing record."""
     return orc_utils.get_candidate_credentials(db, candidate_id)
 
-
-# ---------------------------------------------------------------------------
 # Delivery engine & email template
-# ---------------------------------------------------------------------------
 
 @router.get("/delivery-engine/{engine_id}")
 def get_engine(engine_id: int, db: Session = Depends(get_db)):
@@ -180,9 +166,7 @@ def get_template(template_id: int, db: Session = Depends(get_db)):
     return orc_utils.get_email_template(db, template_id)
 
 
-# ---------------------------------------------------------------------------
 # Logs
-# ---------------------------------------------------------------------------
 
 @router.get("/logs")
 def list_logs(
@@ -215,3 +199,4 @@ def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error("Error updating log %s: %s", log_id, e)
         raise HTTPException(status_code=500, detail=str(e))
+
