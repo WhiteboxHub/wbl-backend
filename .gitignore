@@ -6,7 +6,22 @@ __pycache__/
 venv/
 myenv/
 myvenv/
-venv/
 node_modules
 backend-env.yaml
 temp_candidates.json
+
+# Database files
+*.db
+
+# Debug / temp scripts and output files
+diff.txt
+git_history.txt
+inspect_db.py
+start_backend.bat
+test_api.py
+test_urls.py
+backend_diff.txt
+check_user.py
+check_user_output.txt
+db_create_error.txt
+db_error.txt
