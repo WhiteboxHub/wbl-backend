@@ -1,0 +1,132 @@
+commit bd43dea9d128f16910c3b4ce7002560d92805877
+Author: Akhil <siripuramakhil357@gmail.com>
+Date:   Fri Mar 6 02:41:39 2026 +0530
+
+    Resolve merge conflict and enable extractor workflow support
+
+M	.gitignore
+M	fapi/api/routes/outreach_orchestrator.py
+
+commit 0d0236ffb0f46b07c15eb45e69998e2807cc13e2
+Merge: 7c9fd23 2afbd88
+Author: Akhil <siripuramakhil357@gmail.com>
+Date:   Fri Mar 6 02:34:55 2026 +0530
+
+    Merge remote-tracking branch 'origin/main' into sai_dev
+
+commit 7c9fd239d6754186b8ff06645847822bba310e94
+Author: Akhil <siripuramakhil357@gmail.com>
+Date:   Fri Mar 6 02:23:36 2026 +0530
+
+    Add extractor support for hiring_cafe_job_extractor workflow
+
+M	fapi/api/routes/outreach_orchestrator.py
+
+commit 2afbd8834926a540ce234b2985f37e10c583dfd6
+Merge: dd88a3a 67775d3
+Author: RohithYadav-21 <rohithyadav628169@gmail.com>
+Date:   Thu Mar 5 12:03:22 2026 -0800
+
+    Merge pull request #413 from WhiteboxHub/dev
+    
+    Dev
+    -Mentioned LinkedIn and Hiring cafe extractor in Outreach
+
+commit 67775d39f62298d5c912459034d2b74e279ca050
+Merge: fc6b79d bd16713
+Author: sampath-velupula <training@whitebox-learning.com>
+Date:   Fri Mar 6 01:32:13 2026 +0530
+
+    Merge pull request #412 from WhiteboxHub/Jt_dev
+    
+    Mentioned LinkedIn and Hiring cafe extractor in Outreach
+
+commit bd16713c944c6bf01646ac8e90a5fe735bf8c44a
+Author: Jatin Thakur <t.jatinsingh27@gmail.com>
+Date:   Thu Mar 5 11:56:45 2026 -0800
+
+    Mentioned LinkedIn and Hiring cafe extractor
+
+M	fapi/api/routes/outreach_orchestrator.py
+
+commit dd88a3a9f8517a83d68cdeeaf61bbd1f99a01913
+Merge: 8fd0c9b fc6b79d
+Author: RohithYadav-21 <rohithyadav628169@gmail.com>
+Date:   Thu Mar 5 10:03:11 2026 -0800
+
+    Merge pull request #411 from WhiteboxHub/dev
+    
+    Dev
+
+commit fc6b79d6d2bf83723be2c73d84c5004eca97b76f
+Merge: 9510a7d c3cca83
+Author: sampath-velupula <training@whitebox-learning.com>
+Date:   Thu Mar 5 23:24:35 2026 +0530
+
+    Merge pull request #410 from WhiteboxHub/Jt_dev
+    
+    Mentioned Linkedin easy apply and hiring cafe job extractor in outreach orchestrator
+
+commit c3cca837d062baed58e14725f3dd665217e7ab2e
+Author: Jatin Thakur <t.jatinsingh27@gmail.com>
+Date:   Thu Mar 5 09:19:21 2026 -0800
+
+    Mentioned linkedin easy apply and hiring cafe job extractor in endpoints in outreach orchestrator
+
+M	fapi/api/routes/outreach_orchestrator.py
+
+commit 8fd0c9b028d7300d5d0e443bb3aaf388a2ea2f3e
+Merge: 2040bd0 9510a7d
+Author: Hemant <158625884+HemantKKumar24@users.noreply.github.com>
+Date:   Wed Mar 4 02:02:06 2026 +0530
+
+    Merge pull request #408 from WhiteboxHub/dev
+    
+    Dev
+
+commit 9510a7dbbcab682cbbdd23c596790274bd88a7b1
+Merge: 2cc3c8a dbae7b1
+Author: RohithYadav-21 <rohithyadav628169@gmail.com>
+Date:   Tue Mar 3 12:13:56 2026 -0800
+
+    Merge pull request #407 from WhiteboxHub/Adarsh_dev
+    
+    this is the PR for adding new columns named outreach_message,outreach_connect for the potential leads table backend
+
+commit dbae7b105caea48cddfde95229a9d441b43d13c4
+Author: Adarsh Tejakalakanda <adarshteja80@gmail.com>
+Date:   Tue Mar 3 10:55:47 2026 -0800
+
+    added new columns to track the connections and message status on potential leads backend
+
+M	fapi/db/models.py
+M	fapi/db/schemas.py
+M	fapi/utils/potential_lead_utils.py
+
+commit 2040bd03187cbcc669a16c1bd7073f6fbb248e18
+Merge: 77ecc0a 2cc3c8a
+Author: RohithYadav-21 <rohithyadav628169@gmail.com>
+Date:   Sun Mar 1 20:25:04 2026 -0800
+
+    Merge pull request #406 from WhiteboxHub/dev
+    
+    Dev
+    candidate_json fixed
+
+commit 2cc3c8a4eea8ce2b6b8c92a27d9e757aec44d65a
+Merge: e6b256d f9a89f5
+Author: sampath-velupula <training@whitebox-learning.com>
+Date:   Sun Mar 1 20:22:17 2026 -0800
+
+    Merge pull request #404 from WhiteboxHub/Jt_dev
+    
+    Fixed bugs in Candidate Prep and Marketing caused due to Indexed DB
+
+commit e6b256d522b12feb2f6a60ae65f78307f3339926
+Merge: b36bc5a 91b6dd4
+Author: sampath-velupula <training@whitebox-learning.com>
+Date:   Sun Mar 1 20:07:34 2026 -0800
+
+    Merge pull request #405 from WhiteboxHub/mahi_dev
+    
+    candidate_json error fixed

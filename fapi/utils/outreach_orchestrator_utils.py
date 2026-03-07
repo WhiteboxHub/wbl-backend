@@ -96,7 +96,8 @@ def get_due_schedules(db: Session) -> List[Dict[str, Any]]:
         .filter(
             AutomationWorkflowScheduleORM.enabled == True,
             AutomationWorkflowORM.status == "active",
-            AutomationWorkflowORM.workflow_type == "email_sender",
+            # Include both email_sender (outreach) AND extractor (job scrapers like hiring_cafe)
+            AutomationWorkflowORM.workflow_type.in_(["email_sender", "extractor"]),
             AutomationWorkflowORM.workflow_key.in_(_ALLOWED_WORKFLOW_KEYS),
             AutomationWorkflowScheduleORM.next_run_at != None,
             AutomationWorkflowScheduleORM.next_run_at <= now,
@@ -104,6 +105,7 @@ def get_due_schedules(db: Session) -> List[Dict[str, Any]]:
         )
         .all()
     )
+
 
     schedules = []
     for sched, wf in rows:
