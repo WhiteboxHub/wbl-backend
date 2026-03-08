@@ -11,10 +11,3 @@ backend-env.yaml
 temp_candidates.json
 
 
-*.db
-inspect_db.py
-start_backend.bat
-test_api.py
-test_urls.py
-
-
