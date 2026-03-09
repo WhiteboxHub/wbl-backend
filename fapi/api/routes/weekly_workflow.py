@@ -1,26 +1,75 @@
+from datetime import datetime, timedelta
+from typing import Any, Dict
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+try:
+    from croniter import croniter
+except ImportError:
+    croniter = None
+
 from fapi.db.database import get_db
 from fapi.db.models import CandidateMarketingORM, AutomationWorkflowScheduleORM
-from fapi.db.schemas import CandidateMarketingOut
-from fapi.utils.permission_gate import enforce_access
 
 router = APIRouter()
 
-@router.get("/eligible-candidates", response_model=List[CandidateMarketingOut])
-def get_eligible_candidates(db: Session = Depends(get_db)):
-    """Fetch candidates where run_weekly_flow is 1"""
-    candidates = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.run_weekly_workflow == 1).all()
-    return candidates
+SCHEDULE_ID = 7  # automation_workflows_schedule.id for weekly_automation_application_engine
 
-@router.post("/reset/{candidate_id}")
-def reset_candidate_workflow(candidate_id: int, db: Session = Depends(get_db)):
-    """Reset the run_weekly_workflow flag for a candidate"""
-    candidate = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate marketing record not found")
-    
+
+def _compute_next_run(schedule: AutomationWorkflowScheduleORM) -> datetime | None:
+    """Compute next_run_at from the schedule's own cron or frequency settings."""
+    now = datetime.utcnow()
+
+    if schedule.cron_expression and croniter:
+        try:
+            return croniter(schedule.cron_expression, now).get_next(datetime)
+        except Exception:
+            pass
+
+    freq_map = {
+        "daily":   timedelta(days=schedule.interval_value or 1),
+        "weekly":  timedelta(weeks=schedule.interval_value or 1),
+        "monthly": timedelta(days=(schedule.interval_value or 1) * 30),
+        "custom":  timedelta(days=schedule.interval_value or 1),
+    }
+    delta = freq_map.get((schedule.frequency or "").lower())
+    return (now + delta) if delta else None
+
+
+@router.get("/trigger-run")
+def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Single atomic endpoint for the Job Application Engine (1 API call, no follow-up).
+
+    In one DB transaction:
+      1. JOIN candidate_marketing + automation_workflows_schedule (id=SCHEDULE_ID)
+      2. Copy  candidate_json → schedule.run_parameters
+      3. Set   schedule.last_run_at = NOW()
+      4. Set   schedule.next_run_at = computed from schedule's own cron / frequency
+      5. Reset candidate_marketing.run_weekly_workflow = 0
+      6. Return run_parameters → engine starts immediately
+
+    Returns {} if no triggered candidate found — engine exits cleanly.
+    """
+    result = (
+        db.query(CandidateMarketingORM, AutomationWorkflowScheduleORM)
+        .join(
+            AutomationWorkflowScheduleORM,
+            AutomationWorkflowScheduleORM.id == SCHEDULE_ID,
+            isouter=False,
+        )
+        .filter(CandidateMarketingORM.run_weekly_workflow == 1)
+        .first()
+    )
+
+    if not result:
+        return {}
+
+    candidate, schedule = result
+    schedule.run_parameters = candidate.candidate_json or {}
+    schedule.last_run_at = datetime.utcnow()
+    schedule.next_run_at = _compute_next_run(schedule)
     candidate.run_weekly_workflow = 0
     db.commit()
-    return {"message": f"Successfully reset workflow flag for candidate {candidate_id}"}
+    db.refresh(schedule)
+    return schedule.run_parameters
