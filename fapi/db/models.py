@@ -1022,6 +1022,42 @@ class RawJobListingORM(Base):
     )
 
 
+class EmailPositionORM(Base):
+    __tablename__ = "email_positions"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate_marketing.id"), nullable=True,
+                         comment='ID from candidate_marketing table - tracks which candidate inbox this came from')
+    source = Column(String(50), nullable=False,
+                    comment='linkedin, email, job_board, scraper')
+    source_uid = Column(String(255), nullable=True,
+                        comment='external job id or message id')
+    extracted_at = Column(
+        TIMESTAMP, nullable=False, server_default=func.now())
+    extractor_version = Column(String(50), nullable=True)
+    title = Column(String(500), nullable=True)
+    company = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    zip = Column(String(20), nullable=True)
+    description = Column(Text, nullable=True)  # mediumtext maps to Text in SQLAlchemy
+    contact_info = Column(
+        Text, nullable=True, comment='emails, phones, linkedin, free text')
+    notes = Column(Text, nullable=True,
+                   comment='any additional extractor notes')
+    payload = Column(
+        JSON, nullable=True, comment='full extractor payload if available')
+    error_message = Column(Text, nullable=True)
+    processed_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False,
+                        server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_email_source_uid', 'source', 'source_uid'),
+        Index('idx_email_extracted_at', 'extracted_at'),
+        Index('idx_email_candidate_id', 'candidate_id'),
+    )
+
+
+
 class AutomationContactExtractORM(Base):
     __tablename__ = "automation_contact_extracts"
     id = Column(BigInteger, primary_key=True, autoincrement=True)

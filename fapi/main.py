@@ -13,7 +13,8 @@ from fapi.api.routes import (
     outreach_orchestrator,
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
-    linkedin_only_contact, automation_contact_extract, email_smtp_credentials
+    linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
+    email_position
 )
 
 from fapi.db.database import SessionLocal
@@ -106,6 +107,7 @@ app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], depend
 # Job and Outreach Routers
 app.include_router(job_listing.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(raw_job_listing.router, prefix="/api", tags=["Raw Positions"], dependencies=[Depends(enforce_access)])
+app.include_router(email_position.router, prefix="/api", tags=["Email Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
