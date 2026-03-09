@@ -126,5 +126,5 @@ app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Au
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
-app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"], dependencies=[Depends(enforce_access)])
+app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
