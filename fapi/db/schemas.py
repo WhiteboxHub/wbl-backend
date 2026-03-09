@@ -352,6 +352,89 @@ class RawJobListingOut(RawJobListingBase):
         from_attributes = True
 
 
+class EmailPositionBase(BaseModel):
+    candidate_id: Optional[int] = None
+    source: str
+    source_uid: Optional[str] = None
+    extractor_version: Optional[str] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    zip: Optional[str] = None
+    description: Optional[str] = None
+    contact_info: Optional[str] = None
+    notes: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+
+    @field_validator('contact_info')
+    @classmethod
+    def normalize_contact_info(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize emails in contact info to lowercase"""
+        if v:
+            import re
+            def lowercase_email(match):
+                return match.group(0).lower()
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            return re.sub(email_pattern, lowercase_email, v)
+        return v
+
+
+class EmailPositionCreate(EmailPositionBase):
+    pass
+
+
+class EmailPositionUpdate(BaseModel):
+    candidate_id: Optional[int] = None
+    source: Optional[str] = None
+    source_uid: Optional[str] = None
+    extractor_version: Optional[str] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    location: Optional[str] = None
+    zip: Optional[str] = None
+    description: Optional[str] = None
+    contact_info: Optional[str] = None
+    notes: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    processed_at: Optional[datetime] = None
+
+    @field_validator('contact_info')
+    @classmethod
+    def normalize_contact_info(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize emails in contact info to lowercase"""
+        if v:
+            import re
+            def lowercase_email(match):
+                return match.group(0).lower()
+            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+            return re.sub(email_pattern, lowercase_email, v)
+        return v
+
+
+class EmailPositionBulkCreate(BaseModel):
+    positions: List[EmailPositionCreate]
+
+
+class EmailPositionBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
+    failed_contacts: List[dict] = []
+
+
+class EmailPositionOut(EmailPositionBase):
+    id: int
+    extracted_at: datetime
+    processed_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+
 
 # Visa Status Enum
 class VisaStatusEnum(str, enum.Enum):
