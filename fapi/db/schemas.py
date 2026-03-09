@@ -965,6 +965,8 @@ class CandidateMarketingBase(BaseModel):
     candidate_intro: Optional[str] = None
     run_daily_workflow: bool = False
     run_weekly_workflow: bool = False
+    run_email_extraction: bool = False
+    linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
@@ -1023,6 +1025,8 @@ class CandidateMarketingUpdate(BaseModel):
     candidate_intro: Optional[str] = None
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
+    run_email_extraction: Optional[bool] = None
+    linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
 
     @field_validator("candidate_json", mode="before")

@@ -312,6 +312,8 @@ class CandidateMarketingORM(Base):
     # Outreach Automation Flags
     run_daily_workflow = Column(Boolean, nullable=False, server_default="0")
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
+    run_email_extraction = Column(Boolean, nullable=False, server_default="0")
+    linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
 
     # Relationships
