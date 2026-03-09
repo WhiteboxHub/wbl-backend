@@ -29,6 +29,18 @@ class PositionStatusEnum(str, enum.Enum):
     invalid = 'invalid'
 
 
+class JobListingSourceEnum(str, enum.Enum):
+    bot_linkedin_post_contact_extractor = 'bot_linkedin_post_contact_extractor'
+    bot_linkedin_message_extraction = 'bot_linkedin_message_extraction'
+    email = 'email'
+    linkedin = 'linkedin'
+    job_board = 'job_board'
+    scraper = 'scraper'
+    hiring_cafe = 'hiring.cafe'
+    interview_modal = 'interview_modal'
+    email_bot_llm_local = 'email_bot_llm_local'
+
+
 class ProcessingStatusEnum(str, enum.Enum):
     new = 'new'
     parsed = 'parsed'
@@ -184,7 +196,7 @@ class JobListingBase(BaseModel):
     company_id: Optional[int] = None
     position_type: PositionTypeEnum = PositionTypeEnum.full_time
     employment_mode: EmploymentModeEnum = EmploymentModeEnum.hybrid
-    source: str
+    source: JobListingSourceEnum = JobListingSourceEnum.linkedin
     source_uid: Optional[str] = None
     source_job_id: Optional[str] = None
     location: Optional[str] = None
@@ -222,7 +234,7 @@ class JobListingUpdate(BaseModel):
     company_id: Optional[int] = None
     position_type: Optional[PositionTypeEnum] = None
     employment_mode: Optional[EmploymentModeEnum] = None
-    source: Optional[str] = None
+    source: Optional[JobListingSourceEnum] = None
     source_uid: Optional[str] = None
     source_job_id: Optional[str] = None
     location: Optional[str] = None
@@ -267,9 +279,20 @@ class JobListingBulkResponse(BaseModel):
     failed_contacts: List[dict] = []
 
 
+class RawJobListingSourceEnum(str, enum.Enum):
+    bot_linkedin_post_contact_extractor = 'bot_linkedin_post_contact_extractor'
+    bot_linkedin_message_extraction = 'bot_linkedin_message_extraction'
+    email = 'email'
+    linkedin = 'linkedin'
+    job_board = 'job_board'
+    scraper = 'scraper'
+    hiring_cafe = 'hiring.cafe'
+    email_bot_llm_local = 'email_bot_llm_local'
+
+
 class RawJobListingBase(BaseModel):
     candidate_id: Optional[int] = None
-    source: str
+    source: RawJobListingSourceEnum = RawJobListingSourceEnum.linkedin
     source_uid: Optional[str] = None
     extractor_version: Optional[str] = None
     raw_title: Optional[str] = None
@@ -303,7 +326,7 @@ class RawJobListingCreate(RawJobListingBase):
 
 
 class RawJobListingUpdate(BaseModel):
-    source: Optional[str] = None
+    source: Optional[RawJobListingSourceEnum] = None
     source_uid: Optional[str] = None
     extractor_version: Optional[str] = None
     raw_title: Optional[str] = None
