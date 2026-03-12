@@ -3,7 +3,6 @@ from fapi.utils.auth_dependencies import get_current_user
 
 ALLOWED_GET_PREFIXES = {
     "/api/course-content",
-    "/api/course-contents",
     "/api/session-types",
     "/api/sessions",
     "/api/materials",
