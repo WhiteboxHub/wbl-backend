@@ -10,6 +10,7 @@ except ImportError:
 
 from fapi.db.database import get_db
 from fapi.db.models import CandidateMarketingORM, AutomationWorkflowScheduleORM
+from fapi.utils.permission_gate import enforce_access
 
 router = APIRouter()
 
@@ -73,3 +74,24 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
     db.commit()
     db.refresh(schedule)
     return schedule.run_parameters
+
+
+@router.get("/eligible-candidates", dependencies=[Depends(enforce_access)])
+def get_eligible_candidates(db: Session = Depends(get_db)):
+    """Fetch candidates where run_weekly_workflow = 1 (UI / manual use)."""
+    return db.query(CandidateMarketingORM).filter(
+        CandidateMarketingORM.run_weekly_workflow == 1
+    ).all()
+
+
+@router.post("/reset/{candidate_id}", dependencies=[Depends(enforce_access)])
+def reset_candidate_workflow(candidate_id: int, db: Session = Depends(get_db)):
+    """Manually reset run_weekly_workflow = 0 for a candidate."""
+    candidate = db.query(CandidateMarketingORM).filter(
+        CandidateMarketingORM.candidate_id == candidate_id
+    ).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate marketing record not found")
+    candidate.run_weekly_workflow = 0
+    db.commit()
+    return {"message": f"Reset run_weekly_workflow=0 for candidate_id={candidate_id}"}

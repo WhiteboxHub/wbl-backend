@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum
+from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum
 
 Base = declarative_base()
 
@@ -312,6 +312,8 @@ class CandidateMarketingORM(Base):
     # Outreach Automation Flags
     run_daily_workflow = Column(Boolean, nullable=False, server_default="0")
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
+    run_email_extraction = Column(Boolean, nullable=False, server_default="0")
+    linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
 
     # Relationships
@@ -989,9 +991,23 @@ class EmployeeTaskORM(Base):
 class RawJobListingORM(Base):
     __tablename__ = "raw_job_listings"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
-    source = Column(String(50), nullable=False,
-                    comment='linkedin, email, job_board, scraper')
+    candidate_id = Column(Integer, ForeignKey("candidate_marketing.id"), nullable=True,
+                         comment='ID from candidate_marketing table - tracks which candidate inbox this came from')
+    source = Column(
+        Enum(
+            'bot_linkedin_post_contact_extractor',
+            'bot_linkedin_message_extraction',
+            'email',
+            'linkedin',
+            'job_board',
+            'scraper',
+            'hiring.cafe',
+            'email_bot_llm_local'
+        ),
+        nullable=False,
+        default='linkedin',
+        comment='source of job extraction'
+    )
     source_uid = Column(String(255), nullable=True,
                         comment='external job id or message id')
     extracted_at = Column(
@@ -1019,6 +1035,7 @@ class RawJobListingORM(Base):
         Index('idx_source_uid', 'source', 'source_uid'),
         Index('idx_processing_status', 'processing_status'),
         Index('idx_extracted_at', 'extracted_at'),
+        Index('idx_candidate_id', 'candidate_id'),
     )
 
 
@@ -1160,8 +1177,23 @@ class JobListingORM(Base):
                         comment='future reference to company table')
     position_type = Column(SQLAEnum(PositionTypeEnum), nullable=False, server_default=PositionTypeEnum.full_time.value)
     employment_mode = Column(SQLAEnum(EmploymentModeEnum), nullable=False, server_default=EmploymentModeEnum.hybrid.value)
-    source = Column(String(50), nullable=False,
-                    comment='linkedin, job_board, vendor, email')
+    source = Column(
+        SQLAEnum(
+            'bot_linkedin_post_contact_extractor',
+            'bot_linkedin_message_extraction',
+            'email',
+            'linkedin',
+            'job_board',
+            'scraper',
+            'hiring.cafe',
+            'interview_modal',
+            'email_bot_llm_local',
+            name='job_listing_source_enum'
+        ),
+        nullable=False,
+        server_default='linkedin',
+        comment='source of job extraction'
+    )
     source_uid = Column(String(255), nullable=True)
     source_job_id = Column(String(255), nullable=True)
     location = Column(String(255), nullable=True)
