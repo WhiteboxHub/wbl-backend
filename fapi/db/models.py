@@ -314,7 +314,8 @@ class CandidateMarketingORM(Base):
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
     run_email_extraction = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
-
+    linkedin_post = Column(Boolean, nullable=False, server_default="0")
+    
     # Relationships
     candidate = relationship(
         "CandidateORM", back_populates="marketing_records")
