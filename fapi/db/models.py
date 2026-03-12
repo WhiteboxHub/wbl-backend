@@ -1190,6 +1190,24 @@ class JobListingORM(Base):
     )
 
 
+class JobLinkClicksORM(Base):
+    __tablename__ = "job_link_clicks"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    authuser_id = Column(Integer, ForeignKey("authuser.id"), nullable=False)
+    job_listing_id = Column(BigInteger, ForeignKey("job_listing.id"), nullable=False)
+    click_count = Column(Integer, default=1)
+    first_clicked_at = Column(DateTime, server_default=func.now())
+    last_clicked_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('authuser_id', 'job_listing_id', name='unique_candidate_job'),
+    )
+
+    authuser = relationship("AuthUserORM")
+    job_listing = relationship("JobListingORM")
+
+
 # -------------------- Delivery Engines --------------------
 class DeliveryEngineORM(Base):
     __tablename__ = "delivery_engines"
