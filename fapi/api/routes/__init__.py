@@ -17,5 +17,6 @@ from . import (
     company, company_contact, potential_leads,
     personal_domain_contact, outreach_email_recipient,
     linkedin_only_contact, email_smtp_credentials,
-    placement_commission
+    placement_commission,
+    job_click
 )

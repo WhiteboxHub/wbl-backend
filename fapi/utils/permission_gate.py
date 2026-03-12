@@ -23,6 +23,10 @@ ALLOWED_GET_PREFIXES = {
     "/api/automation-workflow",
 }
 
+ALLOWED_POST_PREFIXES = {
+    "/api/candidates/track-clicks-batch",
+}
+
 def _is_admin(user) -> bool:
     uname = (getattr(user, "uname", None) or getattr(user, "username", "") or "").lower()
     return (
@@ -41,6 +45,11 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
     
     if method == "GET":
         for prefix in ALLOWED_GET_PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                return current_user
+    
+    if method == "POST":
+        for prefix in ALLOWED_POST_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
     raise HTTPException(

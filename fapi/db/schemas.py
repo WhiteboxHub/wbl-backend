@@ -3971,3 +3971,27 @@ class EmailSMTPCredentialsOut(EmailSMTPCredentialsBase):
     class Config:
         from_attributes = True
 
+
+# -------------------- Job Link Clicks --------------------
+class JobLinkClickItem(BaseModel):
+    job_listing_id: int
+    count: int
+
+class JobLinkClickBatchIn(BaseModel):
+    clicks: List[JobLinkClickItem]
+
+class JobLinkClickAnalytics(BaseModel):
+    id: int
+    authuser_id: int
+    job_listing_id: int
+    full_name: Optional[str] = None
+    email: str
+    job_title: str
+    company_name: str
+    click_count: int
+    first_clicked_at: datetime
+    last_clicked_at: datetime
+
+    class Config:
+        from_attributes = True
+
