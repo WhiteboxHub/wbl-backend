@@ -14,8 +14,9 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position
+    email_position, job_click
 )
+import asyncio
 
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
@@ -24,6 +25,7 @@ import logging
 import traceback
 
 app = FastAPI(title="WBL Backend")
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wbl")
@@ -65,11 +67,11 @@ def get_db():
         db.close()
 
 # Base Routes
+app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])
 app.include_router(candidate.router, prefix="/api", tags=["Candidate"], dependencies=[Depends(enforce_access)])
-app.include_router(leads.router, prefix="/api", tags=["Leads"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])
-
+app.include_router(leads.router, prefix="/api", tags=["Leads"], dependencies=[Depends(enforce_access)])
 app.include_router(employee.router, prefix="/api", tags=["Employee"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_tasks.router, prefix="/api", tags=["Employee Tasks"])
 app.include_router(talent_search.router,  prefix="/api", tags=["Talent Search"], dependencies=[Depends(enforce_access)])
