@@ -989,57 +989,6 @@ class EmployeeTaskORM(Base):
     project = relationship("ProjectORM", back_populates="tasks")
 
 
-class RawJobListingORM(Base):
-    __tablename__ = "raw_job_listings"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate_marketing.id"), nullable=True,
-                         comment='ID from candidate_marketing table - tracks which candidate inbox this came from')
-    source = Column(
-        Enum(
-            'bot_linkedin_post_contact_extractor',
-            'bot_linkedin_message_extraction',
-            'email',
-            'linkedin',
-            'job_board',
-            'scraper',
-            'hiring.cafe',
-            'email_bot_llm_local'
-        ),
-        nullable=False,
-        default='linkedin',
-        comment='source of job extraction'
-    )
-    source_uid = Column(String(255), nullable=True,
-                        comment='external job id or message id')
-    extracted_at = Column(
-        TIMESTAMP, nullable=False, server_default=func.now())
-    extractor_version = Column(String(50), nullable=True)
-    raw_title = Column(String(500), nullable=True)
-    raw_company = Column(String(255), nullable=True)
-    raw_location = Column(String(255), nullable=True)
-    raw_zip = Column(String(20), nullable=True)
-    raw_description = Column(Text, nullable=True)
-    raw_contact_info = Column(
-        Text, nullable=True, comment='emails, phones, linkedin, free text')
-    raw_notes = Column(Text, nullable=True,
-                       comment='any additional extractor notes')
-    raw_payload = Column(
-        JSON, nullable=True, comment='full extractor payload if available')
-    processing_status = Column(SQLAEnum(ProcessingStatusEnum),
-                               nullable=False, server_default='new')
-    error_message = Column(Text, nullable=True)
-    processed_at = Column(TIMESTAMP, nullable=True)
-    created_at = Column(TIMESTAMP, nullable=False,
-                        server_default=func.now())
-
-    __table_args__ = (
-        Index('idx_source_uid', 'source', 'source_uid'),
-        Index('idx_processing_status', 'processing_status'),
-        Index('idx_extracted_at', 'extracted_at'),
-        Index('idx_candidate_id', 'candidate_id'),
-    )
-
-
 class EmailPositionORM(Base):
     __tablename__ = "email_positions"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -1212,8 +1161,6 @@ class JobListingORM(Base):
                     nullable=False, server_default='open')
     confidence_score = Column(DECIMAL(
         5, 2), nullable=True, comment='extraction or matching confidence')
-    created_from_raw_id = Column(BigInteger, ForeignKey(
-        "raw_job_listings.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     updated_at = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)

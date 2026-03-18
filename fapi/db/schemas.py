@@ -212,7 +212,7 @@ class JobListingBase(BaseModel):
     notes: Optional[str] = None
     status: PositionStatusEnum = PositionStatusEnum.open
     confidence_score: Optional[float] = None
-    created_from_raw_id: Optional[int] = None
+
 
     @field_validator('contact_email')
     @classmethod
@@ -250,7 +250,7 @@ class JobListingUpdate(BaseModel):
     notes: Optional[str] = None
     status: Optional[PositionStatusEnum] = None
     confidence_score: Optional[float] = None
-    created_from_raw_id: Optional[int] = None
+
 
     @field_validator('contact_email')
     @classmethod
@@ -279,100 +279,6 @@ class JobListingBulkResponse(BaseModel):
     failed_contacts: List[dict] = []
 
 
-class RawJobListingSourceEnum(str, enum.Enum):
-    bot_linkedin_post_contact_extractor = 'bot_linkedin_post_contact_extractor'
-    bot_linkedin_message_extraction = 'bot_linkedin_message_extraction'
-    email = 'email'
-    linkedin = 'linkedin'
-    job_board = 'job_board'
-    scraper = 'scraper'
-    hiring_cafe = 'hiring.cafe'
-    email_bot_llm_local = 'email_bot_llm_local'
-
-
-class RawJobListingBase(BaseModel):
-    candidate_id: Optional[int] = None
-    source: RawJobListingSourceEnum = RawJobListingSourceEnum.linkedin
-    source_uid: Optional[str] = None
-    extractor_version: Optional[str] = None
-    raw_title: Optional[str] = None
-    raw_company: Optional[str] = None
-    raw_location: Optional[str] = None
-    raw_zip: Optional[str] = None
-    raw_description: Optional[str] = None
-    raw_contact_info: Optional[str] = None
-    raw_notes: Optional[str] = None
-    raw_payload: Optional[Dict[str, Any]] = None
-    processing_status: ProcessingStatusEnum = ProcessingStatusEnum.new
-    error_message: Optional[str] = None
-
-    @field_validator('raw_contact_info')
-    @classmethod
-    def normalize_contact_info(cls, v: Optional[str]) -> Optional[str]:
-        """Normalize emails in contact info to lowercase"""
-        if v:
-            # Use regex to find and normalize email addresses
-            import re
-            def lowercase_email(match):
-                return match.group(0).lower()
-            # Pattern to match email addresses
-            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-            return re.sub(email_pattern, lowercase_email, v)
-        return v
-
-
-class RawJobListingCreate(RawJobListingBase):
-    pass
-
-
-class RawJobListingUpdate(BaseModel):
-    source: Optional[RawJobListingSourceEnum] = None
-    source_uid: Optional[str] = None
-    extractor_version: Optional[str] = None
-    raw_title: Optional[str] = None
-    raw_company: Optional[str] = None
-    raw_location: Optional[str] = None
-    raw_zip: Optional[str] = None
-    raw_description: Optional[str] = None
-    raw_contact_info: Optional[str] = None
-    raw_notes: Optional[str] = None
-    raw_payload: Optional[Dict[str, Any]] = None
-    processing_status: Optional[ProcessingStatusEnum] = None
-    error_message: Optional[str] = None
-    processed_at: Optional[datetime] = None
-
-    @field_validator('raw_contact_info')
-    @classmethod
-    def normalize_contact_info(cls, v: Optional[str]) -> Optional[str]:
-        """Normalize emails in contact info to lowercase"""
-        if v:
-            import re
-            def lowercase_email(match):
-                return match.group(0).lower()
-            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-            return re.sub(email_pattern, lowercase_email, v)
-        return v
-
-
-class RawJobListingBulkCreate(BaseModel):
-    positions: List[RawJobListingCreate]
-
-
-class RawJobListingBulkResponse(BaseModel):
-    inserted: int
-    skipped: int
-    total: int
-    failed_contacts: List[dict] = []
-
-
-class RawJobListingOut(RawJobListingBase):
-    id: int
-    extracted_at: datetime
-    processed_at: Optional[datetime]
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class EmailPositionBase(BaseModel):
