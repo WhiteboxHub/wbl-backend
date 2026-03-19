@@ -41,6 +41,23 @@ def track_clicks_batch_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to track clicks: {str(e)}")
 
 
+@router.get("/click-analytics/paginated")
+def get_job_click_paginated_endpoint(
+    page: int = 1,
+    page_size: int = 5000,
+    db: Session = Depends(get_db),
+    user: any = Depends(enforce_access),
+):
+    """
+    **Get paginated comprehensive click analytics from MySQL**
+    """
+    try:
+        from fapi.utils.job_click_utils import get_paginated_job_click_analytics
+        return get_paginated_job_click_analytics(db, page=page, page_size=page_size)
+    except Exception as e:
+        logger.error(f"Error fetching click analytics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch analytics: {str(e)}")
+
 @router.get("/click-analytics", response_model=List[JobLinkClickAnalytics])
 def get_job_click_analytics_endpoint(
     db: Session = Depends(get_db),
@@ -66,3 +83,24 @@ def check_click_analytics_version(
     """
     from fapi.utils.job_click_utils import get_job_clicks_version
     return get_job_clicks_version(db)
+
+@router.delete("/click-analytics/{click_id}")
+def delete_click_analytics_endpoint(
+    click_id: int,
+    db: Session = Depends(get_db),
+    user: any = Depends(enforce_access),
+):
+    """
+    **Delete a job click analytics record**
+    """
+    try:
+        from fapi.utils.job_click_utils import delete_job_click
+        success = delete_job_click(db, click_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Click record not found")
+        return {"status": "success", "message": "Click record deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting click analytics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete click: {str(e)}")

@@ -96,8 +96,75 @@ def get_job_click_analytics(db: Session) -> List[Dict[str, Any]]:
         for r in results
     ]
 
+def get_paginated_job_click_analytics(db: Session, page: int = 1, page_size: int = 5000) -> Dict[str, Any]:
+    """
+    Get paginated full click analytics with 3-table join.
+    """
+    query = (
+        db.query(
+            JobLinkClicksORM.id,
+            JobLinkClicksORM.authuser_id,
+            JobLinkClicksORM.job_listing_id,
+            func.coalesce(CandidateORM.full_name, AuthUserORM.fullname).label("full_name"),
+            AuthUserORM.uname.label("email"),
+            JobListingORM.title.label("job_title"),
+            JobListingORM.company_name,
+            JobLinkClicksORM.click_count,
+            JobLinkClicksORM.first_clicked_at,
+            JobLinkClicksORM.last_clicked_at
+        )
+        .join(AuthUserORM, JobLinkClicksORM.authuser_id == AuthUserORM.id)
+        .join(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+        .outerjoin(CandidateORM, func.lower(AuthUserORM.uname) == func.lower(CandidateORM.email))
+    )
+
+    total_count = query.count()
+    offset = (page - 1) * page_size
+    results = query.order_by(JobLinkClicksORM.last_clicked_at.desc()).offset(offset).limit(page_size).all()
+    has_next = (offset + page_size) < total_count
+    
+    data = [
+        {
+            "id": r.id,
+            "authuser_id": r.authuser_id,
+            "job_listing_id": r.job_listing_id,
+            "full_name": r.full_name,
+            "email": r.email,
+            "job_title": r.job_title,
+            "company_name": r.company_name,
+            "click_count": r.click_count,
+            "first_clicked_at": r.first_clicked_at,
+            "last_clicked_at": r.last_clicked_at
+        }
+        for r in results
+    ]
+    
+    return {
+        "data": data,
+        "page": page,
+        "page_size": page_size,
+        "total": total_count,
+        "has_next": has_next
+    }
+
 def get_job_clicks_version(db: Session) -> Response:
     """
     Returns the table version for caching.
     """
     return generate_version_for_model(db, JobLinkClicksORM)
+
+def delete_job_click(db: Session, click_id: int) -> bool:
+    """
+    Deletes a specific job click record by ID.
+    """
+    try:
+        record = db.query(JobLinkClicksORM).filter(JobLinkClicksORM.id == click_id).first()
+        if not record:
+            return False
+        db.delete(record)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting job click {click_id}: {str(e)}")
+        raise e
