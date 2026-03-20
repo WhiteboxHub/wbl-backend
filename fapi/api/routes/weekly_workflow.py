@@ -58,6 +58,11 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
     if not candidate:
         return {}
 
+    # Grab the real full name from the parent table natively!
+    full_name = ""
+    if candidate.candidate:
+        full_name = getattr(candidate.candidate, "full_name", "")
+
     # Update the schedule if it exists
     schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == SCHEDULE_ID).first()
     if schedule:
@@ -71,6 +76,7 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
     # Return the full flat dictionary so the Python Engine's run_parameters_builder can use it!
     return {
         "candidate_id": getattr(candidate, "candidate_id", ""),
+        "full_name": full_name,
         "email": getattr(candidate, "email", ""),
         "password": getattr(candidate, "password", ""),
         "resume_url": getattr(candidate, "resume_url", ""),
