@@ -74,16 +74,25 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
     db.commit()
 
     # Return the full flat dictionary so the Python Engine's run_parameters_builder can use it!
+    # Extract deeply from the parent candidate model natively to avoid duplicate parsing
     return {
         "candidate_id": getattr(candidate, "candidate_id", ""),
         "full_name": full_name,
-        "email": getattr(candidate, "email", ""),
+        "email": getattr(candidate, "email", "") or (getattr(candidate.candidate, "email", "") if candidate.candidate else ""),
         "password": getattr(candidate, "password", ""),
         "resume_url": getattr(candidate, "resume_url", ""),
-        "google_voice_number": getattr(candidate, "google_voice_number", ""),
-        "linkedin_username": getattr(candidate, "linkedin_username", ""),
+        "google_voice_number": getattr(candidate, "google_voice_number", "") or (getattr(candidate.candidate, "phone", "") if candidate.candidate else ""),
+        "linkedin_username": getattr(candidate, "linkedin_username", "") or (getattr(candidate.candidate, "linkedin_id", "") if candidate.candidate else ""),
         "linkedin_passwd": getattr(candidate, "linkedin_passwd", ""),
         "candidate_intro": getattr(candidate, "candidate_intro", ""),
+        
+        # Newly mapped core Candidate fields
+        "workstatus": getattr(candidate.candidate, "workstatus", "") if candidate.candidate else "",
+        "address": getattr(candidate.candidate, "address", "") if candidate.candidate else "",
+        "zip_code": getattr(candidate.candidate, "zip_code", "") if candidate.candidate else "",
+        "education": getattr(candidate.candidate, "education", "") if candidate.candidate else "",
+        "workexperience": getattr(candidate.candidate, "workexperience", "") if candidate.candidate else "",
+        "github_link": getattr(candidate.candidate, "github_link", "") if candidate.candidate else "",
     }
 
 
