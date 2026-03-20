@@ -52,28 +52,33 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
     Returns {} if no triggered candidate found — engine exits cleanly.
     """
-    result = (
-        db.query(CandidateMarketingORM, AutomationWorkflowScheduleORM)
-        .join(
-            AutomationWorkflowScheduleORM,
-            AutomationWorkflowScheduleORM.id == SCHEDULE_ID,
-            isouter=False,
-        )
-        .filter(CandidateMarketingORM.run_weekly_workflow == 1)
-        .first()
-    )
+    # Fetch the first active candidate without relying on a strict inner join
+    candidate = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.run_weekly_workflow == 1).first()
 
-    if not result:
+    if not candidate:
         return {}
 
-    candidate, schedule = result
-    schedule.run_parameters = candidate.candidate_json or {}
-    schedule.last_run_at = datetime.utcnow()
-    schedule.next_run_at = _compute_next_run(schedule)
+    # Update the schedule if it exists
+    schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == SCHEDULE_ID).first()
+    if schedule:
+        schedule.last_run_at = datetime.utcnow()
+        schedule.next_run_at = _compute_next_run(schedule)
+    
+    # Reset candidate workflow so it doesn't loop
     candidate.run_weekly_workflow = 0
     db.commit()
-    db.refresh(schedule)
-    return schedule.run_parameters
+
+    # Return the full flat dictionary so the Python Engine's run_parameters_builder can use it!
+    return {
+        "candidate_id": getattr(candidate, "candidate_id", ""),
+        "email": getattr(candidate, "email", ""),
+        "password": getattr(candidate, "password", ""),
+        "resume_url": getattr(candidate, "resume_url", ""),
+        "google_voice_number": getattr(candidate, "google_voice_number", ""),
+        "linkedin_username": getattr(candidate, "linkedin_username", ""),
+        "linkedin_passwd": getattr(candidate, "linkedin_passwd", ""),
+        "candidate_intro": getattr(candidate, "candidate_intro", ""),
+    }
 
 
 @router.get("/eligible-candidates", dependencies=[Depends(enforce_access)])
