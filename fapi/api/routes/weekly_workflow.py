@@ -99,4 +99,31 @@ def reset_candidate_workflow(candidate_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate marketing record not found")
     candidate.run_weekly_workflow = 0
     db.commit()
-    return {"message": f"Reset run_weekly_workflow=0 for candidate_id={candidate_id}"}
+    return {"message": f"Reset run_weekly_workflow=0 for candidate_id={candidate_id}"}
+
+
+@router.post("/update-parameters/{candidate_id}")
+def update_run_parameters(
+    candidate_id: int, 
+    payload: dict, 
+    db: Session = Depends(get_db)
+):
+    """Saves the completely built run_parameters JSON back to the DB so it appears in the UI."""
+    
+    # 1. Update Candidate DB Record
+    candidate = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate_id).first()
+    if candidate:
+        # Some tables use candidate_json, some use run_parameters
+        if hasattr(candidate, 'candidate_json'):
+            candidate.candidate_json = payload
+        if hasattr(candidate, 'run_parameters'):
+            candidate.run_parameters = payload
+
+    # 2. Update Automation Schedule UI table
+    schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == SCHEDULE_ID).first()
+    if schedule:
+        schedule.run_parameters = payload
+        
+    db.commit()
+    return {"message": "Successfully saved run_parameters back to the database UI!"}
+
