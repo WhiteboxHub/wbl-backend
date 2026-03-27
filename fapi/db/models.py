@@ -1136,8 +1136,10 @@ class JobListingORM(Base):
             'job_board',
             'scraper',
             'hiring.cafe',
+            'trueup.io',
             'interview_modal',
             'email_bot_llm_local',
+            'trueup.io',
             name='job_listing_source_enum'
         ),
         nullable=False,
