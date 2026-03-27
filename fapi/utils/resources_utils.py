@@ -98,17 +98,17 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
     return {"recordings": recordings}
 
 
-def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None):
+def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None, is_active: bool = None, is_employee: bool = False):
     if not course_id or not session_type:
         return []
 
     # Normalize session type for database query
     db_session_type = "Internal Session" if session_type == "Internal Sessions" else session_type
         
-    # Check if user is allowed to access Internal Sessions
+    # Check if user is allowed to access Internal Sessions - only active employees/instructors
     if db_session_type == "Internal Session":
-        if role != "admin" or user_team != "admin":
-            return []  # Non-admin users get empty results for Internal Sessions
+        if not (is_employee and is_active):
+            return [] # Candidates and inactive employees get empty results for Internal Sessions
 
     allowed_types = [
         "Resume Session", "Job Help", "Interview Prep",
@@ -138,31 +138,38 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
     return sessions
 
 
-def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None) -> List[str]:
-    
-    if role == "admin" and user_team == "admin":
-        # Admin user sees all types including Internal Sessions
-        result = db.execute(
-            select(SessionORM.type).distinct().order_by(SessionORM.type))
-    else:
-        # Non-admin users don't see Internal Sessions
-        allowed_types = [
-            "Resume Session", "Job Help", "Interview Prep",
-            "Individual Mock", "Group Mock", "Misc"
-        ]
-        result = db.execute(
-            select(SessionORM.type).distinct()
-            .where(SessionORM.type.in_(allowed_types))
-            .order_by(SessionORM.type)
-        )
+def fetch_session_types_by_team(db, team, role, user_team, is_active, is_employee):
+    # Get distinct session types from the Session table
+    result = db.execute(
+        select(func.distinct(SessionORM.type)).where(SessionORM.type != None)
+    ).scalars().all()
 
-    session_types = [row[0] for row in result.fetchall()]
-    # Normalize "Internal Session" to "Internal Sessions" for UI consistency
-    normalized_types = ["Internal Sessions" if t == "Internal Session" else t for t in session_types]
+    filtered_types = []
+    seen_types = set()  # Track already added types to avoid duplicates
 
-    return normalized_types
+    for session_type in result:
+        if not session_type:
+            continue
+        
+        # Normalize both "Internal Session" and "Internal Sessions" to "Internal Sessions"
+        normalized_type = session_type
+        if "internal session" in session_type.lower():
+            normalized_type = "Internal Sessions"
+        
+        # Skip if we've already added this type
+        if normalized_type in seen_types:
+            continue
+        
+        # Only show Internal Sessions to active employees/instructors
+        if normalized_type == "Internal Sessions":
+            if is_employee and is_active:
+                filtered_types.append(normalized_type)
+                seen_types.add(normalized_type)
+        else:
+            filtered_types.append(normalized_type)
+            seen_types.add(normalized_type)
 
-
+    return filtered_types
 def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
     course = "ML"
     try:

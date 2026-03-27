@@ -82,6 +82,8 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
     # Treat the provided username as an email for employee lookup.
     employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
     if employee:
+        if employee.status != 1:
+            return "inactive_employee"
         # Grant employee an admin-like role for avatar access.
         # We set role and is_admin flags; token creation will respect explicit role if provided.
         return {**user.__dict__, "candidateid": None, "role": "admin", "is_admin": True, "is_employee": True}

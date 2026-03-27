@@ -62,12 +62,17 @@ async def login_for_access_token(
         login_count = db_user.logincount
     else:
         login_count = 0
+    
+    # Set is_active only for active employees, not for candidates
+    is_active = user.get("is_employee", False)
+    
     token_data = {
         "sub": user.get("uname"),
         "team": user.get("team", "default_team"),
         "role": user.get("role", None),
         "is_admin": user.get("is_admin", False),
         "is_employee": user.get("is_employee", False),
+        "is_active": is_active,
     }
 
     access_token = create_access_token(token_data)
