@@ -39,6 +39,7 @@ class JobListingSourceEnum(str, enum.Enum):
     hiring_cafe = 'hiring.cafe'
     interview_modal = 'interview_modal'
     email_bot_llm_local = 'email_bot_llm_local'
+    trueup_io = 'trueup.io'
 
 
 class ProcessingStatusEnum(str, enum.Enum):
