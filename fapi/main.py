@@ -18,6 +18,7 @@ from fapi.api.routes import (
 )
 import asyncio
 
+from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +30,25 @@ app = FastAPI(title="WBL Backend")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wbl")
+
+@app.on_event("startup")
+async def startup_event():
+    redis_client.connect()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    redis_client.disconnect()
+
+@app.get("/api/redis-health", tags=["Health"])
+async def redis_health():
+    client = redis_client.get_client()
+    if client:
+        try:
+            client.ping()
+            return {"status": "connected", "message": "Redis is up and running"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    return {"status": "disconnected", "message": "Redis client not initialized"}
 
 app.add_middleware(
     CORSMiddleware,

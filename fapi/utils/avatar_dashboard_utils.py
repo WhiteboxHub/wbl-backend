@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session,aliased
 from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, literal_column
+from fapi.core.cache import cache_result
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Vendor, VendorContactExtractsORM, Recording, RecordingBatch, EmployeeTaskORM, JobTypeORM, JobActivityLogORM, PlacementFeeCollection, AmountCollectedEnum
 from fapi.db.schemas import CandidatePreparationMetrics, EmployeeTaskMetrics, JobsMetrics
 import re
 
+@cache_result(ttl=300, prefix="metrics")
 def get_batch_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
     current_active_batches = db.query(Batch).filter(
@@ -81,6 +83,7 @@ def get_batch_metrics(db: Session) -> Dict[str, Any]:
     }
 
 
+@cache_result(ttl=300, prefix="metrics")
 def get_financial_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
 
@@ -184,6 +187,7 @@ def get_financial_metrics(db: Session) -> Dict[str, Any]:
     }
 
 
+@cache_result(ttl=300, prefix="metrics")
 def get_placement_metrics(db: Session) -> Dict[str, Any]:
     today = date.today()
     first_day_year = today.replace(month=1, day=1)
@@ -243,6 +247,7 @@ def get_placement_metrics(db: Session) -> Dict[str, Any]:
     }
 
 # Interview metrics
+@cache_result(ttl=300, prefix="metrics")
 def get_interview_metrics(db: Session) -> Dict[str, Any]:
     today = datetime.now().date()
     next_week = today + timedelta(days=7)
@@ -308,6 +313,7 @@ def get_interview_metrics(db: Session) -> Dict[str, Any]:
     }
 
 # upcoming batches
+@cache_result(ttl=300, prefix="batches")
 def get_upcoming_batches(db: Session, limit: int = 3) -> List[Dict[str, Any]]:
     today = date.today()
     upcoming_batches = db.query(Batch).filter(
@@ -323,6 +329,7 @@ def get_upcoming_batches(db: Session, limit: int = 3) -> List[Dict[str, Any]]:
     ]
 
 # Top batch revenue
+@cache_result(ttl=300, prefix="metrics")
 def get_top_batches_revenue(db: Session, limit: int = 5) -> List[Dict[str, Any]]:
     try:
         today = date.today()
@@ -398,6 +405,7 @@ def get_employee_birthdays(db: Session):
     }
 
 
+@cache_result(ttl=300, prefix="metrics")
 def get_lead_metrics(db: Session) -> dict[str, any]:
     
     total_leads = db.query(func.count(LeadORM.id)).scalar() or 0
@@ -450,6 +458,7 @@ def get_lead_metrics(db: Session) -> dict[str, any]:
     }
 
 
+@cache_result(ttl=300, prefix="candidates")
 def candidate_interview_performance(db: Session):
     results = (
         db.query(
@@ -482,6 +491,7 @@ def candidate_interview_performance(db: Session):
 
 
 
+@cache_result(ttl=300, prefix="metrics")
 def get_candidate_preparation_metrics(db: Session):
     total_preparation_candidates = db.query(func.count(CandidatePreparation.id)).scalar() or 0
     active_candidates = db.query(func.count(CandidatePreparation.id)).filter(
@@ -498,6 +508,7 @@ def get_candidate_preparation_metrics(db: Session):
     )
 
 
+@cache_result(ttl=300, prefix="metrics")
 def get_vendor_stats(db: Session):
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -533,6 +544,7 @@ def get_vendor_stats(db: Session):
 
 
 
+@cache_result(ttl=300, prefix="batches")
 def get_classes_per_latest_batches(db: Session, limit: int = 5):
     latest_batches_subq = (
         db.query(Batch.batchid)
@@ -541,7 +553,7 @@ def get_classes_per_latest_batches(db: Session, limit: int = 5):
         .subquery()
     )
 
-    result = (
+    rows = (
         db.query(
             Batch.batchname,
             func.count(Recording.id).label("classes_count"),
@@ -555,8 +567,16 @@ def get_classes_per_latest_batches(db: Session, limit: int = 5):
         .all()
     )
 
-    return result
+    return [
+        {
+            "batchname": r.batchname,
+            "classes_count": r.classes_count,
+            "max_startdate": r.max_startdate.isoformat() if r.max_startdate else None
+        }
+        for r in rows
+    ]
 
+@cache_result(ttl=300, prefix="metrics")
 def get_employee_task_metrics(db: Session) -> EmployeeTaskMetrics:
     today = date.today()
     total_tasks = db.query(EmployeeTaskORM).count()
@@ -579,6 +599,7 @@ def get_employee_task_metrics(db: Session) -> EmployeeTaskMetrics:
     )
 
 
+@cache_result(ttl=300, prefix="metrics")
 def get_job_metrics(db: Session) -> JobsMetrics:
     today = date.today()
     week_ago = today - timedelta(days=7)

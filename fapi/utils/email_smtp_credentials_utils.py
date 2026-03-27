@@ -6,13 +6,17 @@ from typing import List, Optional
 from datetime import datetime
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="email_smtp_credentials")
 def get_email_smtp_credential_by_id(db: Session, credential_id: int):
     return db.query(EmailSMTPCredentialsORM).filter(EmailSMTPCredentialsORM.id == credential_id).first()
 
+@cache_result(ttl=300, prefix="email_smtp_credentials")
 def get_email_smtp_credential_by_email(db: Session, email: str):
     return db.query(EmailSMTPCredentialsORM).filter(EmailSMTPCredentialsORM.email == email).first()
 
+@cache_result(ttl=300, prefix="email_smtp_credentials")
 def get_email_smtp_credentials(
     db: Session, 
     skip: int = 0, 
@@ -25,6 +29,7 @@ def get_email_smtp_credentials(
     return query.order_by(desc(EmailSMTPCredentialsORM.created_at)).offset(skip).limit(limit).all()
 
 def create_email_smtp_credential(db: Session, credential_in: EmailSMTPCredentialsCreate):
+    invalidate_cache("email_smtp_credentials")
     db_credential = EmailSMTPCredentialsORM(
         name=credential_in.name,
         email=credential_in.email,
@@ -44,6 +49,7 @@ def update_email_smtp_credential(
     credential_id: int, 
     credential_in: EmailSMTPCredentialsUpdate
 ):
+    invalidate_cache("email_smtp_credentials")
     db_credential = get_email_smtp_credential_by_id(db, credential_id)
     if not db_credential:
         return None
@@ -61,6 +67,7 @@ def update_email_smtp_credential(
     return db_credential
 
 def delete_email_smtp_credential(db: Session, credential_id: int):
+    invalidate_cache("email_smtp_credentials")
     db_credential = get_email_smtp_credential_by_id(db, credential_id)
     if not db_credential:
         return None

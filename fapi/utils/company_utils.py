@@ -5,7 +5,9 @@ from fapi.db.schemas import CompanyCreate, CompanyUpdate
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="companies")
 def get_companies(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[Company]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999  # Effectively unlimited, but may cause timeout
@@ -21,10 +23,12 @@ def get_companies(db: Session, skip: int = 0, limit: Optional[int] = None) -> Li
     
     return query.all()
 
+@cache_result(ttl=300, prefix="companies")
 def get_company(db: Session, company_id: int) -> Optional[Company]:
     return db.query(Company).filter(Company.id == company_id).first()
 
 def create_company(db: Session, company: CompanyCreate) -> Company:
+    invalidate_cache("companies")
     db_company = Company(**company.model_dump())
     db.add(db_company)
     db.commit()
@@ -32,6 +36,7 @@ def create_company(db: Session, company: CompanyCreate) -> Company:
     return db_company
 
 def update_company(db: Session, company_id: int, company: CompanyUpdate) -> Optional[Company]:
+    invalidate_cache("companies")
     db_company = db.query(Company).filter(Company.id == company_id).first()
     if not db_company:
         return None
@@ -45,6 +50,7 @@ def update_company(db: Session, company_id: int, company: CompanyUpdate) -> Opti
     return db_company
 
 def delete_company(db: Session, company_id: int) -> bool:
+    invalidate_cache("companies")
     db_company = db.query(Company).filter(Company.id == company_id).first()
     if not db_company:
         return False
@@ -53,6 +59,7 @@ def delete_company(db: Session, company_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="companies")
 def search_companies(db: Session, term: str) -> List[Company]:
     return db.query(Company).filter(
         or_(
@@ -62,6 +69,7 @@ def search_companies(db: Session, term: str) -> List[Company]:
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="companies")
 def count_companies(db: Session) -> int:
     """Get total count of companies for pagination"""
     return db.query(Company).count()

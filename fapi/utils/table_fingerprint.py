@@ -2,6 +2,7 @@ import hashlib
 from sqlalchemy import func, String, Text, Integer, Float, Boolean, Date, DateTime, TIMESTAMP
 from sqlalchemy.orm import Session
 from fastapi import Response
+from sqlalchemy.types import JSON, LargeBinary
 
 def get_model_fingerprint(db: Session, model_class) -> str:
     """
@@ -38,7 +39,7 @@ def get_model_fingerprint(db: Session, model_class) -> str:
         if pk_columns:
             id_col = pk_columns[0]
 
-        from sqlalchemy.types import JSON, LargeBinary
+
         checksum_cols = []
         for c in columns:
             if not isinstance(c.type, (JSON, LargeBinary)):

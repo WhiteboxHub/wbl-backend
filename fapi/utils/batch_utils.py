@@ -3,7 +3,9 @@ from fapi.db import models, schemas
 from typing import Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="batches")
 def get_all_batches(db: Session, search: Optional[str] = None):
     query = db.query(models.Batch)
 
@@ -21,11 +23,14 @@ def get_all_batches(db: Session, search: Optional[str] = None):
     return query.order_by(models.Batch.batchid.desc()).all()
 
 
+@cache_result(ttl=300, prefix="batches")
 def get_batch_by_id(db: Session, batch_id: int):
     return db.query(models.Batch).filter(models.Batch.batchid == batch_id).first()
 
 
 def create_batch(db: Session, batch: schemas.BatchCreate):
+    invalidate_cache("batches")
+    invalidate_cache("metrics")
     db_batch = models.Batch(**batch.dict())
     db.add(db_batch)
     db.commit()
@@ -34,6 +39,8 @@ def create_batch(db: Session, batch: schemas.BatchCreate):
 
 
 def update_batch(db: Session, batch_id: int, batch: schemas.BatchUpdate):
+    invalidate_cache("batches")
+    invalidate_cache("metrics")
     db_batch = db.query(models.Batch).filter(models.Batch.batchid == batch_id).first()
     if not db_batch:
         return None
@@ -45,6 +52,8 @@ def update_batch(db: Session, batch_id: int, batch: schemas.BatchUpdate):
 
 
 def delete_batch(db: Session, batch_id: int):
+    invalidate_cache("batches")
+    invalidate_cache("metrics")
     db_batch = db.query(models.Batch).filter(models.Batch.batchid == batch_id).first()
     if not db_batch:
         return None

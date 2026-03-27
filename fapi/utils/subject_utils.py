@@ -5,16 +5,21 @@ from fapi.db import schemas
 from datetime import datetime  
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="subjects")
 def get_all_subjects(db: Session) -> List[models.Subject]:
     """Get all subjects"""
     return db.query(models.Subject).all()
 
+@cache_result(ttl=300, prefix="subjects")
 def get_subject_by_id(db: Session, subject_id: int) -> Optional[models.Subject]:
     """Get subject by ID"""
     return db.query(models.Subject).filter(models.Subject.id == subject_id).first()
 
 def create_subject(db: Session, subject: schemas.SubjectCreate) -> models.Subject:
+    invalidate_cache("subjects")
+    invalidate_cache("resources")
     """Create a new subject"""
     existing_subject = db.query(models.Subject).filter(models.Subject.name == subject.name).first()
     if existing_subject:
@@ -27,6 +32,8 @@ def create_subject(db: Session, subject: schemas.SubjectCreate) -> models.Subjec
     return db_subject
 
 def update_subject(db: Session, subject_id: int, subject: schemas.SubjectUpdate) -> models.Subject:
+    invalidate_cache("subjects")
+    invalidate_cache("resources")
     """Update an existing subject"""
     db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if not db_subject:
@@ -50,6 +57,8 @@ def update_subject(db: Session, subject_id: int, subject: schemas.SubjectUpdate)
     return db_subject
 
 def delete_subject(db: Session, subject_id: int) -> bool:
+    invalidate_cache("subjects")
+    invalidate_cache("resources")
     """Delete a subject"""
     db_subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
     if not db_subject:
