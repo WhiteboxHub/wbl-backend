@@ -6,6 +6,7 @@ from fapi.db.models import EmployeeORM
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
 from sqlalchemy.orm import Session
+from fapi.core.cache import cache_result, invalidate_cache
 
 
 def clean_invalid_values(row: dict) -> dict:
@@ -16,6 +17,7 @@ def clean_invalid_values(row: dict) -> dict:
     }
 
 
+@cache_result(ttl=300, prefix="employees")
 def get_all_employees() -> list[dict]:
     with SessionLocal() as session:
         employees = (
@@ -25,6 +27,7 @@ def get_all_employees() -> list[dict]:
         )
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_by_email(email: str):
     with SessionLocal() as session:
         employee = (
@@ -37,6 +40,7 @@ def get_employee_by_email(email: str):
         return None
     
 def create_employee_db(employee_data: dict) -> EmployeeORM:
+    invalidate_cache("employees")
     
     if not employee_data.get("startdate"):
         employee_data["startdate"] = date.today()
@@ -50,6 +54,7 @@ def create_employee_db(employee_data: dict) -> EmployeeORM:
 
 
 def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:
+    invalidate_cache("employees")
     with SessionLocal() as session:
         employee = session.query(EmployeeORM).filter(
             EmployeeORM.id == employee_id
@@ -68,6 +73,7 @@ def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:
 
 
 def delete_employee_db(employee_id: int) -> None:
+    invalidate_cache("employees")
     with SessionLocal() as session:
         employee = session.query(EmployeeORM).filter(
             EmployeeORM.id == employee_id

@@ -6,7 +6,9 @@ from typing import Dict, Any, Optional
 from fapi.db import models
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="placement_fees")
 def list_placement_fees(db: Session):
     results = db.query(
         models.PlacementFeeCollection,
@@ -39,6 +41,7 @@ def list_placement_fees(db: Session):
     return fees
 
 
+@cache_result(ttl=300, prefix="placement_fees")
 def get_placement_fee(db: Session, fee_id: int) -> Optional[models.PlacementFeeCollection]:
     result = db.query(
         models.PlacementFeeCollection,
@@ -68,6 +71,8 @@ def get_placement_fee(db: Session, fee_id: int) -> Optional[models.PlacementFeeC
 
 
 def create_placement_fee(db: Session, data: Dict[str, Any], user_id: int = None) -> models.PlacementFeeCollection:
+    invalidate_cache("placement_fees")
+    invalidate_cache("metrics")
     # Normalize fields
     if "deposit_amount" in data and data["deposit_amount"] is not None:
         data["deposit_amount"] = Decimal(str(data["deposit_amount"]))
@@ -86,6 +91,8 @@ def create_placement_fee(db: Session, data: Dict[str, Any], user_id: int = None)
 
 
 def update_placement_fee(db: Session, fee_id: int, data: Dict[str, Any], user_id: int = None) -> Optional[models.PlacementFeeCollection]:
+    invalidate_cache("placement_fees")
+    invalidate_cache("metrics")
     obj = db.query(models.PlacementFeeCollection).filter(
         models.PlacementFeeCollection.id == fee_id
     ).first()
@@ -112,6 +119,8 @@ def update_placement_fee(db: Session, fee_id: int, data: Dict[str, Any], user_id
 
 
 def delete_placement_fee(db: Session, fee_id: int) -> None:
+    invalidate_cache("placement_fees")
+    invalidate_cache("metrics")
     obj = db.query(models.PlacementFeeCollection).filter(
         models.PlacementFeeCollection.id == fee_id
     ).first()

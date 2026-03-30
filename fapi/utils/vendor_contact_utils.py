@@ -10,6 +10,7 @@ from fapi.db.models import VendorContactExtractsORM, Vendor, VendorTypeEnum
 from fapi.db.schemas import VendorContactExtractCreate, VendorContactExtractUpdate, VendorBase
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ def build_duplicate_notes(vendor: Vendor, extract: VendorContactExtractsORM) -> 
 
     return "\n".join(notes)
 
+@cache_result(ttl=300, prefix="vendor_contacts")
 async def get_all_vendor_contacts(db: Session) -> List[VendorContactExtractsORM]:
 
     try:
@@ -82,6 +84,7 @@ async def get_all_vendor_contacts(db: Session) -> List[VendorContactExtractsORM]
         logger.error(f"Error fetching vendor contacts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching vendor contacts: {str(e)}")
 
+@cache_result(ttl=300, prefix="vendor_contacts")
 async def get_vendor_contact_by_id(contact_id: int, db: Session) -> VendorContactExtractsORM:
  
     contact = db.query(VendorContactExtractsORM).filter(VendorContactExtractsORM.id == contact_id).first()
@@ -90,6 +93,8 @@ async def get_vendor_contact_by_id(contact_id: int, db: Session) -> VendorContac
     return contact
 
 async def insert_vendor_contact(contact: VendorContactExtractCreate, db: Session) -> VendorContactExtractsORM:
+    invalidate_cache("vendor_contacts")
+    invalidate_cache("metrics")
     
     try:
        
@@ -110,6 +115,8 @@ async def insert_vendor_contact(contact: VendorContactExtractCreate, db: Session
         raise HTTPException(status_code=500, detail=f"Insert error: {str(e)}")
 
 async def update_vendor_contact(contact_id: int, update_data: VendorContactExtractUpdate, db: Session) -> VendorContactExtractsORM:
+    invalidate_cache("vendor_contacts")
+    invalidate_cache("metrics")
     """Update vendor contact using SQLAlchemy ORM"""
     if not update_data.dict(exclude_unset=True):
         raise HTTPException(status_code=400, detail="No data to update")
@@ -138,6 +145,8 @@ async def update_vendor_contact(contact_id: int, update_data: VendorContactExtra
         raise HTTPException(status_code=500, detail=f"Update error: {str(e)}")
 
 async def delete_vendor_contact(contact_id: int, db: Session) -> dict:
+    invalidate_cache("vendor_contacts")
+    invalidate_cache("metrics")
     """Delete vendor contact using SQLAlchemy ORM"""
     db_contact = db.query(VendorContactExtractsORM).filter(VendorContactExtractsORM.id == contact_id).first()
     if not db_contact:
@@ -156,6 +165,8 @@ async def delete_vendor_contact(contact_id: int, db: Session) -> dict:
 
 
 async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate], db: Session) -> dict:
+    invalidate_cache("vendor_contacts")
+    invalidate_cache("metrics")
     """Bulk insert vendor contacts with duplicate handling"""
     inserted = 0
     failed = 0
@@ -212,6 +223,8 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
 
 
 async def delete_vendor_contacts_bulk(contact_ids: List[int], db: Session) -> dict:
+    invalidate_cache("vendor_contacts")
+    invalidate_cache("metrics")
     """Bulk delete vendor contacts"""
     try:
         deleted_count = db.query(VendorContactExtractsORM).filter(
@@ -232,6 +245,9 @@ async def delete_vendor_contacts_bulk(contact_ids: List[int], db: Session) -> di
 
 
 async def move_contacts_to_vendor(contact_ids: List[int], db: Session) -> Dict:
+    invalidate_cache("vendor_contacts")
+    invalidate_cache("vendors")
+    invalidate_cache("metrics")
     """Move vendor contacts to vendor table with deduplication using ORM
     
     Args:

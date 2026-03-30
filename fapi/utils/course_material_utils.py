@@ -4,6 +4,7 @@ from fapi.db import models
 from fapi.db import schemas
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
 COURSE_MATERIAL_TYPE_MAPPING = {
     "P": "Presentations",
@@ -35,6 +36,7 @@ def get_course_fallback(course_id: int) -> str:
         return "Fundamentals"
     raise ValueError(f"Invalid course ID: {course_id}. Course not found in database.")
 
+@cache_result(ttl=300, prefix="course_materials")
 def get_all_course_materials_enriched(db: Session) -> List[dict]:
     """Get all course materials with enriched data using SQL JOIN"""
     materials = db.query(
@@ -72,6 +74,7 @@ def get_all_course_materials_enriched(db: Session) -> List[dict]:
     
     return enriched_materials
 
+@cache_result(ttl=300, prefix="course_materials")
 def get_course_material_enriched(db: Session, material_id: int) -> Optional[dict]:
     """Get a specific course material by ID with enriched data using JOIN"""
     result = db.query(
@@ -124,15 +127,19 @@ def validate_course_material_associations(db: Session, subject_id: int, course_i
             raise ValueError(f"Course ID {course_id} does not exist in database")
 
 # Updated CRUD functions
+@cache_result(ttl=300, prefix="course_materials")
 def get_all_course_materials(db: Session) -> List[models.CourseMaterial]:
     """Get all course materials with raw data (for editing)"""
     return db.query(models.CourseMaterial).order_by(models.CourseMaterial.sortorder).all()
 
+@cache_result(ttl=300, prefix="course_materials")
 def get_course_material(db: Session, material_id: int) -> Optional[models.CourseMaterial]:
     """Get a specific course material by ID (for editing)"""
     return db.query(models.CourseMaterial).filter(models.CourseMaterial.id == material_id).first()
 
 def create_course_material(db: Session, course_material: schemas.CourseMaterialCreate) -> dict:
+    invalidate_cache("course_materials")
+    invalidate_cache("resources") # Resources often fetch these
     """Create a new course material and return enriched data"""
     # Validate material type
     valid_types = ['P', 'Y', 'C', 'SG', 'D', 'S', 'I', 'B', 'N', 'M', 'A']
@@ -163,6 +170,8 @@ def update_course_material(
     material_id: int, 
     course_material_update: schemas.CourseMaterialUpdate
 ) -> dict:
+    invalidate_cache("course_materials")
+    invalidate_cache("resources")
     """Update a course material and return enriched data"""
     db_course_material = get_course_material(db, material_id)
     if not db_course_material:
@@ -191,6 +200,8 @@ def update_course_material(
     return get_course_material_enriched(db, material_id)
 
 def delete_course_material(db: Session, material_id: int) -> bool:
+    invalidate_cache("course_materials")
+    invalidate_cache("resources")
     """Delete a course material"""
     course_material = get_course_material(db, material_id)
     if not course_material:
@@ -200,6 +211,7 @@ def delete_course_material(db: Session, material_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="course_materials") # Orphaned check is rare
 def get_orphaned_course_materials(db: Session) -> List[models.CourseMaterial]:
     """Utility function to find course materials with invalid subject/course associations"""
     all_materials = get_all_course_materials(db)

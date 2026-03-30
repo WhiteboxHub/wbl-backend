@@ -4,14 +4,18 @@ from fapi.db.schemas import EmailTemplateCreate, EmailTemplateUpdate
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="email_templates")
 def get_email_templates(db: Session) -> List[EmailTemplateORM]:
     return db.query(EmailTemplateORM).all()
 
+@cache_result(ttl=300, prefix="email_templates")
 def get_email_template(db: Session, template_id: int) -> Optional[EmailTemplateORM]:
     return db.query(EmailTemplateORM).filter(EmailTemplateORM.id == template_id).first()
 
 def create_email_template(db: Session, template: EmailTemplateCreate) -> EmailTemplateORM:
+    invalidate_cache("email_templates")
     db_template = EmailTemplateORM(**template.model_dump())
     db.add(db_template)
     db.commit()
@@ -19,6 +23,7 @@ def create_email_template(db: Session, template: EmailTemplateCreate) -> EmailTe
     return db_template
 
 def update_email_template(db: Session, template_id: int, template: EmailTemplateUpdate) -> Optional[EmailTemplateORM]:
+    invalidate_cache("email_templates")
     db_template = db.query(EmailTemplateORM).filter(EmailTemplateORM.id == template_id).first()
     if not db_template:
         return None
@@ -32,6 +37,7 @@ def update_email_template(db: Session, template_id: int, template: EmailTemplate
     return db_template
 
 def delete_email_template(db: Session, template_id: int) -> bool:
+    invalidate_cache("email_templates")
     db_template = db.query(EmailTemplateORM).filter(EmailTemplateORM.id == template_id).first()
     if not db_template:
         return False

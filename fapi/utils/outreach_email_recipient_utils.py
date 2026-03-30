@@ -5,7 +5,9 @@ from fapi.db.schemas import OutreachEmailRecipientCreate, OutreachEmailRecipient
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="outreach_email_recipients")
 def get_recipients(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[OutreachEmailRecipient]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999
@@ -19,10 +21,12 @@ def get_recipients(db: Session, skip: int = 0, limit: Optional[int] = None) -> L
     
     return query.all()
 
+@cache_result(ttl=300, prefix="outreach_email_recipients")
 def get_recipient(db: Session, recipient_id: int) -> Optional[OutreachEmailRecipient]:
     return db.query(OutreachEmailRecipient).filter(OutreachEmailRecipient.id == recipient_id).first()
 
 def create_recipient(db: Session, recipient: OutreachEmailRecipientCreate) -> OutreachEmailRecipient:
+    invalidate_cache("outreach_email_recipients")
     db_recipient = OutreachEmailRecipient(**recipient.model_dump())
     db.add(db_recipient)
     db.commit()
@@ -30,6 +34,7 @@ def create_recipient(db: Session, recipient: OutreachEmailRecipientCreate) -> Ou
     return db_recipient
 
 def update_recipient(db: Session, recipient_id: int, recipient: OutreachEmailRecipientUpdate) -> Optional[OutreachEmailRecipient]:
+    invalidate_cache("outreach_email_recipients")
     db_recipient = db.query(OutreachEmailRecipient).filter(OutreachEmailRecipient.id == recipient_id).first()
     if not db_recipient:
         return None
@@ -43,6 +48,7 @@ def update_recipient(db: Session, recipient_id: int, recipient: OutreachEmailRec
     return db_recipient
 
 def delete_recipient(db: Session, recipient_id: int) -> bool:
+    invalidate_cache("outreach_email_recipients")
     db_recipient = db.query(OutreachEmailRecipient).filter(OutreachEmailRecipient.id == recipient_id).first()
     if not db_recipient:
         return False
@@ -51,6 +57,7 @@ def delete_recipient(db: Session, recipient_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="outreach_email_recipients")
 def search_recipients(db: Session, term: str) -> List[OutreachEmailRecipient]:
     return db.query(OutreachEmailRecipient).filter(
         or_(
@@ -60,6 +67,7 @@ def search_recipients(db: Session, term: str) -> List[OutreachEmailRecipient]:
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="outreach_email_recipients")
 def count_recipients(db: Session) -> int:
     return db.query(OutreachEmailRecipient).count()
 
