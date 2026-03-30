@@ -23,12 +23,14 @@ if not ALGORITHM:
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))  # Defaults to 1440 if not set
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES  = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", 15))
 
-# Redis Configuration
-REDIS_HOST = os.getenv("REDIS_HOST")
-if not REDIS_HOST:
-    raise ValueError("REDIS_HOST not set")
+# Upstash Redis Configuration
+UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")
+UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
 
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+if not UPSTASH_REDIS_REST_URL:
+    raise ValueError("UPSTASH_REDIS_REST_URL not set")
+
+if not UPSTASH_REDIS_REST_TOKEN:
+    raise ValueError("UPSTASH_REDIS_REST_TOKEN not set")
+
 REDIS_TTL_DEFAULT = int(os.getenv("REDIS_TTL_DEFAULT", 300))

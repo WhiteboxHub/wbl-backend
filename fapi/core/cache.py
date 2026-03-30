@@ -73,6 +73,8 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
             try:
                 cached_data = client.get(cache_key)
                 if cached_data:
+                    if isinstance(cached_data, (bytes, bytearray)):
+                        cached_data = cached_data.decode()
                     msg = f"🟢 [REDIS CACHE HIT] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
                     print(msg) # Ensure visibility in terminal
@@ -86,10 +88,10 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
             # Store result in cache
             try:
                 if result is not None:
-                    client.setex(
+                    client.set(
                         cache_key,
-                        ttl,
-                        json.dumps(result, default=alchemy_encoder)
+                        json.dumps(result, default=alchemy_encoder),
+                        ex=ttl
                     )
                     msg = f"⚪ [REDIS CACHE MISS] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
@@ -133,6 +135,8 @@ def cache_response(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general")
             try:
                 cached_data = client.get(cache_key)
                 if cached_data:
+                    if isinstance(cached_data, (bytes, bytearray)):
+                        cached_data = cached_data.decode()
                     logger.info(f"CACHE HIT: {cache_key}")
                     return json.loads(cached_data)
             except Exception as e:
@@ -144,10 +148,10 @@ def cache_response(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general")
             # Store result in cache
             try:
                 if response_data is not None:
-                    client.setex(
+                    client.set(
                         cache_key,
-                        ttl,
-                     json.dumps(response_data, default=alchemy_encoder)
+                        json.dumps(response_data, default=alchemy_encoder),
+                        ex=ttl
                     )
                     logger.info(f"CACHE MISS (Stored in Redis): {cache_key}")
             except Exception as e:

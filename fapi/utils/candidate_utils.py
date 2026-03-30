@@ -671,7 +671,12 @@ def list_interviews_with_instructors(db: Session):
         .all()
     )
 
-def serialize_interview(interview: CandidateInterview) -> dict:
+def serialize_interview(interview) -> dict:
+    # When the result comes from a Redis cache hit, it's already a plain dict.
+    # Return it as-is — it was serialized correctly on the original cache-write path.
+    if isinstance(interview, dict):
+        return interview
+
     data = CandidateInterviewOut.from_orm(interview).dict()
 
     data["instructor1_name"] = None
