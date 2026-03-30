@@ -33,11 +33,13 @@ logger = logging.getLogger("wbl")
 
 @app.on_event("startup")
 async def startup_event():
-    redis_client.connect()
+    redis_client.get_client()
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    redis_client.disconnect()
+    client = redis_client.get_client()
+    if client:
+        client.close()
 
 @app.get("/api/redis-health", tags=["Health"])
 async def redis_health():
