@@ -86,6 +86,13 @@ def get_db():
     finally:
         db.close()
 
+@app.get("/redis-test")
+def redis_test():
+    from fapi.core.redis_client import redis_client
+    client = redis_client.get_client()
+    client.set("ping", "pong", ex=60)
+    return {"value": client.get("ping")}
+
 # Base Routes
 app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])
 app.include_router(candidate.router, prefix="/api", tags=["Candidate"], dependencies=[Depends(enforce_access)])

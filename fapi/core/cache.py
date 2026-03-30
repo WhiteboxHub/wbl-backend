@@ -147,7 +147,7 @@ def cache_response(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general")
                     client.setex(
                         cache_key,
                         ttl,
-                        json.dumps(response_data)
+                     json.dumps(response_data, default=alchemy_encoder)
                     )
                     logger.info(f"CACHE MISS (Stored in Redis): {cache_key}")
             except Exception as e:

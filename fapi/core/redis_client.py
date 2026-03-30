@@ -5,44 +5,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RedisClient:
-    _instance = None
+    _client = None
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(RedisClient, cls).__new__(cls)
-            cls._instance.client = None
-        return cls._instance
-
-    def connect(self):
-        """Initialize Redis connection pool."""
-        if self.client is None:
+    @classmethod
+    def get_client(cls):
+        if cls._client is None:
             try:
-                self.client = redis.Redis(
+                cls._client = redis.Redis(
                     host=config.REDIS_HOST,
                     port=config.REDIS_PORT,
-                    password=config.REDIS_PASSWORD,
                     db=config.REDIS_DB,
-                    decode_responses=True  # Returns strings instead of bytes
+                    password=config.REDIS_PASSWORD,
+                    decode_responses=True,
+                    socket_timeout=5,
+                    socket_connect_timeout=5,
+                    retry_on_timeout=True
                 )
-                # Test connection
-                self.client.ping()
-                logger.info(f"Connected to Redis at {config.REDIS_HOST}:{config.REDIS_PORT}")
+                logger.info("✅ Redis connected")
             except Exception as e:
-                logger.error(f"Failed to connect to Redis: {e}")
-                self.client = None
+                logger.error(f"❌ Redis connection failed: {e}")
+                cls._client = None
+        return cls._client
 
-    def get_client(self):
-        """Get the Redis client instance."""
-        if self.client is None:
-            self.connect()
-        return self.client
-
-    def disconnect(self):
-        """Close Redis connection."""
-        if self.client:
-            self.client.close()
-            self.client = None
-            logger.info("Redis connection closed")
-
-# Singleton instance
 redis_client = RedisClient()
