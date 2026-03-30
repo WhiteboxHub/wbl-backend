@@ -9,6 +9,7 @@ from fastapi import HTTPException, Response
 from fapi.db.models import JobActivityLogORM, JobTypeORM, CandidateORM, EmployeeORM
 from fapi.db.schemas import JobActivityLogCreate, JobActivityLogUpdate, JobTypeCreate, JobTypeUpdate, JobActivityLogOut, JobTypeOut
 from fapi.utils.table_fingerprint import generate_version_for_model
+from fapi.core.cache import cache_result, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,7 @@ def _validate_job_activity_log_references(db: Session, data: Dict[str, Any]) -> 
             raise HTTPException(status_code=404, detail="Please select a candidate.")
 
 
+@cache_result(ttl=300, prefix="jobs")
 def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
     """Get all job activity logs with job name, candidate name, employee name, and lastmod_user_name"""
     try:
@@ -90,6 +92,7 @@ def get_all_job_activity_logs(db: Session) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
 
 
+@cache_result(ttl=300, prefix="jobs")
 def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
     """Get single job activity log by ID"""
     try:
@@ -102,6 +105,7 @@ def get_job_activity_log_by_id(db: Session, log_id: int) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
 
 
+@cache_result(ttl=300, prefix="jobs")
 def get_logs_by_job_id(db: Session, job_id: int) -> List[Dict[str, Any]]:
     """Get all logs for a specific job ID"""
     try:
@@ -112,6 +116,7 @@ def get_logs_by_job_id(db: Session, job_id: int) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
 
 
+@cache_result(ttl=300, prefix="jobs")
 def get_logs_by_employee_id(db: Session, employee_id: int) -> List[Dict[str, Any]]:
     """Get all logs for a specific employee ID"""
     try:
@@ -123,6 +128,8 @@ def get_logs_by_employee_id(db: Session, employee_id: int) -> List[Dict[str, Any
 
 
 def create_job_activity_log(db: Session, log_data: JobActivityLogCreate, current_user) -> Dict[str, Any]:
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Create new job activity log with lastmod_user_id"""
     payload = log_data.dict()
 
@@ -161,6 +168,8 @@ def update_job_activity_log(
     update_data: JobActivityLogUpdate,
     current_user
 ) -> Dict[str, Any]:
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Update job activity log and update lastmod_user_id"""
     fields = update_data.dict(exclude_unset=True)
 
@@ -198,6 +207,8 @@ def update_job_activity_log(
 
 
 def delete_job_activity_log(db: Session, log_id: int) -> Dict[str, str]:
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Delete job activity log"""
     log = db.query(JobActivityLogORM).filter(
         JobActivityLogORM.id == log_id).first()
@@ -220,6 +231,8 @@ def insert_job_activity_logs_bulk(
     logs: List[JobActivityLogCreate], 
     current_user
 ) -> Dict[str, Any]:
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Bulk insert job activity logs"""
     inserted = 0
     failed = 0
@@ -275,6 +288,7 @@ def insert_job_activity_logs_bulk(
     }
 
 
+@cache_result(ttl=300, prefix="jobs")
 def get_all_job_types(db: Session):
     try:
         from sqlalchemy.orm import aliased
@@ -335,6 +349,7 @@ def get_all_job_types(db: Session):
         raise HTTPException(status_code=500, detail=f"Fetch failed: {str(e)}")
 
 
+@cache_result(ttl=300, prefix="jobs")
 def get_job_type_by_id(db: Session, job_type_id: int):
     """Get single job type by ID with owners as employee names"""
     from sqlalchemy.orm import aliased
@@ -390,6 +405,8 @@ def get_job_type_by_id(db: Session, job_type_id: int):
 
 
 def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Create new job type with employee.id stored in lastmod_user_id"""
     employee = db.query(EmployeeORM).filter(
         EmployeeORM.email == current_user.uname
@@ -428,6 +445,8 @@ def create_job_type(db: Session, job_type_data: JobTypeCreate, current_user):
 
 
 def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, current_user):
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Update job type and update lastmod_user_id with employee.id"""
 
     # Find employee record
@@ -463,6 +482,8 @@ def update_job_type(db: Session, job_type_id: int, update_data: JobTypeUpdate, c
 
 
 def delete_job_type(db: Session, job_type_id: int) -> Dict[str, str]:
+    invalidate_cache("jobs")
+    invalidate_cache("metrics")
     """Delete job type"""
     job_type = db.query(JobTypeORM).filter(
         JobTypeORM.id == job_type_id).first()

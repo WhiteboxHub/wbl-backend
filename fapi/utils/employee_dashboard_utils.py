@@ -1,5 +1,6 @@
 import re
 from sqlalchemy.orm import Session, aliased
+from fapi.core.cache import cache_result
 from sqlalchemy import or_, and_, case
 from typing import Dict, Any, List
 from datetime import date, timedelta
@@ -44,6 +45,7 @@ def get_employee_sessions_and_recordings_internal(db: Session, employee_id: int)
 
     return matched_recordings, matched_sessions
 
+@cache_result(ttl=300, prefix="metrics")
 def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, Any]:
     today = date.today()
     three_months_ago = today - timedelta(days=90)

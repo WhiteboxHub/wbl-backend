@@ -5,7 +5,9 @@ from fapi.db.schemas import CompanyContactCreate, CompanyContactUpdate
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="company_contacts")
 def get_company_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[CompanyContact]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999
@@ -21,10 +23,12 @@ def get_company_contacts(db: Session, skip: int = 0, limit: Optional[int] = None
     
     return query.all()
 
+@cache_result(ttl=300, prefix="company_contacts")
 def get_company_contact(db: Session, contact_id: int) -> Optional[CompanyContact]:
     return db.query(CompanyContact).filter(CompanyContact.id == contact_id).first()
 
 def create_company_contact(db: Session, contact: CompanyContactCreate) -> CompanyContact:
+    invalidate_cache("company_contacts")
     db_contact = CompanyContact(**contact.model_dump())
     db.add(db_contact)
     db.commit()
@@ -32,6 +36,7 @@ def create_company_contact(db: Session, contact: CompanyContactCreate) -> Compan
     return db_contact
 
 def update_company_contact(db: Session, contact_id: int, contact: CompanyContactUpdate) -> Optional[CompanyContact]:
+    invalidate_cache("company_contacts")
     db_contact = db.query(CompanyContact).filter(CompanyContact.id == contact_id).first()
     if not db_contact:
         return None
@@ -45,6 +50,7 @@ def update_company_contact(db: Session, contact_id: int, contact: CompanyContact
     return db_contact
 
 def delete_company_contact(db: Session, contact_id: int) -> bool:
+    invalidate_cache("company_contacts")
     db_contact = db.query(CompanyContact).filter(CompanyContact.id == contact_id).first()
     if not db_contact:
         return False
@@ -53,6 +59,7 @@ def delete_company_contact(db: Session, contact_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="company_contacts")
 def search_company_contacts(db: Session, term: str) -> List[CompanyContact]:
     return db.query(CompanyContact).filter(
         or_(
@@ -62,9 +69,11 @@ def search_company_contacts(db: Session, term: str) -> List[CompanyContact]:
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="company_contacts")
 def get_contacts_by_company(db: Session, company_id: int) -> List[CompanyContact]:
     return db.query(CompanyContact).filter(CompanyContact.company_id == company_id).all()
 
+@cache_result(ttl=300, prefix="company_contacts")
 def count_company_contacts(db: Session) -> int:
     """Get total count of company contacts for pagination"""
     return db.query(CompanyContact).count()

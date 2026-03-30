@@ -1,4 +1,4 @@
-# vendor_utils.py-
+# vendor_utils.py
 
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -14,6 +14,7 @@ from fapi.db.models import Vendor, VendorContactExtractsORM
 from fapi.db.schemas import VendorCreate, VendorUpdate
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ def _normalize_email(email: Optional[str]) -> Optional[str]:
         return None
 
 
+@cache_result(ttl=300, prefix="vendors")
 def get_vendor_suggestions(db: Session, search_term: str):
     """Get vendor suggestions based on search term for name or email."""
     try:
@@ -53,6 +55,7 @@ def get_vendor_suggestions(db: Session, search_term: str):
     except Exception as e:
         logger.error(f"Error fetching vendor suggestions: {e}")
         return []
+@cache_result(ttl=300, prefix="vendors")
 def get_vendor_by_id(db: Session, vendor_id: int) -> Optional[Vendor]:
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
     if vendor:
@@ -61,6 +64,7 @@ def get_vendor_by_id(db: Session, vendor_id: int) -> Optional[Vendor]:
 
 
 # ---------- CRUD: Vendor ----------
+@cache_result(ttl=300, prefix="vendors")
 def get_all_vendors(db: Session) -> List[Vendor]:
     vendors = db.query(Vendor).order_by(Vendor.id.desc()).all()
     # Normalize/validate emails for outbound payload (does not persist changes)
@@ -70,6 +74,8 @@ def get_all_vendors(db: Session) -> List[Vendor]:
 
 
 def create_vendor(db: Session, vendor_data: VendorCreate) -> Vendor:
+    invalidate_cache("vendors")
+    invalidate_cache("metrics")
     payload = vendor_data.dict()
     payload["email"] = _normalize_email(payload.get("email"))
 
@@ -98,6 +104,8 @@ def create_vendor(db: Session, vendor_data: VendorCreate) -> Vendor:
 
 
 def update_vendor_handler(db: Session, vendor_id: int, update_data: VendorUpdate) -> Vendor:
+    invalidate_cache("vendors")
+    invalidate_cache("metrics")
     fields = update_data.dict(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="No data to update")
@@ -131,6 +139,8 @@ def update_vendor_handler(db: Session, vendor_id: int, update_data: VendorUpdate
 
 
 def delete_vendor(db: Session, vendor_id: int) -> Dict[str, str]:
+    invalidate_cache("vendors")
+    invalidate_cache("metrics")
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
@@ -144,6 +154,8 @@ def delete_vendor(db: Session, vendor_id: int) -> Dict[str, str]:
 
 
 def delete_vendors_bulk(db: Session, vendor_ids: List[int]) -> int:
+    invalidate_cache("vendors")
+    invalidate_cache("metrics")
     try:
         deleted_count = db.query(Vendor).filter(Vendor.id.in_(vendor_ids)).delete(synchronize_session=False)
         db.commit()

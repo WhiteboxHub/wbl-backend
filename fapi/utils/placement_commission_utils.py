@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from fapi.db import models
 from fapi.utils.table_fingerprint import generate_version_for_model
+from fapi.core.cache import cache_result, invalidate_cache
 
 
 # ---------------------------------------------------------------------------
@@ -40,6 +41,7 @@ def _enrich_commission(
 # placement_commission CRUD
 # ---------------------------------------------------------------------------
 
+@cache_result(ttl=300, prefix="commissions")
 def list_commissions(db: Session) -> List[models.PlacementCommissionORM]:
     commissions = (
         db.query(models.PlacementCommissionORM)
@@ -56,6 +58,7 @@ def list_commissions(db: Session) -> List[models.PlacementCommissionORM]:
     return [_enrich_commission(c) for c in commissions]
 
 
+@cache_result(ttl=300, prefix="commissions")
 def get_commission(db: Session, commission_id: int) -> Optional[models.PlacementCommissionORM]:
     commission = (
         db.query(models.PlacementCommissionORM)
@@ -74,6 +77,7 @@ def get_commission(db: Session, commission_id: int) -> Optional[models.Placement
     return _enrich_commission(commission)
 
 
+@cache_result(ttl=300, prefix="commissions")
 def get_commissions_by_placement(
     db: Session, placement_id: int
 ) -> List[models.PlacementCommissionORM]:
@@ -96,6 +100,7 @@ def get_commissions_by_placement(
 def create_commission(
     db: Session, data: Dict[str, Any]
 ) -> models.PlacementCommissionORM:
+    invalidate_cache("commissions")
     if "amount" in data and data["amount"] is not None:
         data["amount"] = Decimal(str(data["amount"]))
 
@@ -116,6 +121,7 @@ def create_commission(
 def update_commission(
     db: Session, commission_id: int, data: Dict[str, Any]
 ) -> Optional[models.PlacementCommissionORM]:
+    invalidate_cache("commissions")
     obj = db.query(models.PlacementCommissionORM).filter(
         models.PlacementCommissionORM.id == commission_id
     ).first()
@@ -141,6 +147,7 @@ def update_commission(
 
 
 def delete_commission(db: Session, commission_id: int) -> None:
+    invalidate_cache("commissions")
     obj = db.query(models.PlacementCommissionORM).filter(
         models.PlacementCommissionORM.id == commission_id
     ).first()
@@ -157,6 +164,7 @@ def delete_commission(db: Session, commission_id: int) -> None:
 # placement_commission_scheduler CRUD
 # ---------------------------------------------------------------------------
 
+@cache_result(ttl=300, prefix="commissions")
 def list_schedulers(
     db: Session, commission_id: int
 ) -> List[models.PlacementCommissionSchedulerORM]:
@@ -170,6 +178,7 @@ def list_schedulers(
     )
 
 
+@cache_result(ttl=300, prefix="commissions")
 def get_scheduler(
     db: Session, scheduler_id: int
 ) -> Optional[models.PlacementCommissionSchedulerORM]:
@@ -183,6 +192,7 @@ def get_scheduler(
 def create_scheduler(
     db: Session, data: Dict[str, Any]
 ) -> models.PlacementCommissionSchedulerORM:
+    invalidate_cache("commissions")
     if "installment_amount" in data and data["installment_amount"] is not None:
         data["installment_amount"] = Decimal(str(data["installment_amount"]))
 
@@ -207,6 +217,7 @@ def create_scheduler(
 def update_scheduler(
     db: Session, scheduler_id: int, data: Dict[str, Any]
 ) -> Optional[models.PlacementCommissionSchedulerORM]:
+    invalidate_cache("commissions")
     obj = db.query(models.PlacementCommissionSchedulerORM).filter(
         models.PlacementCommissionSchedulerORM.id == scheduler_id
     ).first()
@@ -228,6 +239,7 @@ def update_scheduler(
 
 
 def delete_scheduler(db: Session, scheduler_id: int) -> None:
+    invalidate_cache("commissions")
     obj = db.query(models.PlacementCommissionSchedulerORM).filter(
         models.PlacementCommissionSchedulerORM.id == scheduler_id
     ).first()

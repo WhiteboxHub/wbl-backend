@@ -5,12 +5,14 @@ from fapi.db import models
 from fapi.db import schemas
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="course_subjects")
 def get_all_course_subjects(db: Session):
-    return (
+    rows = (
         db.query(
             models.CourseSubject.course_id,
-            models.CourseSubject.subject_id,
+            models.Subject.id.label("subject_id"),
             models.Course.name.label("course_name"),
             models.Subject.name.label("subject_name"),
             models.CourseSubject.lastmoddatetime
@@ -20,9 +22,22 @@ def get_all_course_subjects(db: Session):
         .order_by(models.CourseSubject.lastmoddatetime.desc())
         .all()
     )
+    
+    return [
+        {
+            "course_id": r.course_id,
+            "subject_id": r.subject_id,
+            "course_name": r.course_name,
+            "subject_name": r.subject_name,
+            "lastmoddatetime": r.lastmoddatetime
+        }
+        for r in rows
+    ]
 
 def create_course_subject(db: Session, course_subject: schemas.CourseSubjectCreate) -> models.CourseSubject:
     """Create a new course-subject relationship"""
+    invalidate_cache("course_subjects")
+    invalidate_cache("resources")
     course_exists = db.query(models.Course.id).filter(models.Course.id == course_subject.course_id).first()
     subject_exists = db.query(models.Subject.id).filter(models.Subject.id == course_subject.subject_id).first()
     
@@ -77,6 +92,8 @@ def update_course_subject(
     """
     Update a course-subject relationship's lastmoddatetime.
     """
+    invalidate_cache("course_subjects")
+    invalidate_cache("resources")
     db_course_subject = db.query(models.CourseSubject).filter(
         models.CourseSubject.course_id == course_id,
         models.CourseSubject.subject_id == subject_id
@@ -101,6 +118,8 @@ def update_course_subject(
 
 def delete_course_subject(db: Session, course_id: int, subject_id: int) -> bool:
     """Delete a course-subject relationship"""
+    invalidate_cache("course_subjects")
+    invalidate_cache("resources")
     course_subject = db.query(models.CourseSubject).filter(
         models.CourseSubject.course_id == course_id,
         models.CourseSubject.subject_id == subject_id
