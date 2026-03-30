@@ -21,9 +21,9 @@ class RedisClient:
                     socket_connect_timeout=5,
                     retry_on_timeout=True
                 )
-                logger.info("✅ Redis connected")
+                logger.info("Redis connected")
             except Exception as e:
-                logger.error(f"❌ Redis connection failed: {e}")
+                logger.error(f"Redis connection failed: {e}")
                 cls._client = None
         return cls._client
 
