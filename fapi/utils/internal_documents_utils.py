@@ -2,14 +2,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fapi.db.models import InternalDocument
 from  fapi.db.schemas import InternalDocumentCreate, InternalDocumentUpdate
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="internal_documents")
 def get_all_documents(db: Session):
     return db.query(InternalDocument).order_by(InternalDocument.id.desc()).all()
 
+@cache_result(ttl=300, prefix="internal_documents")
 def get_document_by_id(db: Session, doc_id: int):
     return db.query(InternalDocument).filter(InternalDocument.id == doc_id).first()
 
 def create_document(db: Session, doc: InternalDocumentCreate):
+    invalidate_cache("internal_documents")
     new_doc = InternalDocument(**doc.model_dump())
     db.add(new_doc)
     try:
@@ -21,6 +25,7 @@ def create_document(db: Session, doc: InternalDocumentCreate):
         raise e
 
 def update_document(db: Session, doc_id: int, doc_data: InternalDocumentUpdate):
+    invalidate_cache("internal_documents")
     doc = get_document_by_id(db, doc_id)
     if not doc:
         return None
@@ -37,6 +42,7 @@ def update_document(db: Session, doc_id: int, doc_data: InternalDocumentUpdate):
         raise e
 
 def delete_document(db: Session, doc_id: int):
+    invalidate_cache("internal_documents")
     doc = get_document_by_id(db, doc_id)
     if not doc:
         return False

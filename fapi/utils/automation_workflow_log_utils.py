@@ -3,12 +3,13 @@ from typing import List
 from sqlalchemy.orm import Session
 from fapi.db.models import AutomationWorkflowLogORM
 from fapi.db.schemas import AutomationWorkflowLogCreate, AutomationWorkflowLogUpdate
-from fastapi import HTTPException
 from fapi.utils.table_fingerprint import generate_version_for_model
-from fastapi import Response
+from fastapi import Response, HTTPException
+from fapi.core.cache import cache_result, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
+@cache_result(ttl=300, prefix="automation_workflow_logs")
 def get_latest_log(db: Session, workflow_id: int):
     db_log = (
         db.query(AutomationWorkflowLogORM)
@@ -28,6 +29,7 @@ def get_latest_log(db: Session, workflow_id: int):
     return db_log
 
 def create_log(db: Session, log: AutomationWorkflowLogCreate):
+    invalidate_cache("automation_workflow_logs")
     db_log = AutomationWorkflowLogORM(**log.model_dump(exclude_none=True))
     db.add(db_log)
     try:
@@ -40,6 +42,7 @@ def create_log(db: Session, log: AutomationWorkflowLogCreate):
         raise HTTPException(status_code=500, detail="Failed to create workflow log")
 
 def update_log_by_run_id(db: Session, run_id: str, update_data: AutomationWorkflowLogUpdate):
+    invalidate_cache("automation_workflow_logs")
     db_log = db.query(AutomationWorkflowLogORM).filter(AutomationWorkflowLogORM.run_id == run_id).first()
     if not db_log:
         raise HTTPException(status_code=404, detail=f"Workflow log with run_id '{run_id}' not found")
@@ -55,9 +58,11 @@ def update_log_by_run_id(db: Session, run_id: str, update_data: AutomationWorkfl
         logger.error("Failed to update workflow log run_id=%s: %s", run_id, e)
         raise HTTPException(status_code=500, detail="Failed to update workflow log")
 
+@cache_result(ttl=300, prefix="automation_workflow_logs")
 def get_all_logs(db: Session) -> List[AutomationWorkflowLogORM]:
     return db.query(AutomationWorkflowLogORM).all()
 
+@cache_result(ttl=300, prefix="automation_workflow_logs")
 def get_log_by_id(db: Session, log_id: int) -> AutomationWorkflowLogORM:
     db_log = db.query(AutomationWorkflowLogORM).filter(AutomationWorkflowLogORM.id == log_id).first()
     if not db_log:
@@ -65,6 +70,7 @@ def get_log_by_id(db: Session, log_id: int) -> AutomationWorkflowLogORM:
     return db_log
 
 def delete_log(db: Session, log_id: int):
+    invalidate_cache("automation_workflow_logs")
     db_log = get_log_by_id(db, log_id)
     db.delete(db_log)
     db.commit()

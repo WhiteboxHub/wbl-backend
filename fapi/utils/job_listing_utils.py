@@ -5,7 +5,9 @@ from fapi.db.schemas import JobListingCreate, JobListingUpdate
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="positions")
 def get_positions(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[JobListingORM]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999 
@@ -18,10 +20,12 @@ def get_positions(db: Session, skip: int = 0, limit: Optional[int] = None) -> Li
     
     return query.all()
 
+@cache_result(ttl=300, prefix="positions")
 def get_position(db: Session, position_id: int) -> Optional[JobListingORM]:
     return db.query(JobListingORM).filter(JobListingORM.id == position_id).first()
 
 def create_position(db: Session, position: JobListingCreate) -> JobListingORM:
+    invalidate_cache("positions")
     db_position = JobListingORM(**position.model_dump())
     db.add(db_position)
     db.commit()
@@ -29,6 +33,7 @@ def create_position(db: Session, position: JobListingCreate) -> JobListingORM:
     return db_position
 
 def update_position(db: Session, position_id: int, position: JobListingUpdate) -> Optional[JobListingORM]:
+    invalidate_cache("positions")
     db_position = db.query(JobListingORM).filter(JobListingORM.id == position_id).first()
     if not db_position:
         return None
@@ -42,6 +47,7 @@ def update_position(db: Session, position_id: int, position: JobListingUpdate) -
     return db_position
 
 def delete_position(db: Session, position_id: int) -> bool:
+    invalidate_cache("positions")
     db_position = db.query(JobListingORM).filter(JobListingORM.id == position_id).first()
     if not db_position:
         return False
@@ -50,6 +56,7 @@ def delete_position(db: Session, position_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="positions")
 def search_positions(db: Session, term: str) -> List[JobListingORM]:
     return db.query(JobListingORM).filter(
         or_(
@@ -58,11 +65,13 @@ def search_positions(db: Session, term: str) -> List[JobListingORM]:
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="positions")
 def count_positions(db: Session) -> int:
     """Get total count of job listings for pagination"""
     return db.query(JobListingORM).count()
 
 async def insert_positions_bulk(positions: List[JobListingCreate], db: Session) -> dict:
+    invalidate_cache("positions")
     """Bulk insert job listings with duplicate handling"""
     inserted = 0
     failed = 0

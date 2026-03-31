@@ -3,7 +3,9 @@ from sqlalchemy import or_
 from fapi.db.models import LinkedinOnlyContact
 from fapi.db.schemas import LinkedinOnlyContactCreate, LinkedinOnlyContactUpdate
 from typing import List, Optional
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="linkedin_only_contacts")
 def get_linkedin_only_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[LinkedinOnlyContact]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999
@@ -19,10 +21,12 @@ def get_linkedin_only_contacts(db: Session, skip: int = 0, limit: Optional[int] 
     
     return query.all()
 
+@cache_result(ttl=300, prefix="linkedin_only_contacts")
 def get_linkedin_only_contact(db: Session, contact_id: int) -> Optional[LinkedinOnlyContact]:
     return db.query(LinkedinOnlyContact).filter(LinkedinOnlyContact.id == contact_id).first()
 
 def create_linkedin_only_contact(db: Session, contact: LinkedinOnlyContactCreate) -> LinkedinOnlyContact:
+    invalidate_cache("linkedin_only_contacts")
     db_contact = LinkedinOnlyContact(**contact.model_dump())
     db.add(db_contact)
     db.commit()
@@ -30,6 +34,7 @@ def create_linkedin_only_contact(db: Session, contact: LinkedinOnlyContactCreate
     return db_contact
 
 def update_linkedin_only_contact(db: Session, contact_id: int, contact: LinkedinOnlyContactUpdate) -> Optional[LinkedinOnlyContact]:
+    invalidate_cache("linkedin_only_contacts")
     db_contact = db.query(LinkedinOnlyContact).filter(LinkedinOnlyContact.id == contact_id).first()
     if not db_contact:
         return None
@@ -43,6 +48,7 @@ def update_linkedin_only_contact(db: Session, contact_id: int, contact: Linkedin
     return db_contact
 
 def delete_linkedin_only_contact(db: Session, contact_id: int) -> bool:
+    invalidate_cache("linkedin_only_contacts")
     db_contact = db.query(LinkedinOnlyContact).filter(LinkedinOnlyContact.id == contact_id).first()
     if not db_contact:
         return False
@@ -51,6 +57,7 @@ def delete_linkedin_only_contact(db: Session, contact_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="linkedin_only_contacts")
 def search_linkedin_only_contacts(db: Session, term: str) -> List[LinkedinOnlyContact]:
     return db.query(LinkedinOnlyContact).filter(
         or_(
@@ -62,6 +69,7 @@ def search_linkedin_only_contacts(db: Session, term: str) -> List[LinkedinOnlyCo
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="linkedin_only_contacts")
 def count_linkedin_only_contacts(db: Session) -> int:
     """Get total count of company contacts for pagination"""
     return db.query(LinkedinOnlyContact).count()

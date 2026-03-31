@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 from fapi.db.database import SessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
+from fapi.core.cache import cache_result
 from sqlalchemy import literal
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql import func
@@ -18,6 +19,7 @@ from sqlalchemy.sql import func
 logger = logging.getLogger(__name__)
 
 
+@cache_result(ttl=300, prefix="resources")
 def fetch_keyword_presentation(search: str, course: str):
     """
     ORM version of fetching course materials based on type and course.
@@ -98,6 +100,7 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
     return {"recordings": recordings}
 
 
+@cache_result(ttl=300, prefix="resources")
 def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None):
     if not course_id or not session_type:
         return []
@@ -138,6 +141,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
     return sessions
 
 
+@cache_result(ttl=300, prefix="resources")
 def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None) -> List[str]:
     
     if role in ["admin", "employee"] :
@@ -209,6 +213,7 @@ async def course_content(session: AsyncSession):
     ]
 
 
+@cache_result(ttl=300, prefix="resources")
 def fetch_subject_batch_recording(
     course: str,
     db: Session,

@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 from fapi.db import models, schemas
+from fapi.core.cache import cache_result, invalidate_cache
 
 
+@cache_result(ttl=300, prefix="sessions")
 def get_sessions(db: Session, search_title: str = None):
     query = db.query(models.Session)
 
@@ -15,11 +17,14 @@ def get_sessions(db: Session, search_title: str = None):
     return sessions
 
 
+@cache_result(ttl=300, prefix="sessions")
 def get_session(db: Session, sessionid: int):
     return db.query(models.Session).filter(models.Session.sessionid == sessionid).first()
 
 
 def create_session(db: Session, session: schemas.SessionCreate):
+    invalidate_cache("sessions")
+    invalidate_cache("resources") # Resources often fetch sessions
     db_session = models.Session(**session.dict())
     db.add(db_session)
     db.commit()
@@ -28,6 +33,8 @@ def create_session(db: Session, session: schemas.SessionCreate):
 
 
 def update_session(db: Session, sessionid: int, session: schemas.SessionUpdate):
+    invalidate_cache("sessions")
+    invalidate_cache("resources")
     db_session = db.query(models.Session).filter(models.Session.sessionid == sessionid).first()
     if db_session:
         for key, value in session.dict(exclude_unset=True).items():
@@ -38,6 +45,8 @@ def update_session(db: Session, sessionid: int, session: schemas.SessionUpdate):
 
 
 def delete_session(db: Session, sessionid: int):
+    invalidate_cache("sessions")
+    invalidate_cache("resources")
     db_session = db.query(models.Session).filter(models.Session.sessionid == sessionid).first()
     if db_session:
         db.delete(db_session)

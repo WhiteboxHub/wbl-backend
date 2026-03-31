@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 from fapi.db.models import TalentSearch
 from typing import List, Dict
+from fapi.core.cache import cache_result
 
+@cache_result(ttl=300, prefix="talent")
 def get_talent_search_filtered(
     db: Session,
     role: str = None,

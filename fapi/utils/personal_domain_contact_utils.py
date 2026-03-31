@@ -5,7 +5,9 @@ from fapi.db.schemas import PersonalDomainContactCreate, PersonalDomainContactUp
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="personal_domain_contacts")
 def get_personal_domain_contacts(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[PersonalDomainContact]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999
@@ -19,10 +21,12 @@ def get_personal_domain_contacts(db: Session, skip: int = 0, limit: Optional[int
     
     return query.all()
 
+@cache_result(ttl=300, prefix="personal_domain_contacts")
 def get_personal_domain_contact(db: Session, contact_id: int) -> Optional[PersonalDomainContact]:
     return db.query(PersonalDomainContact).filter(PersonalDomainContact.id == contact_id).first()
 
 def create_personal_domain_contact(db: Session, contact: PersonalDomainContactCreate) -> PersonalDomainContact:
+    invalidate_cache("personal_domain_contacts")
     db_contact = PersonalDomainContact(**contact.model_dump())
     db.add(db_contact)
     db.commit()
@@ -30,6 +34,7 @@ def create_personal_domain_contact(db: Session, contact: PersonalDomainContactCr
     return db_contact
 
 def update_personal_domain_contact(db: Session, contact_id: int, contact: PersonalDomainContactUpdate) -> Optional[PersonalDomainContact]:
+    invalidate_cache("personal_domain_contacts")
     db_contact = db.query(PersonalDomainContact).filter(PersonalDomainContact.id == contact_id).first()
     if not db_contact:
         return None
@@ -43,6 +48,7 @@ def update_personal_domain_contact(db: Session, contact_id: int, contact: Person
     return db_contact
 
 def delete_personal_domain_contact(db: Session, contact_id: int) -> bool:
+    invalidate_cache("personal_domain_contacts")
     db_contact = db.query(PersonalDomainContact).filter(PersonalDomainContact.id == contact_id).first()
     if not db_contact:
         return False
@@ -51,6 +57,7 @@ def delete_personal_domain_contact(db: Session, contact_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="personal_domain_contacts")
 def search_personal_domain_contacts(db: Session, term: str) -> List[PersonalDomainContact]:
     return db.query(PersonalDomainContact).filter(
         or_(
@@ -61,6 +68,7 @@ def search_personal_domain_contacts(db: Session, term: str) -> List[PersonalDoma
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="personal_domain_contacts")
 def count_personal_domain_contacts(db: Session) -> int:
     return db.query(PersonalDomainContact).count()
 def get_personal_domain_contacts_version(db: Session) -> Response:

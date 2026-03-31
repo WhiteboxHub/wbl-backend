@@ -2,8 +2,9 @@
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
+from fapi.core.cache import cache_result, invalidate_cache
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fapi.db.models import JobListingORM
@@ -20,6 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter()
       
+@cache_result(ttl=300, prefix="candidates")
 def get_all_candidates_paginated(
     db: Session,
     page: int = 1,
@@ -93,8 +95,8 @@ def get_all_candidates_paginated(
     return {"data": data, "total": total, "page": page, "limit": limit}
 
 
-def get_candidate_by_id(candidate_id: int) -> Dict:
-    db: Session = SessionLocal()
+@cache_result(ttl=300, prefix="candidates")
+def get_candidate_by_id(db: Session, candidate_id: int) -> Dict:
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
         if not candidate:
@@ -102,12 +104,16 @@ def get_candidate_by_id(candidate_id: int) -> Dict:
         data = candidate.__dict__.copy()
         data.pop('_sa_instance_state', None)
         return data
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error(f"Error fetching candidate {candidate_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 
 def create_candidate(candidate_data: dict) -> int:
+    # Invalidate candidate and metrics cache
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         candidate_data.setdefault("enrolled_date", date.today())
@@ -129,6 +135,9 @@ def create_candidate(candidate_data: dict) -> int:
 
         
 def update_candidate(candidate_id: int, candidate_data: dict):
+    # Invalidate candidate and linked caches
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
@@ -166,6 +175,9 @@ def update_candidate(candidate_id: int, candidate_data: dict):
 
 
 def delete_candidate(candidate_id: int):
+    # Invalidate candidate and linked caches
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
@@ -184,6 +196,7 @@ def delete_candidate(candidate_id: int):
 
 # # -----------------------------------------------Marketing----------------------------
 
+@cache_result(ttl=300, prefix="candidates")
 def get_all_marketing_records(page: int, limit: int) -> dict:
     db: Session = SessionLocal()
     try:
@@ -269,6 +282,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
     return record_dict
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_marketing_by_candidate_id(candidate_id: int):
     db: Session = SessionLocal()
     try:
@@ -303,7 +317,29 @@ def get_marketing_by_candidate_id(candidate_id: int):
         db.close()
 
 
+@cache_result(ttl=300, prefix="candidates")
+def get_marketing_by_id(db: Session, record_id: int) -> dict:
+    record = (
+        db.query(CandidateMarketingORM)
+        .options(
+            joinedload(CandidateMarketingORM.candidate)
+            .joinedload(CandidateORM.batch),
+            joinedload(CandidateMarketingORM.candidate)
+            .joinedload(CandidateORM.preparations)
+            .joinedload(CandidatePreparation.instructor1),
+            joinedload(CandidateMarketingORM.marketing_manager_obj),
+        )
+        .filter(CandidateMarketingORM.id == record_id)
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Marketing record not found")
+    return serialize_marketing(record)
+
+
 def create_marketing(payload: CandidateMarketingCreate) -> dict:
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         new_entry = CandidateMarketingORM(**payload.dict())
@@ -316,6 +352,8 @@ def create_marketing(payload: CandidateMarketingCreate) -> dict:
 
 
 def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
@@ -362,6 +400,8 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
 
 
 def delete_marketing(record_id: int) -> dict:
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
@@ -376,6 +416,7 @@ def delete_marketing(record_id: int) -> dict:
 # ----------------------------------------------------Candidate_Placement---------------------------------
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_placement_by_id(db: Session, placement_id: int):
     result = (
         db.query(
@@ -403,6 +444,7 @@ def get_placement_by_id(db: Session, placement_id: int):
     return data
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_all_placements(page: int, limit: int) -> Dict:
     db: Session = SessionLocal()
     try:
@@ -453,6 +495,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
         db.close()
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_placements_by_candidate(candidate_id: int) -> list:
     db: Session = SessionLocal()
     try:
@@ -487,6 +530,8 @@ def get_placements_by_candidate(candidate_id: int) -> list:
 
 
 def create_placement(payload):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         new_entry = CandidatePlacementORM(**payload.dict())
@@ -499,6 +544,8 @@ def create_placement(payload):
 
 
 def update_placement(placement_id: int, payload):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         placement = db.query(CandidatePlacementORM).filter(
@@ -519,6 +566,8 @@ def update_placement(placement_id: int, payload):
 
 
 def delete_placement(placement_id: int) -> Dict:
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db: Session = SessionLocal()
     try:
         placement = db.query(CandidatePlacementORM).filter(CandidatePlacementORM.id == placement_id).first()
@@ -533,6 +582,8 @@ def delete_placement(placement_id: int) -> Dict:
 # ----------------------------------------Candidate_Interviews-------------------------------------
 
 def create_candidate_interview(db: Session, interview: CandidateInterviewCreate):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     data = interview.dict()
 
     if data.get("interviewer_emails"):
@@ -577,6 +628,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     return db_obj
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     return (
         db.query(CandidateInterview)
@@ -598,6 +650,7 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     )
 
 
+@cache_result(ttl=300, prefix="candidates")
 def list_interviews_with_instructors(db: Session):
     return (
         db.query(CandidateInterview)
@@ -618,7 +671,12 @@ def list_interviews_with_instructors(db: Session):
         .all()
     )
 
-def serialize_interview(interview: CandidateInterview) -> dict:
+def serialize_interview(interview) -> dict:
+    # When the result comes from a Redis cache hit, it's already a plain dict.
+    # Return it as-is — it was serialized correctly on the original cache-write path.
+    if isinstance(interview, dict):
+        return interview
+
     data = CandidateInterviewOut.from_orm(interview).dict()
 
     data["instructor1_name"] = None
@@ -648,6 +706,8 @@ def serialize_interview(interview: CandidateInterview) -> dict:
 
 
 def update_candidate_interview(db: Session, interview_id: int, updates: CandidateInterviewUpdate):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db_obj = db.query(CandidateInterview).options(joinedload(CandidateInterview.candidate)) .join(CandidateORM, CandidateInterview.candidate_id == CandidateORM.id).filter(CandidateInterview.id == interview_id).first()
     if not db_obj:
         return None
@@ -674,6 +734,8 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
 
 
 def delete_candidate_interview(db: Session, interview_id: int):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
     if db_obj:
         db.delete(db_obj)
@@ -682,6 +744,7 @@ def delete_candidate_interview(db: Session, interview_id: int):
 
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_active_marketing_candidates(db: Session):
     results = (
         db.query(CandidateMarketingORM, CandidateORM)
@@ -713,16 +776,25 @@ def is_valid_date(date_str):
     except ValueError:
         return False
 def create_candidate_preparation(db: Session, prep_data: CandidatePreparationCreate):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
+    
+    # Verify candidate exists
+    candidate = db.query(CandidateORM).filter(CandidateORM.id == prep_data.candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
     if prep_data.email:
         prep_data.email = prep_data.email.lower()
     db_prep = CandidatePreparation(**prep_data.dict(exclude_unset=True))
     db.add(db_prep)
     db.commit()
-    db.refresh(candidate)
+    db.refresh(db_prep)
 
     # Return the full object so it matches the response_model
-    return candidate
+    return db_prep
 
+@cache_result(ttl=300, prefix="candidates")
 def get_preparations_by_candidate(db: Session, candidate_id: int):
     results = (
         db.query(CandidatePreparation)
@@ -742,6 +814,7 @@ def get_preparations_by_candidate(db: Session, candidate_id: int):
     return results
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_all_preparations(db: Session):
     preps = (
         db.query(CandidatePreparation)
@@ -764,6 +837,8 @@ def get_all_preparations(db: Session):
     return preps
 
 def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePreparationUpdate):
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db_prep = db.query(CandidatePreparation).filter(CandidatePreparation.id == prep_id).first()
     if not db_prep:
         return None
@@ -802,6 +877,8 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
 
 
 def delete_candidate_preparation(db: Session, prep_id: int) -> Optional[dict]:
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     db_prep = (
         db.query(CandidatePreparation)
         .options(
