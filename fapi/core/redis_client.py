@@ -1,4 +1,4 @@
-import redis
+from upstash_redis import Redis
 from fapi.core import config
 import logging
 
@@ -11,19 +11,13 @@ class RedisClient:
     def get_client(cls):
         if cls._client is None:
             try:
-                cls._client = redis.Redis(
-                    host=config.REDIS_HOST,
-                    port=config.REDIS_PORT,
-                    db=config.REDIS_DB,
-                    password=config.REDIS_PASSWORD,
-                    decode_responses=True,
-                    socket_timeout=5,
-                    socket_connect_timeout=5,
-                    retry_on_timeout=True
+                cls._client = Redis(
+                    url=config.UPSTASH_REDIS_REST_URL,
+                    token=config.UPSTASH_REDIS_REST_TOKEN,
                 )
-                logger.info("Redis connected")
+                logger.info("Upstash Redis connected")
             except Exception as e:
-                logger.error(f"Redis connection failed: {e}")
+                logger.error(f"Upstash Redis connection failed: {e}")
                 cls._client = None
         return cls._client
 
