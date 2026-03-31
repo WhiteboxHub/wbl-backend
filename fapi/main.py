@@ -37,9 +37,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    client = redis_client.get_client()
-    if client:
-        client.close()
+    pass  # Upstash Redis is HTTP-based; no persistent connection to close
 
 @app.get("/api/redis-health", tags=["Health"])
 async def redis_health():
