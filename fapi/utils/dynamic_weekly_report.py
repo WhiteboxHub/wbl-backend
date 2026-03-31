@@ -15,9 +15,10 @@ from fapi.db.models import (
     CandidateMarketingORM,
     CandidateInterview,
     AuthUserORM,
-    AuthUserORM,
     JobLinkClicksORM,
     AutomationWorkflowLogORM,
+    JobTypeORM,
+    JobActivityLogORM
 )
 from fapi.utils.email_utils import get_email_config, send_html_email, validate_email_config
 
@@ -109,6 +110,42 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         if cand_id:
             outreach_dict[int(cand_id)] = outreach_dict.get(int(cand_id), 0) + (log.records_processed or 0)
 
+    # Query 4: Get ALL Linkedin Easy Apply activity (Playwright or Extension)
+    linkedin_activity_query = db.query(
+        JobActivityLogORM.candidate_id,
+        JobActivityLogORM.notes,
+        JobActivityLogORM.activity_count
+    ).join(
+        JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id
+    ).filter(
+        JobTypeORM.name.ilike('%Linkedin Easy Apply%'),
+        JobActivityLogORM.activity_date >= start_date.date(),
+        JobActivityLogORM.activity_date <= end_date.date()
+    ).all()
+
+    linkedin_dict = {}
+    for row in linkedin_activity_query:
+        cand_id = row.candidate_id
+        
+        # Fallback mapping: If no candidate_id, try to find candidate name in notes
+        if not cand_id and row.notes:
+            notes_lower = row.notes.lower()
+            for email_key, c_id in email_to_cand_id.items():
+                # Check for email in notes OR check for common name parts
+                if email_key in notes_lower:
+                    cand_id = c_id
+                    break
+            
+            if not cand_id:
+                # Try name mapping if email didn't work
+                for c in candidates_for_mapping:
+                    if c.full_name and c.full_name.lower() in notes_lower:
+                        cand_id = c.id
+                        break
+        
+        if cand_id:
+            linkedin_dict[int(cand_id)] = linkedin_dict.get(int(cand_id), 0) + (row.activity_count or 0)
+
     # Create a dictionary for job clicks
     job_clicks_dict = {row.id: (row.job_clicks or 0) for row in job_clicks_query}
 
@@ -118,6 +155,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         total_interviews = interview_row.total_interviews or 0
         job_clicks = job_clicks_dict.get(interview_row.id, 0)
         outreach_count = outreach_dict.get(interview_row.id, 0)
+        linkedin_applies = linkedin_dict.get(interview_row.id, 0)
 
         candidates_data.append({
             'id': interview_row.id,
@@ -128,105 +166,118 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'recruiter_call_count': interview_row.recruiter_call_count or 0,
             'technical_count': interview_row.technical_count or 0,
             'job_clicks': job_clicks,
-            'outreach_count': outreach_count
+            'outreach_count': outreach_count,
+            'linkedin_easy_apply_count': linkedin_applies
         })
 
     logger.info(f"Report generated for {len(candidates_data)} active marketing candidates.")
 
-    # Generate HTML report with MAXIMUM simplicity for deliverability
-    # No <style> blocks, no classes, only basic inline styles
+    # Generate HTML report with a modern dashboard aesthetic
     html_content = f"""
     <html>
-    <body style="font-family: Arial, sans-serif; background-color: #ffffff; margin: 0; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; border: 1px solid #dddddd; padding: 20px;">
-            <div style="text-align: center; border-bottom: 2px solid #2c3e50; padding-bottom: 10px; margin-bottom: 20px;">
-                <h1 style="color: #2c3e50; margin: 0;">Weekly Marketing Report</h1>
-                <p style="color: #666666; margin: 5px 0;">{start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}</p>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 40px 20px;">
+        <div style="max-width: 900px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
+            
+            <!-- Header -->
+            <div style="background-color: #1f2937; color: #ffffff; padding: 30px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px;">Weekly Marketing Report</h1>
+                <p style="margin: 10px 0 0 0; font-size: 14px; color: #9ca3af;">{start_date.strftime('%B %d')} &mdash; {end_date.strftime('%B %d, %Y')}</p>
             </div>
+            
+            <div style="padding: 30px;">
     """
 
     if not candidates_data:
         html_content += """
-            <p style="text-align: center; padding: 20px; color: #666666;">No activity recorded during this period.</p>
+                <div style="text-align: center; padding: 40px 20px; background-color: #f9fafb; border-radius: 6px; border: 1px dashed #d1d5db;">
+                    <p style="margin: 0; color: #6b7280; font-size: 14px;">No candidate activity recorded during this period.</p>
+                </div>
         """
     else:
         # Calculate summary stats
         total_candidates = len(interviews_query)
         total_interviews = sum(row['total_interviews'] for row in candidates_data)
         total_clicks = sum(row['job_clicks'] for row in candidates_data)
-        total_outreach = sum(row['outreach_count'] for row in candidates_data)
 
         # Summary Table
         html_content += f"""
-            <table width="100%" style="margin-bottom: 20px; border-collapse: collapse;">
-                <tr>
-                    <td style="background-color: #f8f9fa; padding: 15px; text-align: center; border: 1px solid #dddddd;">
-                        <div style="font-size: 20px; font-weight: bold; color: #3498db;">{total_candidates}</div>
-                        <div style="font-size: 11px; color: #666666; text-transform: uppercase;">Candidates</div>
-                    </td>
-                    <td style="background-color: #f8f9fa; padding: 15px; text-align: center; border: 1px solid #dddddd;">
-                        <div style="font-size: 20px; font-weight: bold; color: #2ecc71;">{total_interviews}</div>
-                        <div style="font-size: 11px; color: #666666; text-transform: uppercase;">Interviews</div>
-                    </td>
-                    <td style="background-color: #f8f9fa; padding: 15px; text-align: center; border: 1px solid #dddddd;">
-                        <div style="font-size: 20px; font-weight: bold; color: #e67e22;">{total_clicks}</div>
-                        <div style="font-size: 11px; color: #666666; text-transform: uppercase;">Job Clicks</div>
-                    </td>
-                    <td style="background-color: #f8f9fa; padding: 15px; text-align: left; border: 1px solid #dddddd;">
-                        <div style="font-size: 12px; font-weight: bold; color: #6f42c1; margin-bottom: 5px; text-align: center; text-transform: uppercase;">Daily Automations</div>
-                        <ul style="font-size: 11px; color: #666666; margin: 0; padding-left: 20px; text-align: left;">
-                            <li style="margin-bottom: 3px;">LinkedIn</li>
-                            <li style="margin-bottom: 3px;">Vendor Mass Emails</li>
-                            <li>Manual Applications</li>
-                        </ul>
-                    </td>
-                </tr>
-            </table>
-
-            <table width="100%" style="border-collapse: collapse; border: 1px solid #eeeeee; font-size: 12px;">
-                <thead>
-                    <tr style="background-color: #eeeeee;">
-                        <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dddddd;">Candidate</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Assessments</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Recruiter Call</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Technical</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Outreach</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Total</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Clicks</th>
+                <table width="100%" cellpadding="0" cellspacing="5" style="margin-bottom: 30px;">
+                    <tr>
+                        <td width="25%" style="background-color: #f9fafb; padding: 20px 10px; text-align: center; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 28px; font-weight: bold; color: #3b82f6; margin-bottom: 4px;">{total_candidates}</div>
+                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Candidates</div>
+                        </td>
+                        <td width="25%" style="background-color: #f9fafb; padding: 20px 10px; text-align: center; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 28px; font-weight: bold; color: #10b981; margin-bottom: 4px;">{total_interviews}</div>
+                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Interviews</div>
+                        </td>
+                        <td width="25%" style="background-color: #f9fafb; padding: 20px 10px; text-align: center; border-radius: 6px; border: 1px solid #e5e7eb;">
+                            <div style="font-size: 28px; font-weight: bold; color: #f59e0b; margin-bottom: 4px;">{total_clicks}</div>
+                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px;">Job Clicks</div>
+                        </td>
+                        <td width="25%" style="background-color: #f9fafb; padding: 15px 10px; text-align: left; border-radius: 6px; border: 1px solid #e5e7eb; vertical-align: top;">
+                            <div style="font-size: 11px; font-weight: 600; color: #8b5cf6; margin-bottom: 6px; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">Daily Automations</div>
+                            <ul style="font-size: 10px; color: #4b5563; margin: 0; padding-left: 20px; line-height: 1.4;">
+                                <li style="margin-bottom: 2px;">LinkedIn</li>
+                                <li style="margin-bottom: 2px;">Vendor Mass Emails</li>
+                                <li>Manual Applications</li>
+                            </ul>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
+                </table>
+
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <thead>
+                        <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+                            <th style="padding: 14px 16px; text-align: left; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Candidate</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Assessments</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Recruiter Call</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Technical</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Outreach</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Linkedin Easy Apply Count</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #0f172a; font-weight: 800; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; background-color: #f1f5f9;">Total</th>
+                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Candidate Job Clicks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
         """
 
-        for row in candidates_data:
-            click_color = "#856404" if row['job_clicks'] > 0 else "#333333"
-            row_bg = "#ffffff"
+        for idx, row in enumerate(candidates_data):
+            click_color = "#ea580c" if row['job_clicks'] > 0 else "#94a3b8"
+            row_bg = "#ffffff" if idx % 2 == 0 else "#f8fafc"
             
             html_content += f"""
-                    <tr style="background-color: {row_bg};">
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee;"><b>{row['full_name']}</b></td>
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;">{row['assessment_count'] or '-'}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;">{row['recruiter_call_count'] or '-'}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;">{row['technical_count'] or '-'}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center; color: #6f42c1;"><b>{row['outreach_count'] or '-'}</b></td>
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;"><b>{row['total_interviews'] or '0'}</b></td>
-                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center; color: {click_color};"><b>{row['job_clicks'] or '0'}</b></td>
-                    </tr>
+                        <tr style="background-color: {row_bg};">
+                            <td style="padding: 14px 16px; border-bottom: 1px solid #f1f5f9; color: #1e293b; font-weight: 600;">{row['full_name']}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #334155; font-weight: bold;">{row['assessment_count'] or '-'}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #334155; font-weight: bold;">{row['recruiter_call_count'] or '-'}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #334155; font-weight: bold;">{row['technical_count'] or '-'}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #8b5cf6; font-weight: 600;">{row['outreach_count'] or '-'}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #3b82f6; font-weight: 600;">{row['linkedin_easy_apply_count'] or '-'}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #0f172a; font-weight: 700; background-color: #f1f5f9;">{row['total_interviews'] or '0'}</td>
+                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: {click_color}; font-weight: 600;">{row['job_clicks'] or '0'}</td>
+                        </tr>
             """
 
         html_content += """
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
         """
 
     html_content += f"""
-            <div style="margin-top: 20px; text-align: center; font-size: 10px; color: #999999; border-top: 1px solid #eeeeee; padding-top: 10px;">
-                <p>Automated Weekly Marketing Report | Generated on {datetime.now().strftime('%B %d, %H:%M')}</p>
             </div>
+            
+            <!-- Footer -->
+            <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; font-size: 11px; color: #9ca3af;">Automated Weekly Marketing Report</p>
+                <p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af;">Generated on {datetime.now().strftime('%B %d, %Y at %H:%M')}</p>
+            </div>
+            
         </div>
     </body>
     </html>
     """
+    
     return {
         "html": html_content,
         "count": len(candidates_data)
@@ -294,6 +345,10 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         html_report = report_data.get('html')
         candidate_count = report_data.get('count', 0)
         
+        # Recalculate dates for logging (consistent with internal report logic)
+        end_date = datetime.now()
+        start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
         text_report = generate_weekly_marketing_report_text(db)
 
         # Get email configuration
@@ -305,15 +360,16 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             admin_emails.append(config['from_email'])
 
         # Send emails to each recipient individually for maximum reliability
-        subject = f"Weekly Marketing Report - {datetime.now().strftime('%B %d, %Y')}"
+        subject = f"Daily Marketing Report - {datetime.now().strftime('%B %d, %Y')}"
+        logger.info(f"Dispatching report for period {start_date} to {end_date} to {admin_emails}")
 
-        with smtplib.SMTP(config['smtp_server'], int(config['smtp_port'])) as server:
+        with smtplib.SMTP(config['smtp_server'], int(config['smtp_port']), timeout=60) as server:
             server.starttls()
             server.login(config['from_email'], config['password'])
 
             for admin_email in admin_emails:
                 try:
-                    logger.info(f"Attempting to send Weekly Report to {admin_email}")
+                    logger.info(f"Attempting individual delivery to: {admin_email}")
                     send_html_email(
                         server=server,
                         from_email=config['from_email'],
@@ -322,10 +378,10 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                         html_content=html_report,
                         text_content=text_report
                     )
-                    logger.info(f"Successfully delivered Weekly Report to {admin_email}")
+                    logger.info(f"Deliver Success: {admin_email}")
                 except Exception as e:
-                    logger.error(f"Failed to deliver to {admin_email}: {e}")
-                    # Log specific error but continue with others
+                    logger.error(f"Deliver Failed to {admin_email}: {e}")
+                    # Continue with other recipients
 
         return {
             "status": "success",

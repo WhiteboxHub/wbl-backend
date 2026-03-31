@@ -46,33 +46,38 @@ def validate_email_config(config: dict):
     return list(set(admin_emails))  # Remove duplicates
 
 def send_html_email(server, from_email: str, to_emails: list[str], subject: str, html_content: str, text_content: str = None):
-    from email.utils import formatdate
+    from email.utils import formatdate, make_msgid
     
     # Create message container - the correct MIME type is multipart/alternative.
     msg = MIMEMultipart('alternative')
     msg['From'] = from_email
-    msg['To'] = ", ".join(to_emails)
+    
+    # Send to all recipients
+    if to_emails:
+        msg['To'] = ", ".join(to_emails)
+    else:
+        msg['To'] = from_email
+        
+    # Standard MIME structure for better compatibility
     msg['Subject'] = subject
     msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid()
     msg['MIME-Version'] = '1.0'
 
-    # Record the MIME types of both parts - text/plain and text/html.
-    if not text_content:
-        # Fallback text if none provided
-        text_content = "Please use an HTML compatible email client to view this report."
+    # Attach parts: plain text first, then HTML (standard multipart/alternative)
+    alt_text = "Weekly Marketing Report. Please use an HTML compatible email client."
+    p_text = text_content if text_content else alt_text
     
-    part1 = MIMEText(text_content, 'plain', 'utf-8')
+    part1 = MIMEText(p_text, 'plain', 'utf-8')
     part2 = MIMEText(html_content, 'html', 'utf-8')
-
-    # Attach parts into message container.
+    
     msg.attach(part1)
     msg.attach(part2)
     
     try:
         raw_msg = msg.as_string()
-        print(f"DEBUG: Dispatching email (Size: {len(raw_msg)} bytes) to {to_emails}")
+        # The envelope recipients should be the list of emails
         server.sendmail(from_email, to_emails, raw_msg)
-        print(f"DEBUG: Successfully accepted by SMTP server for {to_emails}")
     except Exception as e:
         print(f"ERROR: send_html_email failed: {str(e)}")
         raise e

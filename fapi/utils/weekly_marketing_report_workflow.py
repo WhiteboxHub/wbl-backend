@@ -10,7 +10,7 @@ from fapi.db.models import (
     AutomationWorkflowORM,
     AutomationWorkflowScheduleORM,
 )
-from fapi.utils.weekly_marketing_report_service import run_weekly_marketing_report_workflow
+from fapi.utils.dynamic_weekly_report import send_weekly_marketing_report as run_weekly_marketing_report_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +50,20 @@ def ensure_weekly_marketing_report_workflow(db: Session) -> Dict[str, Any]:
         .first()
     )
     if not sched:
+        # Create schedule for 8:00 AM Pacific Time
         now = datetime.now(timezone.utc)
+        # Calculate next 8 AM PT (simplified: set to today or tomorrow)
+        next_run = now.replace(hour=15, minute=0, second=0, microsecond=0) # 8 AM PT is 15:00 or 16:00 UTC
+        if next_run < now:
+            next_run += timedelta(days=1)
+            
         sched = AutomationWorkflowScheduleORM(
             automation_workflow_id=wf.id,
             timezone="America/Los_Angeles",
             cron_expression=None,
-            frequency="weekly",
+            frequency="daily",
             interval_value=1,
-            next_run_at=now,  # start "due now"; user can edit in UI
+            next_run_at=next_run,
             last_run_at=None,
             run_parameters={"report": WORKFLOW_KEY},
             enabled=True,
