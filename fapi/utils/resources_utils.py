@@ -110,7 +110,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
         
     # Check if user is allowed to access Internal Sessions
     if db_session_type == "Internal Session":
-        if role not in ["admin", "employee"] and user_team not in ["admin", "employee"]:
+        if role not in ["admin", "employee"]:
             return []  # Non-admin users get empty results for Internal Sessions
 
     allowed_types = [
@@ -144,7 +144,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
 @cache_result(ttl=300, prefix="resources")
 def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None) -> List[str]:
     
-    if role in ["admin", "employee"] or  user_team in ["admin", "instructor"]:
+    if role in ["admin", "employee"] :
         # Admin user sees all types including Internal Sessions
         result = db.execute(
             select(SessionORM.type).distinct().order_by(SessionORM.type))
