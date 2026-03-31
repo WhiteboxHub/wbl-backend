@@ -15,16 +15,20 @@ from fapi.db.models import (
     CandidateMarketingORM,
     CandidateInterview,
     AuthUserORM,
+    AuthUserORM,
     JobLinkClicksORM,
+    AutomationWorkflowLogORM,
 )
 from fapi.utils.email_utils import get_email_config, send_html_email, validate_email_config
 
 logger = logging.getLogger(__name__)
 
 
-def generate_weekly_marketing_report(db: Session) -> str:
+def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     """
     Generate dynamic weekly marketing report HTML based on database queries
+    Returns:
+        Dict with 'html' and 'count' (number of candidates)
     """
     # Calculate date range (last 7 days)
     end_date = datetime.now()
@@ -70,6 +74,41 @@ def generate_weekly_marketing_report(db: Session) -> str:
         CandidateORM.id
     ).all()
 
+    # Query 3: Get outreach data (Workflow IDs 1, 3, 6)
+    outreach_logs = db.query(AutomationWorkflowLogORM).filter(
+        AutomationWorkflowLogORM.workflow_id.in_([1, 3, 6]),
+        AutomationWorkflowLogORM.created_at >= start_date
+    ).all()
+
+    # Get all active candidates to build an email mapping
+    candidates_for_mapping = db.query(CandidateORM).join(
+        CandidateMarketingORM, CandidateORM.id == CandidateMarketingORM.candidate_id
+    ).filter(CandidateMarketingORM.status == 'active').all()
+    
+    # Email to Candidate ID mapping
+    email_to_cand_id = {c.email.lower(): c.id for c in candidates_for_mapping if c.email}
+    
+    # Also check marketing email for each candidate
+    marketing_records = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.status == 'active').all()
+    for mc in marketing_records:
+        if mc.email:
+            email_to_cand_id[mc.email.lower()] = mc.candidate_id
+
+    # Map outreach logs to candidates
+    outreach_dict = {}
+    for log in outreach_logs:
+        params = log.parameters_used or {}
+        cand_id = params.get('candidate_id')
+        
+        # Robust mapping: If no candidate_id, try email or campaign_username
+        if not cand_id:
+            email_key = params.get('email') or params.get('campaign_username')
+            if email_key:
+                cand_id = email_to_cand_id.get(email_key.lower())
+        
+        if cand_id:
+            outreach_dict[int(cand_id)] = outreach_dict.get(int(cand_id), 0) + (log.records_processed or 0)
+
     # Create a dictionary for job clicks
     job_clicks_dict = {row.id: (row.job_clicks or 0) for row in job_clicks_query}
 
@@ -78,15 +117,18 @@ def generate_weekly_marketing_report(db: Session) -> str:
     for interview_row in interviews_query:
         total_interviews = interview_row.total_interviews or 0
         job_clicks = job_clicks_dict.get(interview_row.id, 0)
+        outreach_count = outreach_dict.get(interview_row.id, 0)
 
         candidates_data.append({
+            'id': interview_row.id,
             'full_name': interview_row.full_name,
             'email': interview_row.email,
             'total_interviews': total_interviews,
             'assessment_count': interview_row.assessment_count or 0,
             'recruiter_call_count': interview_row.recruiter_call_count or 0,
             'technical_count': interview_row.technical_count or 0,
-            'job_clicks': job_clicks
+            'job_clicks': job_clicks,
+            'outreach_count': outreach_count
         })
 
     logger.info(f"Report generated for {len(candidates_data)} active marketing candidates.")
@@ -112,6 +154,7 @@ def generate_weekly_marketing_report(db: Session) -> str:
         total_candidates = len(interviews_query)
         total_interviews = sum(row['total_interviews'] for row in candidates_data)
         total_clicks = sum(row['job_clicks'] for row in candidates_data)
+        total_outreach = sum(row['outreach_count'] for row in candidates_data)
 
         # Summary Table
         html_content += f"""
@@ -129,6 +172,14 @@ def generate_weekly_marketing_report(db: Session) -> str:
                         <div style="font-size: 20px; font-weight: bold; color: #e67e22;">{total_clicks}</div>
                         <div style="font-size: 11px; color: #666666; text-transform: uppercase;">Job Clicks</div>
                     </td>
+                    <td style="background-color: #f8f9fa; padding: 15px; text-align: left; border: 1px solid #dddddd;">
+                        <div style="font-size: 12px; font-weight: bold; color: #6f42c1; margin-bottom: 5px; text-align: center; text-transform: uppercase;">Daily Automations</div>
+                        <ul style="font-size: 11px; color: #666666; margin: 0; padding-left: 20px; text-align: left;">
+                            <li style="margin-bottom: 3px;">LinkedIn</li>
+                            <li style="margin-bottom: 3px;">Vendor Mass Emails</li>
+                            <li>Manual Applications</li>
+                        </ul>
+                    </td>
                 </tr>
             </table>
 
@@ -136,9 +187,10 @@ def generate_weekly_marketing_report(db: Session) -> str:
                 <thead>
                     <tr style="background-color: #eeeeee;">
                         <th style="padding: 8px; text-align: left; border-bottom: 1px solid #dddddd;">Candidate</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Assm.</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Recr.</th>
-                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Tech.</th>
+                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Assessments</th>
+                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Recruiter Call</th>
+                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Technical</th>
+                        <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Outreach</th>
                         <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Total</th>
                         <th style="padding: 8px; text-align: center; border-bottom: 1px solid #dddddd;">Clicks</th>
                     </tr>
@@ -156,6 +208,7 @@ def generate_weekly_marketing_report(db: Session) -> str:
                         <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;">{row['assessment_count'] or '-'}</td>
                         <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;">{row['recruiter_call_count'] or '-'}</td>
                         <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;">{row['technical_count'] or '-'}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center; color: #6f42c1;"><b>{row['outreach_count'] or '-'}</b></td>
                         <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center;"><b>{row['total_interviews'] or '0'}</b></td>
                         <td style="padding: 8px; border-bottom: 1px solid #eeeeee; text-align: center; color: {click_color};"><b>{row['job_clicks'] or '0'}</b></td>
                     </tr>
@@ -174,7 +227,10 @@ def generate_weekly_marketing_report(db: Session) -> str:
     </body>
     </html>
     """
-    return html_content
+    return {
+        "html": html_content,
+        "count": len(candidates_data)
+    }
 
 
 def generate_weekly_marketing_report_text(db: Session) -> str:
@@ -234,7 +290,10 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     """
     try:
         # Generate the report versions
-        html_report = generate_weekly_marketing_report(db)
+        report_data = generate_weekly_marketing_report(db)
+        html_report = report_data.get('html')
+        candidate_count = report_data.get('count', 0)
+        
         text_report = generate_weekly_marketing_report_text(db)
 
         # Get email configuration
@@ -272,7 +331,8 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             "status": "success",
             "message": f"Weekly marketing report sent to {len(admin_emails)} recipients",
             "recipients": admin_emails,
-            "subject": subject
+            "subject": subject,
+            "records_processed": candidate_count
         }
 
     except Exception as e:
@@ -288,7 +348,9 @@ def get_weekly_report_data(db: Session) -> Dict[str, Any]:
     Get the raw data for the weekly report without sending email
     """
     try:
-        html_report = generate_weekly_marketing_report(db)
+        report_data = generate_weekly_marketing_report(db)
+        html_report = report_data.get('html')
+        candidate_count = report_data.get('count', 0)
 
         # Get email configuration for recipients
         config = get_email_config()
@@ -298,7 +360,8 @@ def get_weekly_report_data(db: Session) -> Dict[str, Any]:
             "status": "success",
             "html_report": html_report,
             "recipients": admin_emails,
-            "generated_at": datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
+            "records_processed": candidate_count
         }
 
     except Exception as e:

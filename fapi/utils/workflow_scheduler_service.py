@@ -127,6 +127,7 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
             raise ValueError(f"Unknown workflow: {workflow.workflow_key}")
 
         log_entry.status = 'success'
+        log_entry.records_processed = result.get('records_processed', 0)
         log_entry.execution_metadata = {
             'result': str(result),
             'workflow_key': workflow.workflow_key

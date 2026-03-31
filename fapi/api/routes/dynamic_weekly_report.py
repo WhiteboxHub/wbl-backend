@@ -73,7 +73,8 @@ async def preview_weekly_report_html(
     This is useful for testing and verifying the report before sending.
     """
     try:
-        html_report = generate_weekly_marketing_report(db)
+        report_data = generate_weekly_marketing_report(db)
+        html_report = report_data.get('html', "")
         return HTMLResponse(content=html_report, status_code=200)
     except Exception as e:
         logger.error(f"Error generating weekly report HTML preview: {e}")
