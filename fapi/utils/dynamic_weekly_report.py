@@ -46,6 +46,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         func.sum(case((CandidateInterview.mode_of_interview == 'Assessment', 1), else_=0)).label('assessment_count'),
         func.sum(case((CandidateInterview.type_of_interview == 'Recruiter Call', 1), else_=0)).label('recruiter_call_count'),
         func.sum(case((CandidateInterview.type_of_interview == 'Technical', 1), else_=0)).label('technical_count'),
+        func.sum(case((CandidateInterview.mode_of_interview == 'In Person', 1), else_=0)).label('onsite_count'),
     ).join(
         CandidateMarketingORM, CandidateORM.id == CandidateMarketingORM.candidate_id
     ).outerjoin(
@@ -60,24 +61,25 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         CandidateORM.id, CandidateORM.full_name, CandidateORM.email
     ).all()
 
-    # Query 2: Get job clicks data
-    job_clicks_query = db.query(
-        CandidateORM.id,
-        func.sum(JobLinkClicksORM.click_count).label('job_clicks')
-    ).outerjoin(
-        AuthUserORM, func.lower(AuthUserORM.uname) == func.lower(CandidateORM.email)
-    ).outerjoin(
-        JobLinkClicksORM, and_(
-            JobLinkClicksORM.authuser_id == AuthUserORM.id,
-            JobLinkClicksORM.last_clicked_at.between(start_date, end_date)
-        )
+    # Query 2: Get all job clicks joined with authuser emails for robust mapping
+    job_clicks_raw = db.query(
+        AuthUserORM.uname,
+        func.sum(JobLinkClicksORM.click_count).label('total_clicks')
+    ).join(
+        JobLinkClicksORM, JobLinkClicksORM.authuser_id == AuthUserORM.id
     ).group_by(
-        CandidateORM.id
+        AuthUserORM.uname
     ).all()
+    
+    click_mapping = {}
+    for email, count in job_clicks_raw:
+        if email:
+            click_mapping[email.lower()] = count
 
-    # Query 3: Get outreach data (Workflow IDs 1, 3, 6)
+    # Query 3: Get outreach data (Workflow IDs 1, 3, 4, 6, 7, 8, 9)
+    # 1: Daily Vendor Outreach, 3: Weekly Vendor Outreach, 6: Cold Intro, 8: LinkedIn Non-Easy Extraction, 9: Hiring Cafe
     outreach_logs = db.query(AutomationWorkflowLogORM).filter(
-        AutomationWorkflowLogORM.workflow_id.in_([1, 3, 6]),
+        AutomationWorkflowLogORM.workflow_id.in_([1, 3, 4, 6, 7, 8, 9]),
         AutomationWorkflowLogORM.created_at >= start_date
     ).all()
 
@@ -96,19 +98,28 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             email_to_cand_id[mc.email.lower()] = mc.candidate_id
 
     # Map outreach logs to candidates
-    outreach_dict = {}
+    outreach_dict = {}  # Email Outreach (1, 3, 6)
+    portal_automation_dict = {}  # Job Portal Automations (7, 9)
+    
     for log in outreach_logs:
         params = log.parameters_used or {}
         cand_id = params.get('candidate_id')
         
-        # Robust mapping: If no candidate_id, try email or campaign_username
+        # Robust mapping: If no candidate_id, try email or usernames
         if not cand_id:
-            email_key = params.get('email') or params.get('campaign_username')
+            email_key = params.get('email') or params.get('campaign_username') or params.get('username') or params.get('linkedin_username')
             if email_key:
-                cand_id = email_to_cand_id.get(email_key.lower())
+                cand_id = email_to_cand_id.get(str(email_key).strip().lower())
         
         if cand_id:
-            outreach_dict[int(cand_id)] = outreach_dict.get(int(cand_id), 0) + (log.records_processed or 0)
+            c_id = int(cand_id)
+            records = log.records_processed or 0
+            
+            # Workflow 1 (Daily Vendor Outreach) is grouped in Outreach as per user request
+            if log.workflow_id in [1, 3, 6]:
+                outreach_dict[c_id] = outreach_dict.get(c_id, 0) + records
+            elif log.workflow_id in [7, 9]:
+                portal_automation_dict[c_id] = portal_automation_dict.get(c_id, 0) + records
 
     # Query 4: Get ALL Linkedin Easy Apply activity (Playwright or Extension)
     linkedin_activity_query = db.query(
@@ -146,14 +157,29 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         if cand_id:
             linkedin_dict[int(cand_id)] = linkedin_dict.get(int(cand_id), 0) + (row.activity_count or 0)
 
-    # Create a dictionary for job clicks
-    job_clicks_dict = {row.id: (row.job_clicks or 0) for row in job_clicks_query}
-
     # Combine the data
     candidates_data = []
     for interview_row in interviews_query:
-        total_interviews = interview_row.total_interviews or 0
-        job_clicks = job_clicks_dict.get(interview_row.id, 0)
+        # Robust Job Clicks Mapping: Check candidate email and marketing email
+        cand_click_count = 0
+        if interview_row.email and interview_row.email.lower() in click_mapping:
+            cand_click_count += click_mapping[interview_row.email.lower()]
+            
+        # Also check if marketing email is different and has clicks
+        marketing_email = next((m.email for m in marketing_records if m.candidate_id == interview_row.id), None)
+        if marketing_email and marketing_email.lower() != (interview_row.email or "").lower():
+            if marketing_email.lower() in click_mapping:
+                cand_click_count += click_mapping[marketing_email.lower()]
+
+        # User wants the TOTAL in the report to match exactly the sum of the visible sub-columns
+        # to avoid mismatch with hidden interview types (like Prep Call, HR, etc.)
+        total_interviews_visible = (
+            (interview_row.assessment_count or 0) +
+            (interview_row.recruiter_call_count or 0) +
+            (interview_row.technical_count or 0) +
+            (interview_row.onsite_count or 0)
+        )
+        job_clicks = cand_click_count
         outreach_count = outreach_dict.get(interview_row.id, 0)
         linkedin_applies = linkedin_dict.get(interview_row.id, 0)
 
@@ -161,14 +187,27 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'id': interview_row.id,
             'full_name': interview_row.full_name,
             'email': interview_row.email,
-            'total_interviews': total_interviews,
+            'total_interviews': total_interviews_visible,
             'assessment_count': interview_row.assessment_count or 0,
             'recruiter_call_count': interview_row.recruiter_call_count or 0,
             'technical_count': interview_row.technical_count or 0,
-            'job_clicks': job_clicks,
-            'outreach_count': outreach_count,
-            'linkedin_easy_apply_count': linkedin_applies
+            'onsite_count': interview_row.onsite_count or 0,
+            'job_clicks': cand_click_count,
+            'outreach_count': outreach_dict.get(interview_row.id, 0),
+            'linkedin_easy_apply_count': linkedin_applies,
+            'job_portal_automation_count': portal_automation_dict.get(interview_row.id, 0)
         })
+
+    # Filter to only include candidates with ANY activity (matches UI behavior)
+    candidates_with_activity = [
+        c for c in candidates_data 
+        if (c['total_interviews'] or 0) > 0 or (c['job_clicks'] or 0) > 0 or 
+           (c['outreach_count'] or 0) > 0 or (c['linkedin_easy_apply_count'] or 0) > 0 or
+           (c['job_portal_automation_count'] or 0) > 0
+    ]
+    
+    # Calculate global total clicks to match UI "Live" stats box
+    global_total_clicks = db.query(func.sum(JobLinkClicksORM.click_count)).scalar() or 0
 
     logger.info(f"Report generated for {len(candidates_data)} active marketing candidates.")
 
@@ -176,7 +215,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     html_content = f"""
     <html>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 40px 20px;">
-        <div style="max-width: 900px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
+        <div style="max-width: 950px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow: hidden;">
             
             <!-- Header -->
             <div style="background-color: #1f2937; color: #ffffff; padding: 30px; text-align: center;">
@@ -195,11 +234,11 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         """
     else:
         # Calculate summary stats
-        total_candidates = len(interviews_query)
+        total_candidates = len(candidates_data)
         total_interviews = sum(row['total_interviews'] for row in candidates_data)
-        total_clicks = sum(row['job_clicks'] for row in candidates_data)
+        total_clicks = global_total_clicks
 
-        # Summary Table
+        # Summary Boxes
         html_content += f"""
                 <table width="100%" cellpadding="0" cellspacing="5" style="margin-bottom: 30px;">
                     <tr>
@@ -226,42 +265,51 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                     </tr>
                 </table>
 
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <thead>
-                        <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-                            <th style="padding: 14px 16px; text-align: left; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Candidate</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Assessments</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Recruiter Call</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Technical</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Outreach</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Linkedin Easy Apply Count</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #0f172a; font-weight: 800; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; background-color: #f1f5f9;">Total</th>
-                            <th style="padding: 14px 12px; text-align: center; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">Candidate Job Clicks</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div style="overflow-x: auto;">
+                    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: separate; border-spacing: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 10px; border: 1px solid #e2e8f0; border-radius: 12px 12px 0 0;">
+                        <thead>
+                            <tr style="color: #ffffff; font-weight: 700;">
+                                <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #3b5998; border-right: 1px solid #ffffff; width: 18%; border-top-left-radius: 11px; font-size: 11px;">Candidate</th>
+                                <th colspan="4" style="padding: 12px; text-align: center; background-color: #4d71bb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">APPLICATIONS</th>
+                                <th colspan="4" style="padding: 12px; text-align: center; background-color: #6d8acb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">INTERVIEWS</th>
+                                <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #38ada9; width: 8%; border-top-right-radius: 11px; font-size: 11px;">Total</th>
+                            </tr>
+                            <tr style="background-color: #f0f4f8; color: #334e81; font-weight: 700; text-transform: uppercase; font-size: 9px;">
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">EMAIL<br>OUTREACH</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">LINKEDIN<br>EASYAPPLY</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">JOB PORTAL<br>AUTOMATIONS</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">JOB<br>LISTINGS<br>CLICKS</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">ASSESSMENTS</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">RECRUITER</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">TECHNICAL</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">ONSITE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
         """
 
         for idx, row in enumerate(candidates_data):
-            click_color = "#ea580c" if row['job_clicks'] > 0 else "#94a3b8"
             row_bg = "#ffffff" if idx % 2 == 0 else "#f8fafc"
-            
             html_content += f"""
-                        <tr style="background-color: {row_bg};">
-                            <td style="padding: 14px 16px; border-bottom: 1px solid #f1f5f9; color: #1e293b; font-weight: 600;">{row['full_name']}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #334155; font-weight: bold;">{row['assessment_count'] or '-'}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #334155; font-weight: bold;">{row['recruiter_call_count'] or '-'}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #334155; font-weight: bold;">{row['technical_count'] or '-'}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #8b5cf6; font-weight: 600;">{row['outreach_count'] or '-'}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #3b82f6; font-weight: 600;">{row['linkedin_easy_apply_count'] or '-'}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #0f172a; font-weight: 700; background-color: #f1f5f9;">{row['total_interviews'] or '0'}</td>
-                            <td style="padding: 14px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: {click_color}; font-weight: 600;">{row['job_clicks'] or '0'}</td>
-                        </tr>
+                            <tr style="background-color: {row_bg};">
+                                <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; color: #1e293b; font-weight: 600;">{row['full_name']}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['outreach_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['linkedin_easy_apply_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['job_portal_automation_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #ea580c; font-weight: 700;">{row['job_clicks'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['assessment_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['recruiter_call_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['technical_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['onsite_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #0f172a; font-weight: 800; background-color: #ecfdf5;">{row['total_interviews'] or '0'}</td>
+                            </tr>
             """
 
+
         html_content += """
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
         """
 
     html_content += f"""
@@ -280,8 +328,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     
     return {
         "html": html_content,
-        "count": len(candidates_data)
+        "count": len(candidates_with_activity)
     }
+
 
 
 def generate_weekly_marketing_report_text(db: Session) -> str:
@@ -359,9 +408,11 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         if config['from_email'] and config['from_email'] not in admin_emails:
             admin_emails.append(config['from_email'])
 
-        # Send emails to each recipient individually for maximum reliability
-        subject = f"Daily Marketing Report - {datetime.now().strftime('%B %d, %Y')}"
-        logger.info(f"Dispatching report for period {start_date} to {end_date} to {admin_emails}")
+        # Send emails to all recipients with a unique subject (timestamp)
+        now = datetime.now()
+        subject = f"Weekly Marketing Report - {now.strftime('%B %d, %Y [%H:%M:%S]')}"
+        from_display = f"WBL Marketing <{config['from_email']}>"
+        logger.info(f"Dispatching report to {admin_emails} with subject: {subject}")
 
         with smtplib.SMTP(config['smtp_server'], int(config['smtp_port']), timeout=60) as server:
             server.starttls()
@@ -372,7 +423,7 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                     logger.info(f"Attempting individual delivery to: {admin_email}")
                     send_html_email(
                         server=server,
-                        from_email=config['from_email'],
+                        from_email=from_display,
                         to_emails=[admin_email],
                         subject=subject,
                         html_content=html_report,

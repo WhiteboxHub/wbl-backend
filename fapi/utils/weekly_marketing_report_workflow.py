@@ -50,10 +50,11 @@ def ensure_weekly_marketing_report_workflow(db: Session) -> Dict[str, Any]:
         .first()
     )
     if not sched:
-        # Create schedule for 8:00 AM Pacific Time
+        # Create schedule for 8:00 AM Pacific Time (15:00 UTC or 16:00 UTC)
         now = datetime.now(timezone.utc)
-        # Calculate next 8 AM PT (simplified: set to today or tomorrow)
-        next_run = now.replace(hour=15, minute=0, second=0, microsecond=0) # 8 AM PT is 15:00 or 16:00 UTC
+        # 8 AM PT is 15:00 UTC (PDT) or 16:00 UTC (PST)
+        # Setting to 15:00 UTC as primary target
+        next_run = now.replace(hour=15, minute=0, second=0, microsecond=0)
         if next_run < now:
             next_run += timedelta(days=1)
             
