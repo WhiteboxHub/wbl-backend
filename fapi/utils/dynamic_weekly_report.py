@@ -7,7 +7,7 @@ import smtplib
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from sqlalchemy import func, case, and_
+from sqlalchemy import func, case, and_, or_
 from sqlalchemy.orm import Session
 
 from fapi.db.models import (
@@ -47,6 +47,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         func.sum(case((CandidateInterview.type_of_interview == 'Recruiter Call', 1), else_=0)).label('recruiter_call_count'),
         func.sum(case((CandidateInterview.type_of_interview == 'Technical', 1), else_=0)).label('technical_count'),
         func.sum(case((CandidateInterview.mode_of_interview == 'In Person', 1), else_=0)).label('onsite_count'),
+        func.sum(case((CandidateInterview.feedback == 'Positive', 1), else_=0)).label('feedback_positive'),
+        func.sum(case((CandidateInterview.feedback == 'Negative', 1), else_=0)).label('feedback_negative'),
+        func.sum(case((CandidateInterview.feedback == 'Pending', 1), else_=0)).label('feedback_pending'),
     ).join(
         CandidateMarketingORM, CandidateORM.id == CandidateMarketingORM.candidate_id
     ).outerjoin(
@@ -61,12 +64,17 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         CandidateORM.id, CandidateORM.full_name, CandidateORM.email
     ).all()
 
-    # Query 2: Get all job clicks joined with authuser emails for robust mapping
+    # Query 2: Get job clicks joined with authuser emails
+    # 1. Filtered by the report date range (last_clicked_at)
+    # 2. Counting unique job roles (records) instead of summing all repeated clicks
     job_clicks_raw = db.query(
         AuthUserORM.uname,
-        func.sum(JobLinkClicksORM.click_count).label('total_clicks')
+        func.count(JobLinkClicksORM.id).label('total_clicks')
     ).join(
         JobLinkClicksORM, JobLinkClicksORM.authuser_id == AuthUserORM.id
+    ).filter(
+        JobLinkClicksORM.last_clicked_at >= start_date,
+        JobLinkClicksORM.last_clicked_at <= end_date
     ).group_by(
         AuthUserORM.uname
     ).all()
@@ -192,22 +200,20 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'recruiter_call_count': interview_row.recruiter_call_count or 0,
             'technical_count': interview_row.technical_count or 0,
             'onsite_count': interview_row.onsite_count or 0,
-            'job_clicks': cand_click_count,
-            'outreach_count': outreach_dict.get(interview_row.id, 0),
+            'feedback_positive': interview_row.feedback_positive or 0,
+            'feedback_negative': interview_row.feedback_negative or 0,
+            'feedback_pending': interview_row.feedback_pending or 0,
+            'job_clicks': job_clicks,
+            'outreach_count': outreach_count,
             'linkedin_easy_apply_count': linkedin_applies,
             'job_portal_automation_count': portal_automation_dict.get(interview_row.id, 0)
         })
 
-    # Filter to only include candidates with ANY activity (matches UI behavior)
-    candidates_with_activity = [
-        c for c in candidates_data 
-        if (c['total_interviews'] or 0) > 0 or (c['job_clicks'] or 0) > 0 or 
-           (c['outreach_count'] or 0) > 0 or (c['linkedin_easy_apply_count'] or 0) > 0 or
-           (c['job_portal_automation_count'] or 0) > 0
-    ]
-    
-    # Calculate global total clicks to match UI "Live" stats box
-    global_total_clicks = db.query(func.sum(JobLinkClicksORM.click_count)).scalar() or 0
+    # Calculate global total UNIQUE clicks for the specific period to match summary cards
+    global_total_clicks = db.query(func.count(JobLinkClicksORM.id)).filter(
+        JobLinkClicksORM.last_clicked_at >= start_date,
+        JobLinkClicksORM.last_clicked_at <= end_date
+    ).scalar() or 0
 
     logger.info(f"Report generated for {len(candidates_data)} active marketing candidates.")
 
@@ -226,7 +232,10 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             <div style="padding: 30px;">
     """
 
-    if not candidates_data:
+    # Show all active marketing candidates in the report, including those with 0 activity
+    candidates_with_activity = candidates_data
+
+    if not candidates_with_activity:
         html_content += """
                 <div style="text-align: center; padding: 40px 20px; background-color: #f9fafb; border-radius: 6px; border: 1px dashed #d1d5db;">
                     <p style="margin: 0; color: #6b7280; font-size: 14px;">No candidate activity recorded during this period.</p>
@@ -234,8 +243,8 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         """
     else:
         # Calculate summary stats
-        total_candidates = len(candidates_data)
-        total_interviews = sum(row['total_interviews'] for row in candidates_data)
+        total_candidates = len(candidates_with_activity)
+        total_interviews = sum(row['total_interviews'] for row in candidates_with_activity)
         total_clicks = global_total_clicks
 
         # Summary Boxes
@@ -269,10 +278,11 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: separate; border-spacing: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 10px; border: 1px solid #e2e8f0; border-radius: 12px 12px 0 0;">
                         <thead>
                             <tr style="color: #ffffff; font-weight: 700;">
-                                <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #3b5998; border-right: 1px solid #ffffff; width: 18%; border-top-left-radius: 11px; font-size: 11px;">Candidate</th>
+                                <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #3b5998; border-right: 1px solid #ffffff; width: 14%; border-top-left-radius: 11px; font-size: 11px;">Candidate</th>
                                 <th colspan="4" style="padding: 12px; text-align: center; background-color: #4d71bb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">APPLICATIONS</th>
                                 <th colspan="4" style="padding: 12px; text-align: center; background-color: #6d8acb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">INTERVIEWS</th>
-                                <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #38ada9; width: 8%; border-top-right-radius: 11px; font-size: 11px;">Total</th>
+                                <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #38ada9; border-right: 1px solid #ffffff; width: 6%; font-size: 11px;">Total</th>
+                                <th colspan="3" style="padding: 12px; text-align: center; background-color: #8da3dc; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px; border-top-right-radius: 11px;">FEEDBACK</th>
                             </tr>
                             <tr style="background-color: #f0f4f8; color: #334e81; font-weight: 700; text-transform: uppercase; font-size: 9px;">
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">EMAIL<br>OUTREACH</th>
@@ -283,12 +293,15 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">RECRUITER</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">TECHNICAL</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">ONSITE</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3; color: #16a34a;">POSITIVE</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3; color: #ef4444;">NEGATIVE</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3; color: #d97706;">PENDING</th>
                             </tr>
                         </thead>
                         <tbody>
         """
 
-        for idx, row in enumerate(candidates_data):
+        for idx, row in enumerate(candidates_with_activity):
             row_bg = "#ffffff" if idx % 2 == 0 else "#f8fafc"
             html_content += f"""
                             <tr style="background-color: {row_bg};">
@@ -301,7 +314,10 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['recruiter_call_count'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['technical_count'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['onsite_count'] or '-'}</td>
-                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #0f172a; font-weight: 800; background-color: #ecfdf5;">{row['total_interviews'] or '0'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #0f172a; font-weight: 800; background-color: #ecfdf5;">{row['total_interviews'] or '0'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #16a34a; font-weight: bold;">{row['feedback_positive'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #ef4444; font-weight: bold;">{row['feedback_negative'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #d97706; font-weight: bold;">{row['feedback_pending'] or '-'}</td>
                             </tr>
             """
 

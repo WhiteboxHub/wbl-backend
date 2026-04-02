@@ -41,6 +41,18 @@ def _run_scheduler_job():
 # Create and auto-start the scheduler
 _scheduler = BackgroundScheduler()
 _scheduler.add_job(_run_scheduler_job, 'interval', minutes=5)
+
+# Ensure our core workflows exist
+try:
+    from fapi.db.database import SessionLocal
+    from fapi.utils.weekly_marketing_report_workflow import ensure_weekly_marketing_report_workflow
+    db = SessionLocal()
+    ensure_weekly_marketing_report_workflow(db)
+    db.close()
+    logger.info("Ensured core workflows exist.")
+except Exception as e:
+    logger.error(f"Error ensuring workflows: {e}")
+
 _scheduler.start()
 logger.info("Automation Workflow Scheduler started (polling every 5 minutes)")
 
