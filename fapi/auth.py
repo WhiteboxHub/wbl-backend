@@ -36,7 +36,7 @@ def determine_user_role(userinfo) -> str:
 class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         skip_paths = ["/login", "/signup", "/", "/verify_token", "/docs", "/openapi.json",
-                      "/api/auth/callback/google", "/api/auth/error"]
+                      "/api/auth/callback/google", "/api/auth/error", "/approval", "/api/approval", ]
 
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
@@ -52,6 +52,9 @@ class JWTAuthorizationMiddleware(BaseHTTPMiddleware):
             username = decoded_token.get('sub')
             role = decoded_token.get('role')
             is_employee = decoded_token.get('is_employee', False)
+
+            if not isinstance(username, str) or not username.strip():
+                return JSONResponse(status_code=401, content={"detail": "Invalid token username"})
 
             user = cache_get(username)
             if user is None:
@@ -100,12 +103,14 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
     username = data.get("sub")
-    if username:
-        userinfo = cache_get(username)
-        if userinfo is None:
-            userinfo = get_user_by_username_sync(username)
-            if not userinfo:
-                raise ValueError(f"User '{username}' not found while creating Google access token")
+    if not isinstance(username, str) or not username.strip():
+        raise ValueError("Invalid username in token payload")
+
+    userinfo = cache_get(username)
+    if userinfo is None:
+        userinfo = get_user_by_username_sync(username)
+        if not userinfo:
+            raise ValueError(f"User '{username}' not found while creating Google access token")
             cache_set(username, userinfo)
 
         # Prefer an explicit role supplied in `data` (e.g. employee login may set role='admin')
@@ -130,17 +135,23 @@ async def create_google_access_token(data: dict, expires_delta: Optional[timedel
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
+from typing import Optional
+
+...
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
     username = data.get("sub")
-    if username:
-        userinfo = cache_get(username)
-        if userinfo is None:
-            userinfo = get_user_by_username_sync(username)
-            if not userinfo:
-                raise ValueError(f"User '{username}' not found while creating access token")
+    if not isinstance(username, str) or not username.strip():
+        raise ValueError("Invalid username in token payload")
+
+    userinfo = cache_get(username)
+    if userinfo is None:
+        userinfo = get_user_by_username_sync(username)
+        if not userinfo:
+            raise ValueError(f"User '{username}' not found while creating access token")
             cache_set(username, userinfo)
 
         # Prefer explicit role if provided, otherwise determine from userinfo

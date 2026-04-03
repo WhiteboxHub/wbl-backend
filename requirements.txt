@@ -4,11 +4,11 @@ mysql-connector-python
 python-dotenv
 passlib
 python-jose
-# pydantic
+pydantic
 python-multipart
-# fastapi-mail
+fastapi-mail
 PyJWT
-# pydantic[email]
+pydantic[email]
 slowapi
 email-validator
 sqlalchemy
@@ -19,4 +19,8 @@ requests
 httpx
 cryptography  # Required for MySQL 8.0 caching_sha2_password authentication
 upstash-redis
-
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+python-dotenv
+email-validator

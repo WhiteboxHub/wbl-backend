@@ -62,7 +62,10 @@ def determine_user_role(user):
 
 async def authenticate_user(uname: str, passwd: str, db: Session):
     user = get_user_by_username(db, uname)
-    if not user or not verify_md5_hash(passwd, user.passwd):
+    if not user:
+        return None
+    user_passwd = getattr(user, "passwd", None)
+    if not isinstance(user_passwd, str) or not verify_md5_hash(passwd, user_passwd):
         return None
 
     if uname.lower() == "admin":

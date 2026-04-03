@@ -9,6 +9,8 @@ myvenv/
 node_modules
 backend-env.yaml
 temp_candidates.json
-
+oauth_client_secret.json
+google_drive_credentials.json
+token.json
 
 

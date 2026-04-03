@@ -9,6 +9,12 @@ class RedisClient:
 
     @classmethod
     def get_client(cls):
+        # If Upstash is not configured (local dev), do not create a client
+        if not config.UPSTASH_REDIS_REST_URL or not config.UPSTASH_REDIS_REST_TOKEN:
+            logger.warning("Upstash Redis not configured. Redis client is disabled.")
+            cls._client = None
+            return cls._client
+
         if cls._client is None:
             try:
                 cls._client = Redis(
@@ -20,5 +26,6 @@ class RedisClient:
                 logger.error(f"Upstash Redis connection failed: {e}")
                 cls._client = None
         return cls._client
+
 
 redis_client = RedisClient()

@@ -3,9 +3,10 @@ from typing import Optional, List, Literal
 from datetime import time, date, datetime
 from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, Mapped, mapped_column
 import enum
 from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum
+
 
 Base = declarative_base()
 
@@ -121,6 +122,34 @@ class PotentialLeadORM(Base):
 
 # -------------------------------------------------------------------------------
 
+class FileApproval(Base):
+    __tablename__ = "file_approvals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    uid: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    drive_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    approvals_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_declined: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FileApprovalAction(Base):
+    __tablename__ = "file_approval_actions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uid = Column(String(255), index=True, nullable=False)
+    approver_email = Column(String(255), index=True, nullable=False)
+    decision = Column(String(20), nullable=False)  # "accept" / "decline"
+    acted_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("uid", "approver_email", name="uq_uid_approver"),
+    )
 
 # .......................................NEW INNOVAPATH..............................
 
@@ -922,9 +951,9 @@ class PersonalDomainContact(Base):
     linkedin_internal_id = Column(String(255), nullable=True)
     email = Column(String(255), nullable=False, unique=True)
     notes = Column(Text, nullable=True)
-    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_datetime = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
     created_userid = Column(String(128), nullable=False, server_default='system')
-    lastmod_datetime = Column(DateTime(6), nullable=False, server_default=func.now(), onupdate=func.now())
+    lastmod_datetime = Column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now())
     lastmod_userid = Column(String(128), nullable=False, server_default='system')
 
 
@@ -1362,9 +1391,9 @@ class Company(Base):
     phone_ext = Column(String(20))
     domain = Column(String(255))
     notes = Column(Text)
-    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_datetime = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
     created_userid = Column(String(128), nullable=False, server_default='system')
-    lastmod_datetime = Column(DateTime(6), server_default=func.now(), onupdate=func.now(), nullable=False)
+    lastmod_datetime = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
     lastmod_userid = Column(String(128), nullable=False, server_default='system')
 
     contacts = relationship("CompanyContact", back_populates="company", cascade="all, delete-orphan")
@@ -1387,9 +1416,9 @@ class CompanyContact(Base):
     phone_ext = Column(String(20))
     email = Column(String(255), unique=True)
     notes = Column(Text)
-    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_datetime = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
     created_userid = Column(String(128), nullable=False, server_default='system')
-    lastmod_datetime = Column(DateTime(6), server_default=func.now(), onupdate=func.now(), nullable=False)
+    lastmod_datetime = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
     lastmod_userid = Column(String(128), nullable=False, server_default='system')
     linkedin_id = Column(String(255))
     linkedin_internal_id = Column(String(255))
@@ -1416,9 +1445,9 @@ class LinkedinOnlyContact(Base):
     linkedin_id = Column(String(255), nullable=True)
     linkedin_internal_id = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
-    created_datetime = Column(DateTime(6), nullable=False, server_default=func.now())
+    created_datetime = Column(DateTime(timezone=False), nullable=False, server_default=func.now())
     created_userid = Column(String(128), nullable=False, server_default='system')
-    lastmod_datetime = Column(DateTime(6), nullable=False, server_default=func.now(), onupdate=func.now())
+    lastmod_datetime = Column(DateTime(timezone=False), nullable=False, server_default=func.now(), onupdate=func.now())
     lastmod_userid = Column(String(128), nullable=False, server_default='system')
 
     __table_args__ = (

@@ -1,3 +1,6 @@
+from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
 from fapi.utils.permission_gate import enforce_access
 from fapi.api.routes import (
     candidate, leads, google_auth, talent_search, user_role,
@@ -12,20 +15,21 @@ from fapi.api.routes import (
     automation_workflow_schedule, automation_workflow_log,
     outreach_orchestrator,
     weekly_workflow,
-    company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
+    company, company_contact, potential_leads, personal_domain_contact, outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click
+    email_position, job_click,
 )
-import asyncio
-
 from fapi.core.redis_client import redis_client
+from fapi.api import approval  # your new approval router module
+from fapi.auth import JWTAuthorizationMiddleware
 from fapi.db.database import SessionLocal
-from fastapi import FastAPI, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from fapi.api import approval
+
 import logging
 import traceback
 
 app = FastAPI(title="WBL Backend")
+app.include_router(approval.router, prefix="/api", tags=["Approval"],)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -90,8 +94,12 @@ def get_db():
 def redis_test():
     from fapi.core.redis_client import redis_client
     client = redis_client.get_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="Redis client is not initialized")
+
     client.set("ping", "pong", ex=60)
-    return {"value": client.get("ping")}
+    value = client.get("ping")
+    return {"value": value} 
 
 # Base Routes
 app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])

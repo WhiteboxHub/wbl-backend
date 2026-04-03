@@ -13,18 +13,27 @@ if raw_password is None:
     raise ValueError("DB_PASSWORD environment variable is not set")
 encoded_password = quote(raw_password)
 
-db_config = {
-    'host': os.getenv('DB_HOST'),
-    'user': os.getenv('DB_USER'),
-    'password': raw_password,
-    'database': os.getenv('DB_NAME'),
-    'port': int(os.getenv('DB_PORT')),
-}
+host = os.getenv('DB_HOST')
+if host is None:
+    raise ValueError("DB_HOST environment variable is not set")
+
+user = os.getenv('DB_USER')
+if user is None:
+    raise ValueError("DB_USER environment variable is not set")
+
+database = os.getenv('DB_NAME')
+if database is None:
+    raise ValueError("DB_NAME environment variable is not set")
+
+port_str = os.getenv('DB_PORT')
+if port_str is None:
+    raise ValueError("DB_PORT environment variable is not set")
+port_int = int(port_str)
 
 # SQLAlchemy URL (sync engine with pymysql)
 DATABASE_URL = (
-    f"mysql+pymysql://{db_config['user']}:{encoded_password}"
-    f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+    f"mysql+pymysql://{user}:{encoded_password}"
+    f"@{host}:{port_int}/{database}"
 )
 
 # Engine and Session

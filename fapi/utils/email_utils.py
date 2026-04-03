@@ -17,14 +17,27 @@ from fapi.mail.templets.requestdemoMail import RequestDemo_User_HTML_template, R
 load_dotenv()
 
 # ========== SMTP Email Configuration for smtplib ==========
-def get_email_config():
+def get_email_config() -> dict[str, str]:
+    from_email = os.getenv('EMAIL_USER')
+    password = os.getenv('EMAIL_PASS')
+    smtp_server = os.getenv('SMTP_SERVER')
+    smtp_port = os.getenv('SMTP_PORT')
+    to_recruiting_email = os.getenv('TO_RECRUITING_EMAIL')
+    to_admin_email = os.getenv('TO_ADMIN_EMAIL')
+
+    if not all([from_email, password, smtp_server, smtp_port]):
+        raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
+
+    if not (to_recruiting_email or to_admin_email):
+        raise HTTPException(status_code=500, detail="No admin email addresses configured.")
+
     return {
-        'from_email': os.getenv('EMAIL_USER'),
-        'password': os.getenv('EMAIL_PASS'),
-        'smtp_server': os.getenv('SMTP_SERVER'),
-        'smtp_port': os.getenv('SMTP_PORT'),
-        'to_recruiting_email': os.getenv('TO_RECRUITING_EMAIL'),
-        'to_admin_email': os.getenv('TO_ADMIN_EMAIL')
+        'from_email': from_email,
+        'password': password,
+        'smtp_server': smtp_server,
+        'smtp_port': smtp_port,
+        'to_recruiting_email': to_recruiting_email or '',
+        'to_admin_email': to_admin_email or ''
     }
 
 def validate_email_config(config: dict):

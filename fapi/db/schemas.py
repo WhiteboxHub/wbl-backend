@@ -1,8 +1,9 @@
 from sqlalchemy import Column, Integer, String, Enum, UniqueConstraint, BigInteger, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, date
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal, model_validator
-from typing import Optional, List, Literal, Union, Dict, Any
+from decimal import Decimal
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal, model_validator, ValidationError
+from typing import Optional, List, Literal, Union, Dict, Any, Annotated
 from enum import Enum
 import enum
 import re
@@ -14,6 +15,18 @@ class PositionTypeEnum(str, enum.Enum):
     contract_to_hire = 'contract_to_hire'
     internship = 'internship'
 
+class FileApprovalBase(BaseModel):
+    uid: str
+    username: str
+    email: str
+    drive_file_id: str
+    original_filename: str
+    approvals_count: int
+    is_approved: bool
+    is_declined: bool
+
+    class Config:
+        orm_mode = True
 
 class EmploymentModeEnum(str, enum.Enum):
     onsite = 'onsite'
@@ -431,8 +444,8 @@ class EmployeeBase(BaseModel):
 
 
 class EmployeeCreate(EmployeeBase):
-    name: str
-    email: str
+    name: str = Field(default=...)
+    email: str = Field(default=...)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -445,7 +458,7 @@ class EmployeeUpdate(EmployeeBase):
 
 
 class Employee(EmployeeBase):
-    id: int
+    id: int = Field(default=...)
 
     @field_validator("dob", "startdate", "enddate", mode="before")
     def handle_invalid_dates(cls, v):
@@ -536,7 +549,7 @@ class UserCreate(BaseModel):
     passwd: str
 
 
-class ContactForm(BaseModel):
+class ContactFormBase(BaseModel):
     firstName: str
     lastName: str
     email: str
@@ -558,7 +571,7 @@ class ResetPassword(BaseModel):
 
 
 class AuthUserBase(BaseModel):
-    uname: Union[EmailStr, str] = None
+    uname: Optional[str] = None
     passwd: Optional[str] = None
     fullname: Optional[str] = None
     phone: Optional[str] = None
@@ -580,14 +593,16 @@ class AuthUserBase(BaseModel):
         if not v:
             return None
         try:
-            return EmailStr.validate(v)
-        except Exception:
+            class _EmailCheck(BaseModel):
+                email: EmailStr
+            return _EmailCheck(email=v).email
+        except ValidationError:
             return v
 
 
 class AuthUserCreate(AuthUserBase):
-    uname: EmailStr
-    passwd: str
+    uname: EmailStr = Field(default=...)
+    passwd: str = Field(default=...)
 
 
 class AuthUserUpdate(AuthUserBase):
@@ -645,7 +660,7 @@ class LeadBase(BaseModel):
 
 class LeadCreate(LeadBase):
     """For creation: full_name is required, email defaults to '' to satisfy DB NOT NULL."""
-    full_name: str  # required on create
+    full_name: str = Field(default=...)
     email: Optional[EmailStr] = None  # optional but will default to '' in create_lead util
 
 
@@ -677,7 +692,7 @@ class PotentialLeadBase(BaseModel):
 
 
 class PotentialLeadCreate(PotentialLeadBase):
-    full_name: str
+    full_name: str = Field(default=...)
 
 
 class PotentialLeadUpdate(PotentialLeadBase):
@@ -756,7 +771,7 @@ class CandidateBase(BaseModel):
     emergcontactaddrs: Optional[str] = None
     fee_paid: Optional[int] = None
     notes: Optional[str] = None
-    batchid: int = None
+    batchid: Optional[int] = None
     batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None
     move_to_prep: Optional[bool] = False
@@ -834,7 +849,7 @@ class CandidateUpdate(BaseModel):
 
 
 class CandidateDelete(CandidateBase):
-    id: int
+    id: int = Field(default=...)
 
     class Config:
         from_attributes = True
@@ -903,7 +918,7 @@ class CandidateMarketingCreate(CandidateMarketingBase):
 
 class CandidateMarketing(CandidateMarketingBase):
     id: int
-    last_mod_datetime: Optional[datetime]
+    last_mod_datetime: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -989,7 +1004,7 @@ class CandidatePlacementCreate(CandidatePlacementBase):
 
 class CandidatePlacement(CandidatePlacementBase):
     id: int
-    last_mod_datetime: Optional[datetime]
+    last_mod_datetime: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -1246,7 +1261,7 @@ class AmountCollectedEnum(str, enum.Enum):
     yes = "yes"
     no = "no"
 
-Decimal2 = condecimal(max_digits=10, decimal_places=2)
+Decimal2 = Annotated[Decimal, condecimal(max_digits=10, decimal_places=2)]
 
 class PlacementFeeBase(BaseModel):
     placement_id: int
@@ -1700,8 +1715,8 @@ class HRContactBase(BaseModel):
 
 
 class HRContactCreate(HRContactBase):
-    full_name: str
-    email: EmailStr
+    full_name: str = Field(default=...)
+    email: EmailStr = Field(default=...)
 
 
 class HRContactUpdate(HRContactBase):
@@ -1802,69 +1817,7 @@ class UnsubscribeResponse(BaseModel):
 class UserOut(BaseModel):
     email: EmailStr
     name: str
-    email: EmailStr
-    name: str
     phone: Optional[str]
-
-    model_config = {
-        "from_attributes": True
-    }
-
-# ===============================Resources==============================
-
-
-class CourseBase(BaseModel):
-    name: str
-    alias: str
-
-
-class CourseCreate(CourseBase):
-    pass
-
-
-class Course(CourseBase):
-    id: int
-
-    model_config = {
-        "from_attributes": True
-    }
-
-
-class SubjectBase(BaseModel):
-    name: str
-
-
-class SubjectOut(BaseModel):
-    id: int
-    name: str
-
-    class Config:
-        from_attributes = True
-
-
-class SubjectCreate(SubjectBase):
-    pass
-
-
-class Subject(SubjectBase):
-    id: int
-
-    model_config = {
-        "from_attributes": True
-    }
-
-
-class CourseSubjectBase(BaseModel):
-    course_id: int
-    subject_id: int
-
-
-class CourseSubjectCreate(CourseSubjectBase):
-    pass
-
-
-class CourseSubject(CourseSubjectBase):
-    id: int
 
     model_config = {
         "from_attributes": True
@@ -1935,22 +1888,6 @@ class RecordingBatchCreate(RecordingBatchBase):
 
 class RecordingBatch(RecordingBatchBase):
     model_config = {
-        "from_attributes": True
-    }
-
-
-class CourseContentCreate(BaseModel):
-    Fundamentals: Optional[str] = None
-    AIML: str
-    UI: Optional[str] = None
-    QE: Optional[str] = None
-
-
-class CourseContentResponse(CourseContentCreate):
-    id: int
-
-    model_config = {
-
         "from_attributes": True
     }
 
@@ -2087,9 +2024,9 @@ class CourseMaterialCreate(CourseMaterialBase):
     courseid: int
     name: str
     description: Optional[str] = None
-    type: str
+    type: str = Field(default=...)
     link: str
-    sortorder: int
+    sortorder: int = Field(default=...)
 
 
 class CourseMaterialUpdate(BaseModel):
@@ -2115,74 +2052,6 @@ class CourseMaterialResponse(BaseModel):
     cm_course: str
     material_type: str
 
-    model_config = {
-        "from_attributes": True
-    }
-
-
-class BatchBase(BaseModel):
-    batchname: str
-    courseid: int
-    orientationdate: Optional[date] = None
-    startdate: Optional[date] = None
-    enddate: Optional[date] = None
-
-
-class BatchCreate(BatchBase):
-    pass
-
-
-class Batch(BatchBase):
-    batchid: int
-
-    model_config = {
-
-        "from_attributes": True
-    }
-
-
-class PaginatedBatches(BaseModel):
-    total: int
-    page: int
-    per_page: int
-    batches: List[BatchOut]
-
-
-class RecordingBase(BaseModel):
-    description: str
-    type: str = "class"
-    classdate: date
-    link: str
-    videoid: Optional[str] = None
-    backup_url: Optional[str] = None
-    subject: Optional[str] = None
-    filename: Optional[str] = None
-    lastmoddatetime: Optional[datetime] = None
-    new_subject_id: Optional[int] = None
-
-
-class RecordingCreate(RecordingBase):
-    pass
-
-
-class Recording(RecordingBase):
-    id: int
-    
-    model_config = {
-        "from_attributes": True
-    }
-
-
-class RecordingBatchBase(BaseModel):
-    recording_id: int
-    batch_id: int
-
-
-class RecordingBatchCreate(RecordingBatchBase):
-    pass
-
-
-class RecordingBatch(RecordingBatchBase):
     model_config = {
         "from_attributes": True
     }
@@ -2386,13 +2255,13 @@ class BatchClassSummary(BaseModel):
 
 
 # --------------------------------------------Password----------------------------
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
+# Re-use the ResetPasswordRequest/ResetPassword defined earlier to avoid duplication.
+# class ResetPasswordRequest(BaseModel):
+#     email: EmailStr
 
-
-class ResetPassword(BaseModel):
-    token: str
-    new_password: str
+# class ResetPassword(BaseModel):
+#     token: str
+#     new_password: str
 
 
 class InternalDocumentBase(BaseModel):
@@ -2632,8 +2501,8 @@ class CompanyHRContactBase(BaseModel):
     is_immigration_team: bool = False
 
 class CompanyHRContactCreate(CompanyHRContactBase):
-    full_name: str
-    email: EmailStr
+    full_name: str = Field(default=...)
+    email: EmailStr = Field(default=...)
 
 class CompanyHRContactUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -3510,50 +3379,6 @@ class AutomationWorkflowLog(AutomationWorkflowLogBase):
     created_at: datetime
     updated_at: datetime
     workflow: Optional[AutomationWorkflow] = None
-    model_config = ConfigDict(from_attributes=True)
-
-
-# -------------------- Outreach Contacts --------------------
-class OutreachContactBase(BaseModel):
-    email: str
-    source_type: str
-    source_id: Optional[int] = None
-    status: str = "ACTIVE"
-    unsubscribe_flag: bool = False
-    unsubscribe_at: Optional[datetime] = None
-    unsubscribe_reason: Optional[str] = None
-    bounce_flag: bool = False
-    bounce_type: Optional[str] = None
-    bounce_reason: Optional[str] = None
-    bounce_code: Optional[str] = None
-    bounced_at: Optional[datetime] = None
-    complaint_flag: bool = False
-    complained_at: Optional[datetime] = None
-
-class OutreachContactCreate(OutreachContactBase):
-    pass
-
-class OutreachContactUpdate(BaseModel):
-    email: Optional[str] = None
-    source_type: Optional[str] = None
-    source_id: Optional[int] = None
-    status: Optional[str] = None
-    unsubscribe_flag: Optional[bool] = None
-    unsubscribe_at: Optional[datetime] = None
-    unsubscribe_reason: Optional[str] = None
-    bounce_flag: Optional[bool] = None
-    bounce_type: Optional[str] = None
-    bounce_reason: Optional[str] = None
-    bounce_code: Optional[str] = None
-    bounced_at: Optional[datetime] = None
-    complaint_flag: Optional[bool] = None
-    complained_at: Optional[datetime] = None
-
-class OutreachContact(OutreachContactBase):
-    id: int
-    email_lc: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
 
