@@ -38,6 +38,7 @@ class JobListingSourceEnum(str, enum.Enum):
     scraper = 'scraper'
     hiring_cafe = 'hiring.cafe'
     trueup_io = 'trueup.io'
+    wellfound_com = 'wellfound.com'
     interview_modal = 'interview_modal'
     email_bot_llm_local = 'email_bot_llm_local'
 

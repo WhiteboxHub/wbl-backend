@@ -1137,6 +1137,7 @@ class JobListingORM(Base):
             'scraper',
             'hiring.cafe',
             'trueup.io',
+            'wellfound.com',
             'interview_modal',
             'email_bot_llm_local',
             name='job_listing_source_enum'
