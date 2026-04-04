@@ -18,14 +18,24 @@ db_config = {
     'user': os.getenv('DB_USER'),
     'password': raw_password,
     'database': os.getenv('DB_NAME'),
-    'port': int(os.getenv('DB_PORT')),
+    'port': int(os.getenv('DB_PORT') or 3306),
 }
 
 # SQLAlchemy URL (sync engine with pymysql)
-DATABASE_URL = (
-    f"mysql+pymysql://{db_config['user']}:{encoded_password}"
-    f"@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-)
+db_host = db_config['host']
+
+if db_host and db_host.startswith('/cloudsql/'):
+    # Cloud Run Unix Socket Connection
+    DATABASE_URL = (
+        f"mysql+pymysql://{db_config['user']}:{encoded_password}"
+        f"@/{db_config['database']}?unix_socket={db_host}"
+    )
+else:
+    # Standard TCP Connection (Localhost or direct IP)
+    DATABASE_URL = (
+        f"mysql+pymysql://{db_config['user']}:{encoded_password}"
+        f"@{db_host}:{db_config['port']}/{db_config['database']}"
+    )
 
 # Engine and Session
 engine = create_engine(DATABASE_URL)
