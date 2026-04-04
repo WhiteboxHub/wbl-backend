@@ -1,14 +1,5 @@
 # wbl-backend/fapi/db/database.py
 import os
-
-
-print("==== ENV DEBUG START ====")
-print("DB_HOST:", os.getenv("DB_HOST"))
-print("DB_USER:", os.getenv("DB_USER"))
-print("DB_NAME:", os.getenv("DB_NAME"))
-print("==== ENV DEBUG END ====")
-
-
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
