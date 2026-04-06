@@ -372,6 +372,7 @@ class CandidateInterview(Base):
 
     transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
+    audio_link = Column(String(500), nullable=True)
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
 

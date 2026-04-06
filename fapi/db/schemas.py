@@ -1148,6 +1148,7 @@ class CandidateInterviewBase(BaseModel):
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     transcript: Optional[str] = None
+    audio_link: Optional[str] = None
     recording_link: Optional[str] = None
     backup_recording_url: Optional[str] = None
     job_posting_url: Optional[str] = None
@@ -1196,6 +1197,7 @@ class CandidateInterviewUpdate(BaseModel):
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     transcript: Optional[str] = None
+    audio_link: Optional[str] = None
     recording_link: Optional[str] = None
     backup_recording_url: Optional[str] = None
     job_posting_url: Optional[str] = None
