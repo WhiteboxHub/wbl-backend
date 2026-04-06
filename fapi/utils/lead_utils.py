@@ -8,7 +8,9 @@ from fapi.db.schemas import LeadCreate, LeadUpdate
 from sqlalchemy import or_, cast, String, func
 from fastapi import HTTPException, Response
 from fapi.utils.table_fingerprint import generate_version_for_model
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="leads")
 def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, search_by: str, sort: str):
     query = db.query(LeadORM)
 
@@ -44,6 +46,7 @@ def fetch_all_leads_paginated(db: Session, page: int, limit: int, search: str, s
     leads = query.offset((page - 1) * limit).limit(limit).all()
     return {"data": leads, "total": total, "page": page, "limit": limit}
 
+@cache_result(ttl=300, prefix="leads")
 def fetch_all_leads(db: Session, search: str = None, search_by: str = "name", sort: str = None, filters: str = None):
     """Fetch all leads without pagination for AG Grid"""
     query = db.query(LeadORM)
@@ -105,11 +108,14 @@ def fetch_all_leads(db: Session, search: str = None, search_by: str = "name", so
     
     return {"data": leads, "total": total}
 
+@cache_result(ttl=300, prefix="leads")
 def get_lead_by_id(db: Session, lead_id: int):
     return db.query(LeadORM).filter(LeadORM.id == lead_id).first()
 
 
 def create_lead(db: Session, lead: LeadCreate):
+    invalidate_cache("leads")
+    invalidate_cache("metrics")
     db_lead = LeadORM(**lead.dict())
     db.add(db_lead)
     db.commit()
@@ -118,6 +124,8 @@ def create_lead(db: Session, lead: LeadCreate):
 
 
 def update_lead(db: Session, lead_id: int, lead: LeadUpdate):
+    invalidate_cache("leads")
+    invalidate_cache("metrics")
     db_lead = get_lead_by_id(db, lead_id)
     if not db_lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -129,6 +137,8 @@ def update_lead(db: Session, lead_id: int, lead: LeadUpdate):
 
 
 def delete_lead(db: Session, lead_id: int):
+    invalidate_cache("leads")
+    invalidate_cache("metrics")
     db_lead = get_lead_by_id(db, lead_id)
     if not db_lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -150,6 +160,9 @@ def delete_candidate_by_email_and_phone(db: Session, email: str, phone: str):
 
 
 def create_candidate_from_lead(db: Session, lead_id: int):
+    invalidate_cache("leads")
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     lead = get_lead_by_id(db, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -168,6 +181,7 @@ def get_lead_info_mark_move_to_candidate_true(db: Session, lead_id: int):
     db.commit()
     return lead
 
+@cache_result(ttl=300, prefix="leads")
 def get_lead_suggestions(search_term: str, db: Session):
     """
     Get lead suggestions based on search term for name or email.

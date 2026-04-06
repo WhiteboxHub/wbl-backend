@@ -4,11 +4,13 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from fapi.db.models import LeadORM
 from datetime import datetime
+from fapi.core.cache import invalidate_cache
 
 def save_contact_lead(
     db: Session, full_name: str, email: str = None,
     phone: str = None, message: str = None, status: str = "Open"
 ):
+    invalidate_cache("leads")
     try:
         lead = LeadORM(
             full_name=full_name.strip().lower() if full_name else None,

@@ -5,10 +5,12 @@ from fapi.db import models, schemas
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import HTTPException, Response
+from fapi.core.cache import cache_result, invalidate_cache
 
 def get_employee_tasks_version(db: Session) -> Response:
     return generate_version_for_model(db, models.EmployeeTaskORM)
 
+@cache_result(ttl=300, prefix="tasks")
 def get_all_tasks(db: Session, project_id: Optional[int] = None, employee_id: Optional[int] = None) -> list:
     query = db.query(models.EmployeeTaskORM).options(
         joinedload(models.EmployeeTaskORM.employee),
@@ -41,6 +43,7 @@ def get_all_tasks(db: Session, project_id: Optional[int] = None, employee_id: Op
     return result
 
 
+@cache_result(ttl=300, prefix="tasks")
 def get_task_by_id(db: Session, task_id: int) -> Optional[models.EmployeeTaskORM]:
     return db.query(models.EmployeeTaskORM).filter(models.EmployeeTaskORM.id == task_id).first()
 
@@ -93,6 +96,8 @@ def _find_employee_by_name(db: Session, name_input: str) -> models.EmployeeORM:
 
 
 def create_task(db: Session, task: schemas.EmployeeTaskCreate):
+    invalidate_cache("tasks")
+    invalidate_cache("metrics")
     if task.employee_id:
         employee = db.query(models.EmployeeORM).filter(models.EmployeeORM.id == task.employee_id).first()
         if not employee:
@@ -140,6 +145,8 @@ def create_task(db: Session, task: schemas.EmployeeTaskCreate):
 
 
 def update_task(db: Session, task_id: int, task: schemas.EmployeeTaskUpdate):
+    invalidate_cache("tasks")
+    invalidate_cache("metrics")
     db_task = get_task_by_id(db, task_id)
     if not db_task:
         return None
@@ -184,6 +191,8 @@ def update_task(db: Session, task_id: int, task: schemas.EmployeeTaskUpdate):
 
 
 def delete_task(db: Session, task_id: int) -> Optional[models.EmployeeTaskORM]:
+    invalidate_cache("tasks")
+    invalidate_cache("metrics")
     db_task = get_task_by_id(db, task_id)
     if not db_task:
         return None

@@ -17,7 +17,6 @@ from fapi.db.schemas import (
 )
 from fapi.db.models import AuthUserORM
 from fapi.utils import jobs_utils
-from fapi.utils.jobs_utils import get_job_activity_logs_version, get_job_types_version
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,7 +37,7 @@ def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return get_job_activity_logs_version(db)
+    return jobs_utils.get_job_activity_logs_version(db)
 
 
 @router.get("/job_activity_logs/{log_id}", response_model=JobActivityLogOut)
@@ -125,7 +124,7 @@ def check_version(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return get_job_types_version(db)
+    return jobs_utils.get_job_types_version(db)
 
 
 @router.get("/job-types/{job_type_id}", response_model=JobTypeOut)

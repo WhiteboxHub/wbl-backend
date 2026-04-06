@@ -1,4 +1,5 @@
 import re
+from fapi.core.cache import cache_result
 from sqlalchemy.orm import Session
 from typing import List, Dict
 from fapi.db.models import (
@@ -18,6 +19,7 @@ from datetime import datetime, date
 from typing import List, Dict, Any
 from sqlalchemy import or_
 
+@cache_result(ttl=300, prefix="employees")
 def search_employees(db: Session, query: str) -> List[EmployeeORM]:
     return db.query(EmployeeORM).filter(EmployeeORM.name.ilike(f"%{query}%")).all()
 
@@ -34,6 +36,7 @@ def safe_date(value):
         return None
 
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_details(db: Session) -> List[Dict]:
     employees = db.query(EmployeeORM).all()
     result = []
@@ -59,6 +62,7 @@ def get_employee_details(db: Session) -> List[Dict]:
 
 
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_candidates(db: Session, employee_id: int) -> Dict:
     
     prep_records = db.query(CandidatePreparation).filter(
@@ -91,6 +95,7 @@ def get_employee_candidates(db: Session, employee_id: int) -> Dict:
 
 
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_sessions_and_recordings(db: Session, employee_id: int):
     employee = db.query(EmployeeORM).filter(EmployeeORM.id == employee_id, EmployeeORM.status == 1).first()
     if not employee:
@@ -121,6 +126,7 @@ def get_employee_sessions_and_recordings(db: Session, employee_id: int):
     }
 
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_jobs(db: Session, employee_id: int) -> Dict[str, Any]:
     jobs = db.query(JobTypeORM).filter(
         or_(
@@ -140,6 +146,7 @@ def get_employee_jobs(db: Session, employee_id: int) -> Dict[str, Any]:
 
 import re
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_tasks(db: Session, employee_id: int) -> List[Dict[str, Any]]:
     tasks = db.query(EmployeeTaskORM).filter(EmployeeTaskORM.employee_id == employee_id).all()
     return [
@@ -154,6 +161,7 @@ def get_employee_tasks(db: Session, employee_id: int) -> List[Dict[str, Any]]:
     ]
 
 
+@cache_result(ttl=300, prefix="employees")
 def get_employee_placements(db: Session, employee_id: int) -> Dict[str, Any]:
     placements = db.query(CandidatePlacementORM).join(
         CandidatePreparation, 

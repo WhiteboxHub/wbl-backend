@@ -4,8 +4,10 @@ from fapi.db.models import PotentialLeadORM
 from fapi.db.schemas import PotentialLeadCreate, PotentialLeadUpdate
 from fastapi import HTTPException, Response
 from fapi.utils.table_fingerprint import generate_version_for_model
+from fapi.core.cache import cache_result, invalidate_cache
 import json
 
+@cache_result(ttl=300, prefix="potential_leads")
 def fetch_all_potential_leads(db: Session, search: str = None, search_by: str = "all", sort: str = None, filters: str = None):
     query = db.query(PotentialLeadORM)
 
@@ -67,10 +69,13 @@ def fetch_all_potential_leads(db: Session, search: str = None, search_by: str = 
     leads = query.all()
     return {"data": leads, "total": len(leads)}
 
+@cache_result(ttl=300, prefix="potential_leads")
 def get_potential_lead_by_id(db: Session, lead_id: int):
     return db.query(PotentialLeadORM).filter(PotentialLeadORM.id == lead_id).first()
 
 def create_potential_lead(db: Session, lead: PotentialLeadCreate):
+    invalidate_cache("potential_leads")
+    invalidate_cache("metrics")
     db_lead = PotentialLeadORM(**lead.model_dump())
     db.add(db_lead)
     db.commit()
@@ -78,6 +83,8 @@ def create_potential_lead(db: Session, lead: PotentialLeadCreate):
     return db_lead
 
 def update_potential_lead(db: Session, lead_id: int, lead: PotentialLeadUpdate):
+    invalidate_cache("potential_leads")
+    invalidate_cache("metrics")
     db_lead = get_potential_lead_by_id(db, lead_id)
     if not db_lead:
         raise HTTPException(status_code=404, detail="Potential lead not found")
@@ -87,6 +94,8 @@ def update_potential_lead(db: Session, lead_id: int, lead: PotentialLeadUpdate):
     db.refresh(db_lead)
     return db_lead
 def delete_potential_lead(db: Session, lead_id: int):
+    invalidate_cache("potential_leads")
+    invalidate_cache("metrics")
     db_lead = get_potential_lead_by_id(db, lead_id)
     if not db_lead:
         raise HTTPException(status_code=404, detail="Potential lead not found")

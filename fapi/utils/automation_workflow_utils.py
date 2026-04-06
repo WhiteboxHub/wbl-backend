@@ -3,12 +3,13 @@ from typing import List
 from sqlalchemy.orm import Session
 from fapi.db.models import AutomationWorkflowORM
 from fapi.db.schemas import AutomationWorkflowCreate, AutomationWorkflowUpdate
-from fastapi import HTTPException
 from fapi.utils.table_fingerprint import generate_version_for_model
-from fastapi import Response
+from fastapi import HTTPException, Response
+from fapi.core.cache import cache_result, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
+@cache_result(ttl=300, prefix="workflows")
 def get_workflow_by_key(db: Session, workflow_key: str):
     workflow = (
         db.query(AutomationWorkflowORM)
@@ -26,6 +27,7 @@ def get_workflow_by_key(db: Session, workflow_key: str):
     return workflow
 
 def create_workflow(db: Session, workflow: AutomationWorkflowCreate):
+    invalidate_cache("workflows")
     db_workflow = AutomationWorkflowORM(**workflow.model_dump())
     db.add(db_workflow)
     db.commit()
@@ -33,6 +35,7 @@ def create_workflow(db: Session, workflow: AutomationWorkflowCreate):
     return db_workflow
 
 def update_workflow(db: Session, workflow_id: int, workflow: AutomationWorkflowUpdate):
+    invalidate_cache("workflows")
     db_workflow = db.query(AutomationWorkflowORM).filter(AutomationWorkflowORM.id == workflow_id).first()
     if not db_workflow:
         raise HTTPException(status_code=404, detail="Automation Workflow not found")
@@ -45,10 +48,12 @@ def update_workflow(db: Session, workflow_id: int, workflow: AutomationWorkflowU
     db.refresh(db_workflow)
     return db_workflow
 
+@cache_result(ttl=300, prefix="workflows")
 def get_all_workflows(db: Session) -> List[AutomationWorkflowORM]:
     return db.query(AutomationWorkflowORM).all()
 
 def delete_workflow(db: Session, workflow_id: int):
+    invalidate_cache("workflows")
     db_workflow = db.query(AutomationWorkflowORM).filter(AutomationWorkflowORM.id == workflow_id).first()
     if not db_workflow:
         raise HTTPException(status_code=404, detail="Automation Workflow not found")
@@ -72,6 +77,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+@cache_result(ttl=300, prefix="workflows")
 def get_workflow_execution_bundle(db: Session, workflow_id: int):
     """
     Fetches the complete execution bundle for a workflow including:

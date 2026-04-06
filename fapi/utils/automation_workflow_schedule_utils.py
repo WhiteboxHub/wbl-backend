@@ -4,14 +4,19 @@ from fapi.db.schemas import AutomationWorkflowScheduleCreate, AutomationWorkflow
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="workflow_schedules")
 def get_automation_workflow_schedules(db: Session) -> List[AutomationWorkflowScheduleORM]:
     return db.query(AutomationWorkflowScheduleORM).all()
 
+@cache_result(ttl=300, prefix="workflow_schedules")
 def get_automation_workflow_schedule(db: Session, schedule_id: int) -> Optional[AutomationWorkflowScheduleORM]:
     return db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == schedule_id).first()
 
 def create_automation_workflow_schedule(db: Session, schedule: AutomationWorkflowScheduleCreate) -> AutomationWorkflowScheduleORM:
+    invalidate_cache("workflow_schedules")
+    invalidate_cache("workflows")
     db_schedule = AutomationWorkflowScheduleORM(**schedule.model_dump())
     db.add(db_schedule)
     db.commit()
@@ -19,6 +24,8 @@ def create_automation_workflow_schedule(db: Session, schedule: AutomationWorkflo
     return db_schedule
 
 def update_automation_workflow_schedule(db: Session, schedule_id: int, schedule: AutomationWorkflowScheduleUpdate) -> Optional[AutomationWorkflowScheduleORM]:
+    invalidate_cache("workflow_schedules")
+    invalidate_cache("workflows")
     db_schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == schedule_id).first()
     if not db_schedule:
         return None
@@ -32,6 +39,8 @@ def update_automation_workflow_schedule(db: Session, schedule_id: int, schedule:
     return db_schedule
 
 def delete_automation_workflow_schedule(db: Session, schedule_id: int) -> bool:
+    invalidate_cache("workflow_schedules")
+    invalidate_cache("workflows")
     db_schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == schedule_id).first()
     if not db_schedule:
         return False
