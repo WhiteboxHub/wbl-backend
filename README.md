@@ -129,6 +129,38 @@ https://github.com/WhiteboxHub/wbl-backend
 
     
 2. *Access the API documentation* at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+## Weekly Marketing Report (workflow)
+
+The backend includes a weekly marketing report workflow that:
+- queries active marketing candidates for last-7-days interview counts + job clicks
+- generates an HTML report
+- emails the report using SMTP credentials from `.env`
+
+### Required `.env` keys
+
+- `SMTP_SERVER`, `SMTP_PORT`, `EMAIL_USER`, `EMAIL_PASS`
+- `WK_REPORT_SECRET_TOKEN` (required for CRON trigger)
+- One of:
+  - `WK_REPORT_RECIPIENTS` (comma/semicolon/space-separated), or
+  - `REPORT_EMAIL_1..REPORT_EMAIL_10`, or
+  - `TO_ADMIN_EMAIL` / `TO_RECRUITING_EMAIL`, or
+  - active DB admins (fallback)
+
+See `.env.example` for a safe template.
+
+### Endpoints
+
+- `GET /api/weekly-marketing-report/trigger`
+  - for schedulers/cron
+  - requires header `X-CRON-TOKEN: <WK_REPORT_SECRET_TOKEN>`
+  - supports `?dry_run=true` (generate only, no email)
+
+- `POST /api/weekly-marketing-report/run`
+  - for manual admin runs (JWT admin required)
+  - supports `?dry_run=true`
+  - supports `?include_html_preview=true` (debug only)
+
 ### User Registration
 
 - *Endpoint*: POST /users/
