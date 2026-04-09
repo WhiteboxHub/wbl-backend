@@ -1500,3 +1500,19 @@ class CoderpadQuestionORM(Base):
 
     created_by = relationship("AuthUserORM", foreign_keys=[created_by_user_id])
 
+#--------------------------------------extension keys--------------------------------------
+class ExtensionKeyORM(Base):
+    __tablename__ = "extension_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("authuser.id"), nullable=False)
+    uname = Column(String(50), nullable=False)
+    api_key = Column(String(64), nullable=False, unique=True)
+    device_name = Column(String(100), nullable=True, default=None)
+    is_active = Column(Boolean, nullable=True, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    last_used = Column(TIMESTAMP, nullable=True, default=None)
+    expires_at = Column(TIMESTAMP, nullable=True, default=None)
+
+    authuser = relationship("AuthUserORM")
+

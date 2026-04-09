@@ -14,7 +14,7 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys
 )
 import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
 import asyncio
@@ -154,6 +154,7 @@ app.include_router(personal_domain_contact.router, prefix="/api", tags=["Persona
 app.include_router(outreach_email_recipient.router, prefix="/api", tags=["Outreach Email Recipients"], dependencies=[Depends(enforce_access)])
 app.include_router(linkedin_only_contact.router, prefix="/api", tags=["Linkedin Only Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Extracts"], dependencies=[Depends(enforce_access)])
+app.include_router(extension_keys.router, prefix="/api", tags=["Extension Keys"], dependencies=[Depends(enforce_access)])
 
 # Automation Workflow Routers
 app.include_router(delivery_engine.router, prefix="/api", tags=["Delivery Engine"], dependencies=[Depends(enforce_access)])
