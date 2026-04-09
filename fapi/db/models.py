@@ -24,7 +24,7 @@ class AuthUserORM(Base):
     team = Column(String(255))
     status = Column(String(255), default="inactive")
     lastlogin = Column(DateTime)
-    logincount = Column(Integer)
+    logincount: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     fullname = Column(String(50))
     address = Column(String(50))
     phone = Column(String(20))
@@ -132,8 +132,10 @@ class FileApproval(Base):
     drive_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(512), nullable=False)
     approvals_count: Mapped[int] = mapped_column(Integer, default=0)
+    document_type: Mapped[str] = mapped_column(String(255), nullable=True)
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     is_declined: Mapped[bool] = mapped_column(Boolean, default=False)
+    # status: Mapped[str] = mapped_column(String(50), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -146,6 +148,7 @@ class FileApprovalAction(Base):
     approver_email = Column(String(255), index=True, nullable=False)
     decision = Column(String(20), nullable=False)  # "accept" / "decline"
     acted_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (
         UniqueConstraint("uid", "approver_email", name="uq_uid_approver"),

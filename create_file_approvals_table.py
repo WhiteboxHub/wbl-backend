@@ -40,27 +40,4 @@ engine = create_engine(DATABASE_URL, echo=True, future=True)
 Base = declarative_base()
 
 
-class FileApproval(Base):
-    __tablename__ = "file_approvals"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    uid = Column(String(255), nullable=False, unique=True)
-    username = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=False)
-    drive_file_id = Column(String(255), nullable=False)
-    original_filename = Column(String(255), nullable=False)
-    approvals_count = Column(Integer, nullable=False, default=0)
-    is_approved = Column(Boolean, nullable=False, default=False)
-    is_declined = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-
-
-def main():
-    print("Creating table file_approvals if not exists...")
-    Base.metadata.create_all(engine, tables=[FileApproval.__table__])
-    print("Done.")
-
-
-if __name__ == "__main__":
-    main()

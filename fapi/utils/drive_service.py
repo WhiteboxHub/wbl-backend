@@ -75,14 +75,14 @@ def upload_to_temp(file_bytes: bytes, mime_type: str, uid_filename: str) -> str:
 
 # fapi/utils/drive_service.py
 
-def rename_file(file_id: str, username: str, original_name: str) -> None:
+def rename_file(file_id: str, username: str, original_name: str, document_type: str) -> None:
     svc = _service()
 
-    # Get extension from original uploaded filename
-    _, ext = os.path.splitext(original_name)  # e.g. ".pdf"
+    _, ext = os.path.splitext(original_name)
     ext = ext or ""
 
-    new_name = f"{username}{ext}"  # e.g. "khajainnovopath@gmail.com.pdf"
+    new_name = f"{username}_{document_type}{ext}"
+    # e.g. khaja_identity.pdf
 
     svc.files().update(
         fileId=file_id,
@@ -116,8 +116,12 @@ def _find_user_folder(username: str) -> Optional[str]:
 
 def get_or_create_user_folder(username: str) -> str:
     svc = _service()
+
+    username = username.strip().lower()
+    print("FOLDER USERNAME:", username)
+
     existing = _find_user_folder(username)
-    if existing is not None:
+    if existing:
         return existing
 
     meta = {
@@ -125,12 +129,14 @@ def get_or_create_user_folder(username: str) -> str:
         "mimeType": "application/vnd.google-apps.folder",
         "parents": [ROOT_USER_FOLDER_ID],
     }
+
     folder = svc.files().create(body=meta, fields="id").execute()
     folder_id = folder.get("id")
+
     if not folder_id:
         raise ValueError(f"Failed to create folder for user {username}")
-    return folder_id
 
+    return folder_id
 
 def move_file_to_user_folder(file_id: str, username: str) -> None:
     print("MOVE_FILE:", file_id, "→", username)
@@ -149,3 +155,15 @@ def move_file_to_user_folder(file_id: str, username: str) -> None:
         fields="id,parents",
     ).execute()
     print("AFTER_PARENTS:", result.get("parents", []))
+
+def delete_file(file_id: str) -> None:
+    svc = _service()
+    try:
+        svc.files().delete(fileId=file_id).execute()
+        print(f"Deleted file {file_id}")
+    except Exception as e:
+        print("Delete failed:", str(e))
+
+def get_file_link(file_id: str) -> str:
+    return f"https://drive.google.com/file/d/{file_id}/view"
+

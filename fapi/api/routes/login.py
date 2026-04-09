@@ -7,6 +7,7 @@ from fapi.utils.auth import authenticate_user
 from fapi.auth import create_access_token
 from fapi.db.schemas import Token
 from fapi.core.config import limiter
+from fastapi import Request
 from fapi.db.models import AuthUserORM
 from fapi.utils.user_utils import get_user_by_username
 
@@ -14,7 +15,7 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("15/minute")
+@limiter.limit("5/minute")
 async def login_for_access_token(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -53,7 +54,14 @@ async def login_for_access_token(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invalid username or password.",
         )
-    db_user = get_user_by_username(db, user.get("uname"))
+    uname = user.get("uname")
+    if not isinstance(uname, str) or not uname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="User record is missing a username.",
+        )
+
+    db_user = get_user_by_username(db, uname)
     if db_user:
 
         db_user.logincount = (db_user.logincount or 0) + 1

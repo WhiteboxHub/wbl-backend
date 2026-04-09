@@ -1,11 +1,13 @@
 # wbl-backend/fapi/utils/mail_utils.py
 import os
 import smtplib
+from typing import cast
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from fastapi import HTTPException
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
-from pydantic import EmailStr
+from fastapi_mail.schemas import MessageType
+from pydantic import EmailStr, NameEmail, SecretStr
 from dotenv import load_dotenv
 
 from fapi.db.schemas import UserRegistration, EmailRequest, ContactForm
@@ -30,6 +32,11 @@ def get_email_config() -> dict[str, str]:
 
     if not (to_recruiting_email or to_admin_email):
         raise HTTPException(status_code=500, detail="No admin email addresses configured.")
+
+    assert from_email is not None
+    assert password is not None
+    assert smtp_server is not None
+    assert smtp_port is not None
 
     return {
         'from_email': from_email,
@@ -57,6 +64,14 @@ def send_html_email(server, from_email: str, to_emails: list[str], subject: str,
     msg['Subject'] = subject
     msg.attach(MIMEText(html_content, 'html'))
     server.sendmail(from_email, to_emails, msg.as_string())
+
+
+def _recipient(email: str) -> NameEmail:
+    local_part = email.split("@", 1)[0].replace(".", " ")
+    return NameEmail(local_part, email)
+
+def _recipients(*emails: str) -> list[NameEmail]:
+    return [_recipient(email) for email in emails]
 
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     config = get_email_config()
@@ -125,23 +140,42 @@ def send_contact_emails(first_name: str, last_name: str, email: str, phone: str,
 
 
 # ========== Async Email Configuration for FastMail ==========
+mail_username = os.getenv('MAIL_USERNAME')
+mail_password = os.getenv('MAIL_PASSWORD')
+mail_from = os.getenv('MAIL_FROM')
+mail_port = os.getenv('MAIL_PORT')
+mail_server = os.getenv('MAIL_SERVER')
+mail_starttls = os.getenv('MAIL_STARTTLS') == 'True'
+mail_ssl_tls = os.getenv('MAIL_SSL_TLS') == 'True'
+
+if not all([mail_username, mail_password, mail_from, mail_port, mail_server]):
+    raise HTTPException(status_code=500, detail="FastMail configuration is incomplete.")
+
+assert mail_username is not None
+assert mail_password is not None
+assert mail_from is not None
+assert mail_port is not None
+assert mail_server is not None
+mail_port_int = int(cast(str, mail_port))
+mail_password_secret = SecretStr(mail_password)
+
 fastmail_config = ConnectionConfig(
-    MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
-    MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
-    MAIL_FROM=os.getenv('MAIL_FROM'),
-    MAIL_PORT=int(os.getenv('MAIL_PORT')),
-    MAIL_SERVER=os.getenv('MAIL_SERVER'),
-    MAIL_STARTTLS=os.getenv('MAIL_STARTTLS') == 'True',
-    MAIL_SSL_TLS=os.getenv('MAIL_SSL_TLS') == 'True'
+    MAIL_USERNAME=mail_username,
+    MAIL_PASSWORD=mail_password_secret,
+    MAIL_FROM=mail_from,
+    MAIL_PORT=mail_port_int,
+    MAIL_SERVER=mail_server,
+    MAIL_STARTTLS=mail_starttls,
+    MAIL_SSL_TLS=mail_ssl_tls,
 )
 
 async def send_reset_password_email(email: EmailStr, token: str):
     reset_link = f"{os.getenv('RESET_PASSWORD_URL')}?token={token}"
     message = MessageSchema(
         subject="Password Reset Request",
-        recipients=[email],
+        recipients=_recipients(str(email)),
         body=f"Click to reset your password: <a href='{reset_link}'>Reset Password</a>",
-        subtype="html"
+        subtype=MessageType.html
     )
     fm = FastMail(fastmail_config)
     await fm.send_message(message)
@@ -149,20 +183,20 @@ async def send_reset_password_email(email: EmailStr, token: str):
 async def send_request_demo_emails(name: str, email: str, phone: str, address: str = ""):
     user_message = MessageSchema(
         subject="Your Innovapath Demo Request is Confirmed",
-        recipients=[email],
+        recipients=_recipients(email),
         body=RequestDemo_User_HTML_template(name),
-        subtype="html"
+        subtype=MessageType.html
     )
 
     admin_message = MessageSchema(
         subject=f"New Demo Request from {name}",
-        recipients=[
+        recipients=_recipients(
             "sampath.velupula@gmail.com",
             "recruiting@whitebox-learning.com",
-            "info@innova-path.com"
-        ],
+            "info@innova-path.com",
+        ),
         body=RequestDemo_Admin_HTML_template(name, email, phone, address),
-        subtype="html"
+        subtype=MessageType.html
     )
 
     fm = FastMail(fastmail_config)
@@ -238,12 +272,12 @@ async def send_referral_emails(
     # Send email to specified recipients
     admin_message = MessageSchema(
         subject=f"🎁 New AIML Program Referral from {referrer_name}",
-        recipients=[
+        recipients=_recipients(
             "sampath.velupula@gmail.com",
-            "recruiting@whitebox-learning.com"
-        ],
+            "recruiting@whitebox-learning.com",
+        ),
         body=html_content,
-        subtype="html"
+        subtype=MessageType.html
     )
     
     fm = FastMail(fastmail_config)

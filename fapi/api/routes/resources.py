@@ -2,7 +2,7 @@ import logging
 import traceback
 import jwt
 import os
-import anyio
+import asyncio
 from typing import List, Optional
 from fastapi import (
     APIRouter,
@@ -22,7 +22,9 @@ from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import CourseContentResponse, BatchMetrics
 from fapi.db.models import CourseContent, CourseContent as CourseContentORM, Batch as BatchORM, Recording as RecordingORM
-from fapi.core.config import limiter, SECRET_KEY
+from fapi.core.config import SECRET_KEY
+from fapi.core.config import limiter
+from fastapi import Request
 from fapi.utils.resources_utils import (
     fetch_kumar_recordings,
     fetch_subject_batch_recording,
@@ -64,7 +66,7 @@ async def get_course_content(
         result = db.execute(select(CourseContent))
         return result.scalars().all()
 
-    return await anyio.to_thread.run_sync(_get_content)
+    return await asyncio.to_thread(_get_content)
 
 
 @router.get("/session-types")
@@ -79,7 +81,7 @@ async def get_session_types(
     role, user_team = extract_role_and_team_from_token(token)
     
     async def _get_types():
-        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, role, user_team)
+        return await asyncio.to_thread(fetch_session_types_by_team, db, team, role, user_team)
 
     try:
         types = await _get_types()
@@ -113,7 +115,7 @@ async def get_sessions(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
                 )
-        return await anyio.to_thread.run_sync(
+        return await asyncio.to_thread(
             fetch_sessions_by_type_orm, db, course_id, session_type, team, role, user_team
         )
 

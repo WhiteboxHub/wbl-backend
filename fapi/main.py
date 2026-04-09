@@ -20,17 +20,45 @@ from fapi.api.routes import (
     email_position, job_click,
 )
 from fapi.core.redis_client import redis_client
-from fapi.api import approval  # your new approval router module
 from fapi.auth import JWTAuthorizationMiddleware
+from fapi.db import database as db_database
 from fapi.db.database import SessionLocal
+from fapi.db.models import Base
+from fapi.api import approval
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from fapi.core.config import limiter
+from fapi.api.approval import router
 from fapi.api import approval
 
 import logging
 import traceback
 
 app = FastAPI(title="WBL Backend")
+Base.metadata.create_all(bind=db_database.engine)
 app.include_router(approval.router, prefix="/api", tags=["Approval"],)
+app.state.limiter = limiter
 
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,          # or ["*"] during dev
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+async def rate_limit_handler(request: Request, exc: Exception):
+    return await _rate_limit_exceeded_handler(request, exc)  # type: ignore[arg-type]
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wbl")
@@ -146,6 +174,7 @@ app.include_router(job_listing.router, prefix="/api", tags=["Positions"], depend
 app.include_router(email_position.router, prefix="/api", tags=["Email Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
+app.include_router(approval.router, prefix="/api/approval", tags=["Approval"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])
