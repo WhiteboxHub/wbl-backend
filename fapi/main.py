@@ -17,7 +17,7 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads, personal_domain_contact, outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-<<<<<<< HEAD
+
     email_position, job_click,
 )
 from fapi.core.redis_client import redis_client
@@ -33,16 +33,15 @@ from fapi.core.config import limiter
 from fapi.api.approval import router
 from fapi.api import approval
 
-=======
     email_position, job_click, coderpad, dynamic_weekly_report
-)
+
 import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
->>>>>>> fbbbbd88b9b708c09c4a63699c2884723ee5df73
+
 import logging
 import traceback
 
@@ -193,11 +192,11 @@ app.include_router(job_listing.router, prefix="/api", tags=["Positions"], depend
 app.include_router(email_position.router, prefix="/api", tags=["Email Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
-<<<<<<< HEAD
+
 app.include_router(approval.router, prefix="/api/approval", tags=["Approval"])
-=======
+
 app.include_router(dynamic_weekly_report.router, prefix="/api", tags=["Dynamic Weekly Report"])
->>>>>>> fbbbbd88b9b708c09c4a63699c2884723ee5df73
+
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])

@@ -14,7 +14,7 @@ if raw_password is None:
     raise ValueError("DB_PASSWORD environment variable is not set")
 encoded_password = quote(raw_password)
 
-<<<<<<< HEAD
+
 host = os.getenv('DB_HOST')
 if host is None:
     raise ValueError("DB_HOST environment variable is not set")
@@ -37,7 +37,7 @@ DATABASE_URL = (
     f"mysql+pymysql://{user}:{encoded_password}"
     f"@{host}:{port_int}/{database}"
 )
-=======
+
 db_config = {
     'host': os.getenv('DB_HOST'),
     'user': os.getenv('DB_USER'),
@@ -61,7 +61,7 @@ else:
         f"mysql+pymysql://{db_config['user']}:{encoded_password}"
         f"@{db_host}:{db_config['port']}/{db_config['database']}"
     )
->>>>>>> fbbbbd88b9b708c09c4a63699c2884723ee5df73
+
 
 # Engine and Session
 engine = create_engine(DATABASE_URL)
