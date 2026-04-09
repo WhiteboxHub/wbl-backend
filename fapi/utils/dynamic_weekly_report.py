@@ -84,10 +84,10 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         if email:
             click_mapping[email.lower()] = count
 
-    # Query 3: Get outreach data (Workflow IDs 1, 3, 4, 6, 7, 8, 9)
-    # 1: Daily Vendor Outreach, 3: Weekly Vendor Outreach, 6: Cold Intro, 8: LinkedIn Non-Easy Extraction, 9: Hiring Cafe
+    # Query 3: Get outreach data (Workflow IDs 1, 3, 4, 6, 7, 8, 9, 10)
+    # 1: Daily Vendor Outreach, 3: Weekly Vendor Outreach, 6: Cold Intro, 8: LinkedIn Non-Easy Extraction, 9: Hiring Cafe, 10: Raw_Positions_Auto_Apply
     outreach_logs = db.query(AutomationWorkflowLogORM).filter(
-        AutomationWorkflowLogORM.workflow_id.in_([1, 3, 4, 6, 7, 8, 9]),
+        AutomationWorkflowLogORM.workflow_id.in_([1, 3, 4, 6, 7, 8, 9, 10]),
         AutomationWorkflowLogORM.created_at >= start_date
     ).all()
 
@@ -106,7 +106,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             email_to_cand_id[mc.email.lower()] = mc.candidate_id
 
     # Map outreach logs to candidates
-    outreach_dict = {}  # Email Outreach (1, 3, 6)
+    outreach_dict = {}  # Email Outreach (1, 3, 6, 10)
     portal_automation_dict = {}  # Job Portal Automations (7, 9)
     
     for log in outreach_logs:
@@ -123,8 +123,8 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             c_id = int(cand_id)
             records = log.records_processed or 0
             
-            # Workflow 1 (Daily Vendor Outreach) is grouped in Outreach as per user request
-            if log.workflow_id in [1, 3, 6]:
+            # Workflow 1 (Daily Vendor Outreach), 10 (Raw_Positions_Auto_Apply) are grouped in Outreach
+            if log.workflow_id in [1, 3, 6, 10]:
                 outreach_dict[c_id] = outreach_dict.get(c_id, 0) + records
             elif log.workflow_id in [7, 9]:
                 portal_automation_dict[c_id] = portal_automation_dict.get(c_id, 0) + records
@@ -191,6 +191,10 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         outreach_count = outreach_dict.get(interview_row.id, 0)
         linkedin_applies = linkedin_dict.get(interview_row.id, 0)
 
+        positive_fb = interview_row.feedback_positive or 0
+        negative_fb = interview_row.feedback_negative or 0
+        calculated_pending = max(0, total_interviews_visible - positive_fb - negative_fb)
+
         candidates_data.append({
             'id': interview_row.id,
             'full_name': interview_row.full_name,
@@ -200,9 +204,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'recruiter_call_count': interview_row.recruiter_call_count or 0,
             'technical_count': interview_row.technical_count or 0,
             'onsite_count': interview_row.onsite_count or 0,
-            'feedback_positive': interview_row.feedback_positive or 0,
-            'feedback_negative': interview_row.feedback_negative or 0,
-            'feedback_pending': interview_row.feedback_pending or 0,
+            'feedback_positive': positive_fb,
+            'feedback_negative': negative_fb,
+            'feedback_pending': calculated_pending,
             'job_clicks': job_clicks,
             'outreach_count': outreach_count,
             'linkedin_easy_apply_count': linkedin_applies,
