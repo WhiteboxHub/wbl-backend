@@ -18,9 +18,16 @@ fastapi-mail==1.5.0
 requests
 httpx
 cryptography  # Required for MySQL 8.0 caching_sha2_password authentication
+croniter
+apscheduler
 upstash-redis
+<<<<<<< HEAD
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
 python-dotenv
 email-validator
+=======
+
+
+>>>>>>> fbbbbd88b9b708c09c4a63699c2884723ee5df73

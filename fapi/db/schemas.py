@@ -1164,6 +1164,7 @@ class CandidateInterviewBase(BaseModel):
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     transcript: Optional[str] = None
+    audio_link: Optional[str] = None
     recording_link: Optional[str] = None
     backup_recording_url: Optional[str] = None
     job_posting_url: Optional[str] = None
@@ -1212,6 +1213,7 @@ class CandidateInterviewUpdate(BaseModel):
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     transcript: Optional[str] = None
+    audio_link: Optional[str] = None
     recording_link: Optional[str] = None
     backup_recording_url: Optional[str] = None
     job_posting_url: Optional[str] = None
@@ -3724,6 +3726,150 @@ class JobLinkClickAnalytics(BaseModel):
     first_clicked_at: datetime
     last_clicked_at: datetime
 
+    class Config:
+        from_attributes = True
+
+
+# -------------------- CoderPad / Code Snippets --------------------
+class TestCase(BaseModel):
+    input: Optional[str] = None
+    expected_output: str
+    description: Optional[str] = None
+
+
+class CodeSnippetBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    language: str  # python, javascript, java, cpp, go, rust, etc.
+    code: str
+    test_cases: Optional[List[TestCase]] = None
+    execution_timeout: int = 5
+    is_shared: bool = False
+    shared_with: Optional[List[int]] = None  # List of user IDs
+
+
+class CodeSnippetCreate(CodeSnippetBase):
+    pass
+
+
+class CodeSnippetUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    language: Optional[str] = None
+    code: Optional[str] = None
+    test_cases: Optional[List[TestCase]] = None
+    execution_timeout: Optional[int] = None
+    is_shared: Optional[bool] = None
+    shared_with: Optional[List[int]] = None
+
+
+class CodeSnippetOut(CodeSnippetBase):
+    id: int
+    authuser_id: int
+    created_at: datetime
+    updated_at: datetime
+    last_executed_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class CodeSnippetListOut(BaseModel):
+    id: int
+    authuser_id: int
+    title: str
+    language: str
+    description: Optional[str] = None
+    is_shared: bool
+    created_at: datetime
+    updated_at: datetime
+    last_executed_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class CoderpadQuestionBase(BaseModel):
+    title: str
+    problem_statement: str
+    language: str = "python"
+    starter_code: str = ""
+    test_cases: Optional[List[TestCase]] = None
+    execution_timeout: int = 10
+    is_active: bool = True
+    sort_order: int = 0
+
+
+class CoderpadQuestionCreate(CoderpadQuestionBase):
+    pass
+
+
+class CoderpadQuestionUpdate(BaseModel):
+    title: Optional[str] = None
+    problem_statement: Optional[str] = None
+    language: Optional[str] = None
+    starter_code: Optional[str] = None
+    test_cases: Optional[List[TestCase]] = None
+    execution_timeout: Optional[int] = None
+    is_active: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+
+class CoderpadQuestionOut(CoderpadQuestionBase):
+    id: int
+    created_by_user_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CodeExecutionRequest(BaseModel):
+    code: str
+    language: str
+    input_data: Optional[str] = None
+    timeout: int = 5
+    test_cases: Optional[List[TestCase]] = None
+
+
+class CodeExecutionResponse(BaseModel):
+    output: Optional[str] = None
+    error: Optional[str] = None
+    status: str  # success, error, timeout
+    execution_time_ms: int
+
+
+class TestCaseExecutionResult(BaseModel):
+    test_case_index: int
+    input: Optional[str] = None
+    expected: str
+    actual: Optional[str] = None
+    error: Optional[str] = None
+    passed: bool
+
+
+class CodeExecutionWithTestsResponse(BaseModel):
+    output: Optional[str] = None
+    error: Optional[str] = None
+    status: str
+    execution_time_ms: int
+    test_results: Optional[List[TestCaseExecutionResult]] = None
+
+
+class CodeExecutionLogOut(BaseModel):
+    id: int
+    code_snippet_id: Optional[int] = None  # None for direct executions (no saved snippet)
+    authuser_id: int
+    language: str
+    code_executed: str
+    input_data: Optional[str] = None
+    output: Optional[str] = None
+    error: Optional[str] = None
+    execution_time_ms: Optional[int] = None
+    status: str
+    created_at: datetime
+    
     class Config:
         from_attributes = True
 
