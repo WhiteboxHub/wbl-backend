@@ -873,6 +873,7 @@ class CandidateMarketingBase(BaseModel):
     run_daily_workflow: bool = False
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
+    run_raw_positions_workflow: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
     candidate: Optional["CandidateBase"] = None
@@ -933,6 +934,7 @@ class CandidateMarketingUpdate(BaseModel):
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
+    run_raw_positions_workflow: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
 
