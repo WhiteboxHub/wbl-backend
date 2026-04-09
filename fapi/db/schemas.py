@@ -4047,4 +4047,38 @@ class CodeExecutionLogOut(BaseModel):
     
     class Config:
         from_attributes = True
+#--------------------------------------extension keys--------------------------------------
 
+class ExtensionKeyBase(BaseModel):
+    user_id: int
+    uname: str
+    api_key: str
+    device_name: Optional[str] = None
+    is_active: bool = True
+
+class ExtensionKeyCreate(ExtensionKeyBase):
+    pass
+
+class ExtensionKeyUpdate(BaseModel):
+    user_id: Optional[int] = None
+    uname: Optional[str] = None
+    api_key: Optional[str] = None
+    device_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class ExtensionKeyOut(ExtensionKeyBase):
+    id: int
+    created_at: datetime
+    last_used: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ExtensionKeyBulkCreate(BaseModel):
+    extension_keys: List["ExtensionKeyCreate"]
+
+class ExtensionKeyBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
