@@ -873,6 +873,7 @@ class CandidateMarketingBase(BaseModel):
     run_daily_workflow: bool = False
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
+    run_raw_positions_workflow: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
     candidate: Optional["CandidateBase"] = None
@@ -933,6 +934,7 @@ class CandidateMarketingUpdate(BaseModel):
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
+    run_raw_positions_workflow: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
 
@@ -4047,4 +4049,38 @@ class CodeExecutionLogOut(BaseModel):
     
     class Config:
         from_attributes = True
+#--------------------------------------extension keys--------------------------------------
 
+class ExtensionKeyBase(BaseModel):
+    user_id: int
+    uname: str
+    api_key: str
+    device_name: Optional[str] = None
+    is_active: bool = True
+
+class ExtensionKeyCreate(ExtensionKeyBase):
+    pass
+
+class ExtensionKeyUpdate(BaseModel):
+    user_id: Optional[int] = None
+    uname: Optional[str] = None
+    api_key: Optional[str] = None
+    device_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class ExtensionKeyOut(ExtensionKeyBase):
+    id: int
+    created_at: datetime
+    last_used: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ExtensionKeyBulkCreate(BaseModel):
+    extension_keys: List["ExtensionKeyCreate"]
+
+class ExtensionKeyBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int
