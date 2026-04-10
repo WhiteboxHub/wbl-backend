@@ -176,7 +176,7 @@ class AutomationContactExtractBulkCreate(BaseModel):
 class AutomationContactExtractBulkResponse(BaseModel):
     total: int
     inserted: int
-    duplicates: int
+    updated: int
     failed: int
     errors: List[Dict[str, Any]] = []
 
