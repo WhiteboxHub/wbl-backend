@@ -31,7 +31,7 @@ async def get_all_automation_extracts(db: Session, status: Optional[str] = None,
             query = query.filter(
                 AutomationContactExtractORM.source_reference == source_email
             )
-        return query.order_by(AutomationContactExtractORM.id.desc()).all()
+        return query.order_by(AutomationContactExtractORM.updated_at.desc()).all()
     except SQLAlchemyError as e:
         logger.error(f"Error fetching automation extracts: {str(e)}")
         raise HTTPException(
@@ -128,7 +128,7 @@ def get_automation_extracts_paginated(
                 AutomationContactExtractORM.complained_flag == complained_flag
             )
         return (
-            query.order_by(AutomationContactExtractORM.id.desc())
+            query.order_by(AutomationContactExtractORM.updated_at.desc())
             .offset(skip)
             .limit(limit)
             .all()
