@@ -1,9 +1,6 @@
-
 # FastAPI
 
 Using FastAPI to perform the backend operations and establishing the connection between the UI and Database
-
-
 
 ## Acknowledgements
 
@@ -12,7 +9,6 @@ Using FastAPI to perform the backend operations and establishing the connection 
 - Python 3.7+
 - MySQL database
 
-
 ## Installation
 
 ```
@@ -20,26 +16,29 @@ VS code (1.89.1)
 MySQL Workbench
 Postman
 ```
-   
 
 ## Create a virtual environment and activate it:
+
 ```
 python -m venv YOUR_FOLDER_NAME
 ```
-    
-### for mac/linux platforms:  
+
+### for mac/linux platforms:
+
 ```
 source YOUR_FOLDER_NAME/bin/activate
 ```
 
-### for Windows platforms   
+### for Windows platforms
+
 ```
 cd YOUR_FOLDER_NAME\Scripts
 activate
 ```
-    
+
 ## Clone the repository
-``` 
+
+```
 git clone https://github.com/WhiteboxHub/wbl-backend.git 
 cd wbl-backend
 ```
@@ -58,8 +57,9 @@ pip install passlib
 ## Set up the MySQL database:
 
 - Install MySQL and login credentials
-    
+
 ## Environment Variables
+
 To run this project, you will need to add the following environment variables to your .env file
 
 `DB_HOST=00.000.00.00`
@@ -74,7 +74,6 @@ To run this project, you will need to add the following environment variables to
 
 `SECRET_KEY=SecretKey`
 
-
 ## API Reference
 
 #### Get all items
@@ -83,8 +82,8 @@ To run this project, you will need to add the following environment variables to
   GET /api/items
 ```
 
-| Parameter | Type     | Description                |
-| :-------- | :------- | :------------------------- |
+| Parameter   | Type       | Description                      |
+| :---------- | :--------- | :------------------------------- |
 | `api_key` | `string` | **Required**. Your API key |
 
 #### Get item
@@ -93,17 +92,16 @@ To run this project, you will need to add the following environment variables to
   GET /api/items/${id}
 ```
 
-| Parameter | Type     | Description                       |
-| :-------- | :------- | :-------------------------------- |
-| `id`      | `string` | **Required**. Id of item to fetch |
+| Parameter | Type       | Description                             |
+| :-------- | :--------- | :-------------------------------------- |
+| `id`    | `string` | **Required**. Id of item to fetch |
 
 #### add(num1, num2)
 
 Takes two numbers and returns the sum.
 
-
-
 ## 🔗 Links
+
 https://github.com/WhiteboxHub/wbl-backend
 
 ## Features
@@ -113,89 +111,72 @@ https://github.com/WhiteboxHub/wbl-backend
 - Fullscreen mode
 - Cross platform
 
-
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
 
-
 ## Running the Application
-
 
 1. *Start the FastAPI application*:
 
-    bash
-    uvicorn main:app --reload
-
-    
+   bash
+   uvicorn main:app --reload
 2. *Access the API documentation* at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
 ### User Registration
 
 - *Endpoint*: POST /users/
 - *Request Body*:
 
-    json
-    {
-        "username": "yourusername",
-        "email": "youremail@example.com",
-        "password": "yourpassword"
-    }
-    
-
+  json
+  {
+  "username": "yourusername",
+  "email": "youremail@example.com",
+  "password": "yourpassword"
+  }
 - *Response*:
 
-    json
-    {
-        "id": 1,
-        "username": "yourusername",
-        "email": "youremail@example.com"
-    }
-    
-
-
+  json
+  {
+  "id": 1,
+  "username": "yourusername",
+  "email": "youremail@example.com"
+  }
 
 ## Token Generation
-
 
 - *Endpoint*: POST /token
 - *Request Body*: (as x-www-form-urlencoded)
 
-    text
-    username=yourusername&password=yourpassword
-    
-
+  text
+  username=yourusername&password=yourpassword
 - *Response*:
 
-    json
-    {
-        "access_token": "your_access_token",
-        "token_type": "bearer"
-    }
-    
+  json
+  {
+  "access_token": "your_access_token",
+  "token_type": "bearer"
+  }
 
 ## Protected End point
 
 - *Endpoint*: GET /recordings
 - *Headers*:
 
-    text
-    Authorization: Bearer your_access_token
-    
-
+  text
+  Authorization: Bearer your_access_token
 - *Response*: (Example)
 
-    json
-    [
-        {
-            "id": 1,
-            "name": "Recording 1",
-            "url": "http://example.com/recording1"
-        }
-    ]
-    
+  json
+  [
+  {
+  "id": 1,
+  "name": "Recording 1",
+  "url": "http://example.com/recording1"
+  }
+  ]
 
 ## Using Postman
-
 
 ### Step 1: Acquire the Token
 
@@ -204,8 +185,8 @@ https://github.com/WhiteboxHub/wbl-backend
 3. *Enter the URL*: http://127.0.0.1:8000/token.
 4. **Navigate to the Body tab** and select x-www-form-urlencoded.
 5. *Add the following key-value pairs*:
-    - username: yourusername
-    - password: yourpassword
+   - username: yourusername
+   - password: yourpassword
 6. *Send the request*.
 7. **Copy the access_token** from the response.
 

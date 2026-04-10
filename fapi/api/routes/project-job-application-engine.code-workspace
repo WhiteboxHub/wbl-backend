@@ -1,0 +1,16 @@
+{
+  "folders": [
+	{
+		"path": "../../../../project-job-application-engine"
+	},
+	{
+		"path": "../../.."
+	},
+	{
+		"path": "../../../../wbl-frontend"
+	}
+],
+  "settings": {
+    "postman.settings.dotenv-detection-notification-visibility": false
+  }
+}
