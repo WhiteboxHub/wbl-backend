@@ -149,15 +149,23 @@ def send_contact_emails(first_name: str, last_name: str, email: str, phone: str,
 
 
 # ========== Async Email Configuration for FastMail ==========
-fastmail_config = ConnectionConfig(
-    MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
-    MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
-    MAIL_FROM=os.getenv('MAIL_FROM'),
-    MAIL_PORT=int(os.getenv('MAIL_PORT')),
-    MAIL_SERVER=os.getenv('MAIL_SERVER'),
-    MAIL_STARTTLS=os.getenv('MAIL_STARTTLS') == 'True',
-    MAIL_SSL_TLS=os.getenv('MAIL_SSL_TLS') == 'True'
-)
+def get_fastmail_config() -> ConnectionConfig:
+    mail_port = os.getenv('MAIL_PORT')
+    if not mail_port:
+        raise HTTPException(
+            status_code=500,
+            detail="MAIL_PORT is not configured."
+        )
+
+    return ConnectionConfig(
+        MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
+        MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
+        MAIL_FROM=os.getenv('MAIL_FROM'),
+        MAIL_PORT=int(mail_port),
+        MAIL_SERVER=os.getenv('MAIL_SERVER'),
+        MAIL_STARTTLS=os.getenv('MAIL_STARTTLS') == 'True',
+        MAIL_SSL_TLS=os.getenv('MAIL_SSL_TLS') == 'True'
+    )
 
 async def send_reset_password_email(email: EmailStr, token: str):
     reset_link = f"{os.getenv('RESET_PASSWORD_URL')}?token={token}"
@@ -167,7 +175,7 @@ async def send_reset_password_email(email: EmailStr, token: str):
         body=f"Click to reset your password: <a href='{reset_link}'>Reset Password</a>",
         subtype="html"
     )
-    fm = FastMail(fastmail_config)
+    fm = FastMail(get_fastmail_config())
     await fm.send_message(message)
 
 async def send_request_demo_emails(name: str, email: str, phone: str, address: str = ""):
@@ -189,7 +197,7 @@ async def send_request_demo_emails(name: str, email: str, phone: str, address: s
         subtype="html"
     )
 
-    fm = FastMail(fastmail_config)
+    fm = FastMail(get_fastmail_config())
     await fm.send_message(user_message)
     await fm.send_message(admin_message)
 
@@ -270,5 +278,5 @@ async def send_referral_emails(
         subtype="html"
     )
     
-    fm = FastMail(fastmail_config)
+    fm = FastMail(get_fastmail_config())
     await fm.send_message(admin_message)
