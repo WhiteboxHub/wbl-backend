@@ -4,14 +4,18 @@ from fapi.db.schemas import DeliveryEngineCreate, DeliveryEngineUpdate
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="delivery_engines")
 def get_delivery_engines(db: Session) -> List[DeliveryEngineORM]:
     return db.query(DeliveryEngineORM).all()
 
+@cache_result(ttl=300, prefix="delivery_engines")
 def get_delivery_engine(db: Session, engine_id: int) -> Optional[DeliveryEngineORM]:
     return db.query(DeliveryEngineORM).filter(DeliveryEngineORM.id == engine_id).first()
 
 def create_delivery_engine(db: Session, engine: DeliveryEngineCreate) -> DeliveryEngineORM:
+    invalidate_cache("delivery_engines")
     db_engine = DeliveryEngineORM(**engine.model_dump())
     db.add(db_engine)
     db.commit()
@@ -19,6 +23,7 @@ def create_delivery_engine(db: Session, engine: DeliveryEngineCreate) -> Deliver
     return db_engine
 
 def update_delivery_engine(db: Session, engine_id: int, engine: DeliveryEngineUpdate) -> Optional[DeliveryEngineORM]:
+    invalidate_cache("delivery_engines")
     db_engine = db.query(DeliveryEngineORM).filter(DeliveryEngineORM.id == engine_id).first()
     if not db_engine:
         return None
@@ -32,6 +37,7 @@ def update_delivery_engine(db: Session, engine_id: int, engine: DeliveryEngineUp
     return db_engine
 
 def delete_delivery_engine(db: Session, engine_id: int) -> bool:
+    invalidate_cache("delivery_engines")
     db_engine = db.query(DeliveryEngineORM).filter(DeliveryEngineORM.id == engine_id).first()
     if not db_engine:
         return False

@@ -4,8 +4,10 @@ from typing import Optional, List
 from fapi.db import models, schemas
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
 
+@cache_result(ttl=300, prefix="job_automation_keywords")
 def get_keyword(db: Session, keyword_id: int) -> Optional[models.JobAutomationKeywordORM]:
     """Get a single keyword by ID"""
     return db.query(models.JobAutomationKeywordORM).filter(
@@ -13,6 +15,7 @@ def get_keyword(db: Session, keyword_id: int) -> Optional[models.JobAutomationKe
     ).first()
 
 
+@cache_result(ttl=300, prefix="job_automation_keywords")
 def get_keywords(
     db: Session,
     category: Optional[str] = None,
@@ -50,6 +53,7 @@ def create_keyword(
     keyword: schemas.JobAutomationKeywordCreate
 ) -> models.JobAutomationKeywordORM:
     """Create a new keyword"""
+    invalidate_cache("job_automation_keywords")
     db_keyword = models.JobAutomationKeywordORM(**keyword.model_dump())
     db.add(db_keyword)
     db.commit()
@@ -63,6 +67,7 @@ def update_keyword(
     keyword_update: schemas.JobAutomationKeywordUpdate
 ) -> Optional[models.JobAutomationKeywordORM]:
     """Update an existing keyword"""
+    invalidate_cache("job_automation_keywords")
     db_keyword = get_keyword(db, keyword_id)
     if not db_keyword:
         return None
@@ -78,6 +83,7 @@ def update_keyword(
 
 def delete_keyword(db: Session, keyword_id: int) -> bool:
     """Delete a keyword"""
+    invalidate_cache("job_automation_keywords")
     db_keyword = get_keyword(db, keyword_id)
     if not db_keyword:
         return False
@@ -87,6 +93,7 @@ def delete_keyword(db: Session, keyword_id: int) -> bool:
     return True
 
 
+@cache_result(ttl=300, prefix="job_automation_keywords")
 def get_active_keywords_by_category(
     db: Session,
     category: str,

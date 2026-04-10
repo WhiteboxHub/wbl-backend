@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
+from fapi.core.cache import cache_result, invalidate_cache
 
 from fapi.db.models import (
     CandidateORM,
@@ -55,6 +56,7 @@ def _get_active_or_latest(records: List, status_field: str = "status", active_va
 
 # ==================== DASHBOARD OVERVIEW ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
     """
     Get comprehensive dashboard overview for a candidate
@@ -218,6 +220,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
             "duration_days": _calculate_duration_days(marketing.start_date),
             "priority": getattr(marketing, "priority", None),
+            "run_raw_positions_workflow": marketing.run_raw_positions_workflow,
             "total_interviews": interview_counts["total"],
             "positive_interviews": interview_counts["positive"],
             "pending_interviews": interview_counts["pending"],
@@ -348,6 +351,7 @@ def _generate_candidate_alerts(candidate: CandidateORM, db: Session) -> List[Dic
 
 # ==================== JOURNEY TIMELINE ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_candidate_journey_timeline(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Get detailed journey timeline for candidate"""
     candidate = (
@@ -369,6 +373,7 @@ def get_candidate_journey_timeline(db: Session, candidate_id: int) -> Dict[str, 
 
 # ==================== FULL PROFILE ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Get complete candidate profile with all details"""
     candidate = (
@@ -444,6 +449,7 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
 # ==================== PREPARATION PHASE (FIXED) ====================
 
 
+@cache_result(ttl=300, prefix="candidates")
 def get_preparation_phase_details(
     db: Session, 
     candidate_id: int, 
@@ -555,6 +561,7 @@ def get_preparation_phase_details(
 
 # ==================== MARKETING PHASE (FIXED) ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_marketing_phase_details(
     db: Session, 
     candidate_id: int, 
@@ -623,6 +630,11 @@ def get_marketing_phase_details(
         "notes": current_marketing.notes,
         "move_to_placement": current_marketing.move_to_placement,
         "candidate_resume": current_marketing.candidate_resume,
+        "run_daily_workflow": current_marketing.run_daily_workflow,
+        "run_weekly_workflow": current_marketing.run_weekly_workflow,
+        "run_email_extraction": current_marketing.run_email_extraction,
+        "run_raw_positions_workflow": current_marketing.run_raw_positions_workflow,
+        "linkedin_post": current_marketing.linkedin_post,
         "duration_days": _calculate_duration_days(current_marketing.start_date),
         "marketing_manager": _serialize_employee(current_marketing.marketing_manager_obj),
         "interview_stats": interview_stats,
@@ -703,6 +715,7 @@ def _get_top_companies_for_candidate(db: Session, candidate_id: int, limit: int 
 
 # ==================== PLACEMENT PHASE ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_placement_phase_details(
     db: Session, 
     candidate_id: int, 
@@ -765,6 +778,7 @@ def get_placement_phase_details(
 
 # ==================== INTERVIEW ANALYTICS ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_candidate_interview_analytics(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Get comprehensive interview analytics"""
     interviews = (
@@ -1003,6 +1017,7 @@ def get_candidate_phase_summary(db: Session, candidate_id: int) -> Dict[str, Any
 
 # ==================== TEAM MEMBERS ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_candidate_team_members(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Get all team members assigned to candidate"""
     candidate = (
@@ -1032,6 +1047,9 @@ def update_candidate_phase_status(
     action: str
 ) -> Dict[str, Any]:
     """Update candidate phase status (move between phases)"""
+    # Invalidate candidate and metrics cache
+    invalidate_cache("candidates")
+    invalidate_cache("metrics")
     candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
 
     if not candidate:
@@ -1139,6 +1157,7 @@ def update_candidate_phase_status(
 
 # ==================== STATISTICS ====================
 
+@cache_result(ttl=300, prefix="candidates")
 def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Get comprehensive statistics for candidate"""
     candidate = (

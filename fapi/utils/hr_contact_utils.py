@@ -1,4 +1,4 @@
-# hr_contact_utils.py-
+# hr_contact_utils.py
 
 import logging
 from typing import List, Dict, Any, Optional
@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr, ValidationError
 from fapi.db.models import CompanyHRContact
 from fapi.db.schemas import HRContactCreate, HRContactUpdate
 from fapi.utils.table_fingerprint import generate_version_for_model
+from fapi.core.cache import cache_result, invalidate_cache
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def _init_cap(text: Optional[str]) -> Optional[str]:
 
 
 # ---------- CRUD: HR Contact ----------
+@cache_result(ttl=300, prefix="hr_contacts")
 def get_all_hr_contacts(db: Session) -> List[CompanyHRContact]:
     contacts = db.query(CompanyHRContact).order_by(CompanyHRContact.id.desc()).all()
     # Normalize/validate emails for outbound payload (does not persist changes)
@@ -51,6 +53,7 @@ def get_all_hr_contacts(db: Session) -> List[CompanyHRContact]:
 
 
 def create_hr_contact(db: Session, contact: HRContactCreate) -> CompanyHRContact:
+    invalidate_cache("hr_contacts")
     payload = contact.dict()
     payload["email"] = _normalize_email(payload.get("email"))
     
@@ -79,6 +82,7 @@ def create_hr_contact(db: Session, contact: HRContactCreate) -> CompanyHRContact
 
 
 def update_hr_contact_handler(db: Session, contact_id: int, update_data: HRContactUpdate) -> CompanyHRContact:
+    invalidate_cache("hr_contacts")
     fields = update_data.dict(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="No data to update")
@@ -112,6 +116,7 @@ def update_hr_contact_handler(db: Session, contact_id: int, update_data: HRConta
 
 
 def delete_hr_contact(db: Session, contact_id: int) -> Dict[str, str]:
+    invalidate_cache("hr_contacts")
     contact = db.query(CompanyHRContact).filter(CompanyHRContact.id == contact_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="HR Contact not found")
@@ -125,6 +130,7 @@ def delete_hr_contact(db: Session, contact_id: int) -> Dict[str, str]:
 
 
 def delete_hr_contacts_bulk(db: Session, contact_ids: List[int]) -> int:
+    invalidate_cache("hr_contacts")
     try:
         deleted_count = db.query(CompanyHRContact).filter(CompanyHRContact.id.in_(contact_ids)).delete(synchronize_session=False)
         db.commit()

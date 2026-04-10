@@ -1,13 +1,16 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db import models, schemas
-from fastapi import Response
 from fapi.utils.table_fingerprint import generate_version_for_model
+from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="recording_batches")
 def get_all_recording_batches(db: Session) -> List[models.RecordingBatch]:
     """Get all recording batch mappings"""
     return db.query(models.RecordingBatch).all()
 
+@cache_result(ttl=300, prefix="recording_batches")
 def get_recording_batch(db: Session, recording_id: int, batch_id: int) -> Optional[models.RecordingBatch]:
     """Get specific recording batch mapping"""
     return db.query(models.RecordingBatch).filter(
@@ -15,12 +18,14 @@ def get_recording_batch(db: Session, recording_id: int, batch_id: int) -> Option
         models.RecordingBatch.batch_id == batch_id
     ).first()
 
+@cache_result(ttl=300, prefix="recording_batches")
 def get_batches_for_recording(db: Session, recording_id: int) -> List[models.RecordingBatch]:
     """Get all batches for a recording"""
     return db.query(models.RecordingBatch).filter(
         models.RecordingBatch.recording_id == recording_id
     ).all()
 
+@cache_result(ttl=300, prefix="recording_batches")
 def get_recordings_for_batch(db: Session, batch_id: int) -> List[models.RecordingBatch]:
     """Get all recordings for a batch"""
     return db.query(models.RecordingBatch).filter(
@@ -29,6 +34,8 @@ def get_recordings_for_batch(db: Session, batch_id: int) -> List[models.Recordin
 
 def create_recording_batch(db: Session, recording_batch: schemas.RecordingBatchCreate) -> models.RecordingBatch:
     """Create a new recording batch mapping"""
+    invalidate_cache("recording_batches")
+    invalidate_cache("resources")
     existing = get_recording_batch(db, recording_batch.recording_id, recording_batch.batch_id)
     if existing:
         raise ValueError("Recording batch mapping already exists")
@@ -51,6 +58,8 @@ def create_recording_batch(db: Session, recording_batch: schemas.RecordingBatchC
 
 def delete_recording_batch(db: Session, recording_id: int, batch_id: int) -> bool:
     """Delete a recording batch mapping"""
+    invalidate_cache("recording_batches")
+    invalidate_cache("resources")
     db_recording_batch = get_recording_batch(db, recording_id, batch_id)
     if not db_recording_batch:
         raise ValueError("Recording batch mapping not found")

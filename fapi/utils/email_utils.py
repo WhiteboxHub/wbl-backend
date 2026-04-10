@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from fapi.db.schemas import UserRegistration, EmailRequest, ContactForm
 from fapi.mail.templets.registerMailTemplet import get_user_email_content, get_admin_email_content
 from fapi.mail.templets.contactMailTemplet import ContactMail_HTML_templete
+from fapi.mail.templets.professional_email_templates import get_professional_user_email_content, get_professional_admin_email_content, get_professional_contact_email_content
 from fapi.mail.templets.requestdemoMail import RequestDemo_User_HTML_template, RequestDemo_Admin_HTML_template
 
 # Load environment variables
@@ -31,27 +32,63 @@ def validate_email_config(config: dict):
     if not all([config['from_email'], config['password'], config['smtp_server'], config['smtp_port']]):
         raise HTTPException(status_code=500, detail="Email server configuration is incomplete.")
     
-    admin_emails = [email for email in [config['to_recruiting_email'], config['to_admin_email']] if email]
+    raw_emails = [config['to_recruiting_email'], config['to_admin_email']]
+    admin_emails = []
+    for raw in raw_emails:
+        if raw:
+            # Split by comma and strip whitespace
+            emails = [e.strip() for e in raw.split(',') if e.strip()]
+            admin_emails.extend(emails)
+            
     if not admin_emails:
         raise HTTPException(status_code=500, detail="No admin email addresses configured.")
     
-    return admin_emails
+    return list(set(admin_emails))  # Remove duplicates
 
-def send_html_email(server, from_email: str, to_emails: list[str], subject: str, html_content: str):
-    msg = MIMEMultipart()
+def send_html_email(server, from_email: str, to_emails: list[str], subject: str, html_content: str, text_content: str = None):
+    from email.utils import formatdate, make_msgid
+    
+    # Create message container - the correct MIME type is multipart/alternative.
+    msg = MIMEMultipart('alternative')
     msg['From'] = from_email
-    msg['To'] = ", ".join(to_emails)
+    
+    # Send to all recipients
+    if to_emails:
+        msg['To'] = ", ".join(to_emails)
+    else:
+        msg['To'] = from_email
+        
+    # Standard MIME structure for better compatibility
     msg['Subject'] = subject
-    msg.attach(MIMEText(html_content, 'html'))
-    server.sendmail(from_email, to_emails, msg.as_string())
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid()
+    msg['MIME-Version'] = '1.0'
+
+    # Attach parts: plain text first, then HTML (standard multipart/alternative)
+    alt_text = "Weekly Marketing Report. Please use an HTML compatible email client."
+    p_text = text_content if text_content else alt_text
+    
+    part1 = MIMEText(p_text, 'plain', 'utf-8')
+    part2 = MIMEText(html_content, 'html', 'utf-8')
+    
+    msg.attach(part1)
+    msg.attach(part2)
+    
+    try:
+        raw_msg = msg.as_string()
+        # The envelope recipients should be the list of emails
+        server.sendmail(from_email, to_emails, raw_msg)
+    except Exception as e:
+        print(f"ERROR: send_html_email failed: {str(e)}")
+        raise e
 
 def send_email_to_user(user_email: str, user_name: str, user_phone: str):
     config = get_email_config()
     admin_emails = validate_email_config(config)
 
     try:
-        user_html_content = get_user_email_content(user_name)
-        admin_html_content = get_admin_email_content(user_name, user_email, user_phone)
+        user_html_content = get_professional_user_email_content(user_name)
+        admin_html_content = get_professional_admin_email_content(user_name, user_email, user_phone)
 
         with smtplib.SMTP(config['smtp_server'], int(config['smtp_port'])) as server:
             server.starttls()
@@ -82,7 +119,7 @@ def send_contact_emails(first_name: str, last_name: str, email: str, phone: str,
     config = get_email_config()
     admin_emails = validate_email_config(config)
 
-    html_content = ContactMail_HTML_templete(
+    html_content = get_professional_contact_email_content(
         f"{first_name} {last_name}", email, phone, message
     )
 

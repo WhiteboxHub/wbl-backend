@@ -5,16 +5,21 @@ from fapi.db import schemas
 from datetime import datetime  
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="courses")
 def get_all_courses(db: Session) -> List[models.Course]:
     """Get all courses"""
     return db.query(models.Course).all()
 
+@cache_result(ttl=300, prefix="courses")
 def get_course_by_id(db: Session, course_id: int) -> Optional[models.Course]:
     """Get course by ID"""
     return db.query(models.Course).filter(models.Course.id == course_id).first()
 
 def create_course(db: Session, course: schemas.CourseCreate) -> models.Course:
+    invalidate_cache("courses")
+    invalidate_cache("resources")
     """Create a new course"""
     existing_course = db.query(models.Course).filter(models.Course.alias == course.alias).first()
     if existing_course:
@@ -27,6 +32,8 @@ def create_course(db: Session, course: schemas.CourseCreate) -> models.Course:
     return db_course
 
 def update_course(db: Session, course_id: int, course: schemas.CourseUpdate) -> models.Course:
+    invalidate_cache("courses")
+    invalidate_cache("resources")
     """Update an existing course"""
     db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if not db_course:
@@ -49,6 +56,8 @@ def update_course(db: Session, course_id: int, course: schemas.CourseUpdate) -> 
     return db_course
 
 def delete_course(db: Session, course_id: int) -> bool:
+    invalidate_cache("courses")
+    invalidate_cache("resources")
     """Delete a course"""
     db_course = db.query(models.Course).filter(models.Course.id == course_id).first()
     if not db_course:

@@ -5,7 +5,9 @@ from fapi.db.schemas import EmailPositionCreate, EmailPositionUpdate
 from typing import List, Optional
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
+from fapi.core.cache import cache_result, invalidate_cache
 
+@cache_result(ttl=300, prefix="email_positions")
 def get_email_positions(db: Session, skip: int = 0, limit: Optional[int] = None) -> List[EmailPositionORM]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999 
@@ -18,10 +20,12 @@ def get_email_positions(db: Session, skip: int = 0, limit: Optional[int] = None)
     
     return query.all()
 
+@cache_result(ttl=300, prefix="email_positions")
 def get_email_position(db: Session, email_position_id: int) -> Optional[EmailPositionORM]:
     return db.query(EmailPositionORM).filter(EmailPositionORM.id == email_position_id).first()
 
 def create_email_position(db: Session, email_position: EmailPositionCreate) -> EmailPositionORM:
+    invalidate_cache("email_positions")
     db_email_position = EmailPositionORM(**email_position.model_dump())
     db.add(db_email_position)
     db.commit()
@@ -29,6 +33,7 @@ def create_email_position(db: Session, email_position: EmailPositionCreate) -> E
     return db_email_position
 
 def update_email_position(db: Session, email_position_id: int, email_position: EmailPositionUpdate) -> Optional[EmailPositionORM]:
+    invalidate_cache("email_positions")
     db_email_position = db.query(EmailPositionORM).filter(EmailPositionORM.id == email_position_id).first()
     if not db_email_position:
         return None
@@ -42,6 +47,7 @@ def update_email_position(db: Session, email_position_id: int, email_position: E
     return db_email_position
 
 def delete_email_position(db: Session, email_position_id: int) -> bool:
+    invalidate_cache("email_positions")
     db_email_position = db.query(EmailPositionORM).filter(EmailPositionORM.id == email_position_id).first()
     if not db_email_position:
         return False
@@ -50,6 +56,7 @@ def delete_email_position(db: Session, email_position_id: int) -> bool:
     db.commit()
     return True
 
+@cache_result(ttl=300, prefix="email_positions")
 def search_email_positions(db: Session, term: str) -> List[EmailPositionORM]:
     return db.query(EmailPositionORM).filter(
         or_(
@@ -60,11 +67,13 @@ def search_email_positions(db: Session, term: str) -> List[EmailPositionORM]:
         )
     ).limit(100).all()
 
+@cache_result(ttl=300, prefix="email_positions")
 def count_email_positions(db: Session) -> int:
     """Get total count of email positions for pagination"""
     return db.query(EmailPositionORM).count()
 
 async def insert_email_positions_bulk(positions: List[EmailPositionCreate], db: Session) -> dict:
+    invalidate_cache("email_positions")
     """Bulk insert email positions with duplicate handling"""
     inserted = 0
     failed = 0
