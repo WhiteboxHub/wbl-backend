@@ -3912,6 +3912,7 @@ class TestCase(BaseModel):
     input: Optional[str] = None
     expected_output: str
     description: Optional[str] = None
+    locked: Optional[bool] = None
 
 
 class CodeSnippetBase(BaseModel):
@@ -3972,6 +3973,7 @@ class CoderpadQuestionBase(BaseModel):
     language: str = "python"
     starter_code: str = ""
     test_cases: Optional[List[TestCase]] = None
+    assigned_candidate_ids: Optional[List[int]] = None
     execution_timeout: int = 10
     is_active: bool = True
     sort_order: int = 0
@@ -3987,6 +3989,7 @@ class CoderpadQuestionUpdate(BaseModel):
     language: Optional[str] = None
     starter_code: Optional[str] = None
     test_cases: Optional[List[TestCase]] = None
+    assigned_candidate_ids: Optional[List[int]] = None
     execution_timeout: Optional[int] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
@@ -4000,6 +4003,12 @@ class CoderpadQuestionOut(CoderpadQuestionBase):
 
     class Config:
         from_attributes = True
+
+
+class CoderpadAssignableCandidateOut(BaseModel):
+    id: int
+    username: str
+    display_name: str
 
 
 class CodeExecutionRequest(BaseModel):

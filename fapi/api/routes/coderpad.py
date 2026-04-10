@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
@@ -14,8 +14,9 @@ from fapi.db.schemas import (
     CoderpadQuestionCreate,
     CoderpadQuestionUpdate,
     CoderpadQuestionOut,
+    CoderpadAssignableCandidateOut,
 )
-from fapi.utils.auth_dependencies import get_current_user, admin_required
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.utils import coderpad_utils
 import logging
 
@@ -191,15 +192,46 @@ def list_coderpad_questions(
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List assignment questions. Learners see active only; admins may pass include_inactive=true."""
-    is_admin = (
+    """List assignment questions. Learners see active only; staff may pass include_inactive=true."""
+    is_staff = (
         getattr(current_user, "role", None) == "admin"
         or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
         or (getattr(current_user, "uname", "") or "").lower() == "admin"
     )
-    if include_inactive and not is_admin:
-        raise HTTPException(status_code=403, detail="Admin privileges required")
-    return coderpad_utils.list_questions(db, include_inactive=include_inactive and is_admin)
+    if include_inactive and not is_staff:
+        raise HTTPException(status_code=403, detail="Staff privileges required")
+    return coderpad_utils.list_questions(
+        db,
+        include_inactive=include_inactive and is_staff,
+        is_staff=is_staff,
+        current_user_id=current_user.id,
+    )
+
+
+@router.get("/assignable-candidates", response_model=List[CoderpadAssignableCandidateOut])
+def list_assignable_candidates(
+    search: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=200),
+    resolve_ids: Optional[str] = Query(
+        None,
+        description="Comma-separated auth user ids to resolve names for selected candidates",
+    ),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    id_list: Optional[List[int]] = None
+    if resolve_ids and resolve_ids.strip():
+        id_list = []
+        for part in resolve_ids.split(","):
+            p = part.strip()
+            if p.isdigit():
+                id_list.append(int(p))
+        if not id_list:
+            id_list = None
+    return coderpad_utils.list_assignable_candidates(
+        db, search=search, limit=limit, resolve_ids=id_list
+    )
 
 
 @router.get("/questions/{question_id}", response_model=CoderpadQuestionOut)
@@ -211,12 +243,13 @@ def get_coderpad_question(
     row = coderpad_utils.get_question_by_id(db, question_id)
     if not row:
         raise HTTPException(status_code=404, detail="Question not found")
-    is_admin = (
+    is_staff = (
         getattr(current_user, "role", None) == "admin"
         or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
         or (getattr(current_user, "uname", "") or "").lower() == "admin"
     )
-    if not row.is_active and not is_admin:
+    if not row.is_active and not is_staff:
         raise HTTPException(status_code=404, detail="Question not found")
     return row
 
@@ -224,7 +257,7 @@ def get_coderpad_question(
 @router.post("/questions", response_model=CoderpadQuestionOut, status_code=status.HTTP_201_CREATED)
 def create_coderpad_question(
     body: CoderpadQuestionCreate,
-    current_user: AuthUserORM = Depends(admin_required),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Admin: publish a new coding assignment."""
@@ -235,7 +268,7 @@ def create_coderpad_question(
 def update_coderpad_question(
     question_id: int,
     body: CoderpadQuestionUpdate,
-    current_user: AuthUserORM = Depends(admin_required),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     row = coderpad_utils.get_question_by_id(db, question_id)
@@ -247,7 +280,7 @@ def update_coderpad_question(
 @router.delete("/questions/{question_id}")
 def delete_coderpad_question(
     question_id: int,
-    current_user: AuthUserORM = Depends(admin_required),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     row = coderpad_utils.get_question_by_id(db, question_id)
