@@ -229,6 +229,19 @@ def admin_required(current_user=Depends(get_current_user)):
     raise HTTPException(status_code=403, detail="Admin privileges required")
 
 
+def staff_or_admin_required(current_user=Depends(get_current_user)):
+    """Admin, or employee (JWT is_employee), for CoderPad authoring and similar internal tools."""
+    uname = (getattr(current_user, "uname", "") or "").lower()
+    if (
+        getattr(current_user, "role", None) == "admin"
+        or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
+        or uname == "admin"
+    ):
+        return current_user
+    raise HTTPException(status_code=403, detail="Staff privileges required")
+
+
 def check_modify_permission(request: Request, current_user=Depends(get_current_user)):
     modifying_methods = {"POST", "PUT", "PATCH", "DELETE"}
     method = request.method.upper()
