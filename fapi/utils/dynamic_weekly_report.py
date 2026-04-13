@@ -213,6 +213,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'job_portal_automation_count': portal_automation_dict.get(interview_row.id, 0)
         })
 
+    # Sort candidates alphabetically by name
+    candidates_data.sort(key=lambda x: (x['full_name'] or "").lower())
+
     # Calculate global total UNIQUE clicks for the specific period to match summary cards
     global_total_clicks = db.query(func.count(JobLinkClicksORM.id)).filter(
         JobLinkClicksORM.last_clicked_at >= start_date,
@@ -392,8 +395,8 @@ def generate_weekly_marketing_report_text(db: Session) -> str:
     text_content += f"- Total Interviews: {total_interviews}\n\n"
     text_content += f"Candidate Activity (Top Candidates):\n"
     
-    # Show candidates with activity first
-    sorted_candidates = sorted(interviews_query, key=lambda x: x.total_interviews or 0, reverse=True)
+    # Show candidates in alphabetical order
+    sorted_candidates = sorted(interviews_query, key=lambda x: (x.full_name or "").lower())
     for row in sorted_candidates[:20]:  # Top 20 for brevity in plain text
         if row.total_interviews > 0:
             text_content += f"- {row.full_name}: {row.total_interviews} interviews\n"
