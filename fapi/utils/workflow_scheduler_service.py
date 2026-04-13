@@ -7,7 +7,7 @@ The scheduler auto-starts when this module is imported by the application.
 """
 import atexit
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -71,7 +71,7 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     always be the following Monday 9:00 AM regardless of when the job
     actually executes.
     """
-    anchor = schedule.next_run_at or datetime.now()
+    anchor = schedule.next_run_at or datetime.now(timezone.utc)
 
     if schedule.frequency == "weekly":
         return anchor + timedelta(weeks=1)
@@ -91,7 +91,7 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
             return anchor.replace(year=year, month=month, day=min(anchor.day, last_day))
     elif schedule.frequency == "custom" and schedule.cron_expression:
         cron = croniter(schedule.cron_expression, anchor)
-        return cron.get_next(datetime)
+        return cron.get_next(datetime).replace(tzinfo=timezone.utc)
     elif schedule.frequency == "once":
         return None
 
@@ -105,8 +105,9 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
     Execute a workflow based on its schedule configuration.
     """
     workflow = schedule.workflow
-    run_id = f"{workflow.id}_{datetime.now().timestamp()}"
-    execution_start = datetime.now()
+    now = datetime.now(timezone.utc)
+    run_id = f"{workflow.id}_{now.timestamp()}"
+    execution_start = now
 
     log_entry = AutomationWorkflowLogORM(
         workflow_id=workflow.id,
@@ -144,14 +145,14 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
             'result': str(result),
             'workflow_key': workflow.workflow_key
         }
-        log_entry.finished_at = datetime.now()
+        log_entry.finished_at = datetime.now(timezone.utc)
 
     except Exception as e:
         logger.error(f"Error executing workflow {workflow.id}: {e}", exc_info=True)
         log_entry.status = 'failed'
         log_entry.error_summary = str(e)[:255]
         log_entry.error_details = str(e)
-        log_entry.finished_at = datetime.now()
+        log_entry.finished_at = datetime.now(timezone.utc)
 
     finally:
         schedule.is_running = False
@@ -173,30 +174,48 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
 def check_and_execute_due_workflows(db: Session) -> list:
     """
     Check for workflows that are due to run and execute them.
+    Uses atomic row-level locking to prevent duplicates.
     """
     try:
-        now = datetime.now()
-        due_schedules = db.query(AutomationWorkflowScheduleORM).filter(
+        now = datetime.now(timezone.utc)
+        
+        # Step 1: Identify candidate IDs that are due (non-locking first pass)
+        candidates = db.query(AutomationWorkflowScheduleORM.id).filter(
             AutomationWorkflowScheduleORM.enabled == True,
             AutomationWorkflowScheduleORM.is_running == False,
             AutomationWorkflowScheduleORM.next_run_at <= now
         ).all()
 
-        if due_schedules:
-            logger.info(f"Found {len(due_schedules)} due workflow(s) to execute")
+        if candidates:
+            logger.info(f"Found {len(candidates)} potentially due workflow(s)")
 
         executed = []
-        for schedule in due_schedules:
+        for (schedule_id,) in candidates:
             try:
+                # Step 2: Attempt to lock the specific row with 'FOR UPDATE SKIP LOCKED'
+                # This ensures only one worker process picks up this specific schedule.
+                schedule = db.query(AutomationWorkflowScheduleORM).filter(
+                    AutomationWorkflowScheduleORM.id == schedule_id,
+                    AutomationWorkflowScheduleORM.is_running == False,
+                    AutomationWorkflowScheduleORM.next_run_at <= now
+                ).with_for_update(skip_locked=True).first()
+
+                if not schedule:
+                    # Skip if another worker already locked it or it's no longer due
+                    continue
+
                 result = execute_scheduled_workflow(db, schedule)
                 executed.append(result)
-                logger.info(f"Successfully executed workflow schedule {schedule.id}: {result}")
+                logger.info(f"Successfully executed workflow schedule {schedule_id}: {result}")
+                # Commit immediately to release lock and persist next_run_at
+                db.commit() 
             except Exception as e:
-                logger.error(f"Failed to execute schedule {schedule.id}: {e}")
+                db.rollback()
+                logger.error(f"Failed to execute schedule {schedule_id}: {e}")
                 continue
 
         if executed:
-            logger.info(f"Executed {len(executed)} workflow(s)")
+            logger.info(f"Completed execution of {len(executed)} workflow(s)")
 
         return executed
 
