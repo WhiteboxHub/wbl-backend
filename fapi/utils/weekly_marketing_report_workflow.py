@@ -84,19 +84,21 @@ def ensure_weekly_marketing_report_workflow(db: Session) -> Dict[str, Any]:
     }
 
 
-def _compute_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[datetime]:
+def _compute_next_run(schedule: AutomationWorkflowScheduleORM, anchor: Optional[datetime] = None) -> Optional[datetime]:
     """
     Compute next_run_at from cron_expression (if present) or frequency/interval_value.
+    Anchors to a provided timestamp (usually the previous next_run_at) to prevent drift.
     Stored timestamps are UTC.
     """
-    now = datetime.now(timezone.utc)
+    if anchor is None:
+        anchor = schedule.next_run_at or datetime.now(timezone.utc)
 
     # cron_expression support (optional dependency)
     if schedule.cron_expression:
         try:
             from croniter import croniter  # type: ignore
 
-            return croniter(schedule.cron_expression, now).get_next(datetime)
+            return croniter(schedule.cron_expression, anchor).get_next(datetime).replace(tzinfo=timezone.utc)
         except Exception:
             # fall back to frequency-based compute
             pass
@@ -105,13 +107,24 @@ def _compute_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[datet
     interval = int(schedule.interval_value or 1)
 
     if freq == "daily":
-        return now + timedelta(days=interval)
+        return anchor + timedelta(days=interval)
     if freq == "weekly":
-        return now + timedelta(weeks=interval)
+        return anchor + timedelta(weeks=interval)
     if freq == "monthly":
-        return now + timedelta(days=30 * interval)
+        # Simplified monthly (30 days) or logic to handle calendar months
+        year = anchor.year
+        month = anchor.month + interval
+        while month > 12:
+            month -= 12
+            year += 1
+        try:
+            return anchor.replace(year=year, month=month)
+        except ValueError:
+            import calendar
+            last_day = calendar.monthrange(year, month)[1]
+            return anchor.replace(year=year, month=month, day=min(anchor.day, last_day))
     if freq == "custom":
-        return now + timedelta(days=interval)
+        return anchor + timedelta(days=interval)
     if freq == "once":
         return None
     return None
@@ -201,7 +214,7 @@ def run_weekly_marketing_report_from_schedule(
         finished = datetime.now(timezone.utc)
         # Update schedule timing + unlock
         sched.last_run_at = finished
-        sched.next_run_at = _compute_next_run(sched)
+        sched.next_run_at = _compute_next_run(sched, anchor=sched.next_run_at)
         sched.is_running = False
 
         # Update log
