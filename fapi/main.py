@@ -14,7 +14,7 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup
 )
 import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
 import asyncio
@@ -133,6 +133,7 @@ app.include_router(register.router,  prefix="/api", tags=["Register"])
 app.include_router(login.router,  prefix="/api", tags=["Login"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
+app.include_router(candidate_setup.router, prefix="/api", tags=["Candidate Setup"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])

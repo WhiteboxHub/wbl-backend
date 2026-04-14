@@ -265,3 +265,37 @@ def require_admin(current_user=Depends(get_current_user)):
         return current_user
 
     raise HTTPException(status_code=403, detail="only admins can access")
+
+
+def require_setup_complete(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """
+    Enforces that a candidate has uploaded a resume and configured at least one API key.
+    Admins are exempted from this check.
+    """
+    uname = (getattr(current_user, "uname", "") or "").lower()
+    if getattr(current_user, "role", None) == "admin" or getattr(current_user, "is_admin", False) or uname == "admin":
+        return current_user
+
+    from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
+    from fapi.db.models import CandidateResumeORM, CandidateAPIKeyORM
+
+    candidate_info = fetch_candidate_id_and_status_by_email(db, current_user.uname)
+    if not candidate_info:
+        # If no candidate record exists, we don't block them (e.g., brand new user or employee)
+        return current_user
+
+    cid = candidate_info.candidateid
+    resume = db.query(CandidateResumeORM).filter(CandidateResumeORM.candidate_id == cid).first()
+    api_key = db.query(CandidateAPIKeyORM).filter(CandidateAPIKeyORM.candidate_id == cid).first()
+
+    if not resume or not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "setup_incomplete",
+                "message": "Please complete the setup wizard before accessing AI features.",
+                "resume_uploaded": resume is not None,
+                "api_keys_configured": api_key is not None
+            }
+        )
+    return current_user
