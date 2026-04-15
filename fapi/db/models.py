@@ -1492,6 +1492,7 @@ class CoderpadQuestionORM(Base):
     language = Column(String(50), nullable=False, default="python")
     starter_code = Column(Text, nullable=False, default="")
     test_cases = Column(JSON, nullable=True)
+    assigned_candidate_ids = Column(JSON, nullable=True)
     execution_timeout = Column(Integer, nullable=False, default=10)
     is_active = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, nullable=False, default=0)

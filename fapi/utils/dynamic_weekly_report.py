@@ -4,7 +4,7 @@ Generates weekly reports based on database queries and sends professional emails
 """
 import logging
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 
 from sqlalchemy import func, case, and_, or_
@@ -31,8 +31,8 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     Returns:
         Dict with 'html' and 'count' (number of candidates)
     """
-    # Calculate date range (last 7 days)
-    end_date = datetime.now()
+    # Calculate date range (last 7 days) in UTC
+    end_date = datetime.now(timezone.utc)
     start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     logger.info(f"Generating weekly report for {start_date} to {end_date}")
@@ -213,6 +213,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'job_portal_automation_count': portal_automation_dict.get(interview_row.id, 0)
         })
 
+    # Sort candidates alphabetically by name
+    candidates_data.sort(key=lambda x: (x['full_name'] or "").lower())
+
     # Calculate global total UNIQUE clicks for the specific period to match summary cards
     global_total_clicks = db.query(func.count(JobLinkClicksORM.id)).filter(
         JobLinkClicksORM.last_clicked_at >= start_date,
@@ -338,7 +341,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             <!-- Footer -->
             <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
                 <p style="margin: 0; font-size: 11px; color: #9ca3af;">Automated Weekly Marketing Report</p>
-                <p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af;">Generated on {datetime.now().strftime('%B %d, %Y at %H:%M')}</p>
+                <p style="margin: 4px 0 0 0; font-size: 11px; color: #9ca3af;">Generated on {datetime.now(timezone.utc).strftime('%B %d, %Y at %H:%M')} UTC</p>
             </div>
             
         </div>
@@ -357,8 +360,8 @@ def generate_weekly_marketing_report_text(db: Session) -> str:
     """
     Generate a plain-text version of the weekly marketing report
     """
-    # Calculate date range (last 7 days)
-    end_date = datetime.now()
+    # Calculate date range (last 7 days) in UTC
+    end_date = datetime.now(timezone.utc)
     start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Use the same logic as the HTML version to get candidates_data
@@ -392,14 +395,14 @@ def generate_weekly_marketing_report_text(db: Session) -> str:
     text_content += f"- Total Interviews: {total_interviews}\n\n"
     text_content += f"Candidate Activity (Top Candidates):\n"
     
-    # Show candidates with activity first
-    sorted_candidates = sorted(interviews_query, key=lambda x: x.total_interviews or 0, reverse=True)
+    # Show candidates in alphabetical order
+    sorted_candidates = sorted(interviews_query, key=lambda x: (x.full_name or "").lower())
     for row in sorted_candidates[:20]:  # Top 20 for brevity in plain text
         if row.total_interviews > 0:
             text_content += f"- {row.full_name}: {row.total_interviews} interviews\n"
 
     text_content += f"\nView full report in an HTML compatible email client.\n"
-    text_content += f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}\n"
+    text_content += f"Generated on {datetime.now(timezone.utc).strftime('%B %d, %Y at %I:%M %p')} UTC\n"
 
     return text_content
 
@@ -415,7 +418,7 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         candidate_count = report_data.get('count', 0)
         
         # Recalculate dates for logging (consistent with internal report logic)
-        end_date = datetime.now()
+        end_date = datetime.now(timezone.utc)
         start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
         
         text_report = generate_weekly_marketing_report_text(db)
@@ -429,8 +432,8 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             admin_emails.append(config['from_email'])
 
         # Send emails to all recipients with a unique subject (timestamp)
-        now = datetime.now()
-        subject = f"Weekly Marketing Report - {now.strftime('%B %d, %Y [%H:%M:%S]')}"
+        now = datetime.now(timezone.utc)
+        subject = f"Weekly Marketing Report - {now.strftime('%B %d, %Y [%H:%M:%S]')} UTC"
         from_display = f"WBL Marketing <{config['from_email']}>"
         logger.info(f"Dispatching report to {admin_emails} with subject: {subject}")
 
@@ -487,7 +490,7 @@ def get_weekly_report_data(db: Session) -> Dict[str, Any]:
             "status": "success",
             "html_report": html_report,
             "recipients": admin_emails,
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "records_processed": candidate_count
         }
 
