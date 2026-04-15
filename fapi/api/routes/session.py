@@ -18,10 +18,9 @@ def read_sessions(
         db,
         search_title=search_title,
         page=page,
-        size=size
-    )
-
-
+        size=size 
+        )
+  
 @router.get("/session/{sessionid}", response_model=schemas.SessionOut)
 def read_session(sessionid: int, db: Session = Depends(get_db)):
     session = session_utils.get_session(db, sessionid=sessionid)
