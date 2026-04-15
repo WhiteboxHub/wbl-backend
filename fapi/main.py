@@ -35,11 +35,13 @@ logger = logging.getLogger("wbl")
 async def startup_event():
     redis_client.get_client()
     try:
-        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
+        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, CandidateResumeORM, CandidateAPIKeyORM
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad tables checked/created successfully.")
+        CandidateResumeORM.__table__.create(bind=engine, checkfirst=True)
+        CandidateAPIKeyORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad and Candidate Setup tables checked/created successfully.")
     except Exception as e:
         logger.error(f"Failed to create CoderPad tables: {e}")
 
