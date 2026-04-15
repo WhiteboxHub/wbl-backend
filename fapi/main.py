@@ -36,14 +36,20 @@ async def startup_event():
     redis_client.get_client()
     try:
         from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, CandidateResumeORM, CandidateAPIKeyORM
+        
+        # Coderpad Tables
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad tables checked/created successfully.")
+
+        # Candidate Setup Tables
         CandidateResumeORM.__table__.create(bind=engine, checkfirst=True)
         CandidateAPIKeyORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad and Candidate Setup tables checked/created successfully.")
+        logger.info("Candidate Setup tables (Resume & API Keys) checked/created successfully.")
+
     except Exception as e:
-        logger.error(f"Failed to create CoderPad tables: {e}")
+        logger.error(f"Failed to initialize database tables: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
