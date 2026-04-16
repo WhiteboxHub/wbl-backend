@@ -106,8 +106,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             email_to_cand_id[mc.email.lower()] = mc.candidate_id
 
     # Map outreach logs to candidates
-    outreach_dict = {}  # Email Outreach (1, 3, 6, 10)
+    outreach_dict = {}  # Email Outreach (1, 3, 6)
     portal_automation_dict = {}  # Job Portal Automations (7, 9)
+    raw_positions_dict = {}  # Raw Positions (10)
     
     for log in outreach_logs:
         params = log.parameters_used or {}
@@ -123,9 +124,11 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             c_id = int(cand_id)
             records = log.records_processed or 0
             
-            # Workflow 1 (Daily Vendor Outreach), 10 (Raw_Positions_Auto_Apply) are grouped in Outreach
-            if log.workflow_id in [1, 3, 6, 10]:
+            # Workflow 1, 3, 6 are grouped in Outreach, Workflow 10 in Raw Positions
+            if log.workflow_id in [1, 3, 6]:
                 outreach_dict[c_id] = outreach_dict.get(c_id, 0) + records
+            elif log.workflow_id == 10:
+                raw_positions_dict[c_id] = raw_positions_dict.get(c_id, 0) + records
             elif log.workflow_id in [7, 9]:
                 portal_automation_dict[c_id] = portal_automation_dict.get(c_id, 0) + records
 
@@ -190,6 +193,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         job_clicks = cand_click_count
         outreach_count = outreach_dict.get(interview_row.id, 0)
         linkedin_applies = linkedin_dict.get(interview_row.id, 0)
+        raw_positions_count = raw_positions_dict.get(interview_row.id, 0)
 
         positive_fb = interview_row.feedback_positive or 0
         negative_fb = interview_row.feedback_negative or 0
@@ -210,7 +214,8 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
             'job_clicks': job_clicks,
             'outreach_count': outreach_count,
             'linkedin_easy_apply_count': linkedin_applies,
-            'job_portal_automation_count': portal_automation_dict.get(interview_row.id, 0)
+            'job_portal_automation_count': portal_automation_dict.get(interview_row.id, 0),
+            'raw_positions_count': raw_positions_count
         })
 
     # Calculate global total UNIQUE clicks for the specific period to match summary cards
@@ -283,7 +288,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                         <thead>
                             <tr style="color: #ffffff; font-weight: 700;">
                                 <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #3b5998; border-right: 1px solid #ffffff; width: 14%; border-top-left-radius: 11px; font-size: 11px;">Candidate</th>
-                                <th colspan="4" style="padding: 12px; text-align: center; background-color: #4d71bb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">APPLICATIONS</th>
+                                <th colspan="5" style="padding: 12px; text-align: center; background-color: #4d71bb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">APPLICATIONS</th>
                                 <th colspan="4" style="padding: 12px; text-align: center; background-color: #6d8acb; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px;">INTERVIEWS</th>
                                 <th rowspan="2" style="padding: 15px 10px; text-align: center; vertical-align: middle; background-color: #38ada9; border-right: 1px solid #ffffff; width: 6%; font-size: 11px;">Total</th>
                                 <th colspan="3" style="padding: 12px; text-align: center; background-color: #8da3dc; border-right: 1px solid #ffffff; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px; border-top-right-radius: 11px;">FEEDBACK</th>
@@ -292,6 +297,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">EMAIL<br>OUTREACH</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">LINKEDIN<br>EASYAPPLY</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">JOB PORTAL<br>AUTOMATIONS</th>
+                                <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">RAW<br>POSITIONS</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">JOB<br>LISTINGS<br>CLICKS</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">ASSESSMENTS</th>
                                 <th style="padding: 12px 4px; text-align: center; border-right: 1px solid #e2e8f0; line-height: 1.3;">RECRUITER</th>
@@ -313,6 +319,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['outreach_count'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['linkedin_easy_apply_count'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['job_portal_automation_count'] or '-'}</td>
+                                <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #16a34a; font-weight: bold;">{row['raw_positions_count'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #ea580c; font-weight: 700;">{row['job_clicks'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['assessment_count'] or '-'}</td>
                                 <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: center; color: #334155; font-weight: bold;">{row['recruiter_call_count'] or '-'}</td>
