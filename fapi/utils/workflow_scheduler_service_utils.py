@@ -19,7 +19,7 @@ from fapi.db.models import (
     AutomationWorkflowLogORM,
     AutomationWorkflowORM
 )
-from fapi.utils.dynamic_weekly_report import send_weekly_marketing_report
+from fapi.utils.dynamic_weekly_report_utils import send_weekly_marketing_report
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ _scheduler.add_job(_run_scheduler_job, 'interval', minutes=5)
 # Ensure our core workflows exist
 try:
     from fapi.db.database import SessionLocal
-    from fapi.utils.weekly_marketing_report_workflow import ensure_weekly_marketing_report_workflow
+    from fapi.utils.weekly_marketing_report_workflow_utils import ensure_weekly_marketing_report_workflow
     db = SessionLocal()
     ensure_weekly_marketing_report_workflow(db)
     db.close()
@@ -70,27 +70,44 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     time drift. E.g. if scheduled for Monday 9:00 AM weekly, next run will
     always be the following Monday 9:00 AM regardless of when the job
     actually executes.
+    
+    If the system missed multiple reports, it will jump to the next 
+    occurrence in the FUTURE to prevent "catch-up loops" (sending multiple 
+    reports in a row).
     """
     anchor = schedule.next_run_at or datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
 
     if schedule.frequency == "weekly":
-        return anchor + timedelta(weeks=1)
+        next_run = anchor + timedelta(weeks=1)
+        # Ensure we jump to the future if behind
+        while next_run <= now:
+            next_run += timedelta(weeks=1)
+        return next_run
     elif schedule.frequency == "daily":
-        return anchor + timedelta(days=1)
+        next_run = anchor + timedelta(days=1)
+        # Ensure we jump to the future if behind
+        while next_run <= now:
+            next_run += timedelta(days=1)
+        return next_run
     elif schedule.frequency == "monthly":
-        year = anchor.year
-        month = anchor.month + 1
-        if month > 12:
-            month = 1
-            year += 1
-        try:
-            return anchor.replace(year=year, month=month)
-        except ValueError:
-            import calendar
-            last_day = calendar.monthrange(year, month)[1]
-            return anchor.replace(year=year, month=month, day=min(anchor.day, last_day))
+        # Monthly is trickier to loop, but we can do a simple seek
+        next_run = anchor
+        while next_run <= now:
+            year = next_run.year
+            month = next_run.month + 1
+            if month > 12:
+                month = 1
+                year += 1
+            try:
+                next_run = next_run.replace(year=year, month=month)
+            except ValueError:
+                import calendar
+                last_day = calendar.monthrange(year, month)[1]
+                next_run = next_run.replace(year=year, month=month, day=min(anchor.day, last_day))
+        return next_run
     elif schedule.frequency == "custom" and schedule.cron_expression:
-        cron = croniter(schedule.cron_expression, anchor)
+        cron = croniter(schedule.cron_expression, now)
         return cron.get_next(datetime).replace(tzinfo=timezone.utc)
     elif schedule.frequency == "once":
         return None

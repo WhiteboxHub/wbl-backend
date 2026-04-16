@@ -31,11 +31,14 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     Returns:
         Dict with 'html' and 'count' (number of candidates)
     """
-    # Calculate date range (last 7 days) in UTC
+    # Calculate date range (last 7 days) in UTC for general metrics
     end_date = datetime.now(timezone.utc)
     start_date = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Calculate daily date range (last 24 hours) for job clicks
+    daily_start_date = (end_date - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    logger.info(f"Generating weekly report for {start_date} to {end_date}")
+    logger.info(f"Generating weekly report for {start_date} to {end_date} (Daily clicks from {daily_start_date})")
 
     # Query 1: Get interviews data
     interviews_query = db.query(
@@ -65,15 +68,15 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     ).all()
 
     # Query 2: Get job clicks joined with authuser emails
-    # 1. Filtered by the report date range (last_clicked_at)
-    # 2. Counting unique job roles (records) instead of summing all repeated clicks
+    # 1. Filtered by the DAILY report date range (last_clicked_at)
+    # 2. Summing all repeated clicks across all positions to get total application attempts
     job_clicks_raw = db.query(
         AuthUserORM.uname,
-        func.count(JobLinkClicksORM.id).label('total_clicks')
+        func.sum(JobLinkClicksORM.click_count).label('total_clicks')
     ).join(
         JobLinkClicksORM, JobLinkClicksORM.authuser_id == AuthUserORM.id
     ).filter(
-        JobLinkClicksORM.last_clicked_at >= start_date,
+        JobLinkClicksORM.last_clicked_at >= daily_start_date,
         JobLinkClicksORM.last_clicked_at <= end_date
     ).group_by(
         AuthUserORM.uname
@@ -81,14 +84,15 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     
     click_mapping = {}
     for email, count in job_clicks_raw:
-        if email:
-            click_mapping[email.lower()] = count
+        if email and count is not None:
+            click_mapping[email.lower()] = int(count)
 
     # Query 3: Get outreach data (Workflow IDs 1, 3, 4, 6, 7, 8, 9, 10)
     # 1: Daily Vendor Outreach, 3: Weekly Vendor Outreach, 6: Cold Intro, 8: LinkedIn Non-Easy Extraction, 9: Hiring Cafe, 10: Raw_Positions_Auto_Apply
+    # Filtered by DAILY report date range
     outreach_logs = db.query(AutomationWorkflowLogORM).filter(
         AutomationWorkflowLogORM.workflow_id.in_([1, 3, 4, 6, 7, 8, 9, 10]),
-        AutomationWorkflowLogORM.created_at >= start_date
+        AutomationWorkflowLogORM.created_at >= daily_start_date
     ).all()
 
     # Get all active candidates to build an email mapping
@@ -130,6 +134,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                 portal_automation_dict[c_id] = portal_automation_dict.get(c_id, 0) + records
 
     # Query 4: Get ALL Linkedin Easy Apply activity (Playwright or Extension)
+    # Filtered by DAILY report date range
     linkedin_activity_query = db.query(
         JobActivityLogORM.candidate_id,
         JobActivityLogORM.notes,
@@ -138,7 +143,7 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
         JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id
     ).filter(
         JobTypeORM.name.ilike('%Linkedin Easy Apply%'),
-        JobActivityLogORM.activity_date >= start_date.date(),
+        JobActivityLogORM.activity_date >= daily_start_date.date(),
         JobActivityLogORM.activity_date <= end_date.date()
     ).all()
 
@@ -216,9 +221,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     # Sort candidates alphabetically by name
     candidates_data.sort(key=lambda x: (x['full_name'] or "").lower())
 
-    # Calculate global total UNIQUE clicks for the specific period to match summary cards
-    global_total_clicks = db.query(func.count(JobLinkClicksORM.id)).filter(
-        JobLinkClicksORM.last_clicked_at >= start_date,
+    # Calculate global total clicks for the specific period to match summary cards (DAILY)
+    global_total_clicks = db.query(func.sum(JobLinkClicksORM.click_count)).filter(
+        JobLinkClicksORM.last_clicked_at >= daily_start_date,
         JobLinkClicksORM.last_clicked_at <= end_date
     ).scalar() or 0
 
