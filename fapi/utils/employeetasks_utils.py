@@ -116,14 +116,17 @@ def create_task(db: Session, task: schemas.EmployeeTaskCreate):
     if not due_date and task.assigned_date:
         due_date = task.assigned_date + timedelta(days=7)
 
+    task_status = task.status if isinstance(task.status, str) else None
+    task_priority = task.priority if isinstance(task.priority, str) else None
+
     db_task = models.EmployeeTaskORM(
         employee_id=employee.id,
         project_id=project_id,
         task=task.task,
         assigned_date=task.assigned_date,
         due_date=due_date,
-        status=task.status.lower() if task.status else "pending",
-        priority=task.priority.lower() if task.priority else "medium",
+        status=task_status.lower() if task_status else "pending",
+        priority=task_priority.lower() if task_priority else "medium",
         notes=task.notes
     )
 

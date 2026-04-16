@@ -18,7 +18,7 @@ Base = declarative_base()
 class AuthUserORM(Base):
     __tablename__ = "authuser"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     uname = Column(String(50), unique=True, nullable=False, default="")
     passwd = Column(String(32), nullable=False)
     team = Column(String(255))
@@ -126,16 +126,16 @@ class FileApproval(Base):
     __tablename__ = "file_approvals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    uid: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    uid: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     drive_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(512), nullable=False)
     approvals_count: Mapped[int] = mapped_column(Integer, default=0)
-    document_type: Mapped[str] = mapped_column(String(255), nullable=True)
+    document_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     is_declined: Mapped[bool] = mapped_column(Boolean, default=False)
-    # status: Mapped[str] = mapped_column(String(50), default="pending")
+    status: Mapped[str] = mapped_column(String(50), default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -247,7 +247,7 @@ class UnsubscribeUser(Base):
 class CandidateORM(Base):
     __tablename__ = "candidate"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String(100), nullable=True)
     enrolled_date = Column(Date, nullable=True)
     email = Column(String(100), nullable=True)
@@ -316,7 +316,7 @@ class CandidateMarketingORM(Base):
     __tablename__ = "candidate_marketing"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+    candidate_id: Mapped[int] = mapped_column(Integer, ForeignKey("candidate.id"), nullable=False)
 
     start_date = Column(Date, nullable=False)
     status = Column(Enum("active", "inactive"),
@@ -849,7 +849,7 @@ class JobActivityLogORM(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     job_type_id = Column(Integer, ForeignKey("job_types.id"), nullable=False)
-    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=True)
+    candidate_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("candidate.id"), nullable=True)
     employee_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     activity_date = Column(Date, nullable=False)
     activity_count = Column(Integer, default=0)
@@ -1488,27 +1488,38 @@ class CodeSnippetORM(Base):
 
 
 class CodeExecutionLogORM(Base):
-    __tablename__ = "code_execution_log"
-    __table_args__ = {"extend_existing": True}
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    """
+    代码执行日志的ORM模型类，用于映射数据库中的code_execution_log表。
+    继承自Base，表示这是一个SQLAlchemy的模型类。
+    """
+    __tablename__ = "code_execution_log"  # 指定对应的数据库表名
+    __table_args__ = {"extend_existing": True}  # 设置表参数，允许在表已存在时扩展它
+
+
+
+    # 定义字段
+    id = Column(Integer, primary_key=True, autoincrement=True)  # 主键，自增长整数
     code_snippet_id = Column(
         Integer,
-        ForeignKey("code_snippet.id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("code_snippet.id", ondelete="SET NULL"),  # 外键关联到code_snippet表，删除时设为NULL
+        nullable=True,  # 允许为空
     )
-    authuser_id = Column(Integer, ForeignKey("authuser.id", ondelete="CASCADE"), nullable=False)
-    language = Column(String(50), nullable=False)
-    code_executed = Column(Text, nullable=False)
-    input_data = Column(Text, nullable=True)
-    output = Column(Text, nullable=True)
-    error = Column(Text, nullable=True)
-    execution_time_ms = Column(Integer, nullable=True)
-    status = Column(String(20), nullable=False, default="error")
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    authuser_id = Column(Integer, ForeignKey("authuser.id", ondelete="CASCADE"), nullable=False)  # 外键关联到authuser表，删除时级联删除，不允许为空
+    language = Column(String(50), nullable=False)  # 代码语言，最大长度50，不允许为空
+    code_executed = Column(Text, nullable=False)  # 执行的代码，文本类型，不允许为空
+    input_data = Column(Text, nullable=True)  # 输入数据，文本类型，允许为空
+    output = Column(Text, nullable=True)  # 输出结果，文本类型，允许为空
+    error = Column(Text, nullable=True)  # 错误信息，文本类型，允许为空
+    execution_time_ms = Column(Integer, nullable=True)  # 执行时间(毫秒)，整数类型，允许为空
+    status = Column(String(20), nullable=False, default="error")  # 执行状态，字符串类型，最大长度20，不允许为空，默认值为"error"
+    created_at = Column(TIMESTAMP, server_default=func.now())  # 创建时间，时间戳类型，默认值为当前时间
 
-    snippet = relationship("CodeSnippetORM", back_populates="execution_logs", foreign_keys=[code_snippet_id])
-    authuser = relationship("AuthUserORM", foreign_keys=[authuser_id])
+
+
+    # 定义关系
+    snippet = relationship("CodeSnippetORM", back_populates="execution_logs", foreign_keys=[code_snippet_id])  # 与CodeSnippetORM的关联关系
+    authuser = relationship("AuthUserORM", foreign_keys=[authuser_id])  # 与AuthUserORM的关联关系
 
 
 class CoderpadQuestionORM(Base):

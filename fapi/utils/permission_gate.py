@@ -28,7 +28,12 @@ ALLOWED_POST_PREFIXES = {
 }
 
 def _is_admin(user) -> bool:
-    uname = (getattr(user, "uname", None) or getattr(user, "username", "") or "").lower()
+    raw_uname = getattr(user, "uname", None)
+    raw_username = getattr(user, "username", "")
+    uname = raw_uname if isinstance(raw_uname, str) and raw_uname else raw_username
+    if not isinstance(uname, str):
+        uname = ""
+    uname = uname.lower()
     return (
         getattr(user, "role", None) == "admin"
         or getattr(user, "is_admin", False)

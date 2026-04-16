@@ -1234,6 +1234,6 @@ def _get_login_info(db: Session, email: str) -> Dict[str, Any]:
         "login_count": authuser.logincount or 0,
         "last_login": authuser.lastlogin.isoformat() if authuser.lastlogin else None,
         "registered_date": authuser.registereddate.isoformat() if authuser.registereddate else None,
-        "status": authuser.status or "active",
+        "status": authuser.status if isinstance(authuser.status, str) and authuser.status else "active",
         "total_days_registered": total_days
     }

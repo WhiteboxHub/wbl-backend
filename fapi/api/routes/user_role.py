@@ -11,6 +11,10 @@ router = APIRouter()
 
 security = HTTPBearer()
 
+
+def _string_or_default(value: object, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
 @router.get("/user_role")
 async def get_user_role(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -30,7 +34,7 @@ async def get_user_role(
         role_info = determine_user_role(userinfo)
         return {
             **role_info,
-            "status": userinfo.status or "inactive"
+            "status": _string_or_default(userinfo.status, "inactive")
         }
     except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")

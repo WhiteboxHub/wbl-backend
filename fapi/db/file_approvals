@@ -1,0 +1,34 @@
+CREATE TABLE file_approvals (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  uid VARCHAR(255) NOT NULL UNIQUE,
+
+  username VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+
+  document_type VARCHAR(50) NOT NULL,   -- identity / address / work_auth
+
+  original_filename VARCHAR(255) NOT NULL,
+  drive_file_id VARCHAR(255) NOT NULL,
+
+  status VARCHAR(50) DEFAULT 'pending', -- pending / approved / rejected
+
+  approvals_count INT DEFAULT 0,
+  is_approved BOOLEAN DEFAULT FALSE,
+  is_declined BOOLEAN DEFAULT FALSE,
+
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  UNIQUE KEY unique_user_document (email, document_type)
+);
+
+CREATE TABLE file_approval_actions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+
+  uid VARCHAR(255) NOT NULL,
+  approver_email VARCHAR(255) NOT NULL,
+
+  decision ENUM('accept', 'decline') NOT NULL,
+
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

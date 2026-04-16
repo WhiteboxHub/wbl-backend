@@ -15,6 +15,10 @@ class ReferralCreate(LeadCreate):
     """Schema for referral submissions - extends LeadCreate"""
     pass
 
+
+def _primary_name(fullname: str | None, uname: str) -> str:
+    return fullname if isinstance(fullname, str) and fullname else uname
+
 async def send_referral_emails_background(
     referrer_name: str,
     referrer_email: str, 
@@ -59,7 +63,8 @@ async def create_referral(
         referrer = current_user
         
         # Create referral note with referrer information
-        referral_note = f"Referred by {referrer.fullname or referrer.uname} (ID: {referrer.id})"
+        referrer_name = _primary_name(referrer.fullname, referrer.uname)
+        referral_note = f"Referred by {referrer_name} (ID: {referrer.id})"
         if referral.notes:
             referral_note = f"{referral_note}. Additional notes: {referral.notes}"
         
@@ -84,13 +89,13 @@ async def create_referral(
         response = {
             "message": "Referral submitted successfully",
             "referral_id": new_lead.id,
-            "referrer": referrer.fullname or referrer.uname
+            "referrer": referrer_name
         }
         
         # Send email notifications in background (don't await)
         import asyncio
         asyncio.create_task(send_referral_emails_background(
-            referrer_name=referrer.fullname or referrer.uname,
+            referrer_name=referrer_name,
             referrer_email=referrer.uname,
             referrer_phone=referrer.phone or "Not provided",
             candidate_name=referral.full_name,

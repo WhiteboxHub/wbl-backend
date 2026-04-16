@@ -18,20 +18,34 @@ SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 BASE_DIR = Path(__file__).resolve().parents[2]
 TOKEN_PATH = BASE_DIR / "token.json"
 
+from dotenv import load_dotenv
+load_dotenv()
+
 TEMP_FOLDER_ID = os.getenv("GOOGLE_DRIVE_TEMP_FOLDER_ID")
 ROOT_USER_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
 
-
 def _creds() -> Credentials:
     if not TOKEN_PATH.exists():
-        raise RuntimeError(f"token.json not found at {TOKEN_PATH}. Run auth_init.py first.")
+        raise RuntimeError(f"token.json not found at {TOKEN_PATH}. Run auth flow again.")
 
     creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            raise RuntimeError("OAuth credentials are invalid and cannot be refreshed.")
+
+    if creds.expired or not creds.valid:
+        try:
+            if creds.refresh_token:
+                creds.refresh(Request())
+
+                # 🔥 SAVE refreshed token back to file
+                TOKEN_PATH.write_text(creds.to_json())
+
+            else:
+                raise RuntimeError("No refresh token available. Re-auth required.")
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Google auth refresh failed. You must re-login. Reason: {str(e)}"
+            )
+
     return creds
 
 
@@ -166,4 +180,15 @@ def delete_file(file_id: str) -> None:
 
 def get_file_link(file_id: str) -> str:
     return f"https://drive.google.com/file/d/{file_id}/view"
+
+def download_file_bytes(file_id: str) -> bytes:
+    svc = _service()
+    request = svc.files().get_media(fileId=file_id)
+    file_io = io.BytesIO()
+    from googleapiclient.http import MediaIoBaseDownload
+    downloader = MediaIoBaseDownload(file_io, request)
+    done = False
+    while done is False:
+        status, done = downloader.next_chunk()
+    return file_io.getvalue()
 

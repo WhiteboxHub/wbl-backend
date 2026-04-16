@@ -25,6 +25,17 @@ from fapi.utils.email_utils import get_email_config, send_html_email, validate_e
 logger = logging.getLogger(__name__)
 
 
+def _to_int_id(value):
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
 def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     """
     Generate dynamic weekly marketing report HTML based on database queries
@@ -120,7 +131,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                 cand_id = email_to_cand_id.get(str(email_key).strip().lower())
         
         if cand_id:
-            c_id = int(cand_id)
+            c_id = _to_int_id(cand_id)
+            if c_id is None:
+                continue
             records = log.records_processed or 0
             
             # Workflow 1 (Daily Vendor Outreach) is grouped in Outreach as per user request
@@ -162,8 +175,9 @@ def generate_weekly_marketing_report(db: Session) -> Dict[str, Any]:
                         cand_id = c.id
                         break
         
-        if cand_id:
-            linkedin_dict[int(cand_id)] = linkedin_dict.get(int(cand_id), 0) + (row.activity_count or 0)
+        c_id = _to_int_id(cand_id)
+        if c_id is not None:
+            linkedin_dict[c_id] = linkedin_dict.get(c_id, 0) + (row.activity_count or 0)
 
     # Combine the data
     candidates_data = []

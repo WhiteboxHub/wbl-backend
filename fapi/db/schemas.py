@@ -3873,3 +3873,17 @@ class CodeExecutionLogOut(BaseModel):
     class Config:
         from_attributes = True
 
+
+# -------------------- Approval Schemas --------------------
+class ApprovalRequest(BaseModel):
+    username: str
+    approver_email: str
+    document_type: str
+    signature: str
+
+class SignatureSubmit(BaseModel):
+    uid: str
+    email: str
+    username: str
+    signature: str
+

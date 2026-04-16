@@ -65,7 +65,14 @@ def validate_email_config(config: dict):
     
     return list(set(admin_emails))  # Remove duplicates
 
-def send_html_email(server, from_email: str, to_emails: list[str], subject: str, html_content: str, text_content: str = None):
+def send_html_email(
+    server,
+    from_email: str,
+    to_emails: list[str],
+    subject: str,
+    html_content: str | None,
+    text_content: str | None = None,
+):
     from email.utils import formatdate, make_msgid
     
     # Create message container - the correct MIME type is multipart/alternative.
@@ -89,7 +96,7 @@ def send_html_email(server, from_email: str, to_emails: list[str], subject: str,
     p_text = text_content if text_content else alt_text
     
     part1 = MIMEText(p_text, 'plain', 'utf-8')
-    part2 = MIMEText(html_content, 'html', 'utf-8')
+    part2 = MIMEText(html_content or "", 'html', 'utf-8')
     
     msg.attach(part1)
     msg.attach(part2)

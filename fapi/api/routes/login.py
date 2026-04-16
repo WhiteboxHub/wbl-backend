@@ -84,5 +84,6 @@ async def login_for_access_token(
         "access_token": access_token,
         "token_type": "bearer",
         "team": user.get("team", "default_team"),
-        "login_count": login_count
+        "login_count": login_count,
+        "email": user.get("uname")
     }

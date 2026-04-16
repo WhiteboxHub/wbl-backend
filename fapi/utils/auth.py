@@ -71,13 +71,15 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
     if uname.lower() == "admin":
         return {**user.__dict__, "candidateid": None}
 
-    if user.status.lower() != "active":
+    user_status = getattr(user, "status", None)
+    if not isinstance(user_status, str) or user_status.lower() != "active":
         return "inactive_authuser"
 
     # First try candidate lookup (existing behavior)
     candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
     if candidate_info:
-        if candidate_info.status.lower() not in ("active", "closed"):
+        candidate_status = getattr(candidate_info, "status", None)
+        if not isinstance(candidate_status, str) or candidate_status.lower() not in ("active", "closed"):
             return "inactive_candidate"
         return {**user.__dict__, "candidateid": candidate_info.candidateid}
 

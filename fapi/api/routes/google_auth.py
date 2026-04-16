@@ -16,7 +16,8 @@ router = APIRouter()
 async def check_user_exists(user: GoogleUserCreate, db: Session = Depends(get_db)):
     existing_user = get_google_user_by_email(db, user.email)
     if existing_user:
-        return {"exists": True, "status": existing_user.status}
+        user_status = getattr(existing_user, "status", None)
+        return {"exists": True, "status": user_status if isinstance(user_status, str) else None}
     return {"exists": False}
 
 
@@ -26,7 +27,8 @@ async def check_user_exists_direct(user: GoogleUserCreate):
     try:
         existing_user = get_google_user_by_email(db, user.email)
         if existing_user:
-            return {"exists": True, "status": existing_user.status}
+            user_status = getattr(existing_user, "status", None)
+            return {"exists": True, "status": user_status if isinstance(user_status, str) else None}
         return {"exists": False}
     finally:
         db.close()
@@ -37,7 +39,8 @@ async def register_google_user(user: GoogleUserCreate, db: Session = Depends(get
     existing_user = get_google_user_by_email(db, user.email)
 
     if existing_user:
-        if existing_user.status == "active":
+        user_status = getattr(existing_user, "status", None)
+        if isinstance(user_status, str) and user_status == "active":
             return {"message": "User already registered and active, please log in."}
         else:
             raise HTTPException(
@@ -57,7 +60,8 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # 2. Check AuthUser status
-    if existing_user.status.lower() != "active":
+    user_status = getattr(existing_user, "status", None)
+    if not isinstance(user_status, str) or user_status.lower() != "active":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive account. Please contact admin."
@@ -67,7 +71,8 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
     candidate_info = fetch_candidate_id_and_status_by_email(db, user.email)
     if candidate_info:
         # This is a candidate
-        if candidate_info.status.lower() not in ("active","closed"):
+        candidate_status = getattr(candidate_info, "status", None)
+        if not isinstance(candidate_status, str) or candidate_status.lower() not in ("active","closed"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Candidate account is inactive. Please contact Recruiting at +1 925-557-1053."
@@ -101,7 +106,8 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "team": getattr(existing_user, "team", "default_team")
+        "team": getattr(existing_user, "team", "default_team"),
+        "email": user.email
     }
 
 

@@ -13,6 +13,10 @@ cache = {}
 cache_clear_seconds = 60 * 180
 
 
+def _string_or_default(value, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
+
 def cache_set(key, value, ttl_seconds=cache_clear_seconds):
     expiration_time = datetime.utcnow() + timedelta(seconds=ttl_seconds)
     cache[key] = (value, expiration_time)
@@ -29,7 +33,7 @@ def cache_get(key):
 
 
 def determine_user_role(userinfo) -> str:
-    uname = (getattr(userinfo, "uname", "") or "").lower()
+    uname = _string_or_default(getattr(userinfo, "uname", ""), "").lower()
     return "admin" if uname == "admin" else "candidate"
 
 

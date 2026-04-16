@@ -1,67 +1,98 @@
-from fastapi import FastAPI, Request, Depends, HTTPException
+import asyncio
+import logging
+import traceback
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
-from fapi.utils.permission_gate import enforce_access
+from fapi.api import approval
 from fapi.api.routes import (
-    candidate, leads, google_auth, talent_search, user_role,
-    contact, login, register, resources, vendor_contact,
-    vendor, request_demo, unsubscribe,
-    user_dashboard, password, employee, course, subject, course_subject,
-    course_content, course_material, batch, authuser, avatar_dashboard,
-    session, recording, recording_batch, referrals, candidate_dashboard, internal_documents,
-    jobs, placement_fee_collection, placement_commission, employee_tasks, job_automation_keywords, hr_contact, projects,
-    job_listing, employee_dashboard, email_service,
-    delivery_engine, email_template, automation_workflow, 
-    automation_workflow_schedule, automation_workflow_log,
+    authuser,
+    avatar_dashboard,
+    batch,
+    candidate,
+    candidate_dashboard,
+    company,
+    company_contact,
+    contact,
+    course,
+    course_content,
+    course_material,
+    course_subject,
+    delivery_engine,
+    email_position,
+    email_service,
+    email_smtp_credentials,
+    email_template,
+    employee,
+    employee_dashboard,
+    employee_tasks,
+    google_auth,
+    hr_contact,
+    internal_documents,
+    job_automation_keywords,
+    job_click,
+    job_listing,
+    jobs,
+    leads,
+    linkedin_only_contact,
+    login,
+    outreach_email_recipient,
     outreach_orchestrator,
+    password,
+    personal_domain_contact,
+    placement_commission,
+    placement_fee_collection,
+    potential_leads,
+    projects,
+    recording,
+    recording_batch,
+    referrals,
+    register,
+    request_demo,
+    resources,
+    session,
+    subject,
+    talent_search,
+    unsubscribe,
+    user_dashboard,
+    user_role,
+    vendor,
+    vendor_contact,
     weekly_workflow,
-    company, company_contact, potential_leads, personal_domain_contact, outreach_email_recipient,
-    linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-
-    email_position, job_click,
+    automation_contact_extract,
+    automation_workflow,
+    automation_workflow_log,
+    automation_workflow_schedule,
 )
-from fapi.core.redis_client import redis_client
+from fapi.api.routes.coderpad import router as coderpad_router
+from fapi.api.routes.dynamic_weekly_report import router as dynamic_weekly_report_router
 from fapi.auth import JWTAuthorizationMiddleware
+from fapi.core.config import limiter
+from fapi.core.redis_client import redis_client
 from fapi.db import database as db_database
 from fapi.db.database import SessionLocal
 from fapi.db.models import Base
-from fapi.api import approval
-from slowapi.middleware import SlowAPIMiddleware
-from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
-from fapi.core.config import limiter
-from fapi.api.approval import router
-from fapi.api import approval
+from fapi.utils.permission_gate import enforce_access
 
-    email_position, job_click, coderpad, dynamic_weekly_report
-
-import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
-import asyncio
-from fapi.core.redis_client import redis_client
-from fapi.db.database import SessionLocal, engine
-from fastapi import FastAPI, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
-
-import logging
-import traceback
+# import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
 
 app = FastAPI(title="WBL Backend")
-Base.metadata.create_all(bind=db_database.engine)
 app.include_router(approval.router, prefix="/api", tags=["Approval"],)
 app.state.limiter = limiter
+
+
 
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,          # or ["*"] during dev
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+def init_auth():
+    print("AUTH SCRIPT STARTED")
 
 async def rate_limit_handler(request: Request, exc: Exception):
     return await _rate_limit_exceeded_handler(request, exc)  # type: ignore[arg-type]
@@ -76,11 +107,14 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
+
+    Base.metadata.create_all(bind=db_database.engine)
+
     try:
         from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
-        CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
-        CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
-        CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
+        CodeSnippetORM.__table__.create(bind=db_database.engine, checkfirst=True)
+        CodeExecutionLogORM.__table__.create(bind=db_database.engine, checkfirst=True)
+        CoderpadQuestionORM.__table__.create(bind=db_database.engine, checkfirst=True)
         logger.info("CoderPad tables checked/created successfully.")
     except Exception as e:
         logger.error(f"Failed to create CoderPad tables: {e}")
@@ -103,19 +137,18 @@ async def redis_health():
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
         "https://whitebox-learning.com",
         "https://www.whitebox-learning.com",
         "https://innova-path.com",
         "https://www.innova-path.com",
         "https://wbl-frontend-560359652969.us-central1.run.app",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:8000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
 )
 
 @app.middleware("http")
@@ -193,9 +226,7 @@ app.include_router(email_position.router, prefix="/api", tags=["Email Positions"
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 
-app.include_router(approval.router, prefix="/api/approval", tags=["Approval"])
-
-app.include_router(dynamic_weekly_report.router, prefix="/api", tags=["Dynamic Weekly Report"])
+app.include_router(dynamic_weekly_report_router, prefix="/api", tags=["Dynamic Weekly Report"])
 
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
@@ -211,7 +242,7 @@ app.include_router(email_template.router, prefix="/api", tags=["Email Template"]
 app.include_router(automation_workflow.router, prefix="/api", tags=["Automation Workflow"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Automation Workflow Schedule"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
-app.include_router(coderpad.router, prefix="/api", tags=["CoderPad"], dependencies=[Depends(enforce_access)])
+app.include_router(coderpad_router, prefix="/api", tags=["CoderPad"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])

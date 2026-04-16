@@ -18,6 +18,10 @@ def combine_notes(experience: str, education: str, specialization: str, referby:
     ]
     return "; ".join(p for p in parts if p)
 
+
+def _string_or_default(value: object, default: str) -> str:
+    return value if isinstance(value, str) and value else default
+
 def create_user_and_lead(db: Session, user: UserRegistration):
     uname = user.uname.lower().strip()
 
@@ -36,7 +40,7 @@ def create_user_and_lead(db: Session, user: UserRegistration):
         uname=uname,
         passwd=user.passwd,  # Already hashed in main route
         team=user.team,
-        status=user.status or "inactive",
+        status=_string_or_default(user.status, "inactive"),
         # lastlogin=user.lastlogin,
         logincount=user.logincount or 0,
         fullname=full_name.lower(),
@@ -65,7 +69,7 @@ def create_user_and_lead(db: Session, user: UserRegistration):
         full_name=full_name,
         phone=user.phone,
         email=uname,
-        status=user.status or "open",
+        status=_string_or_default(user.status, "open"),
         address=user.address,
         workstatus=user.visa_status,
         notes=notes_text,
