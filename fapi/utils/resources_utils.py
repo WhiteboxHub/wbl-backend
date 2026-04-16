@@ -101,7 +101,7 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
 
 
 @cache_result(ttl=300, prefix="resources")
-def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None):
+def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None, is_employee: bool = False):
     if not course_id or not session_type:
         return []
 
@@ -114,9 +114,11 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
             return []  # Non-admin users get empty results for Internal Sessions
 
     allowed_types = [
-        "Resume Session", "Job Help", "Interview Prep",
+        "Job Help", "Interview Prep",
         "Individual Mock", "Group Mock", "Misc", "Internal Session"
     ]
+    if is_employee:
+        allowed_types.append("Resume Session")
 
     if team not in ["admin", "instructor"] and db_session_type not in allowed_types:
         return []
@@ -142,7 +144,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
 
 
 @cache_result(ttl=300, prefix="resources")
-def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None) -> List[str]:
+def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None, is_employee: bool = False) -> List[str]:
     
     if role == "admin" and user_team == "admin":
         # Admin user sees all types including Internal Sessions
@@ -151,9 +153,12 @@ def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_t
     else:
         # Non-admin users don't see Internal Sessions
         allowed_types = [
-            "Resume Session", "Job Help", "Interview Prep",
+            "Job Help", "Interview Prep",
             "Individual Mock", "Group Mock", "Misc"
         ]
+        if is_employee:
+            allowed_types.append("Resume Session")
+            
         result = db.execute(
             select(SessionORM.type).distinct()
             .where(SessionORM.type.in_(allowed_types))

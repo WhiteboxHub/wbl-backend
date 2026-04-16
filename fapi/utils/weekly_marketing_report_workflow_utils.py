@@ -10,7 +10,7 @@ from fapi.db.models import (
     AutomationWorkflowORM,
     AutomationWorkflowScheduleORM,
 )
-from fapi.utils.dynamic_weekly_report import send_weekly_marketing_report as run_weekly_marketing_report_workflow
+from fapi.utils.dynamic_weekly_report_utils import send_weekly_marketing_report as run_weekly_marketing_report_workflow
 
 logger = logging.getLogger(__name__)
 
