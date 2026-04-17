@@ -121,7 +121,7 @@ def _compute_verification_status(
         models.CandidateORM.email == email
     ).first()
 
-    profile_status = "Verified" if candidate and candidate.status == "active" else "Pending"
+    profile_status = "Verified" if candidate is not None and bool(candidate.status == "active") else "Pending"
 
     all_approved = all([
         response.get(t) and response[t]["status"] == "APPROVED"
@@ -244,14 +244,16 @@ def accept_approval(
     db.add(action)
 
     for approval in files:
-        if approval.is_declined:
+        if bool(approval.is_declined):
             continue
 
         approval.approvals_count += 1
+        print(f"DEBUG: Incremented approvals_count to {approval.approvals_count} for UID {uid}")
 
         if approval.approvals_count >= REQUIRED_APPROVALS:
             approval.is_approved = True
             approval.status = "approved"
+            print(f"DEBUG: Approval threshold met! Setting is_approved=True, status=approved for UID {uid}")
 
             if not approval.drive_file_id:
                 print(f"DEBUG: Skipping move for record ID {approval.id} (No drive_file_id)")
@@ -259,20 +261,32 @@ def accept_approval(
 
             try:
                 name = display_name(approval.username, approval.email)
+                print(f"DEBUG: Moving file {approval.drive_file_id} for user {name}")
                 move_file_to_user_folder(
                     file_id=approval.drive_file_id,
                     username=name,
                 )
+                print(f"DEBUG: Successfully moved file {approval.drive_file_id}")
+                
+                print(f"DEBUG: Renaming file {approval.drive_file_id} with document_type={approval.document_type}")
                 rename_file(
                     file_id=approval.drive_file_id,
                     username=name,
                     original_name=approval.original_filename,
                     document_type=document_type_or_default(approval.document_type, "document"),
                 )
+                print(f"DEBUG: Successfully renamed file {approval.drive_file_id}")
             except Exception as e:
-                print(f"ERROR moving file {approval.drive_file_id}: {str(e)}")
+                print(f"WARNING: Failed to move/rename file {approval.drive_file_id}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                # Log but don't crash the approval - file is still marked as approved in DB
+                # User can retry the move operation later if needed
+        else:
+            print(f"DEBUG: Approvals count ({approval.approvals_count}) not yet at threshold ({REQUIRED_APPROVALS}) for UID {uid}")
 
     db.commit()
+    print(f"DEBUG: Database committed for UID {uid}")
     return HTMLResponse("<h3>✅ All files have been approved and moved successfully.</h3>")
 
 
@@ -330,9 +344,9 @@ def get_documents(email: str, db: Session) -> dict:
 
     for f in files:
         status = "UPLOADED"
-        if f.is_approved:
+        if bool(f.is_approved):
             status = "APPROVED"
-        elif f.is_declined:
+        elif bool(f.is_declined):
             status = "DECLINED"
         file_data = {
             "uid": f.uid,
@@ -408,9 +422,9 @@ def get_document_status(email: str, db: Session) -> dict:
             continue
 
         status = "UPLOADED"
-        if file.is_approved:
+        if bool(file.is_approved):
             status = "APPROVED"
-        elif file.is_declined:
+        elif bool(file.is_declined):
             status = "DECLINED"
 
         file_data = {
@@ -442,6 +456,10 @@ def process_send_for_approval(data: dict, db: Session) -> dict:
 
     if not signature:
         raise HTTPException(status_code=400, detail="Signature required")
+    if not username:
+        raise HTTPException(status_code=400, detail="Username required")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required")
 
     new_file = models.FileApproval(
         uid=uid,
@@ -482,6 +500,9 @@ async def process_submit_signature(
     Generate a PDF from the signature image, upload to Drive,
     collect all files for the UID, and send an approval email with attachments.
     """
+    if not username or not email:
+        raise HTTPException(status_code=400, detail="Username and email required")
+    
     print(f"=== SUBMIT SIGNATURE HIT: {uid} ===")
 
     try:
@@ -495,7 +516,7 @@ async def process_submit_signature(
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Enrollment Terms & Conditions - Signature", ln=True, align="C")
+        pdf.cell(0, 10, "Enrollment Terms & Conditions - Signature", align="C")
         pdf.ln(10)
         pdf.set_font("helvetica", "", 12)
         pdf.multi_cell(
@@ -503,10 +524,11 @@ async def process_submit_signature(
             f"Candidate Name: {username}\nEmail: {email}\nUID: {uid}\nDate: {time.strftime('%Y-%m-%d %H:%M:%S')}",
         )
         pdf.ln(20)
-        pdf.cell(0, 10, "Digital Signature:", ln=True)
+        pdf.cell(0, 10, "Digital Signature:")
+        pdf.ln(10)
         pdf.image(tmp_img_path, x=20, w=100)
 
-        pdf_bytes = pdf.output(dest='S')
+        pdf_bytes = pdf.output()
         os.unlink(tmp_img_path)  # cleanup
 
         # 2. Upload Signature PDF to Drive Temp

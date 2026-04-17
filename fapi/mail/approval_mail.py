@@ -120,7 +120,7 @@ def send_approval_emails(
     drive_file_ids: list,
     approvers: List[str],
     document_type: str = "",
-    attachments: List[dict] = None  # Each: {"content": bytes, "filename": str, "mime_type": str}
+    attachments: Optional[List[dict]] = None  # Each: {"content": bytes, "filename": str, "mime_type": str}
 ) -> None:
     if not SMTP_USER or not SMTP_PASSWORD:
         raise ValueError("SMTP_USER and SMTP_PASSWORD must be set in environment to send approval emails")
