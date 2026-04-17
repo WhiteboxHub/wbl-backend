@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from fapi.db import models, schemas
 from fapi.core.cache import cache_result, invalidate_cache
