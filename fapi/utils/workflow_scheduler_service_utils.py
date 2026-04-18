@@ -151,8 +151,12 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
 
         result = None
         if workflow.workflow_key == "weekly_marketing_report":
-            result = send_weekly_marketing_report(db)
-            logger.info(f"Weekly marketing report sent: {result}")
+            # Handled by the standalone wbl-marketing-report service.
+            # That service polls this scheduler, picks up the "due" schedule,
+            # fetches data from the production API, and sends the email.
+            result = {"status": "success", "records_processed": 0, "message": "Handed off to report service."}
+            logger.info("Weekly marketing report: marked as due for the report service to pick up.")
+
         else:
             raise ValueError(f"Unknown workflow: {workflow.workflow_key}")
 
