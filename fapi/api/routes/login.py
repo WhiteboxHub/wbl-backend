@@ -10,6 +10,7 @@ from fapi.core.config import limiter
 from fastapi import Request
 from fapi.db.models import AuthUserORM
 from fapi.utils.user_utils import get_user_by_username
+from fapi.utils import onboarding_utils
 
 router = APIRouter()
 
@@ -79,11 +80,18 @@ async def login_for_access_token(
     }
 
     access_token = create_access_token(token_data)
+    onboarding_utils.trigger_id_verification_reminder_if_needed(db, uname, getattr(db_user, "id", None) if db_user else None)
+    onboarding_state = onboarding_utils.get_or_create_onboarding_state(
+        db,
+        uname,
+        getattr(db_user, "id", None) if db_user else None,
+    )
 
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "team": user.get("team", "default_team"),
         "login_count": login_count,
-        "email": user.get("uname")
+        "email": user.get("uname"),
+        "onboarding": onboarding_utils.onboarding_status_payload(onboarding_state),
     }

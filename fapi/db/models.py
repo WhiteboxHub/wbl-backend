@@ -55,6 +55,36 @@ class AuthUserORM(Base):
     notes = Column(Text)
 
 
+class OnboardingStateORM(Base):
+    __tablename__ = "onboarding_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    authuser_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("authuser.id"), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+
+    basic_info_validated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    basic_info_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    id_upload_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    id_upload_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    id_upload_rejected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    id_uploaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    id_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    id_rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    id_upload_cancel_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    enrollment_terms_signed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    placement_terms_signed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agreements_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agreements_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    onboarding_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    id_verification_reminder_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
