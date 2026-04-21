@@ -28,6 +28,7 @@ from fapi.utils.drive_service import (
     download_file_bytes,
 )
 from fapi.mail import approval_mail
+from fapi.utils import onboarding_utils
 
 load_dotenv()
 
@@ -117,11 +118,23 @@ def _compute_verification_status(
     Compute the verification status block used by both
     /documents and /documents/status endpoints.
     """
+    # Use case-insensitive lookup for candidate and onboarding state
     candidate = db.query(models.CandidateORM).filter(
-        models.CandidateORM.email == email
+        models.CandidateORM.email.ilike(email)
     ).first()
 
-    profile_status = "Verified" if candidate is not None and bool(candidate.status == "active") else "Pending"
+    onboarding = db.query(models.CandidateOnboardingState).filter(
+        models.CandidateOnboardingState.email.ilike(email)
+    ).first()
+
+    # Profile is "Verified" if candidate is active OR if they've at least finished basic info
+    is_active = candidate is not None and candidate.status == "active"
+    is_profile_done = onboarding is not None and bool(onboarding.basic_info_validated)
+
+    if is_active or is_profile_done:
+        profile_status = "Verified"
+    else:
+        profile_status = "Pending"
 
     all_approved = all([
         response.get(t) and response[t]["status"] == "APPROVED"
@@ -209,7 +222,7 @@ async def upload_file(
 
     except Exception as e:
         print("UPLOAD ERROR:", str(e))
-        raise HTTPException(status_code=500, detail="File upload failed")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 
 def accept_approval(
@@ -243,7 +256,10 @@ def accept_approval(
     )
     db.add(action)
 
+    verified_types = set()
+    candidate_email = None
     for approval in files:
+        candidate_email = approval.email or candidate_email
         if bool(approval.is_declined):
             continue
 
@@ -282,10 +298,24 @@ def accept_approval(
                 traceback.print_exc()
                 # Log but don't crash the approval - file is still marked as approved in DB
                 # User can retry the move operation later if needed
+            # Track what kind of verification this approval triggers
+            if approval.document_type in {"enrollment", "placement"}:
+                verified_types.add(approval.document_type)
+            elif approval.document_type in {"id_proof", "address_proof", "work_proof", "identity", "address", "work_auth"}:
+                verified_types.add("id_verification")
         else:
             print(f"DEBUG: Approvals count ({approval.approvals_count}) not yet at threshold ({REQUIRED_APPROVALS}) for UID {uid}")
 
     db.commit()
+    if candidate_email:
+        for v_type in verified_types:
+            try:
+                if v_type == "id_verification":
+                    onboarding_utils.set_id_verification_status(db, candidate_email, "verified")
+                else:
+                    onboarding_utils.mark_agreement_verified(db, candidate_email, v_type)
+            except Exception as err:
+                print(f"WARNING: failed to mark {v_type} verified for {candidate_email}: {err}")
     print(f"DEBUG: Database committed for UID {uid}")
     return HTMLResponse("<h3>✅ All files have been approved and moved successfully.</h3>")
 
@@ -509,14 +539,22 @@ async def process_submit_signature(
         # 1. Process Signature Image to PDF
         sig_bytes = await signature.read()
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
+        sig_ext = ".png"
+        if signature.filename and signature.filename.lower().endswith(".svg"):
+            sig_ext = ".svg"
+        elif "svg" in (signature.content_type or "").lower():
+            sig_ext = ".svg"
+        elif sig_bytes.strip().startswith(b"<svg") or sig_bytes.strip().startswith(b"<?xml"):
+            sig_ext = ".svg"
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=sig_ext) as tmp_img:
             tmp_img.write(sig_bytes)
             tmp_img_path = tmp_img.name
 
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Enrollment Terms & Conditions - Signature", align="C")
+        pdf.cell(0, 10, "Enrollment Terms & Conditions - Signature", align="C", ln=True)
         pdf.ln(10)
         pdf.set_font("helvetica", "", 12)
         pdf.multi_cell(
@@ -524,15 +562,17 @@ async def process_submit_signature(
             f"Candidate Name: {username}\nEmail: {email}\nUID: {uid}\nDate: {time.strftime('%Y-%m-%d %H:%M:%S')}",
         )
         pdf.ln(20)
-        pdf.cell(0, 10, "Digital Signature:")
+        pdf.cell(0, 10, "Digital Signature:", ln=True)
         pdf.ln(10)
+        
+        # Use image() which handles both raster and SVG (if defusedxml is present)
         pdf.image(tmp_img_path, x=20, w=100)
 
         pdf_bytes = pdf.output()
         os.unlink(tmp_img_path)  # cleanup
 
         # 2. Upload Signature PDF to Drive Temp
-        sig_filename = f"Signature_{username}.pdf"
+        sig_filename = f"Signature_{username}_{document_type}.pdf"
         drive_file_id = upload_to_temp(pdf_bytes, "application/pdf", sig_filename)
 
         # 3. Save Signature Record to DB
@@ -593,6 +633,20 @@ async def process_submit_signature(
             document_type=document_type,
             attachments=attachments,
         )
+
+        # Send a signed copy to the candidate and CC internal approvers.
+        try:
+            approval_mail.send_document_copy_emails(
+                recipient=email,
+                username=username,
+                uid=uid,
+                document_type=document_type,
+                attachment_content=pdf_bytes,
+                attachment_filename=sig_filename,
+                cc_recipients=APPROVER_EMAILS,
+            )
+        except Exception as copy_err:
+            print(f"WARNING: signed copy email failed: {copy_err}")
 
         return {
             "message": "Final enrollment submission successful. Email sent with attachments.",

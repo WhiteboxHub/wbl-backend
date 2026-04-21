@@ -504,6 +504,8 @@ class Token(BaseModel):
     token_type: str
     team: Optional[str] = None
     login_count: Optional[int] = None
+    email: Optional[str] = None
+    onboarding: Optional[dict] = None
 
 
 class TokenRequest(BaseModel):

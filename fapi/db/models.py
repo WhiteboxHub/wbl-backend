@@ -55,36 +55,6 @@ class AuthUserORM(Base):
     notes = Column(Text)
 
 
-class OnboardingStateORM(Base):
-    __tablename__ = "onboarding_state"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    authuser_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("authuser.id"), nullable=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-
-    basic_info_validated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    basic_info_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
-    id_upload_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    id_upload_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    id_upload_rejected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    id_uploaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    id_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    id_rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    id_upload_cancel_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-
-    enrollment_terms_signed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    placement_terms_signed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    agreements_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    agreements_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
-    onboarding_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    onboarding_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    id_verification_reminder_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-
 
 # ------------------------------------------- Leads----------------------------------------
 class LeadORM(Base):
@@ -315,6 +285,7 @@ class CandidateORM(Base):
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
+    resume_content = Column(Text, nullable=True)
 
 
     interviews = relationship(
@@ -325,20 +296,50 @@ class CandidateORM(Base):
         "CandidatePlacementORM", back_populates="candidate", cascade="all, delete-orphan")
     marketing_records = relationship(
         "CandidateMarketingORM", back_populates="candidate", cascade="all, delete-orphan")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate")
-    # marketing_records = relationship("CandidateMarketingORM", back_populates="candidate")
 
+    # Read-only aliases (viewonly to avoid write conflicts with the primary relationships above)
+    preparation_records = relationship(
+        "CandidatePreparation", viewonly=True, overlaps="preparations")
     interview_records = relationship(
-        "CandidateInterview", back_populates="candidate")
+        "CandidateInterview", viewonly=True, overlaps="interviews")
     placement_records = relationship(
-        "CandidatePlacementORM", back_populates="candidate")
-    placement_records = relationship(
-        "CandidatePlacementORM", foreign_keys="[CandidatePlacementORM.candidate_id]")
+        "CandidatePlacementORM", viewonly=True, overlaps="placements")
 
     batch = relationship("Batch", back_populates="candidates")
-    preparation_records = relationship(
-        "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
+
+
+class CandidateOnboardingState(Base):
+    __tablename__ = "candidate_onboarding_state"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(150), nullable=False, unique=True, index=True)
+
+    basic_info_validated = Column(Boolean, nullable=False, server_default="0")
+    basic_info_validated_at = Column(DateTime, nullable=True)
+
+    id_uploaded = Column(Boolean, nullable=False, server_default="0")
+    id_uploaded_at = Column(DateTime, nullable=True)
+    id_verification_status = Column(
+        SQLAEnum("pending", "verified", "rejected", name="id_verification_status_enum"),
+        nullable=False,
+        server_default="pending",
+    )
+    id_verification_requested_at = Column(DateTime, nullable=True)
+    id_verified_at = Column(DateTime, nullable=True)
+    id_cancel_count = Column(Integer, nullable=False, server_default="0")
+    id_cancel_limit = Column(Integer, nullable=False, server_default="10")
+    last_id_verification_reminder_at = Column(DateTime, nullable=True)
+
+    enrollment_signed = Column(Boolean, nullable=False, server_default="0")
+    enrollment_signed_at = Column(DateTime, nullable=True)
+    enrollment_verified = Column(Boolean, nullable=False, server_default="0")
+
+    placement_signed = Column(Boolean, nullable=False, server_default="0")
+    placement_signed_at = Column(DateTime, nullable=True)
+    placement_verified = Column(Boolean, nullable=False, server_default="0")
+
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
 # --------------------- Candidate Marketing -----------------
 
 
@@ -394,7 +395,7 @@ class CandidateInterview(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
-    candidate = relationship("CandidateORM", back_populates="interviews")
+    candidate = relationship("CandidateORM", back_populates="interviews", overlaps="interview_records")
 
     company = Column(String(200), nullable=False)
     company_type = Column(
@@ -480,7 +481,7 @@ class CandidatePlacementORM(Base):
     notes = Column(Text, nullable=True)
     last_mod_datetime = Column(TIMESTAMP, default=None, onupdate=None)
 
-    candidate = relationship("CandidateORM", back_populates="placements")
+    candidate = relationship("CandidateORM", back_populates="placements", overlaps="placement_records")
 
 # -------------------------------------- Candidate Preparation -------------------------------
 
@@ -493,8 +494,8 @@ class CandidatePreparation(Base):
 
     candidate = relationship(
         "CandidateORM",
-        back_populates="preparation_records",
-        overlaps="preparations"
+        back_populates="preparations",
+        overlaps="preparation_records"
     )
 
     instructor1_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
@@ -646,8 +647,6 @@ class EmployeeORM(Base):
     aadhaar = Column(String(20), nullable=True, unique=True)
     tasks = relationship("EmployeeTaskORM", back_populates="employee")
 
-    tasks = relationship("EmployeeTaskORM", back_populates="employee")
-
 # Class EmployeeTaskORM moved to below ProjectORM to support relationship
 
 
@@ -761,7 +760,6 @@ class Subject(Base):
     lastmoddatetime = Column(
         DateTime, default=datetime.now, onupdate=datetime.now)
     course_subjects = relationship("CourseSubject", back_populates="subject")
-    recordings = relationship("Recording", back_populates="subject")
     recordings = relationship("Recording", back_populates="subject_rel")
 
 

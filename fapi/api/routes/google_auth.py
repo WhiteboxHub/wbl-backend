@@ -7,6 +7,7 @@ from fapi.utils.google_auth_utils import get_google_user_by_email, insert_google
 from fapi.utils.employee_utils import get_employee_by_email
 from fapi.auth import create_google_access_token
 from fapi.core.config import SECRET_KEY, ALGORITHM
+from fapi.utils.onboarding_utils import get_onboarding_snapshot
 import jwt
 
 router = APIRouter()
@@ -107,7 +108,8 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
         "access_token": access_token,
         "token_type": "bearer",
         "team": getattr(existing_user, "team", "default_team"),
-        "email": user.email
+        "email": user.email,
+        "onboarding": get_onboarding_snapshot(db, user.email),
     }
 
 

@@ -456,7 +456,7 @@ def get_all_placements(page: int, limit: int) -> Dict:
             .order_by(CandidatePlacementORM.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
-            .subquery()
+            .scalar_subquery()
         )
 
         # Then fetch full data for those IDs

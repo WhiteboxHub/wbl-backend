@@ -153,3 +153,51 @@ def send_approval_emails(
                     msg.attach(part)
 
             server.sendmail(SMTP_USER, [approver], msg.as_string())
+
+
+def send_document_copy_emails(
+    recipient: str,
+    username: str,
+    uid: str,
+    document_type: str,
+    attachment_content: bytes,
+    attachment_filename: str,
+    cc_recipients: Optional[List[str]] = None,
+) -> None:
+    if not SMTP_USER or not SMTP_PASSWORD:
+        raise ValueError("SMTP_USER and SMTP_PASSWORD must be set in environment to send document copy emails")
+
+    recipients = [recipient]
+    if cc_recipients:
+        recipients.extend([r for r in cc_recipients if r and r != recipient])
+
+    subject = f"Signed {document_type.title()} Document - {username}"
+    body_html = f"""
+    <html>
+      <body>
+        <p>Hello {username},</p>
+        <p>Your {document_type} agreement has been signed successfully.</p>
+        <p>UID: <b>{uid}</b></p>
+        <p>A signed PDF copy is attached for your records.</p>
+      </body>
+    </html>
+    """
+
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["From"] = SMTP_USER
+    msg["To"] = recipient
+    if cc_recipients:
+        msg["Cc"] = ", ".join([r for r in cc_recipients if r])
+    msg.attach(MIMEText(body_html, "html"))
+
+    part = MIMEBase("application", "pdf")
+    part.set_payload(attachment_content)
+    encoders.encode_base64(part)
+    part.add_header("Content-Disposition", f"attachment; filename={attachment_filename}")
+    msg.attach(part)
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, recipients, msg.as_string())

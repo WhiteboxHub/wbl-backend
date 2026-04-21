@@ -3,6 +3,7 @@ import os
 import io
 from typing import Optional
 import requests
+import shutil
 
 from pathlib import Path
 
@@ -12,7 +13,8 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+_SCOPES_ENV = os.getenv("GOOGLE_DRIVE_SCOPES", "").strip()
+SCOPES = [s.strip() for s in _SCOPES_ENV.split(",") if s.strip()] if _SCOPES_ENV else []
 
 # Adjust this if your project root is different
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -23,12 +25,42 @@ load_dotenv()
 
 TEMP_FOLDER_ID = os.getenv("GOOGLE_DRIVE_TEMP_FOLDER_ID")
 ROOT_USER_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")
+LOCAL_UPLOAD_DIR = BASE_DIR / "local_approval_uploads"
+LOCAL_ID_PREFIX = "local://"
+ENABLE_LOCAL_UPLOAD_FALLBACK = os.getenv("ENABLE_LOCAL_UPLOAD_FALLBACK", "false").lower() == "true"
+
+
+def _ensure_local_upload_dir() -> None:
+    LOCAL_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _is_local_file_id(file_id: str) -> bool:
+    return isinstance(file_id, str) and file_id.startswith(LOCAL_ID_PREFIX)
+
+
+def _local_relpath_from_id(file_id: str) -> str:
+    return file_id.replace(LOCAL_ID_PREFIX, "", 1)
+
+
+def _local_path_from_id(file_id: str) -> Path:
+    rel = _local_relpath_from_id(file_id)
+    return LOCAL_UPLOAD_DIR / rel
+
+
+def _build_local_file_id(path: Path) -> str:
+    rel = path.relative_to(LOCAL_UPLOAD_DIR).as_posix()
+    return f"{LOCAL_ID_PREFIX}{rel}"
 
 def _creds() -> Credentials:
     if not TOKEN_PATH.exists():
         raise RuntimeError(f"token.json not found at {TOKEN_PATH}. Run auth flow again.")
 
-    creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    # Do not force-refresh with a scope set that may not match token.json grant.
+    # If GOOGLE_DRIVE_SCOPES is provided explicitly, respect it; otherwise use token scopes.
+    if SCOPES:
+        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH), SCOPES)
+    else:
+        creds = Credentials.from_authorized_user_file(str(TOKEN_PATH))
 
     if creds.expired or not creds.valid:
         try:
@@ -56,40 +88,63 @@ def _service():
 
 def upload_to_temp(file_bytes: bytes, mime_type: str, uid_filename: str) -> str:
     print("TEMP_FOLDER_ID:", TEMP_FOLDER_ID)
+    try:
+        if not TEMP_FOLDER_ID:
+            raise RuntimeError("GOOGLE_DRIVE_TEMP_FOLDER_ID is not configured")
 
-    creds = _creds()
-    # creds.refresh(Request())  # not strictly needed; _creds already refreshes
+        creds = _creds()
 
-    boundary = "foo_bar_baz"
-    metadata_part = (
-        f'{{"name": "{uid_filename}", "parents": ["{TEMP_FOLDER_ID}"]}}'
-    )
+        boundary = "foo_bar_baz"
+        metadata_part = (
+            f'{{"name": "{uid_filename}", "parents": ["{TEMP_FOLDER_ID}"]}}'
+        )
 
-    body = (
-        f"--{boundary}\r\n"
-        "Content-Type: application/json; charset=UTF-8\r\n\r\n"
-        f"{metadata_part}\r\n"
-        f"--{boundary}\r\n"
-        f"Content-Type: {mime_type}\r\n\r\n"
-    ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--".encode("utf-8")
+        body = (
+            f"--{boundary}\r\n"
+            "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+            f"{metadata_part}\r\n"
+            f"--{boundary}\r\n"
+            f"Content-Type: {mime_type}\r\n\r\n"
+        ).encode("utf-8") + file_bytes + f"\r\n--{boundary}--".encode("utf-8")
 
-    headers = {
-        "Authorization": f"Bearer {creds.token}",
-        "Content-Type": f'multipart/related; boundary="{boundary}"',
-    }
+        headers = {
+            "Authorization": f"Bearer {creds.token}",
+            "Content-Type": f'multipart/related; boundary="{boundary}"',
+        }
 
-    upload_url = "https://www.googleapis.com/upload/drive/v3/files"
-    params = {"uploadType": "multipart"}
+        upload_url = "https://www.googleapis.com/upload/drive/v3/files"
+        params = {"uploadType": "multipart"}
 
-    resp = requests.post(upload_url, headers=headers, params=params, data=body)
-    if not resp.ok:
-        print("Drive error:", resp.status_code, resp.text)
-    resp.raise_for_status()
-    return resp.json()["id"]
+        resp = requests.post(upload_url, headers=headers, params=params, data=body)
+        if not resp.ok:
+            print("Drive error:", resp.status_code, resp.text)
+        resp.raise_for_status()
+        return resp.json()["id"]
+    except Exception as drive_err:
+        if not ENABLE_LOCAL_UPLOAD_FALLBACK:
+            raise
+        print(f"DRIVE_UNAVAILABLE_FALLBACK_LOCAL: {drive_err}")
+        _ensure_local_upload_dir()
+        safe_name = uid_filename.replace("\\", "_").replace("/", "_")
+        local_path = LOCAL_UPLOAD_DIR / safe_name
+        local_path.write_bytes(file_bytes)
+        return _build_local_file_id(local_path)
 
 # fapi/utils/drive_service.py
 
 def rename_file(file_id: str, username: str, original_name: str, document_type: str) -> None:
+    if _is_local_file_id(file_id):
+        local_path = _local_path_from_id(file_id)
+        if not local_path.exists():
+            return
+        _, ext = os.path.splitext(original_name)
+        ext = ext or ""
+        new_name = f"{username}_{document_type}{ext}"
+        new_path = local_path.with_name(new_name)
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.rename(new_path)
+        return
+
     svc = _service()
 
     _, ext = os.path.splitext(original_name)
@@ -153,6 +208,16 @@ def get_or_create_user_folder(username: str) -> str:
     return folder_id
 
 def move_file_to_user_folder(file_id: str, username: str) -> None:
+    if _is_local_file_id(file_id):
+        source = _local_path_from_id(file_id)
+        if not source.exists():
+            return
+        target_dir = LOCAL_UPLOAD_DIR / username.strip().lower()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / source.name
+        shutil.move(str(source), str(target))
+        return
+
     print("MOVE_FILE:", file_id, "→", username)
     svc = _service()
     user_folder_id = get_or_create_user_folder(username)
@@ -171,6 +236,12 @@ def move_file_to_user_folder(file_id: str, username: str) -> None:
     print("AFTER_PARENTS:", result.get("parents", []))
 
 def delete_file(file_id: str) -> None:
+    if _is_local_file_id(file_id):
+        local_path = _local_path_from_id(file_id)
+        if local_path.exists():
+            local_path.unlink()
+        return
+
     svc = _service()
     try:
         svc.files().delete(fileId=file_id).execute()
@@ -182,6 +253,12 @@ def get_file_link(file_id: str) -> str:
     return f"https://drive.google.com/file/d/{file_id}/view"
 
 def download_file_bytes(file_id: str) -> bytes:
+    if _is_local_file_id(file_id):
+        local_path = _local_path_from_id(file_id)
+        if not local_path.exists():
+            raise FileNotFoundError(f"Local approval file not found: {local_path}")
+        return local_path.read_bytes()
+
     svc = _service()
     request = svc.files().get_media(fileId=file_id)
     file_io = io.BytesIO()

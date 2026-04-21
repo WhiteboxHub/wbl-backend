@@ -41,7 +41,6 @@ from fapi.api.routes import (
     login,
     outreach_email_recipient,
     outreach_orchestrator,
-    onboarding,
     password,
     personal_domain_contact,
     placement_commission,
@@ -78,7 +77,7 @@ from fapi.db.database import SessionLocal
 from fapi.db.models import Base
 from fapi.utils.permission_gate import enforce_access
 
-# import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
+# import fapi.utils.workflow_scheduler_service  # CORRECTED: no '_utils' suffix. Commented to avoid ghost refs.
 
 app = FastAPI(title="WBL Backend")
 app.include_router(approval.router, prefix="/api", tags=["Approval"],)
@@ -122,7 +121,7 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    pass  # Upstash Redis is HTTP-based; no persistent connection to close
+    pass
 
 @app.get("/api/redis-health", tags=["Health"])
 async def redis_health():
@@ -211,7 +210,6 @@ app.include_router(contact.router, prefix="/api", tags=["Contact"])
 app.include_router(resources.router, prefix="/api", tags=["Resources"], dependencies=[Depends(enforce_access)])
 app.include_router(register.router,  prefix="/api", tags=["Register"])
 app.include_router(login.router,  prefix="/api", tags=["Login"])
-app.include_router(onboarding.router, prefix="/api", tags=["Onboarding"], dependencies=[Depends(enforce_access)])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
