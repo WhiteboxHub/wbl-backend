@@ -1159,6 +1159,7 @@ class CandidateInterviewBase(BaseModel):
     notes: Optional[str] = None
     position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
+    q_a: Optional[str] = None
 
 
 # --- Create Schema ---
