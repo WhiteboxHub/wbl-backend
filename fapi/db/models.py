@@ -313,6 +313,7 @@ class CandidateMarketingORM(Base):
     run_daily_workflow = Column(Boolean, nullable=False, server_default="0")
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
     run_email_extraction = Column(Boolean, nullable=False, server_default="0")
+    run_raw_positions_workflow = Column(Boolean, nullable=False, server_default="0")
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
     
@@ -372,6 +373,7 @@ class CandidateInterview(Base):
 
     transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
+    audio_link = Column(String(500), nullable=True)
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
 
@@ -1185,8 +1187,6 @@ class JobLinkClicksORM(Base):
         UniqueConstraint('authuser_id', 'job_listing_id', name='unique_candidate_job'),
     )
 
-    authuser = relationship("AuthUserORM")
-    job_listing = relationship("JobListingORM")
 
 
 # -------------------- Delivery Engines --------------------
@@ -1426,4 +1426,95 @@ class LinkedinOnlyContact(Base):
         Index('idx_linkedin_id', 'linkedin_id'),
         Index('idx_linkedin_internal_id', 'linkedin_internal_id'),
     )
+
+
+# -------------------- CoderPad Models --------------------
+
+class CodeSnippetORM(Base):
+    __tablename__ = "code_snippet"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    authuser_id = Column(Integer, ForeignKey("authuser.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False, default="Untitled")
+    description = Column(Text, nullable=True)
+    language = Column(String(50), nullable=False, default="python")
+    code = Column(Text, nullable=False, default="")
+    test_cases = Column(JSON, nullable=True)
+    execution_timeout = Column(Integer, nullable=False, default=5)
+    is_shared = Column(Boolean, nullable=False, default=False)
+    shared_with = Column(JSON, nullable=True)  # list of authuser IDs
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    last_executed_at = Column(TIMESTAMP, nullable=True)
+
+    authuser = relationship("AuthUserORM", foreign_keys=[authuser_id])
+    execution_logs = relationship(
+        "CodeExecutionLogORM",
+        back_populates="snippet",
+        cascade="all, delete-orphan",
+    )
+
+
+class CodeExecutionLogORM(Base):
+    __tablename__ = "code_execution_log"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code_snippet_id = Column(
+        Integer,
+        ForeignKey("code_snippet.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    authuser_id = Column(Integer, ForeignKey("authuser.id", ondelete="CASCADE"), nullable=False)
+    language = Column(String(50), nullable=False)
+    code_executed = Column(Text, nullable=False)
+    input_data = Column(Text, nullable=True)
+    output = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    execution_time_ms = Column(Integer, nullable=True)
+    status = Column(String(20), nullable=False, default="error")
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    snippet = relationship("CodeSnippetORM", back_populates="execution_logs", foreign_keys=[code_snippet_id])
+    authuser = relationship("AuthUserORM", foreign_keys=[authuser_id])
+
+
+class CoderpadQuestionORM(Base):
+    """Coding problems assigned by admins; learners solve in the editor."""
+
+    __tablename__ = "coderpad_question"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    problem_statement = Column(Text, nullable=False)
+    language = Column(String(50), nullable=False, default="python")
+    starter_code = Column(Text, nullable=False, default="")
+    test_cases = Column(JSON, nullable=True)
+    assigned_candidate_ids = Column(JSON, nullable=True)
+    execution_timeout = Column(Integer, nullable=False, default=10)
+    is_active = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_by_user_id = Column(Integer, ForeignKey("authuser.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    created_by = relationship("AuthUserORM", foreign_keys=[created_by_user_id])
+
+#--------------------------------------extension keys--------------------------------------
+class ExtensionKeyORM(Base):
+    __tablename__ = "extension_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("authuser.id"), nullable=False)
+    uname = Column(String(50), nullable=False)
+    api_key = Column(String(64), nullable=False, unique=True)
+    device_name = Column(String(100), nullable=True, default=None)
+    is_active = Column(Boolean, nullable=True, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    last_used = Column(TIMESTAMP, nullable=True, default=None)
+    expires_at = Column(TIMESTAMP, nullable=True, default=None)
+
+    authuser = relationship("AuthUserORM")
 

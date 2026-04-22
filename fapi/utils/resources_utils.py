@@ -101,7 +101,7 @@ def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
 
 
 @cache_result(ttl=300, prefix="resources")
-def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None):
+def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, team: str, role: str = None, user_team: str = None, is_employee: bool = False):
     if not course_id or not session_type:
         return []
 
@@ -114,27 +114,46 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
             return []  # Non-admin users get empty results for Internal Sessions
 
     allowed_types = [
-        "Resume Session", "Job Help", "Interview Prep",
+        "Job Help", "Interview Prep",
         "Individual Mock", "Group Mock", "Misc", "Internal Session"
     ]
+    if is_employee:
+        allowed_types.append("Resume Session")
 
     if team not in ["admin", "instructor"] and db_session_type not in allowed_types:
         return []
 
-    query = (
-        select(SessionORM)
-        .join(CourseSubject, SessionORM.subject_id == CourseSubject.subject_id)
-        .where(
-            SessionORM.subject_id != 0,
-            CourseSubject.course_id == course_id,
-            SessionORM.type == db_session_type,
-            or_(
-                CourseSubject.course_id != 3,
-                SessionORM.sessiondate >= "2024-01-01"
+    if db_session_type == "Misc":
+        # Misc is used as a shared bucket across courses in the current data,
+        # so filtering it by the selected course hides newer entries whose
+        # subject_id points at QA/UI subjects even though they should still
+        # appear in the Misc recordings list.
+        query = (
+            select(SessionORM)
+            .where(
+                SessionORM.type == db_session_type,
+                or_(
+                    course_id != 3,
+                    SessionORM.sessiondate >= "2024-01-01",
+                ),
             )
+            .order_by(SessionORM.sessiondate.desc())
         )
-        .order_by(SessionORM.sessiondate.desc())
-    )
+    else:
+        query = (
+            select(SessionORM)
+            .join(CourseSubject, SessionORM.subject_id == CourseSubject.subject_id)
+            .where(
+                SessionORM.subject_id != 0,
+                CourseSubject.course_id == course_id,
+                SessionORM.type == db_session_type,
+                or_(
+                    CourseSubject.course_id != 3,
+                    SessionORM.sessiondate >= "2024-01-01"
+                )
+            )
+            .order_by(SessionORM.sessiondate.desc())
+        )
 
     result = db.execute(query)
     sessions = result.scalars().all()
@@ -142,7 +161,7 @@ def fetch_sessions_by_type_orm(db: Session, course_id: int, session_type: str, t
 
 
 @cache_result(ttl=300, prefix="resources")
-def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None) -> List[str]:
+def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_team: str = None, is_employee: bool = False) -> List[str]:
     
     if role in ["admin", "employee"] :
         # Admin user sees all types including Internal Sessions
@@ -151,9 +170,12 @@ def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_t
     else:
         # Non-admin users don't see Internal Sessions
         allowed_types = [
-            "Resume Session", "Job Help", "Interview Prep",
+            "Job Help", "Interview Prep",
             "Individual Mock", "Group Mock", "Misc"
         ]
+        if is_employee:
+            allowed_types.append("Resume Session")
+            
         result = db.execute(
             select(SessionORM.type).distinct()
             .where(SessionORM.type.in_(allowed_types))

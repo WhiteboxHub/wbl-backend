@@ -14,12 +14,12 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data
 )
+import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
-
 from fapi.core.redis_client import redis_client
-from fapi.db.database import SessionLocal
+from fapi.db.database import SessionLocal, engine
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -34,6 +34,14 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
+    try:
+        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
+        CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
+        CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
+        CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad tables checked/created successfully.")
+    except Exception as e:
+        logger.error(f"Failed to create CoderPad tables: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -138,6 +146,8 @@ app.include_router(job_listing.router, prefix="/api", tags=["Positions"], depend
 app.include_router(email_position.router, prefix="/api", tags=["Email Positions"], dependencies=[Depends(enforce_access)])
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
+app.include_router(dynamic_weekly_report.router, prefix="/api", tags=["Dynamic Weekly Report"])
+app.include_router(report_data.router, prefix="/api", tags=["Marketing Report Data"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])
@@ -145,6 +155,7 @@ app.include_router(personal_domain_contact.router, prefix="/api", tags=["Persona
 app.include_router(outreach_email_recipient.router, prefix="/api", tags=["Outreach Email Recipients"], dependencies=[Depends(enforce_access)])
 app.include_router(linkedin_only_contact.router, prefix="/api", tags=["Linkedin Only Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Extracts"], dependencies=[Depends(enforce_access)])
+app.include_router(extension_keys.router, prefix="/api", tags=["Extension Keys"], dependencies=[Depends(enforce_access)])
 
 # Automation Workflow Routers
 app.include_router(delivery_engine.router, prefix="/api", tags=["Delivery Engine"], dependencies=[Depends(enforce_access)])
@@ -152,7 +163,7 @@ app.include_router(email_template.router, prefix="/api", tags=["Email Template"]
 app.include_router(automation_workflow.router, prefix="/api", tags=["Automation Workflow"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Automation Workflow Schedule"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
-app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Contact Extracts"], dependencies=[Depends(enforce_access)])
+app.include_router(coderpad.router, prefix="/api", tags=["CoderPad"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
