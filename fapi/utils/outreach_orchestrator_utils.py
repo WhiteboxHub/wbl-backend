@@ -463,15 +463,26 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
                 schedule.is_running = False
                 schedule.last_run_at = now
                 
-                # Reschedule only on success or if we want to retry on failure
-                # For now, we reschedule on both success and failure to prevent loops
-                next_run = _calculate_next_run(schedule)
-                schedule.next_run_at = next_run
-                
-                if schedule.frequency == "once":
-                    schedule.enabled = False
-                
-                logger.info(f"Schedule {schedule_id} finished with {status}. Next run: {next_run}")
+                if schedule.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
+                    # Marketing Report specific logic (Update next_run_at and set back to idle)
+                    # This ensures it runs exactly once per day and is ready for tomorrow
+                    if schedule.next_run_at:
+                        schedule.next_run_at = schedule.next_run_at + timedelta(days=1)
+                    schedule.state = 'idle'
+                    logger.info(f"Marketing report {schedule_id} successfully finished. Rescheduled to {schedule.next_run_at}")
+                else:
+                    # Update state for all other workflows as normal
+                    schedule.state = status
+                    
+                    # Reschedule only on success or if we want to retry on failure
+                    # For now, we reschedule on both success and failure to prevent loops
+                    next_run = _calculate_next_run(schedule)
+                    schedule.next_run_at = next_run
+                    
+                    if schedule.frequency == "once":
+                        schedule.enabled = False
+                    
+                    logger.info(f"Schedule {schedule_id} finished with {status}. Next run: {next_run}")
 
     db.commit()
     db.refresh(new_log)
