@@ -1181,6 +1181,8 @@ class CandidateInterviewCreate(BaseModel):
     position_id: Optional[int] = None
     position_title: Optional[str] = None
     position_location: Optional[str] = None
+    q_a: Optional[str] = None
+
 
 
 model_config = {
@@ -1208,6 +1210,7 @@ class CandidateInterviewUpdate(BaseModel):
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
     position_id: Optional[int] = None
+    q_a: Optional[str] = None
 
 
 # --- Output Schema ---
