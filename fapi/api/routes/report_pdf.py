@@ -31,95 +31,128 @@ def format_html(data):
     summary = data.get("summary", {})
     now_str = datetime.now(timezone.utc).strftime('%B %d, %Y')
     
-    template_html = """
-    <html>
-    <head>
-        <style>
-            @page { size: A4 landscape; margin: 1cm; }
-            body { font-family: Arial, sans-serif; background-color: #ffffff; margin: 0; padding: 0; color: #333; }
-            table { border-collapse: collapse; width: 100%; }
-            th { border: 1pt solid #ffffff; padding: 8pt; font-size: 7pt; text-transform: uppercase; background-color: #3b5998; color: #ffffff; }
-            td { border: 1pt solid #e2e8f0; padding: 8pt; font-size: 7pt; text-align: center; }
-            .header { background-color: #1f2937; color: #ffffff; padding: 20pt; text-align: center; margin-bottom: 20pt; }
-            .summary-box { background-color: #f9fafb; padding: 10pt; text-align: center; border: 1pt solid #e5e7eb; }
-        </style>
-    </head>
-    <body style="margin: 0; padding: 0;">
-        <div class="header">
-            <h1 style="margin: 0; font-size: 18pt;">Weekly Marketing Report</h1>
-            <p style="margin: 5pt 0 0 0; font-size: 10pt; color: #9ca3af;">{{ summary.start_date }}{% if summary.end_date %} &mdash; {{ summary.end_date }}{% endif %}</p>
-        </div>
-        
-        <div style="padding: 0 20pt;">
-            <table width="100%" cellpadding="0" cellspacing="5" style="margin-bottom: 20pt; border: none;">
-                <tr>
-                    <td class="summary-box">
-                        <div style="font-size: 16pt; font-weight: bold; color: #3b82f6;">{{ summary.total_candidates }}</div>
-                        <div style="font-size: 8pt; color: #6b7280; text-transform: uppercase;">Candidates</div>
-                    </td>
-                    <td class="summary-box">
-                        <div style="font-size: 16pt; font-weight: bold; color: #10b981;">{{ summary.total_interviews }}</div>
-                        <div style="font-size: 8pt; color: #6b7280; text-transform: uppercase;">Interviews</div>
-                    </td>
-                    <td class="summary-box">
-                        <div style="font-size: 16pt; font-weight: bold; color: #f59e0b;">{{ summary.total_clicks }}</div>
-                        <div style="font-size: 8pt; color: #6b7280; text-transform: uppercase;">Job Clicks</div>
-                    </td>
-                </tr>
-            </table>
+    from fpdf import FPDF
+    import io
+    from fastapi import Response
 
-            <table>
-                <thead>
-                    <tr>
-                        <th rowspan="2" width="12%">Candidate</th>
-                        <th colspan="4">APPLICATIONS</th>
-                        <th colspan="4">INTERVIEWS</th>
-                        <th rowspan="2" width="5%">Total</th>
-                        <th colspan="3">FEEDBACK</th>
-                    </tr>
-                    <tr style="background-color: #f0f4f8;">
-                        <th style="color: #333; background-color: #f0f4f8;">EMAIL</th>
-                        <th style="color: #333; background-color: #f0f4f8;">LINKEDIN</th>
-                        <th style="color: #333; background-color: #f0f4f8;">AUTO</th>
-                        <th style="color: #333; background-color: #f0f4f8;">CLICKS</th>
-                        <th style="color: #333; background-color: #f0f4f8;">ASSESS</th>
-                        <th style="color: #333; background-color: #f0f4f8;">RECRUIT</th>
-                        <th style="color: #333; background-color: #f0f4f8;">TECH</th>
-                        <th style="color: #333; background-color: #f0f4f8;">ONSITE</th>
-                        <th style="color: #16a34a; background-color: #f0f4f8;">POS</th>
-                        <th style="color: #ef4444; background-color: #f0f4f8;">NEG</th>
-                        <th style="color: #d97706; background-color: #f0f4f8;">PEND</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for c in candidates %}
-                    <tr style="background-color: {{ '#ffffff' if loop.index0 % 2 == 0 else '#fcfcfc' }};">
-                        <td style="text-align: left; font-weight: bold;">{{ c.full_name }}</td>
-                        <td>{{ c.outreach_count or '0' }}</td>
-                        <td>{{ c.linkedin_easy_apply_count or '0' }}</td>
-                        <td>{{ c.job_portal_automation_count or '0' }}</td>
-                        <td style="color: #ea580c; font-weight: bold;">{{ c.job_clicks or '0' }}</td>
-                        <td>{{ c.assessment_count or '0' }}</td>
-                        <td>{{ c.recruiter_call_count or '0' }}</td>
-                        <td>{{ c.technical_count or '0' }}</td>
-                        <td>{{ c.onsite_count or '0' }}</td>
-                        <td style="background-color: #f0fff0; font-weight: bold;">{{ c.total_interviews or '0' }}</td>
-                        <td style="color: #16a34a;">{{ c.feedback_positive or '0' }}</td>
-                        <td style="color: #ef4444;">{{ c.feedback_negative or '0' }}</td>
-                        <td style="color: #d97706;">{{ c.feedback_pending or '0' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    # Initialize PDF in Landscape mode
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.add_page()
+    
+    # 1. Header Section
+    pdf.set_fill_color(31, 41, 55) # Dark Gray
+    pdf.rect(0, 0, 297, 40, 'F')
+    
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_y(10)
+    pdf.cell(0, 10, "Weekly Marketing Report", 0, 1, 'C')
+    
+    pdf.set_font("Helvetica", "", 10)
+    date_label = summary.get('start_date', '')
+    if summary.get('end_date'):
+        date_label += f" - {summary.get('end_date')}"
+    pdf.cell(0, 10, date_label, 0, 1, 'C')
+    
+    # 2. Summary Boxes
+    pdf.set_y(45)
+    pdf.set_text_color(31, 41, 55)
+    
+    # Box styles
+    box_w = 90
+    box_h = 20
+    startX = (297 - (box_w * 3)) / 2
+    
+    def draw_box(x, y, value, label, color):
+        pdf.set_draw_color(229, 231, 235)
+        pdf.set_fill_color(249, 250, 251)
+        pdf.rect(x, y, box_w, box_h, 'DF')
+        
+        pdf.set_xy(x, y + 4)
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(color[0], color[1], color[2])
+        pdf.cell(box_w, 7, str(value), 0, 1, 'C')
+        
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(107, 114, 128)
+        pdf.cell(box_w, 5, label, 0, 0, 'C')
+
+    draw_box(startX, 45, summary.get('total_candidates', 0), "CANDIDATES", (59, 130, 246))
+    draw_box(startX + box_w, 45, summary.get('total_interviews', 0), "INTERVIEWS", (16, 185, 129))
+    draw_box(startX + (box_w*2), 45, summary.get('total_clicks', 0), "JOB CLICKS", (245, 158, 11))
+
+    # 3. Table Header
+    pdf.set_y(75)
+    pdf.set_font("Helvetica", "B", 7)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_fill_color(59, 89, 152) # Dark Blue
+    
+    cols = [
+        ("Candidate", 35),
+        ("EMAIL", 18), ("LINKEDIN", 18), ("PORTAL", 18), ("CLICKS", 18),
+        ("ASSESS", 18), ("RECRUIT", 18), ("TECH", 18), ("ONSITE", 18),
+        ("Total", 18),
+        ("POS", 18), ("NEG", 18), ("PEND", 18)
+    ]
+    
+    startX_table = 10
+    pdf.set_x(startX_table)
+    for label, width in cols:
+        pdf.cell(width, 10, label, 1, 0, 'C', True)
+    pdf.ln()
+
+    # 4. Table Body
+    pdf.set_font("Helvetica", "", 7)
+    pdf.set_text_color(31, 41, 55)
+    
+    for i, c in enumerate(candidates):
+        pdf.set_x(startX_table)
+        if i % 2 == 1:
+            pdf.set_fill_color(248, 250, 252)
+        else:
+            pdf.set_fill_color(255, 255, 255)
             
-            <div style="margin-top: 30pt; text-align: center; font-size: 8pt; color: #999;">
-                Whitebox Learning Audit System • Generated on {{ now_str }}
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return Template(template_html).render(candidates=candidates, summary=summary, now_str=now_str)
+        pdf.cell(35, 8, str(c.get('full_name', '')), 1, 0, 'L', True)
+        pdf.cell(18, 8, str(c.get('outreach_count', 0)), 1, 0, 'C', True)
+        pdf.cell(18, 8, str(c.get('linkedin_easy_apply_count', 0)), 1, 0, 'C', True)
+        pdf.cell(18, 8, str(c.get('job_portal_automation_count', 0)), 1, 0, 'C', True)
+        
+        pdf.set_text_color(234, 88, 12) # Orange
+        pdf.cell(18, 8, str(c.get('job_clicks', 0)), 1, 0, 'C', True)
+        pdf.set_text_color(31, 41, 55)
+        
+        pdf.cell(18, 8, str(c.get('assessment_count', 0)), 1, 0, 'C', True)
+        pdf.cell(18, 8, str(c.get('recruiter_call_count', 0)), 1, 0, 'C', True)
+        pdf.cell(18, 8, str(c.get('technical_count', 0)), 1, 0, 'C', True)
+        pdf.cell(18, 8, str(c.get('onsite_count', 0)), 1, 0, 'C', True)
+        
+        pdf.set_font("Helvetica", "B", 7)
+        pdf.set_fill_color(236, 253, 245)
+        pdf.cell(18, 8, str(c.get('total_interviews', 0)), 1, 0, 'C', True)
+        
+        pdf.set_font("Helvetica", "", 7)
+        pdf.set_text_color(22, 163, 74) # Green
+        pdf.cell(18, 8, str(c.get('feedback_positive', 0)), 1, 0, 'C', True)
+        pdf.set_text_color(239, 68, 68) # Red
+        pdf.cell(18, 8, str(c.get('feedback_negative', 0)), 1, 0, 'C', True)
+        pdf.set_text_color(217, 119, 6) # Amber
+        pdf.cell(18, 8, str(c.get('feedback_pending', 0)), 1, 0, 'C', True)
+        pdf.set_text_color(31, 41, 55)
+        pdf.ln()
+
+    # Footer
+    pdf.set_y(-20)
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(156, 163, 175)
+    pdf.cell(0, 10, f"Whitebox Learning Audit System - Generated on {now_str}", 0, 0, 'C')
+
+    # Return Result
+    pdf_bytes = pdf.output()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=Marketing_Report_{now_str.replace(' ', '_')}.pdf"}
+    )
 
 # Defined with and without trailing slash for compatibility
 @router.get("/report-pdf")
