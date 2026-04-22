@@ -4093,3 +4093,35 @@ class ExtensionKeyBulkResponse(BaseModel):
     inserted: int
     skipped: int
     total: int
+
+# ---------------------------------------------
+# JobCLI Sync Schemas (Phase 2)
+# ---------------------------------------------
+
+class FieldAnswerInput(BaseModel):
+    ats_type: str
+    normalized_label: str
+    value: str
+    total_success: int
+    total_failure: int
+    confidence: float
+
+class LocatorInput(BaseModel):
+    ats_type: str
+    purpose: str
+    selector: str
+    selector_type: str = "css"
+    domain_pattern: Optional[str] = None
+    total_success: int
+    total_failure: int
+    confidence: float
+
+class UploadPayload(BaseModel):
+    field_answers: List[FieldAnswerInput]
+    locators: List[LocatorInput]
+
+class DownloadPayload(BaseModel):
+    version: str
+    field_answers: List[FieldAnswerInput]
+    locators: List[LocatorInput]
+

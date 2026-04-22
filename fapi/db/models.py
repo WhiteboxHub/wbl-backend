@@ -1,7 +1,8 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -798,6 +799,7 @@ class InternalDocument(Base):
 class JobTypeORM(Base):
     __tablename__ = "job_types"
 
+
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     unique_id = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
@@ -1518,3 +1520,52 @@ class ExtensionKeyORM(Base):
 
     authuser = relationship("AuthUserORM")
 
+
+# ---------------------------------------------
+# JobCLI Sync Models (Phase 2)
+# ---------------------------------------------
+
+class FieldAnswerSync(Base):
+    __tablename__ = "jobcli_field_answers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ats_type = Column(String(100), nullable=False)
+    normalized_label = Column(String(255), nullable=False)
+    value = Column(Text, nullable=False)
+    total_success = Column(Integer, nullable=False, default=0)
+    total_failure = Column(Integer, nullable=False, default=0)
+    confidence = Column(DECIMAL(5, 4), nullable=False, default=0.0)
+    version = Column(String(50), nullable=True, server_default='v1.0.0')
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('ats_type', 'normalized_label', 'value', name='uk_ats_label'),
+    )
+
+class LocatorSync(Base):
+    __tablename__ = "jobcli_locators"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ats_type = Column(String(100), nullable=False)
+    purpose = Column(String(100), nullable=False)
+    selector = Column(Text, nullable=False)
+    selector_type = Column(String(50), default='css')
+    domain_pattern = Column(String(255), nullable=True)
+    total_success = Column(Integer, nullable=False, default=0)
+    total_failure = Column(Integer, nullable=False, default=0)
+    confidence = Column(Float, nullable=False, default=0.0)
+    version = Column(String(50), nullable=False)
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('ats_type', 'purpose', 'selector', name='uk_ats_purpose_selector'),
+        Index('idx_ats_purpose', 'ats_type', 'purpose'),
+    )
+
+class SyncVersion(Base):
+    __tablename__ = "jobcli_sync_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    version = Column(String(50), nullable=False, unique=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    notes = Column(Text, nullable=True)
