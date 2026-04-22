@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Security, Response
+from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List
@@ -67,6 +67,25 @@ def create_recording_batch(
         return recording_batch_utils.create_recording_batch(db, recording_batch)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+@router.put("/recording-batches/{recording_id}/{batch_id}", response_model=schemas.RecordingBatch)
+def update_recording_batch(
+    recording_id: int,
+    batch_id: int,
+    recording_batch: schemas.RecordingBatchCreate,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    """Update an existing recording batch mapping"""
+    try:
+        return recording_batch_utils.update_recording_batch(
+            db, recording_id, batch_id, recording_batch
+        )
+    except ValueError as e:
+        error_message = str(e)
+        if error_message == "Recording batch mapping not found":
+            raise HTTPException(status_code=404, detail=error_message)
+        raise HTTPException(status_code=422, detail=error_message)
 
 @router.delete("/recording-batches/{recording_id}/{batch_id}")
 def delete_recording_batch(
