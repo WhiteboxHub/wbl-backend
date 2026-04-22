@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
-from fapi.utils.dynamic_weekly_report import (
+from fapi.utils.dynamic_weekly_report_utils import (
     send_weekly_marketing_report,
     get_weekly_report_data,
     generate_weekly_marketing_report,

@@ -14,9 +14,9 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf
 )
-import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
+import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
@@ -147,6 +147,8 @@ app.include_router(email_position.router, prefix="/api", tags=["Email Positions"
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 app.include_router(dynamic_weekly_report.router, prefix="/api", tags=["Dynamic Weekly Report"])
+app.include_router(report_data.router, prefix="/api", tags=["Marketing Report Data"])
+app.include_router(report_pdf.router, prefix="/api", tags=["Marketing Report PDF"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])
@@ -154,6 +156,7 @@ app.include_router(personal_domain_contact.router, prefix="/api", tags=["Persona
 app.include_router(outreach_email_recipient.router, prefix="/api", tags=["Outreach Email Recipients"], dependencies=[Depends(enforce_access)])
 app.include_router(linkedin_only_contact.router, prefix="/api", tags=["Linkedin Only Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_contact_extract.router, prefix="/api", tags=["Automation Extracts"], dependencies=[Depends(enforce_access)])
+app.include_router(extension_keys.router, prefix="/api", tags=["Extension Keys"], dependencies=[Depends(enforce_access)])
 
 # Automation Workflow Routers
 app.include_router(delivery_engine.router, prefix="/api", tags=["Delivery Engine"], dependencies=[Depends(enforce_access)])

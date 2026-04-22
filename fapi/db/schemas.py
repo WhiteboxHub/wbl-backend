@@ -176,7 +176,7 @@ class AutomationContactExtractBulkCreate(BaseModel):
 class AutomationContactExtractBulkResponse(BaseModel):
     total: int
     inserted: int
-    duplicates: int
+    updated: int
     failed: int
     errors: List[Dict[str, Any]] = []
 
@@ -873,6 +873,7 @@ class CandidateMarketingBase(BaseModel):
     run_daily_workflow: bool = False
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
+    run_raw_positions_workflow: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
     candidate: Optional["CandidateBase"] = None
@@ -933,6 +934,7 @@ class CandidateMarketingUpdate(BaseModel):
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
+    run_raw_positions_workflow: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
 
@@ -1149,6 +1151,7 @@ class CandidateInterviewBase(BaseModel):
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     transcript: Optional[str] = None
+    audio_link: Optional[str] = None
     recording_link: Optional[str] = None
     backup_recording_url: Optional[str] = None
     job_posting_url: Optional[str] = None
@@ -1156,6 +1159,7 @@ class CandidateInterviewBase(BaseModel):
     notes: Optional[str] = None
     position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
+    q_a: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1177,6 +1181,8 @@ class CandidateInterviewCreate(BaseModel):
     position_id: Optional[int] = None
     position_title: Optional[str] = None
     position_location: Optional[str] = None
+    q_a: Optional[str] = None
+
 
 
 model_config = {
@@ -1197,12 +1203,14 @@ class CandidateInterviewUpdate(BaseModel):
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     transcript: Optional[str] = None
+    audio_link: Optional[str] = None
     recording_link: Optional[str] = None
     backup_recording_url: Optional[str] = None
     job_posting_url: Optional[str] = None
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
     position_id: Optional[int] = None
+    q_a: Optional[str] = None
 
 
 # --- Output Schema ---
@@ -3908,6 +3916,7 @@ class TestCase(BaseModel):
     input: Optional[str] = None
     expected_output: str
     description: Optional[str] = None
+    locked: Optional[bool] = None
 
 
 class CodeSnippetBase(BaseModel):
@@ -3968,6 +3977,7 @@ class CoderpadQuestionBase(BaseModel):
     language: str = "python"
     starter_code: str = ""
     test_cases: Optional[List[TestCase]] = None
+    assigned_candidate_ids: Optional[List[int]] = None
     execution_timeout: int = 10
     is_active: bool = True
     sort_order: int = 0
@@ -3983,6 +3993,7 @@ class CoderpadQuestionUpdate(BaseModel):
     language: Optional[str] = None
     starter_code: Optional[str] = None
     test_cases: Optional[List[TestCase]] = None
+    assigned_candidate_ids: Optional[List[int]] = None
     execution_timeout: Optional[int] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
@@ -3996,6 +4007,12 @@ class CoderpadQuestionOut(CoderpadQuestionBase):
 
     class Config:
         from_attributes = True
+
+
+class CoderpadAssignableCandidateOut(BaseModel):
+    id: int
+    username: str
+    display_name: str
 
 
 class CodeExecutionRequest(BaseModel):
@@ -4045,4 +4062,38 @@ class CodeExecutionLogOut(BaseModel):
     
     class Config:
         from_attributes = True
+#--------------------------------------extension keys--------------------------------------
 
+class ExtensionKeyBase(BaseModel):
+    user_id: int
+    uname: str
+    api_key: str
+    device_name: Optional[str] = None
+    is_active: bool = True
+
+class ExtensionKeyCreate(ExtensionKeyBase):
+    pass
+
+class ExtensionKeyUpdate(BaseModel):
+    user_id: Optional[int] = None
+    uname: Optional[str] = None
+    api_key: Optional[str] = None
+    device_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class ExtensionKeyOut(ExtensionKeyBase):
+    id: int
+    created_at: datetime
+    last_used: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ExtensionKeyBulkCreate(BaseModel):
+    extension_keys: List["ExtensionKeyCreate"]
+
+class ExtensionKeyBulkResponse(BaseModel):
+    inserted: int
+    skipped: int
+    total: int

@@ -220,6 +220,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "start_date": marketing.start_date.isoformat() if marketing.start_date else None,
             "duration_days": _calculate_duration_days(marketing.start_date),
             "priority": getattr(marketing, "priority", None),
+            "run_raw_positions_workflow": marketing.run_raw_positions_workflow,
             "total_interviews": interview_counts["total"],
             "positive_interviews": interview_counts["positive"],
             "pending_interviews": interview_counts["pending"],
@@ -255,17 +256,17 @@ def _build_team_info(candidate: CandidateORM) -> Dict[str, Any]:
         if prep.instructor1:
             team["preparation"]["instructors"].append({
                 **_serialize_employee(prep.instructor1),
-                "role": "Primary Instructor"
+                "role": "Instructor-1"
             })
         if prep.instructor2:
             team["preparation"]["instructors"].append({
                 **_serialize_employee(prep.instructor2),
-                "role": "Co-Instructor"
+                "role": "Instructor-2"
             })
         if prep.instructor3:
             team["preparation"]["instructors"].append({
                 **_serialize_employee(prep.instructor3),
-                "role": "Assistant Instructor"
+                "role": "Instructor-3"
             })
 
     marketing = _get_active_or_latest(candidate.marketing_records, "status", "active")
@@ -629,6 +630,11 @@ def get_marketing_phase_details(
         "notes": current_marketing.notes,
         "move_to_placement": current_marketing.move_to_placement,
         "candidate_resume": current_marketing.candidate_resume,
+        "run_daily_workflow": current_marketing.run_daily_workflow,
+        "run_weekly_workflow": current_marketing.run_weekly_workflow,
+        "run_email_extraction": current_marketing.run_email_extraction,
+        "run_raw_positions_workflow": current_marketing.run_raw_positions_workflow,
+        "linkedin_post": current_marketing.linkedin_post,
         "duration_days": _calculate_duration_days(current_marketing.start_date),
         "marketing_manager": _serialize_employee(current_marketing.marketing_manager_obj),
         "interview_stats": interview_stats,

@@ -313,6 +313,7 @@ class CandidateMarketingORM(Base):
     run_daily_workflow = Column(Boolean, nullable=False, server_default="0")
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
     run_email_extraction = Column(Boolean, nullable=False, server_default="0")
+    run_raw_positions_workflow = Column(Boolean, nullable=False, server_default="0")
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
     
@@ -372,8 +373,10 @@ class CandidateInterview(Base):
 
     transcript = Column(String(500), nullable=True)
     recording_link = Column(String(500), nullable=True)
+    audio_link = Column(String(500), nullable=True)
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
+    q_a = Column(Text, nullable=True)
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -1093,6 +1096,8 @@ class AutomationContactExtractORM(Base):
     mailbox_invalid = Column(Boolean, nullable=False, server_default='0')
 
     last_email_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     bounced_flag = Column(Boolean, nullable=False, server_default='0')
     unsubscribed_flag = Column(Boolean, nullable=False, server_default='0')
@@ -1103,10 +1108,9 @@ class AutomationContactExtractORM(Base):
     complained_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    processed_at = Column(TIMESTAMP, nullable=True)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
+    processed_at = Column(TIMESTAMP, nullable=True)
+    
     __table_args__ = (
         UniqueConstraint('email_key', 'linkedin_key', name='uq_email_linkedin'),
         Index('idx_status', 'processing_status'),
@@ -1490,6 +1494,7 @@ class CoderpadQuestionORM(Base):
     language = Column(String(50), nullable=False, default="python")
     starter_code = Column(Text, nullable=False, default="")
     test_cases = Column(JSON, nullable=True)
+    assigned_candidate_ids = Column(JSON, nullable=True)
     execution_timeout = Column(Integer, nullable=False, default=10)
     is_active = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, nullable=False, default=0)
@@ -1498,4 +1503,20 @@ class CoderpadQuestionORM(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     created_by = relationship("AuthUserORM", foreign_keys=[created_by_user_id])
+
+#--------------------------------------extension keys--------------------------------------
+class ExtensionKeyORM(Base):
+    __tablename__ = "extension_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("authuser.id"), nullable=False)
+    uname = Column(String(50), nullable=False)
+    api_key = Column(String(64), nullable=False, unique=True)
+    device_name = Column(String(100), nullable=True, default=None)
+    is_active = Column(Boolean, nullable=True, default=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    last_used = Column(TIMESTAMP, nullable=True, default=None)
+    expires_at = Column(TIMESTAMP, nullable=True, default=None)
+
+    authuser = relationship("AuthUserORM")
 
