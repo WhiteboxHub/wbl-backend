@@ -4,25 +4,6 @@ from fapi.db import models, schemas
 from fapi.core.cache import cache_result, invalidate_cache
 
 
-# @cache_result(ttl=300, prefix="sessions")
-# def get_sessions(db: Session, search_title: str = None):
-#     query = db.query(models.Session)
-
-#     if search_title:
-#         if search_title.isdigit():
-#             query = query.filter(models.Session.sessionid == int(search_title))
-#         else:
-#             query = query.filter(models.Session.title.ilike(f"%{search_title}%"))
-
-#     sessions = query.order_by(models.Session.sessionid.desc()).all()
-#     return sessions
-
-
-# @cache_result(ttl=300, prefix="sessions")
-# def get_session(db: Session, sessionid: int):
-#     return db.query(models.Session).filter(models.Session.sessionid == sessionid).first()
-
-
 @cache_result(ttl=300, prefix="sessions")
 def get_sessions(db: Session, search_title: str = None, page: int = 1, size: int = 200):
     query = db.query(models.Session)
