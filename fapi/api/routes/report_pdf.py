@@ -5,7 +5,6 @@ import os
 import io
 from jinja2 import Template
 from datetime import datetime, timezone
-from xhtml2pdf import pisa
 from fapi.db.database import get_db
 from fapi.api.routes.report_data import get_marketing_report_raw_data
 
