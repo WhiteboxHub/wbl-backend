@@ -85,6 +85,24 @@ def _compute_next_step(record: models.CandidateOnboardingState) -> str:
 def serialize_onboarding_state(record: models.CandidateOnboardingState) -> Dict[str, object]:
     next_step = _compute_next_step(record)
     onboarding_complete = next_step == "complete"
+
+    # A candidate who was previously verified (id_verified_at is set) but has
+    # re-uploaded documents (status back to "pending") is in a re-verification
+    # state. They should NOT lose dashboard access — their docs are just being
+    # refreshed/updated.
+    is_reverification = (
+        bool(record.id_verified_at)
+        and record.id_verification_status == "pending"
+        and bool(record.id_uploaded)
+    )
+
+    # Only restrict access if the user is genuinely incomplete (first-time
+    # onboarding) OR their documents were rejected. Re-verification is allowed.
+    if is_reverification and next_step == "id_upload":
+        access_restricted = False
+    else:
+        access_restricted = not onboarding_complete
+
     return {
         "basic_info_validated": bool(record.basic_info_validated),
         "id_uploaded": bool(record.id_uploaded),
@@ -99,8 +117,27 @@ def serialize_onboarding_state(record: models.CandidateOnboardingState) -> Dict[
         "placement_verified": bool(record.placement_verified),
         "onboarding_complete": onboarding_complete,
         "next_step": next_step,
-        "access_restricted": not onboarding_complete,
+        "access_restricted": access_restricted,
+        "is_reverification": is_reverification,
     }
+
+
+def check_and_enforce_inactivity_penalty(db: Session, email: str, db_user) -> None:
+    from datetime import datetime, time
+    from fapi.db import models
+    prev_login = db_user.lastlogin if db_user else None
+    if not prev_login:
+        candidate = db.query(models.CandidateORM).filter(models.CandidateORM.email == email).first()
+        if candidate and candidate.enrolled_date:
+            prev_login = datetime.combine(candidate.enrolled_date, time())
+            
+    if prev_login:
+        days_inactive = (datetime.now() - prev_login).days
+        if days_inactive >= 10:
+            record = get_or_create_onboarding_state(db, email)
+            # Exhaust skips to force upload immediately
+            record.id_cancel_count = record.id_cancel_limit or ID_CANCEL_LIMIT
+            db.commit()
 
 
 def get_onboarding_snapshot(db: Session, email: str) -> Dict[str, object]:

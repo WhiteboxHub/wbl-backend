@@ -64,8 +64,15 @@ async def login_for_access_token(
 
     db_user = get_user_by_username(db, uname)
     if db_user:
-
         db_user.logincount = (db_user.logincount or 0) + 1
+        
+        # Check inactivity penalty before updating lastlogin
+        from fapi.utils.onboarding_utils import check_and_enforce_inactivity_penalty
+        check_and_enforce_inactivity_penalty(db, uname, db_user)
+        
+        from datetime import datetime
+        db_user.lastlogin = datetime.now()
+        
         db.commit()
         db.refresh(db_user)
         login_count = db_user.logincount

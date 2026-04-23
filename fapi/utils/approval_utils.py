@@ -36,6 +36,9 @@ load_dotenv()
 # Configuration
 # ---------------------------------------------------------------------------
 
+ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg"}
+ALLOWED_MIMETYPES = {"application/pdf", "image/jpeg"}
+
 def _load_approver_emails() -> List[str]:
     """Load approver emails from environment, falling back to MANAGER_EMAILS."""
     emails = [
@@ -102,6 +105,26 @@ def send_email(to_email: str, subject: str, body: str) -> None:
         server.starttls()
         server.login(smtp_user, smtp_password)
         server.sendmail(smtp_user, [to_email], message.as_string())
+
+
+def validate_file_type(filename: str, content_type: str):
+    """Validate that the file extension and MIME type are allowed."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File extension '{ext}' is not allowed. Only PDF and JPG/JPEG are permitted."
+        )
+    
+    # MIME type check (FastAPI provides this via file.content_type)
+    if content_type.lower() not in ALLOWED_MIMETYPES:
+        # Some browsers might send image/jpg instead of image/jpeg, but usually image/jpeg is standard.
+        # We allow image/jpeg. If it's image/png, it should be blocked.
+        if content_type.lower() != "image/jpg": # Just in case
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '{content_type}' is not allowed. Only PDF and JPG images are permitted."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -186,9 +209,10 @@ async def upload_file(
     if not APPROVER_EMAILS:
         raise HTTPException(status_code=500, detail="No approver emails configured")
 
-    try:
-        original_filename = file.filename or "upload.dat"
+    original_filename = file.filename or "upload.dat"
+    validate_file_type(original_filename, file.content_type)
 
+    try:
         content = await file.read()
 
         mime_type, _ = mimetypes.guess_type(original_filename)
@@ -209,7 +233,14 @@ async def upload_file(
         )
 
         db.add(new_file)
-        db.commit()
+        try:
+            db.commit()
+            print(f"DB COMMIT SUCCESS: FileApproval record {uid} saved.")
+        except Exception as db_err:
+            print(f"DB COMMIT FAILED for {uid}: {db_err}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Database save failed: {str(db_err)}")
+
         db.refresh(new_file)
 
         print("SAVED UID:", uid, "FILE:", original_filename)
@@ -588,7 +619,13 @@ async def process_submit_signature(
             is_declined=False,
         )
         db.add(new_sig)
-        db.commit()
+        try:
+            db.commit()
+            print(f"DB COMMIT SUCCESS: Signature record for {username} saved (UID: {uid}).")
+        except Exception as db_err:
+            print(f"DB COMMIT FAILED for signature {uid}: {db_err}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Database save failed: {str(db_err)}")
 
         # 4. Collect ALL files for this UID for email attachments
         all_files = db.query(models.FileApproval).filter(

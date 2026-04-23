@@ -104,6 +104,15 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
     # 4. Generate JWT
     access_token = await create_google_access_token(data=token_data)
 
+    # 5. Check inactivity and track login
+    from fapi.utils.onboarding_utils import check_and_enforce_inactivity_penalty
+    check_and_enforce_inactivity_penalty(db, user.email, existing_user)
+
+    from datetime import datetime
+    existing_user.lastlogin = datetime.now()
+    existing_user.logincount = (getattr(existing_user, "logincount", 0) or 0) + 1
+    db.commit()
+
     return {
         "access_token": access_token,
         "token_type": "bearer",

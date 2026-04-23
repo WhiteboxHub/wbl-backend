@@ -129,7 +129,7 @@ class FileApproval(Base):
     uid: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     username: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
-    drive_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    drive_file_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     original_filename: Mapped[str] = mapped_column(String(512), nullable=False)
     approvals_count: Mapped[int] = mapped_column(Integer, default=0)
     document_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
