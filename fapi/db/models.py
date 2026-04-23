@@ -1533,7 +1533,7 @@ class FieldAnswerSync(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ats_type = Column(String(100), nullable=False)
     normalized_label = Column(String(255), nullable=False)
-    value = Column(Text, nullable=False)
+    value = Column(String(500), nullable=False)
     total_success = Column(Integer, nullable=False, default=0)
     total_failure = Column(Integer, nullable=False, default=0)
     confidence = Column(DECIMAL(5, 4), nullable=False, default=0.0)
