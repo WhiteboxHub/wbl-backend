@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from fapi.utils.employee_search_utils import (
     search_employees,
     get_employee_details,
+    search_employee_details,
     get_employee_candidates,
      get_employee_sessions_and_recordings,
      get_employee_jobs,
@@ -108,8 +109,7 @@ def delete_employee(employee_id: int):
 def employee_search(query: str = "", db: Session = Depends(get_db)):
     employees = get_employee_details(db)
     if query:
-        query_lower = query.lower()
-        employees = [e for e in employees if e["name"] and query_lower in e["name"].lower()]
+        employees = search_employee_details(employees, query)
     return employees
 
 

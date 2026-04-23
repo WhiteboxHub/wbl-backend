@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db.schemas import (
-    AutomationContactExtractCreate, 
-    AutomationContactExtractUpdate, 
+    AutomationContactExtractCreate,
+    AutomationContactExtractUpdate,
     AutomationContactExtractOut,
     AutomationContactExtractBulkCreate,
     AutomationContactExtractBulkResponse,
@@ -19,6 +19,7 @@ router = APIRouter(tags=["Automation Extracts"])
 
 security = HTTPBearer()
 
+
 @router.head("/automation-extracts")
 @router.head("/automation-extracts/paginated")
 def check_version(
@@ -26,6 +27,7 @@ def check_version(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return get_automation_extracts_version(db)
+
 
 @router.get("/automation-extracts", response_model=List[AutomationContactExtractOut])
 async def read_automation_extracts(
@@ -38,11 +40,12 @@ async def read_automation_extracts(
     unsubscribed_flag: Optional[bool] = None,
     complained_flag: Optional[bool] = None,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return await automation_contact_utils.get_all_automation_extracts(
         db, status=status, source_email=source_email
     )
+
 
 @router.get("/automation-extracts/paginated")
 def read_automation_extracts_paginated(
@@ -56,7 +59,7 @@ def read_automation_extracts_paginated(
     unsubscribed_flag: Optional[bool] = None,
     complained_flag: Optional[bool] = None,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """Get automation extracts with page-based pagination and optional filters"""
     page_size = min(max(1, page_size), 10000)
@@ -72,7 +75,9 @@ def read_automation_extracts_paginated(
         complained_flag=complained_flag,
     )
     total_records = automation_contact_utils.count_automation_extracts(db, **filters)
-    data = automation_contact_utils.get_automation_extracts_paginated(db, skip=skip, limit=page_size, **filters)
+    data = automation_contact_utils.get_automation_extracts_paginated(
+        db, skip=skip, limit=page_size, **filters
+    )
     total_pages = max(1, (total_records + page_size - 1) // page_size)
     return {
         "data": data,
@@ -81,55 +86,79 @@ def read_automation_extracts_paginated(
         "total_records": total_records,
         "total_pages": total_pages,
         "has_next": page < total_pages,
-        "has_prev": page > 1
+        "has_prev": page > 1,
     }
 
-@router.post("/automation-extracts", response_model=AutomationContactExtractOut, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/automation-extracts",
+    response_model=AutomationContactExtractOut,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_automation_extract(
-    extract: AutomationContactExtractCreate, 
+    extract: AutomationContactExtractCreate,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return await automation_contact_utils.insert_automation_extract(extract, db)
 
-@router.post("/automation-extracts/bulk", response_model=AutomationContactExtractBulkResponse)
+
+@router.post(
+    "/automation-extracts/bulk", response_model=AutomationContactExtractBulkResponse
+)
 async def create_automation_extracts_bulk(
     bulk_data: AutomationContactExtractBulkCreate,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return await automation_contact_utils.insert_automation_extracts_bulk(bulk_data.extracts, db)
+    return await automation_contact_utils.insert_automation_extracts_bulk(
+        bulk_data.extracts, db
+    )
+
 
 @router.delete("/automation-extracts/bulk", status_code=status.HTTP_200_OK)
 async def delete_automation_extracts_bulk(
-    extract_ids: List[int] = Body(...), 
+    extract_ids: List[int] = Body(...),
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    return await automation_contact_utils.delete_automation_extracts_bulk(extract_ids, db)
+    return await automation_contact_utils.delete_automation_extracts_bulk(
+        extract_ids, db
+    )
 
-@router.get("/automation-extracts/{extract_id}", response_model=AutomationContactExtractOut)
+
+@router.get(
+    "/automation-extracts/{extract_id}", response_model=AutomationContactExtractOut
+)
 async def read_automation_extract(
-    extract_id: int, 
+    extract_id: int,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     return await automation_contact_utils.get_automation_extract_by_id(extract_id, db)
 
-@router.put("/automation-extracts/{extract_id}", response_model=AutomationContactExtractOut)
-async def update_automation_extract(
-    extract_id: int, 
-    update_data: AutomationContactExtractUpdate, 
-    db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
-):
-    return await automation_contact_utils.update_automation_extract(extract_id, update_data, db)
 
-@router.delete("/automation-extracts/{extract_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_automation_extract(
-    extract_id: int, 
+@router.put(
+    "/automation-extracts/{extract_id}", response_model=AutomationContactExtractOut
+)
+async def update_automation_extract(
+    extract_id: int,
+    update_data: AutomationContactExtractUpdate,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return await automation_contact_utils.update_automation_extract(
+        extract_id, update_data, db
+    )
+
+
+@router.delete(
+    "/automation-extracts/{extract_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_automation_extract(
+    extract_id: int,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     await automation_contact_utils.delete_automation_extract(extract_id, db)
     return None
@@ -139,11 +168,13 @@ async def delete_automation_extract(
 async def check_existing_emails(
     payload: CheckEmailsRequest,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """
     Check which of the provided emails already exist in automation_contact_extracts.
     Used for global deduplication before inserting.
     """
-    found = await automation_contact_utils.check_existing_emails_bulk(payload.emails, db)
+    found = await automation_contact_utils.check_existing_emails_bulk(
+        payload.emails, db
+    )
     return CheckEmailsResponse(existing_emails=found)
