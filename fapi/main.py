@@ -150,6 +150,7 @@ app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Das
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 app.include_router(dynamic_weekly_report.router, prefix="/api", tags=["Dynamic Weekly Report"])
 app.include_router(report_data.router, prefix="/api", tags=["Marketing Report Data"])
+app.include_router(report_pdf.router, prefix="/api", tags=["Marketing Report PDF"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])
