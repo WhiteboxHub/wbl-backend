@@ -8,7 +8,7 @@ from fapi.db.models import (
     EmployeeORM, CandidatePlacementORM, CandidateORM, 
     CandidateMarketingORM, CandidatePreparation, 
     EmployeeTaskORM, Recording, Session as SessionORM,
-    JobTypeORM
+    JobTypeORM, Batch
 )
 
 def get_employee_sessions_and_recordings_internal(db: Session, employee_id: int):
@@ -94,9 +94,12 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
             I1.name.label("inst1_name"),
             I2.name.label("inst2_name"),
             I3.name.label("inst3_name"),
-            CandidateMarketingORM.status.label("mkt_status")
+            CandidateMarketingORM.status.label("mkt_status"),
+            Batch.batchname.label("batch_name"),
+            Batch.startdate.label("batch_startdate")
         )
         .join(CandidateORM, CandidatePreparation.candidate_id == CandidateORM.id)
+        .join(Batch, CandidateORM.batchid == Batch.batchid)
         .outerjoin(I1, CandidatePreparation.instructor1_id == I1.id)
         .outerjoin(I2, CandidatePreparation.instructor2_id == I2.id)
         .outerjoin(I3, CandidatePreparation.instructor3_id == I3.id)
@@ -116,7 +119,7 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
     )
     
     consolidated_candidates = []
-    for prep, full_name, i1, i2, i3, mkt_status in candidates_raw:
+    for prep, full_name, i1, i2, i3, mkt_status, batch_name, batch_startdate in candidates_raw:
         # Determine status
         status = "In Marketing" if mkt_status == "active" else "In Preparation"
         
@@ -129,11 +132,17 @@ def get_employee_dashboard_metrics(db: Session, employee_id: int) -> Dict[str, A
         if prep.instructor3_id and prep.instructor3_id != employee_id:
             instructors.append(i3 or "Unknown")
             
+        # Format batch display as YYYY-MM if startdate exists, otherwise use name
+        display_batch = batch_name or "N/A"
+        if batch_startdate:
+            display_batch = batch_startdate.strftime("%Y-%m")
+
         consolidated_candidates.append({
             "id": prep.id,
             "candidate_id": prep.candidate_id,
             "full_name": full_name,
             "status": status,
+            "batch_name": display_batch,
             "other_instructors": ", ".join(instructors) if instructors else "None"
         })
     
