@@ -29,23 +29,16 @@ def get_marketing_report_raw_data(
         )
         
         # --- Time Ranges ---
-        # --- Week-to-Date (WTD) Logic: Start from the most recent Monday ---
+        # --- Last 7 Days Logic ---
         end_date = datetime.now(timezone.utc)
         today = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Find the most recent Monday (weekday() returns 0 for Monday)
-        days_since_monday = today.weekday()
-        weekly_start_date = today - timedelta(days=days_since_monday)
+        # Calculate exactly 7 days ago
+        weekly_start_date = today - timedelta(days=7)
         
-        # Smart Labels: Single date for Monday, Range for other days
-        if days_since_monday == 0:
-            # It is Monday
-            start_date_str = end_date.strftime('%B %d, %Y')
-            end_date_str = "" # Empty so template can handle it
-        else:
-            # It is Tue-Sun
-            start_date_str = weekly_start_date.strftime('%B %d')
-            end_date_str = end_date.strftime('%B %d, %Y')
+        # Labels for the report header (e.g. "April 17 - April 24, 2026")
+        start_date_str = weekly_start_date.strftime('%B %d')
+        end_date_str = end_date.strftime('%B %d, %Y')
 
         # 1. Interviews & Candidates
         interviews_query = db.query(
