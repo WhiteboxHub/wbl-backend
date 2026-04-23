@@ -5,7 +5,8 @@ Pure SQLAlchemy ORM — no raw SQL (except the two intentional execute-sql helpe
 which run caller-supplied queries and must stay as text()).
 """
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from croniter import croniter
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
@@ -384,22 +385,105 @@ def list_logs(
     return q.order_by(AutomationWorkflowLogORM.created_at.desc()).limit(100).all()
 
 
+def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[datetime]:
+    """
+    Calculate the next run time based on the schedule's frequency.
+    Ensures the next run is always in the future.
+    """
+    anchor = schedule.next_run_at or datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+
+    if schedule.frequency == "weekly":
+        next_run = anchor + timedelta(weeks=1)
+        while next_run <= now:
+            next_run += timedelta(weeks=1)
+        return next_run
+    elif schedule.frequency == "daily":
+        next_run = anchor + timedelta(days=1)
+        while next_run <= now:
+            next_run += timedelta(days=1)
+        return next_run
+    elif schedule.frequency == "monthly":
+        next_run = anchor
+        while next_run <= now:
+            year = next_run.year
+            month = next_run.month + 1
+            if month > 12:
+                month = 1
+                year += 1
+            try:
+                next_run = next_run.replace(year=year, month=month)
+            except ValueError:
+                import calendar
+                last_day = calendar.monthrange(year, month)[1]
+                next_run = next_run.replace(year=year, month=month, day=min(anchor.day, last_day))
+        return next_run
+    elif schedule.frequency == "custom" and schedule.cron_expression:
+        try:
+            cron = croniter(schedule.cron_expression, now)
+            return cron.get_next(datetime).replace(tzinfo=timezone.utc)
+        except Exception as e:
+            logger.error(f"Error parsing cron {schedule.cron_expression}: {e}")
+            return None
+    elif schedule.frequency == "once":
+        return None
+
+    return None
+
+
 def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogORM:
     now = datetime.now(timezone.utc)
+    status = log_data["status"]
+    schedule_id = log_data.get("schedule_id")
+
+    # 1. Create the log entry
     new_log = AutomationWorkflowLogORM(
         workflow_id=log_data["workflow_id"],
-        schedule_id=log_data.get("schedule_id"),
+        schedule_id=schedule_id,
         run_id=log_data["run_id"],
-        status=log_data["status"],
+        status=status,
         started_at=log_data.get("started_at"),
         parameters_used=log_data.get("parameters_used"),
         execution_metadata=log_data.get("execution_metadata"),
-        # Explicit timestamps so SQLite (test env) satisfies NOT NULL constraints
-        # MySQL will use server_default instead, so no conflict.
         created_at=now,
         updated_at=now,
     )
     db.add(new_log)
+
+    # 2. Update the schedule if one is associated
+    if schedule_id:
+        schedule = db.query(AutomationWorkflowScheduleORM).filter(
+            AutomationWorkflowScheduleORM.id == schedule_id
+        ).first()
+        
+        if schedule:
+            if status == "running":
+                schedule.is_running = True
+            elif status in ["success", "failed", "completed"]:
+                schedule.is_running = False
+                schedule.last_run_at = now
+                
+                if schedule.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
+                    # Marketing Report specific logic (Update next_run_at and set back to idle)
+                    # This ensures it runs exactly once per day and is ready for tomorrow
+                    if schedule.next_run_at:
+                        schedule.next_run_at = schedule.next_run_at + timedelta(days=1)
+                    schedule.state = 'idle'
+                    logger.info(f"Marketing report {schedule_id} successfully finished. Rescheduled to {schedule.next_run_at}")
+                else:
+                    # Update state for all other workflows as normal
+                    schedule.state = status
+                    
+                    # Reschedule only on success or if we want to retry on failure
+                    # For now, we reschedule on both success and failure to prevent loops
+                    next_run = _calculate_next_run(schedule)
+                    schedule.next_run_at = next_run
+                    
+                    if schedule.frequency == "once":
+                        schedule.enabled = False
+                    
+                    logger.info(f"Schedule {schedule_id} finished with {status}. Next run: {next_run}")
+
     db.commit()
     db.refresh(new_log)
     return new_log
