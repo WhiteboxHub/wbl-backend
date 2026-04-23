@@ -14,8 +14,7 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup, report_data, report_pdf
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
