@@ -3,9 +3,9 @@ CodePad Utilities
 Handles database operations and orchestration for code snippets and execution
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func as sa_func
 from typing import List, Optional, Dict, Any
-from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
+from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, AuthUserORM, CandidateORM
 from fapi.db.schemas import (
     CodeSnippetCreate,
     CodeSnippetUpdate,
@@ -337,11 +337,36 @@ def get_shared_snippets(db: Session, user_id: int) -> List[CodeSnippetORM]:
 
 # ==================== Admin questions (assignments) ====================
 
-def list_questions(db: Session, include_inactive: bool = False) -> List[CoderpadQuestionORM]:
+def list_questions(
+    db: Session,
+    include_inactive: bool = False,
+    is_staff: bool = False,
+    current_user_id: Optional[int] = None,
+) -> List[CoderpadQuestionORM]:
     q = db.query(CoderpadQuestionORM)
     if not include_inactive:
         q = q.filter(CoderpadQuestionORM.is_active == True)
-    return q.order_by(CoderpadQuestionORM.sort_order.asc(), CoderpadQuestionORM.id.asc()).all()
+    rows = q.order_by(CoderpadQuestionORM.sort_order.asc(), CoderpadQuestionORM.id.asc()).all()
+
+    if is_staff or current_user_id is None:
+        return rows
+
+    # Candidate view: only include assignments explicitly assigned to them,
+    # plus global assignments where assigned_candidate_ids is empty/null.
+    filtered: List[CoderpadQuestionORM] = []
+    for row in rows:
+        assigned = row.assigned_candidate_ids
+        if not assigned:
+            filtered.append(row)
+            continue
+        if isinstance(assigned, str):
+            try:
+                assigned = json.loads(assigned)
+            except Exception:
+                assigned = []
+        if isinstance(assigned, list) and current_user_id in assigned:
+            filtered.append(row)
+    return filtered
 
 
 def get_question_by_id(db: Session, question_id: int) -> Optional[CoderpadQuestionORM]:
@@ -356,12 +381,14 @@ def create_question(
     tc = None
     if data.test_cases:
         tc = [tc.model_dump() for tc in data.test_cases]
+    assigned_ids = data.assigned_candidate_ids or None
     row = CoderpadQuestionORM(
         title=data.title,
         problem_statement=data.problem_statement,
         language=data.language,
         starter_code=data.starter_code,
         test_cases=tc,
+        assigned_candidate_ids=assigned_ids,
         execution_timeout=data.execution_timeout,
         is_active=data.is_active,
         sort_order=data.sort_order,
@@ -382,6 +409,8 @@ def update_question(
     payload = data.model_dump(exclude_unset=True)
     if "test_cases" in payload and data.test_cases is not None:
         payload["test_cases"] = [tc.model_dump() for tc in data.test_cases]
+    if "assigned_candidate_ids" in payload and payload["assigned_candidate_ids"] == []:
+        payload["assigned_candidate_ids"] = None
     for k, v in payload.items():
         setattr(row, k, v)
     db.commit()
@@ -392,3 +421,102 @@ def update_question(
 def delete_question(db: Session, row: CoderpadQuestionORM) -> None:
     db.delete(row)
     db.commit()
+
+
+def list_assignable_candidates(
+    db: Session,
+    search: Optional[str] = None,
+    limit: int = 100,
+    resolve_ids: Optional[List[int]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Return auth users linked to candidate rows (email matches auth uname).
+    Optional search filters by candidate full name or email (ILIKE).
+    Optional resolve_ids returns those auth users (for showing selected labels).
+    """
+    limit = max(1, min(limit, 200))
+
+    if resolve_ids is not None and len(resolve_ids) > 0:
+        uids = [i for i in resolve_ids if isinstance(i, int) and i > 0][:limit]
+        if not uids:
+            return []
+        users = (
+            db.query(AuthUserORM)
+            .filter(AuthUserORM.id.in_(uids))
+            .filter(AuthUserORM.uname.isnot(None))
+            .all()
+        )
+        emails_lower = {(u.uname or "").strip().lower() for u in users if u.uname}
+        if not emails_lower:
+            return []
+        cands = (
+            db.query(CandidateORM)
+            .filter(sa_func.lower(sa_func.trim(CandidateORM.email)).in_(list(emails_lower)))
+            .all()
+        )
+        by_email = {(c.email or "").strip().lower(): c for c in cands if c.email}
+        out: List[Dict[str, Any]] = []
+        for u in users:
+            em = (u.uname or "").strip().lower()
+            c = by_email.get(em)
+            if not c:
+                continue
+            disp = (c.full_name or u.fullname or u.uname or "").strip() or u.uname
+            out.append(
+                {
+                    "id": u.id,
+                    "username": (u.uname or "").strip(),
+                    "display_name": disp,
+                }
+            )
+        out.sort(key=lambda x: (x["display_name"].lower(), x["username"].lower()))
+        return out
+
+    cand_q = (
+        db.query(CandidateORM)
+        .filter(CandidateORM.email.isnot(None))
+        .filter(sa_func.trim(CandidateORM.email) != "")
+    )
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        cand_q = cand_q.filter(
+            or_(
+                CandidateORM.full_name.ilike(term),
+                CandidateORM.email.ilike(term),
+            )
+        )
+
+    candidates = cand_q.order_by(CandidateORM.full_name.asc()).all()
+    emails_lower = {
+        (c.email or "").strip().lower()
+        for c in candidates
+        if c.email and (c.email or "").strip()
+    }
+    if not emails_lower:
+        return []
+
+    users = (
+        db.query(AuthUserORM)
+        .filter(sa_func.lower(sa_func.trim(AuthUserORM.uname)).in_(list(emails_lower)))
+        .all()
+    )
+    by_uname = {(u.uname or "").strip().lower(): u for u in users if u.uname}
+
+    out = []
+    seen_uids = set()
+    for c in candidates:
+        em = (c.email or "").strip().lower()
+        u = by_uname.get(em)
+        if not u or u.id in seen_uids:
+            continue
+        seen_uids.add(u.id)
+        disp = (c.full_name or u.fullname or u.uname or "").strip() or u.uname
+        out.append(
+            {
+                "id": u.id,
+                "username": (u.uname or "").strip(),
+                "display_name": disp,
+            }
+        )
+    out.sort(key=lambda x: (x["display_name"].lower(), x["username"].lower()))
+    return out[:limit]

@@ -176,7 +176,7 @@ class AutomationContactExtractBulkCreate(BaseModel):
 class AutomationContactExtractBulkResponse(BaseModel):
     total: int
     inserted: int
-    duplicates: int
+    updated: int
     failed: int
     errors: List[Dict[str, Any]] = []
 
@@ -1206,6 +1206,7 @@ class CandidateInterviewBase(BaseModel):
     notes: Optional[str] = None
     position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
+    q_a: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1227,6 +1228,8 @@ class CandidateInterviewCreate(BaseModel):
     position_id: Optional[int] = None
     position_title: Optional[str] = None
     position_location: Optional[str] = None
+    q_a: Optional[str] = None
+
 
 
 model_config = {
@@ -1254,6 +1257,7 @@ class CandidateInterviewUpdate(BaseModel):
     feedback: Optional[FeedbackEnum] = None
     notes: Optional[str] = None
     position_id: Optional[int] = None
+    q_a: Optional[str] = None
 
 
 # --- Output Schema ---
@@ -3959,6 +3963,7 @@ class TestCase(BaseModel):
     input: Optional[str] = None
     expected_output: str
     description: Optional[str] = None
+    locked: Optional[bool] = None
 
 
 class CodeSnippetBase(BaseModel):
@@ -4019,6 +4024,7 @@ class CoderpadQuestionBase(BaseModel):
     language: str = "python"
     starter_code: str = ""
     test_cases: Optional[List[TestCase]] = None
+    assigned_candidate_ids: Optional[List[int]] = None
     execution_timeout: int = 10
     is_active: bool = True
     sort_order: int = 0
@@ -4034,6 +4040,7 @@ class CoderpadQuestionUpdate(BaseModel):
     language: Optional[str] = None
     starter_code: Optional[str] = None
     test_cases: Optional[List[TestCase]] = None
+    assigned_candidate_ids: Optional[List[int]] = None
     execution_timeout: Optional[int] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
@@ -4047,6 +4054,12 @@ class CoderpadQuestionOut(CoderpadQuestionBase):
 
     class Config:
         from_attributes = True
+
+
+class CoderpadAssignableCandidateOut(BaseModel):
+    id: int
+    username: str
+    display_name: str
 
 
 class CodeExecutionRequest(BaseModel):

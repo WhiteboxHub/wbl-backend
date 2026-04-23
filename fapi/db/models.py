@@ -410,6 +410,7 @@ class CandidateInterview(Base):
     audio_link = Column(String(500), nullable=True)
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
+    q_a = Column(Text, nullable=True)
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -1129,6 +1130,8 @@ class AutomationContactExtractORM(Base):
     mailbox_invalid = Column(Boolean, nullable=False, server_default='0')
 
     last_email_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     bounced_flag = Column(Boolean, nullable=False, server_default='0')
     unsubscribed_flag = Column(Boolean, nullable=False, server_default='0')
@@ -1139,10 +1142,9 @@ class AutomationContactExtractORM(Base):
     complained_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    processed_at = Column(TIMESTAMP, nullable=True)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
+    processed_at = Column(TIMESTAMP, nullable=True)
+    
     __table_args__ = (
         UniqueConstraint('email_key', 'linkedin_key', name='uq_email_linkedin'),
         Index('idx_status', 'processing_status'),
@@ -1526,6 +1528,7 @@ class CoderpadQuestionORM(Base):
     language = Column(String(50), nullable=False, default="python")
     starter_code = Column(Text, nullable=False, default="")
     test_cases = Column(JSON, nullable=True)
+    assigned_candidate_ids = Column(JSON, nullable=True)
     execution_timeout = Column(Integer, nullable=False, default=10)
     is_active = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, nullable=False, default=0)
