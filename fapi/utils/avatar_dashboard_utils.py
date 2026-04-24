@@ -3,7 +3,7 @@ from sqlalchemy import func, desc, extract, or_, and_, case,text, String, cast, 
 from fapi.core.cache import cache_result
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
-from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Vendor, VendorContactExtractsORM, Recording, RecordingBatch, EmployeeTaskORM, JobTypeORM, JobActivityLogORM, PlacementFeeCollection, AmountCollectedEnum
+from fapi.db.models import Batch, CandidateORM, CandidateMarketingORM, CandidatePlacementORM, CandidateInterview, EmployeeORM, LeadORM, CandidatePreparation, Vendor, VendorContactExtractsORM, Recording, RecordingBatch, EmployeeTaskORM, JobTypeORM, JobActivityLogORM, PlacementFeeCollection, AmountCollectedEnum, AutomationContactExtractORM, EmailPositionORM
 from fapi.db.schemas import CandidatePreparationMetrics, EmployeeTaskMetrics, JobsMetrics
 import re
 
@@ -512,36 +512,69 @@ def get_candidate_preparation_metrics(db: Session):
 def get_vendor_stats(db: Session):
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start = today_start - timedelta(days=today_start.weekday()) 
+    seven_days_ago = today_start - timedelta(days=7)
 
     total_vendors = db.query(func.count(Vendor.id)).scalar()
-    today_extracted = (
-        db.query(func.count(VendorContactExtractsORM.id))
-        .filter(
-            and_(
-                VendorContactExtractsORM.email.isnot(None),
-                VendorContactExtractsORM.created_at >= today_start,
-            )
+
+    # Raw Contacts (AutomationContactExtractORM)
+    raw_contacts_today = db.query(func.count(AutomationContactExtractORM.id)).filter(
+        AutomationContactExtractORM.created_at >= today_start
+    ).scalar() or 0
+
+    raw_contacts_week = db.query(func.count(AutomationContactExtractORM.id)).filter(
+        AutomationContactExtractORM.created_at >= seven_days_ago
+    ).scalar() or 0
+
+    # Source breakdown logic
+    sources = [
+        "email",
+        "manual",
+        "bot_linkedin_message_extraction",
+        "bot_linkedin_post_contact_extractor"
+    ]
+    
+    def get_source_data(start_date=None):
+        query = db.query(
+            AutomationContactExtractORM.source_type,
+            func.count(AutomationContactExtractORM.id)
         )
-        .scalar()
-    )
-    week_extracted = (
-        db.query(func.count(VendorContactExtractsORM.id))
-        .filter(
-            and_(
-                VendorContactExtractsORM.email.isnot(None),
-                VendorContactExtractsORM.created_at >= week_start,
-            )
-        )
-        .scalar()
-    )
+        if start_date:
+            query = query.filter(AutomationContactExtractORM.created_at >= start_date)
+            
+        results = query.group_by(AutomationContactExtractORM.source_type).all()
+        
+        counts = {src: 0 for src in sources}
+        for src_type, count in results:
+            if src_type in counts:
+                counts[src_type] = count
+            # Map common variations
+            elif src_type == "email_extractor" and "email" in counts:
+                counts["email"] += count
+        return counts
+
+    raw_contacts_by_source_today = get_source_data(today_start)
+    raw_contacts_by_source_week = get_source_data(seven_days_ago)
+    raw_contacts_by_source_total = get_source_data(None)
+
+    # Email Positions (EmailPositionORM)
+    email_positions_today = db.query(func.count(EmailPositionORM.id)).filter(
+        EmailPositionORM.created_at >= today_start
+    ).scalar() or 0
+
+    email_positions_week = db.query(func.count(EmailPositionORM.id)).filter(
+        EmailPositionORM.created_at >= seven_days_ago
+    ).scalar() or 0
+
     return {
         "total_vendors": total_vendors or 0,
-        "today_extracted": today_extracted or 0,
-        "week_extracted": week_extracted or 0,
+        "raw_contacts_today": raw_contacts_today,
+        "raw_contacts_week": raw_contacts_week,
+        "email_positions_today": email_positions_today,
+        "email_positions_week": email_positions_week,
+        "raw_contacts_by_source_today": raw_contacts_by_source_today,
+        "raw_contacts_by_source_week": raw_contacts_by_source_week,
+        "raw_contacts_by_source_total": raw_contacts_by_source_total,
     }
-
-
 
 
 @cache_result(ttl=300, prefix="batches")

@@ -39,16 +39,17 @@ security = HTTPBearer()
 
 def extract_role_and_team_from_token(token: str):
     """
-    Extract role and team from JWT token.
+    Extract role, team, and is_employee from JWT token.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         role = payload.get("role")
         team = payload.get("team")
-        return role, team
+        is_employee = payload.get("is_employee", False)
+        return role, team, is_employee
     except Exception as e:
-        logging.error(f"Error extracting role and team from token: {e}")
-        return None, None
+        logging.error(f"Error extracting info from token: {e}")
+        return None, None, False
 
 
 @router.head("/course-content")
@@ -75,11 +76,11 @@ async def get_session_types(
 ):
     token = credentials.credentials
     
-    # Extract role and team from token
-    role, user_team = extract_role_and_team_from_token(token)
+    # Extract role, team, and is_employee from token
+    role, user_team, is_employee = extract_role_and_team_from_token(token)
     
     async def _get_types():
-        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, role, user_team)
+        return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, role, user_team, is_employee)
 
     try:
         types = await _get_types()
@@ -100,8 +101,8 @@ async def get_sessions(
 ):
     token = credentials.credentials
     
-    # Extract role and team from token
-    role, user_team = extract_role_and_team_from_token(token)
+    # Extract role, team, and is_employee from token
+    role, user_team, is_employee = extract_role_and_team_from_token(token)
     
     async def _get_sessions():
         course_name_to_id = {"QA": 1, "UI": 2, "ML": 3}
@@ -114,7 +115,7 @@ async def get_sessions(
                     detail=f"Invalid course name: {course_name}. Valid values are QA, UI, ML."
                 )
         return await anyio.to_thread.run_sync(
-            fetch_sessions_by_type_orm, db, course_id, session_type, team, role, user_team
+            fetch_sessions_by_type_orm, db, course_id, session_type, team, role, user_team, is_employee
         )
 
     try:

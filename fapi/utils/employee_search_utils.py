@@ -59,6 +59,64 @@ def get_employee_details(db: Session) -> List[Dict]:
     return result
 
 
+def _normalize_search_value(value: Any) -> str:
+    if value is None:
+        return ""
+    return re.sub(r"\s+", " ", str(value).strip().lower())
+
+
+def _employee_match_score(emp: Dict, normalized_query: str):
+    name = _normalize_search_value(emp.get("name"))
+    email = _normalize_search_value(emp.get("email"))
+    emp_id = _normalize_search_value(emp.get("id"))
+    email_local = email.split("@")[0] if email else ""
+    name_parts = name.split()
+
+    if normalized_query == emp_id:
+        return (0, len(emp_id), emp.get("id") or 0)
+    if normalized_query == email:
+        return (1, len(email), emp.get("id") or 0)
+    if normalized_query == email_local:
+        return (2, len(email_local), emp.get("id") or 0)
+    if normalized_query == name:
+        return (3, len(name), emp.get("id") or 0)
+    if any(part == normalized_query for part in name_parts):
+        return (4, len(name), emp.get("id") or 0)
+    if name.startswith(normalized_query):
+        return (5, len(name), emp.get("id") or 0)
+    if any(part.startswith(normalized_query) for part in name_parts):
+        return (6, len(name), emp.get("id") or 0)
+    if email.startswith(normalized_query):
+        return (7, len(email), emp.get("id") or 0)
+    if email_local.startswith(normalized_query):
+        return (8, len(email_local), emp.get("id") or 0)
+    if normalized_query in name:
+        return (9, len(name), emp.get("id") or 0)
+    if normalized_query in email:
+        return (10, len(email), emp.get("id") or 0)
+    if normalized_query in emp_id:
+        return (11, len(emp_id), emp.get("id") or 0)
+    return None
+
+
+def search_employee_details(employees: List[Dict], query: str) -> List[Dict]:
+    normalized_query = _normalize_search_value(query)
+    if not normalized_query:
+        return employees
+
+    scored_matches = []
+    for emp in employees:
+        score = _employee_match_score(emp, normalized_query)
+        if score is not None:
+            scored_matches.append((score, emp))
+
+    if not scored_matches:
+        return []
+
+    scored_matches.sort(key=lambda item: item[0])
+    return [scored_matches[0][1]]
+
+
 
 
 

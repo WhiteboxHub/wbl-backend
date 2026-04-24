@@ -8,7 +8,10 @@ from fapi.core.cache import cache_result, invalidate_cache
 @cache_result(ttl=300, prefix="recording_batches")
 def get_all_recording_batches(db: Session) -> List[models.RecordingBatch]:
     """Get all recording batch mappings"""
-    return db.query(models.RecordingBatch).all()
+    return db.query(models.RecordingBatch).order_by(
+        models.RecordingBatch.recording_id.desc(),
+        models.RecordingBatch.batch_id.desc(),
+    ).all()
 
 @cache_result(ttl=300, prefix="recording_batches")
 def get_recording_batch(db: Session, recording_id: int, batch_id: int) -> Optional[models.RecordingBatch]:
@@ -23,14 +26,14 @@ def get_batches_for_recording(db: Session, recording_id: int) -> List[models.Rec
     """Get all batches for a recording"""
     return db.query(models.RecordingBatch).filter(
         models.RecordingBatch.recording_id == recording_id
-    ).all()
+    ).order_by(models.RecordingBatch.batch_id.desc()).all()
 
 @cache_result(ttl=300, prefix="recording_batches")
 def get_recordings_for_batch(db: Session, batch_id: int) -> List[models.RecordingBatch]:
     """Get all recordings for a batch"""
     return db.query(models.RecordingBatch).filter(
         models.RecordingBatch.batch_id == batch_id
-    ).all()
+    ).order_by(models.RecordingBatch.recording_id.desc()).all()
 
 def create_recording_batch(db: Session, recording_batch: schemas.RecordingBatchCreate) -> models.RecordingBatch:
     """Create a new recording batch mapping"""
@@ -52,6 +55,42 @@ def create_recording_batch(db: Session, recording_batch: schemas.RecordingBatchC
     
     db_recording_batch = models.RecordingBatch(**recording_batch.model_dump())
     db.add(db_recording_batch)
+    db.commit()
+    db.refresh(db_recording_batch)
+    return db_recording_batch
+
+def update_recording_batch(
+    db: Session,
+    recording_id: int,
+    batch_id: int,
+    updated_recording_batch: schemas.RecordingBatchCreate,
+) -> models.RecordingBatch:
+    """Update an existing recording batch mapping."""
+    db_recording_batch = get_recording_batch(db, recording_id, batch_id)
+    if not db_recording_batch:
+        raise ValueError("Recording batch mapping not found")
+
+    new_recording_id = updated_recording_batch.recording_id
+    new_batch_id = updated_recording_batch.batch_id
+
+    # Verify recording exists
+    recording = db.query(models.Recording).filter(models.Recording.id == new_recording_id).first()
+    if not recording:
+        raise ValueError("Recording not found")
+
+    # Verify batch exists
+    batch = db.query(models.Batch).filter(models.Batch.batchid == new_batch_id).first()
+    if not batch:
+        raise ValueError("Batch not found")
+
+    is_changing_key = (recording_id != new_recording_id) or (batch_id != new_batch_id)
+    if is_changing_key:
+        existing = get_recording_batch(db, new_recording_id, new_batch_id)
+        if existing:
+            raise ValueError("Recording batch mapping already exists")
+
+    db_recording_batch.recording_id = new_recording_id
+    db_recording_batch.batch_id = new_batch_id
     db.commit()
     db.refresh(db_recording_batch)
     return db_recording_batch

@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi import HTTPException, Response
@@ -8,9 +9,9 @@ from fapi.utils.table_fingerprint import generate_version_for_model
 
 from fapi.db.models import AutomationContactExtractORM
 from fapi.db.schemas import (
-    AutomationContactExtractCreate, 
+    AutomationContactExtractCreate,
     AutomationContactExtractUpdate,
-    ContactProcessingStatusEnum
+    ContactProcessingStatusEnum,
 )
 
 logger = logging.getLogger(__name__)
@@ -23,13 +24,20 @@ async def get_all_automation_extracts(db: Session, status: Optional[str] = None,
     try:
         query = db.query(AutomationContactExtractORM)
         if status:
-            query = query.filter(AutomationContactExtractORM.processing_status == status)
+            query = query.filter(
+                AutomationContactExtractORM.processing_status == status
+            )
         if source_email:
-            query = query.filter(AutomationContactExtractORM.source_reference == source_email)
-        return query.order_by(AutomationContactExtractORM.id.desc()).all()
+            query = query.filter(
+                AutomationContactExtractORM.source_reference == source_email
+            )
+        return query.order_by(AutomationContactExtractORM.updated_at.desc()).all()
     except SQLAlchemyError as e:
         logger.error(f"Error fetching automation extracts: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error fetching automation extracts")
+        raise HTTPException(
+            status_code=500, detail="Error fetching automation extracts"
+        )
+
 
 @cache_result(ttl=300, prefix="automation_contacts")
 def count_automation_extracts(
@@ -45,25 +53,38 @@ def count_automation_extracts(
     try:
         query = db.query(AutomationContactExtractORM)
         if status:
-            query = query.filter(AutomationContactExtractORM.processing_status == status)
+            query = query.filter(
+                AutomationContactExtractORM.processing_status == status
+            )
         if email_invalid is not None:
-            query = query.filter(AutomationContactExtractORM.email_invalid == email_invalid)
+            query = query.filter(
+                AutomationContactExtractORM.email_invalid == email_invalid
+            )
         if domain_invalid is not None:
-            query = query.filter(AutomationContactExtractORM.domain_invalid == domain_invalid)
+            query = query.filter(
+                AutomationContactExtractORM.domain_invalid == domain_invalid
+            )
         if mailbox_invalid is not None:
-            query = query.filter(AutomationContactExtractORM.mailbox_invalid == mailbox_invalid)
+            query = query.filter(
+                AutomationContactExtractORM.mailbox_invalid == mailbox_invalid
+            )
         if bounced_flag is not None:
-            query = query.filter(AutomationContactExtractORM.bounced_flag == bounced_flag)
+            query = query.filter(
+                AutomationContactExtractORM.bounced_flag == bounced_flag
+            )
         if unsubscribed_flag is not None:
-            query = query.filter(AutomationContactExtractORM.unsubscribed_flag == unsubscribed_flag)
+            query = query.filter(
+                AutomationContactExtractORM.unsubscribed_flag == unsubscribed_flag
+            )
         if complained_flag is not None:
-            query = query.filter(AutomationContactExtractORM.complained_flag == complained_flag)
+            query = query.filter(
+                AutomationContactExtractORM.complained_flag == complained_flag
+            )
         return query.count()
     except SQLAlchemyError as e:
         logger.error(f"Error counting automation extracts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"DB Error: {str(e)}")
 
-@cache_result(ttl=300, prefix="automation_contacts")
 def get_automation_extracts_paginated(
     db: Session,
     skip: int = 0,
@@ -79,23 +100,44 @@ def get_automation_extracts_paginated(
     try:
         query = db.query(AutomationContactExtractORM)
         if status:
-            query = query.filter(AutomationContactExtractORM.processing_status == status)
+            query = query.filter(
+                AutomationContactExtractORM.processing_status == status
+            )
         if email_invalid is not None:
-            query = query.filter(AutomationContactExtractORM.email_invalid == email_invalid)
+            query = query.filter(
+                AutomationContactExtractORM.email_invalid == email_invalid
+            )
         if domain_invalid is not None:
-            query = query.filter(AutomationContactExtractORM.domain_invalid == domain_invalid)
+            query = query.filter(
+                AutomationContactExtractORM.domain_invalid == domain_invalid
+            )
         if mailbox_invalid is not None:
-            query = query.filter(AutomationContactExtractORM.mailbox_invalid == mailbox_invalid)
+            query = query.filter(
+                AutomationContactExtractORM.mailbox_invalid == mailbox_invalid
+            )
         if bounced_flag is not None:
-            query = query.filter(AutomationContactExtractORM.bounced_flag == bounced_flag)
+            query = query.filter(
+                AutomationContactExtractORM.bounced_flag == bounced_flag
+            )
         if unsubscribed_flag is not None:
-            query = query.filter(AutomationContactExtractORM.unsubscribed_flag == unsubscribed_flag)
+            query = query.filter(
+                AutomationContactExtractORM.unsubscribed_flag == unsubscribed_flag
+            )
         if complained_flag is not None:
-            query = query.filter(AutomationContactExtractORM.complained_flag == complained_flag)
-        return query.order_by(AutomationContactExtractORM.id.desc()).offset(skip).limit(limit).all()
+            query = query.filter(
+                AutomationContactExtractORM.complained_flag == complained_flag
+            )
+        return (
+            query.order_by(AutomationContactExtractORM.updated_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
     except SQLAlchemyError as e:
         logger.error(f"Error fetching paginated automation extracts: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error fetching paginated automation extracts")
+        raise HTTPException(
+            status_code=500, detail="Error fetching paginated automation extracts"
+        )
 
 @cache_result(ttl=300, prefix="automation_contacts")
 async def get_automation_extract_by_id(extract_id: int, db: Session) -> AutomationContactExtractORM:
@@ -104,19 +146,43 @@ async def get_automation_extract_by_id(extract_id: int, db: Session) -> Automati
         raise HTTPException(status_code=404, detail="Automation extract not found")
     return extract
 
-async def insert_automation_extract(extract: AutomationContactExtractCreate, db: Session) -> AutomationContactExtractORM:
+
+async def insert_automation_extract(
+    extract: AutomationContactExtractCreate, db: Session
+) -> AutomationContactExtractORM: 
     invalidate_cache("automation_contacts")
     try:
-        data = {k: v for k, v in extract.dict().items() if k not in _COMPUTED_COLS}
-        db_extract = AutomationContactExtractORM(**data)
-        db.add(db_extract)
-        db.commit()
-        db.refresh(db_extract)
-        return db_extract
+        current_time = datetime.utcnow()
+        existing = (
+            db.query(AutomationContactExtractORM)
+            .filter(
+                AutomationContactExtractORM.email_lc == extract.email.strip().lower()
+            )
+            .first()
+        )
+
+        if existing:
+            # updating created at and updated at
+            existing.created_at = current_time
+            existing.updated_at = current_time
+            db.commit()
+            db.refresh(existing)
+            return existing
+        else:
+            # if new record
+            data = {k: v for k, v in extract.dict().items() if k not in _COMPUTED_COLS}
+            db_extract = AutomationContactExtractORM(
+                **data, created_at=current_time, updated_at=current_time
+            )
+            db.add(db_extract)
+            db.commit()
+            db.refresh(db_extract)
+            return db_extract
     except Exception as e:
         db.rollback()
-        logger.error(f"Insert error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Insert error: {str(e)}")
+        logger.error(f"upsert error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"upsert error: {str(e)}")
+   
 
 async def update_automation_extract(extract_id: int, update_data: AutomationContactExtractUpdate, db: Session) -> AutomationContactExtractORM:
     invalidate_cache("automation_contacts")
@@ -125,7 +191,7 @@ async def update_automation_extract(extract_id: int, update_data: AutomationCont
         update_fields = update_data.dict(exclude_unset=True)
         for field, value in update_fields.items():
             setattr(db_extract, field, value)
-        
+
         db.commit()
         db.refresh(db_extract)
         return db_extract
@@ -133,6 +199,7 @@ async def update_automation_extract(extract_id: int, update_data: AutomationCont
         db.rollback()
         logger.error(f"Update error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Update error: {str(e)}")
+
 
 async def delete_automation_extract(extract_id: int, db: Session) -> dict:
     invalidate_cache("automation_contacts")
@@ -146,45 +213,75 @@ async def delete_automation_extract(extract_id: int, db: Session) -> dict:
         logger.error(f"Delete error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Delete error: {str(e)}")
 
-async def insert_automation_extracts_bulk(extracts: List[AutomationContactExtractCreate], db: Session) -> dict:
+async def insert_automation_extracts_bulk(
+    extracts: List[AutomationContactExtractCreate], 
+    db: Session
+) -> dict:
     invalidate_cache("automation_contacts")
+    extraction_time = datetime.utcnow()  # capturing the time of extraction
     inserted = 0
+    updated = 0  # new counter for updated records
     failed = 0
-    duplicates = 0
-    errors = []
-    
+    errors=[]
+
     for ext in extracts:
         try:
             with db.begin_nested():
-                data = {k: v for k, v in ext.dict().items() if k not in _COMPUTED_COLS}
-                db_extract = AutomationContactExtractORM(**data)
-                db.add(db_extract)
+                # check if email already registered or not
+                existing = (
+                    db.query(AutomationContactExtractORM)
+                    .filter(
+                        AutomationContactExtractORM.email_lc
+                        == ext.email.strip().lower()
+                        if ext.email
+                        else None
+                    )
+                    .first()
+                )
+                if existing:
+                    # update updated_at to extraction time
+                    existing.updated_at = extraction_time
+                    existing.created_at = extraction_time
+                    updated += 1
+                else:
+                    # will insert if the email is new
+                    data = {
+                        k: v for k, v in ext.dict().items() if k not in _COMPUTED_COLS
+                    }
+                    db_extract = AutomationContactExtractORM(**data,created_at=extraction_time, updated_at=extraction_time)
+                    db.add(db_extract)
+                    inserted += 1
                 db.flush()
-            inserted += 1
-        except IntegrityError:
-            duplicates += 1
         except Exception as e:
             failed += 1
-            errors.append({"full_name": ext.full_name, "email": ext.email, "error": str(e)})
+            errors.append(
+                {"full_name": ext.full_name, "email": ext.email, "error": str(e)}
+            )
             logger.error(f"Failed to insert extract {ext.full_name}: {str(e)}")
-            
+
     db.commit()
     return {
         "total": len(extracts),
         "inserted": inserted,
-        "duplicates": duplicates,
+        "updated": updated,  # including the updated count here
         "failed": failed,
-        "errors": errors
+        "errors": errors,
     }
+
 
 async def delete_automation_extracts_bulk(extract_ids: List[int], db: Session) -> dict:
     invalidate_cache("automation_contacts")
     try:
-        deleted_count = db.query(AutomationContactExtractORM).filter(
-            AutomationContactExtractORM.id.in_(extract_ids)
-        ).delete(synchronize_session=False)
+        deleted_count = (
+            db.query(AutomationContactExtractORM)
+            .filter(AutomationContactExtractORM.id.in_(extract_ids))
+            .delete(synchronize_session=False)
+        )
         db.commit()
-        return {"deleted": deleted_count, "message": f"Successfully deleted {deleted_count} extracts"}
+        return {
+            "deleted": deleted_count,
+            "message": f"Successfully deleted {deleted_count} extracts",
+        }
     except Exception as e:
         db.rollback()
         logger.error(f"Bulk delete error: {str(e)}")
@@ -206,6 +303,7 @@ async def check_existing_emails_bulk(emails: List[str], db: Session) -> List[str
     except Exception as e:
         logger.error(f"Bulk email check failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Bulk email check failed")
+
 
 def get_automation_extracts_version(db: Session) -> Response:
     return generate_version_for_model(db, AutomationContactExtractORM)

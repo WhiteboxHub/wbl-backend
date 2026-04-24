@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from fapi.utils import session_utils
 from fapi.db import schemas
@@ -10,11 +10,17 @@ router = APIRouter()
 @router.get("/session", response_model=list[schemas.SessionOut])
 def read_sessions(
     search_title: str = None,
+    page: int = Query(default=1, ge=1),         
+    size: int = Query(default=100, le=2000),      
     db: Session = Depends(get_db)
 ):
-    return session_utils.get_sessions(db, search_title=search_title)
-
-
+    return session_utils.get_sessions(
+        db,
+        search_title=search_title,
+        page=page,
+        size=size 
+        )
+  
 @router.get("/session/{sessionid}", response_model=schemas.SessionOut)
 def read_session(sessionid: int, db: Session = Depends(get_db)):
     session = session_utils.get_session(db, sessionid=sessionid)
@@ -24,17 +30,24 @@ def read_session(sessionid: int, db: Session = Depends(get_db)):
 
 
 @router.post("/session", response_model=schemas.SessionOut)
-def create_new_session(session: schemas.SessionCreate, db: Session = Depends(get_db)):
+def create_new_session(
+    session: schemas.SessionCreate,
+    db: Session = Depends(get_db)
+):
     return session_utils.create_session(db, session=session)
 
 
+
 @router.put("/session/{sessionid}", response_model=schemas.SessionOut)
-def update_existing_session(sessionid: int, session: schemas.SessionUpdate, db: Session = Depends(get_db)):
+def update_existing_session(
+    sessionid: int,
+    session: schemas.SessionUpdate,
+    db: Session = Depends(get_db)
+):
     updated = session_utils.update_session(db, sessionid, session)
     if not updated:
         raise HTTPException(status_code=404, detail="Session not found")
     return updated
-
 
 @router.delete("/session/{sessionid}", response_model=schemas.SessionOut)
 def delete_existing_session(sessionid: int, db: Session = Depends(get_db)):
@@ -42,4 +55,3 @@ def delete_existing_session(sessionid: int, db: Session = Depends(get_db)):
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
     return deleted
-
