@@ -1036,19 +1036,19 @@ class CandidateResumeOut(CandidateResumeBase):
 class CandidateAPIKeyBase(BaseModel):
     provider_name: str
     model_name: Optional[str] = None
-    services_enabled: Optional[Dict[str, bool]] = None
+    voice_enabled: bool = False
 
 class CandidateAPIKeyCreate(CandidateAPIKeyBase):
     api_key: str
 
 class CandidateAPIKeyUpdate(BaseModel):
     model_name: Optional[str] = None
-    services_enabled: Optional[Dict[str, bool]] = None
     api_key: Optional[str] = None
 
 class CandidateAPIKeyOut(CandidateAPIKeyBase):
     id: int
     candidate_id: int
+    masked_key: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     class Config:

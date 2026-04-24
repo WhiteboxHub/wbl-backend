@@ -300,13 +300,9 @@ class CandidateAPIKeyORM(Base):
     provider_name = Column(String(50), nullable=False)
     api_key = Column(Text, nullable=False)
     model_name = Column(String(100), nullable=True)
-    services_enabled = Column(JSON, nullable=True)
+    voice_enabled = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
-
-    __table_args__ = (
-        UniqueConstraint("candidate_id", "provider_name", name="unique_candidate_provider"),
-    )
 
     candidate = relationship("CandidateORM")
 
