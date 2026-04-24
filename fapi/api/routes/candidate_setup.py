@@ -25,6 +25,54 @@ def get_candidate_id(user, db: Session):
          raise HTTPException(status_code=404, detail="Candidate profile not found for this user.")
     return candidate_info.candidateid
 
+def validate_resume_json(resume_json: Dict[str, Any]):
+    # Define sets of possible keys for each mandatory field
+    field_maps = {
+        "Work Experience": ["Work Experience", "experience", "work", "work_experience", "employment"],
+        "Education": ["Education", "education", "academics"],
+        "LinkedIn": ["LinkedIn", "linkedin", "linkedin_url"],
+        "Contact Number": ["Contact Number", "phone", "contact_number", "mobile", "phone_number"],
+        "Email ID": ["Email ID", "email", "email_id"]
+    }
+    
+    missing_fields = []
+    
+    # Check top-level or within 'contact' object
+    contact_obj = resume_json.get("contact", {}) if isinstance(resume_json.get("contact"), dict) else {}
+
+    for label, possible_keys in field_maps.items():
+        found = False
+        # Check top level
+        for k in possible_keys:
+            if k in resume_json and str(resume_json[k]).strip():
+                found = True
+                break
+        
+        # Check within contact object if not found
+        if not found and contact_obj:
+            for k in possible_keys:
+                if k in contact_obj and str(contact_obj[k]).strip():
+                    found = True
+                    break
+        
+        if not found:
+            missing_fields.append(label)
+    
+    if missing_fields:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Missing or invalid mandatory fields: {', '.join(missing_fields)}"
+        )
+
+def detect_provider(api_key: str) -> str:
+    if api_key.startswith("sk-ant"):
+        return "claude"
+    if api_key.startswith("sk-") or api_key.startswith("sk-proj-"):
+        return "openai"
+    if api_key.startswith("AIzaSy"):
+        return "gemini"
+    return "unknown"
+
 @router.get("/setup-status", response_model=CandidateSetupStatus)
 def get_setup_status(db: Session = Depends(get_db), user = Depends(get_current_user)):
     cid = get_candidate_id(user, db)
@@ -39,6 +87,7 @@ def get_setup_status(db: Session = Depends(get_db), user = Depends(get_current_u
 
 @router.post("/resume", response_model=CandidateResumeOut)
 def upload_resume(resume_in: CandidateResumeCreate, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    validate_resume_json(resume_in.resume_json)
     cid = get_candidate_id(user, db)
     existing = db.query(CandidateResumeORM).filter(CandidateResumeORM.candidate_id == cid).first()
     if existing:
@@ -64,6 +113,7 @@ def get_resume(db: Session = Depends(get_db), user = Depends(get_current_user)):
 
 @router.put("/resume", response_model=CandidateResumeOut)
 def update_resume(resume_in: CandidateResumeUpdate, db: Session = Depends(get_db), user = Depends(get_current_user)):
+    validate_resume_json(resume_in.resume_json)
     cid = get_candidate_id(user, db)
     resume = db.query(CandidateResumeORM).filter(CandidateResumeORM.candidate_id == cid).first()
     if not resume:
@@ -77,59 +127,116 @@ def update_resume(resume_in: CandidateResumeUpdate, db: Session = Depends(get_db
 @router.post("/api-keys", response_model=CandidateAPIKeyOut)
 def add_api_key(key_in: CandidateAPIKeyCreate, db: Session = Depends(get_db), user = Depends(get_current_user)):
     # Validate the key before proceeding
+    detected = detect_provider(key_in.api_key)
     provider = key_in.provider_name.lower()
+    
+    # If the provided provider name matches the detected one (or detected is unknown/provided is unknown), proceed.
+    # We prioritize the provided provider name from the UI, but we can log a warning if they mismatch.
+    
     is_valid = False
+    supports_voice = False
+    
     try:
         if provider == "openai":
-            res = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {key_in.api_key}"}, timeout=5)
-            is_valid = (res.status_code == 200)
+            headers = {"Authorization": f"Bearer {key_in.api_key}"}
+            res = requests.get("https://api.openai.com/v1/models", headers=headers, timeout=5)
+            if res.status_code == 200:
+                is_valid = True
+                models = res.json().get("data", [])
+                supports_voice = any(m["id"] == "whisper-1" for m in models)
         elif provider == "claude" or provider == "anthropic":
-            res = requests.get("https://api.anthropic.com/v1/models", headers={"x-api-key": key_in.api_key, "anthropic-version": "2023-06-01"}, timeout=5)
-            is_valid = (res.status_code == 200)
+            headers = {
+                "x-api-key": key_in.api_key, 
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            # Anthropic doesn't have a simple /models GET endpoint that works with API keys easily?
+            # Actually they have /v1/models in some versions. Let's try a small message if needed, 
+            # but /models is usually the standard.
+            res = requests.get("https://api.anthropic.com/v1/models", headers=headers, timeout=5)
+            if res.status_code == 200:
+                is_valid = True
+                # Claude 3.5 Sonnet supports multimodal (including audio in some contexts)
+                supports_voice = True # For now assume Claude models added are latest
         elif provider == "gemini" or provider == "google":
             res = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={key_in.api_key}", timeout=5)
-            is_valid = (res.status_code == 200)
+            if res.status_code == 200:
+                is_valid = True
+                models = res.json().get("models", [])
+                # Gemini 1.5 Pro and Flash support audio
+                supports_voice = any("gemini-1.5" in m["name"] for m in models)
         else:
             is_valid = True # skip validation for unknown providers
+            supports_voice = True
+
     except Exception as e:
         logger.error(f"Error validating API key for {key_in.provider_name}: {str(e)}")
         
     if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid API key for {key_in.provider_name}")
+        raise HTTPException(status_code=400, detail="Invalid API Key")
+
+    if key_in.voice_enabled and not supports_voice:
+        raise HTTPException(status_code=400, detail="API key does not support voice processing")
 
     cid = get_candidate_id(user, db)
     encrypted_key = encrypt_api_key(key_in.api_key)
     
-    existing = db.query(CandidateAPIKeyORM).filter(
+    # Check for exact duplicate (same provider, same model, same key) to avoid noise
+    existing_duplicate = db.query(CandidateAPIKeyORM).filter(
         CandidateAPIKeyORM.candidate_id == cid,
-        CandidateAPIKeyORM.provider_name == key_in.provider_name
+        CandidateAPIKeyORM.provider_name == key_in.provider_name,
+        CandidateAPIKeyORM.model_name == key_in.model_name,
+        CandidateAPIKeyORM.api_key == encrypted_key
     ).first()
-    
-    if existing:
-        existing.api_key = encrypted_key
-        existing.model_name = key_in.model_name
-        existing.services_enabled = key_in.services_enabled
+
+    if existing_duplicate:
+        existing_duplicate.voice_enabled = key_in.voice_enabled
         db.commit()
-        db.refresh(existing)
-        return existing
+        db.refresh(existing_duplicate)
+        # Return with masked key
+        out = CandidateAPIKeyOut.from_orm(existing_duplicate)
+        try:
+            raw = decrypt_api_key(existing_duplicate.api_key)
+            out.masked_key = f"{'*' * (len(raw)-4)}{raw[-4:]}" if len(raw) > 4 else "****"
+        except:
+            out.masked_key = "****"
+        return out
 
     new_key = CandidateAPIKeyORM(
         candidate_id=cid,
         provider_name=key_in.provider_name,
         api_key=encrypted_key,
         model_name=key_in.model_name,
-        services_enabled=key_in.services_enabled
+        voice_enabled=key_in.voice_enabled
     )
     db.add(new_key)
     db.commit()
     db.refresh(new_key)
-    return new_key
+    
+    # Return with masked key
+    out = CandidateAPIKeyOut.from_orm(new_key)
+    try:
+        raw = decrypt_api_key(new_key.api_key)
+        out.masked_key = f"{'*' * (len(raw)-4)}{raw[-4:]}" if len(raw) > 4 else "****"
+    except:
+        out.masked_key = "****"
+    return out
 
 @router.get("/api-keys", response_model=List[CandidateAPIKeyOut])
 def list_api_keys(db: Session = Depends(get_db), user = Depends(get_current_user)):
     cid = get_candidate_id(user, db)
     keys = db.query(CandidateAPIKeyORM).filter(CandidateAPIKeyORM.candidate_id == cid).all()
-    return keys
+    out = []
+    for k in keys:
+        try:
+            raw = decrypt_api_key(k.api_key)
+            masked = f"{'*' * (len(raw)-4)}{raw[-4:]}" if len(raw) > 4 else "****"
+        except:
+            masked = "****"
+        item = CandidateAPIKeyOut.from_orm(k)
+        item.masked_key = masked
+        out.append(item)
+    return out
 
 @router.delete("/api-keys/{key_id}")
 def delete_api_key(key_id: int, db: Session = Depends(get_db), user = Depends(get_current_user)):
