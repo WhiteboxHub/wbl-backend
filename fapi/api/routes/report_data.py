@@ -73,19 +73,18 @@ def get_marketing_report_raw_data(
             JobLinkClicksORM, JobLinkClicksORM.authuser_id == AuthUserORM.id
         ).filter(
             JobLinkClicksORM.last_clicked_at >= weekly_start_date,
-            JobLinkClicksORM.last_clicked_at < end_date
+            JobLinkClicksORM.last_clicked_at <= end_date
         ).group_by(
             AuthUserORM.uname
         ).all()
         click_mapping = {email.lower().strip(): int(count) for email, count in job_clicks_raw if email and count is not None}
 
-        # 3. Outreach & Automations (Workflow IDs - from production):
-        # Email Outreach: 1=daily_vendor_outreach, 3=weekly_vendor_outreach, 5=weekly_leads_outreach, 6=weekly_potential_leads_outreach
-        # Portal Auto: 7=weekly_automation_application_engine, 10=Raw_Positions_Auto_Apply
+        # 3. Outreach & Automations (Workflow IDs)
+        # 1,3,6,10 = Outreach | 7,9 = Job Portal Automations
         outreach_logs = db.query(AutomationWorkflowLogORM).filter(
-            AutomationWorkflowLogORM.workflow_id.in_([1, 3, 5, 6, 7, 10]),
+            AutomationWorkflowLogORM.workflow_id.in_([1, 3, 6, 7, 9, 10]),
             AutomationWorkflowLogORM.created_at >= weekly_start_date,
-            AutomationWorkflowLogORM.created_at < end_date
+            AutomationWorkflowLogORM.created_at <= end_date
         ).all()
 
         # Email Mapping for Robust Lookup
@@ -106,9 +105,9 @@ def get_marketing_report_raw_data(
             if cand_id:
                 c_id = int(cand_id)
                 records = log.records_processed or 0
-                if log.workflow_id in [1, 3, 5, 6]:
+                if log.workflow_id in [1, 3, 6, 10]:
                     outreach_dict[c_id] = outreach_dict.get(c_id, 0) + records
-                elif log.workflow_id in [7, 10]:
+                elif log.workflow_id in [7, 9]:
                     portal_dict[c_id] = portal_dict.get(c_id, 0) + records
 
         # 4. LinkedIn Easy Apply (Activity Logs)
@@ -120,7 +119,7 @@ def get_marketing_report_raw_data(
         ).filter(
             JobTypeORM.name.ilike('%Linkedin%'),
             JobActivityLogORM.activity_date >= weekly_start_date.date(),
-            JobActivityLogORM.activity_date < end_date.date()
+            JobActivityLogORM.activity_date <= end_date.date()
         ).group_by(JobActivityLogORM.candidate_id).all()
         linkedin_dict = {int(row[0]): int(row[1]) for row in linkedin_activity if row[0]}
 
@@ -161,7 +160,7 @@ def get_marketing_report_raw_data(
         # Global Summary Stats
         global_total_clicks = db.query(func.sum(JobLinkClicksORM.click_count)).filter(
             JobLinkClicksORM.last_clicked_at >= weekly_start_date,
-            JobLinkClicksORM.last_clicked_at < end_date
+            JobLinkClicksORM.last_clicked_at <= end_date
         ).scalar() or 0
 
         # Sort candidates alphabetically by name
