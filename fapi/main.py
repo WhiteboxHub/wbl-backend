@@ -14,7 +14,8 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup, report_data, report_pdf
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup, report_data, report_pdf, sync_cli
+
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
@@ -149,6 +150,8 @@ app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placem
 app.include_router(placement_commission.router, prefix="/api", tags=["Placement Commission"], dependencies=[Depends(enforce_access)])
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
+app.include_router(sync_cli.router, prefix="/api", tags=["JobCLI Sync"])
+
 
 # Job and Outreach Routers
 app.include_router(job_listing.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
