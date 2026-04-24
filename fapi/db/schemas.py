@@ -37,6 +37,7 @@ class JobListingSourceEnum(str, enum.Enum):
     job_board = 'job_board'
     scraper = 'scraper'
     hiring_cafe = 'hiring.cafe'
+    jobright_ai = 'jobright.ai'
     trueup_io = 'trueup.io'
     interview_modal = 'interview_modal'
     email_bot_llm_local = 'email_bot_llm_local'
@@ -1035,19 +1036,19 @@ class CandidateResumeOut(CandidateResumeBase):
 class CandidateAPIKeyBase(BaseModel):
     provider_name: str
     model_name: Optional[str] = None
-    services_enabled: Optional[Dict[str, bool]] = None
+    voice_enabled: bool = False
 
 class CandidateAPIKeyCreate(CandidateAPIKeyBase):
     api_key: str
 
 class CandidateAPIKeyUpdate(BaseModel):
     model_name: Optional[str] = None
-    services_enabled: Optional[Dict[str, bool]] = None
     api_key: Optional[str] = None
 
 class CandidateAPIKeyOut(CandidateAPIKeyBase):
     id: int
     candidate_id: int
+    masked_key: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     class Config:
@@ -4144,3 +4145,35 @@ class ExtensionKeyBulkResponse(BaseModel):
     inserted: int
     skipped: int
     total: int
+
+# ---------------------------------------------
+# JobCLI Sync Schemas (Phase 2)
+# ---------------------------------------------
+
+class FieldAnswerInput(BaseModel):
+    ats_type: str
+    normalized_label: str
+    value: str
+    total_success: int
+    total_failure: int
+    confidence: float
+
+class LocatorInput(BaseModel):
+    ats_type: str
+    purpose: str
+    selector: str
+    selector_type: str = "css"
+    domain_pattern: Optional[str] = None
+    total_success: int
+    total_failure: int
+    confidence: float
+
+class UploadPayload(BaseModel):
+    field_answers: List[FieldAnswerInput]
+    locators: List[LocatorInput]
+
+class DownloadPayload(BaseModel):
+    version: str
+    field_answers: List[FieldAnswerInput]
+    locators: List[LocatorInput]
+
