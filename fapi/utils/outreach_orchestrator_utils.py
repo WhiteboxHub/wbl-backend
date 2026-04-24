@@ -65,6 +65,7 @@ _ALLOWED_WORKFLOW_KEYS = {
     "weekly_potential_leads_outreach",
     "linkedin_non_easy_job_extractor",
     "hiring_cafe_job_extractor",
+    "jobright-engine",
     "weekly_marketing_report",
 }
 
