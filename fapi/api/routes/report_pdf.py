@@ -30,7 +30,7 @@ def generate_report_pdf(data):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", "B", 20)
     pdf.set_y(10)
-    pdf.cell(0, 10, "Weekly Marketing Report", 0, 1, 'C')
+    pdf.cell(0, 10, "Weekly Application Report", 0, 1, 'C')
     pdf.set_font("Helvetica", "", 10)
     date_label = summary.get('start_date', '')
     if summary.get('end_date'):

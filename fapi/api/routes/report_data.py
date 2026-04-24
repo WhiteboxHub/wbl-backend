@@ -79,10 +79,11 @@ def get_marketing_report_raw_data(
         ).all()
         click_mapping = {email.lower().strip(): int(count) for email, count in job_clicks_raw if email and count is not None}
 
-        # 3. Outreach & Automations (Workflow IDs)
-        # 1,3,6,10 = Outreach | 7,9 = Job Portal Automations
+        # 3. Outreach & Automations (Workflow IDs - from production):
+        # Email Outreach: 1=daily_vendor_outreach, 3=weekly_vendor_outreach, 5=weekly_leads_outreach, 6=weekly_potential_leads_outreach
+        # Portal Auto: 7=weekly_automation_application_engine, 10=Raw_Positions_Auto_Apply
         outreach_logs = db.query(AutomationWorkflowLogORM).filter(
-            AutomationWorkflowLogORM.workflow_id.in_([1, 3, 6, 7, 9, 10]),
+            AutomationWorkflowLogORM.workflow_id.in_([1, 3, 5, 6, 7, 10]),
             AutomationWorkflowLogORM.created_at >= weekly_start_date,
             AutomationWorkflowLogORM.created_at < end_date
         ).all()
@@ -105,9 +106,9 @@ def get_marketing_report_raw_data(
             if cand_id:
                 c_id = int(cand_id)
                 records = log.records_processed or 0
-                if log.workflow_id in [1, 3, 6, 10]:
+                if log.workflow_id in [1, 3, 5, 6]:
                     outreach_dict[c_id] = outreach_dict.get(c_id, 0) + records
-                elif log.workflow_id in [7, 9]:
+                elif log.workflow_id in [7, 10]:
                     portal_dict[c_id] = portal_dict.get(c_id, 0) + records
 
         # 4. LinkedIn Easy Apply (Activity Logs)
