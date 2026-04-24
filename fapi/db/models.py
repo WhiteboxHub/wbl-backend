@@ -278,6 +278,36 @@ class CandidateORM(Base):
     batch = relationship("Batch", back_populates="candidates")
     preparation_records = relationship(
         "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
+
+
+class CandidateResumeORM(Base):
+    __tablename__ = "candidate_resume"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), unique=True, nullable=False)
+    resume_json = Column(JSON, nullable=False)
+    file_name = Column(String(255), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    candidate = relationship("CandidateORM")
+
+
+class CandidateAPIKeyORM(Base):
+    __tablename__ = "candidate_api_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+    provider_name = Column(String(50), nullable=False)
+    api_key = Column(Text, nullable=False)
+    model_name = Column(String(100), nullable=True)
+    voice_enabled = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    candidate = relationship("CandidateORM")
+
+
 # --------------------- Candidate Marketing -----------------
 
 

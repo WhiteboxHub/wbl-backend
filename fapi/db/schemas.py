@@ -37,6 +37,7 @@ class JobListingSourceEnum(str, enum.Enum):
     job_board = 'job_board'
     scraper = 'scraper'
     hiring_cafe = 'hiring.cafe'
+    jobright_ai = 'jobright.ai'
     trueup_io = 'trueup.io'
     interview_modal = 'interview_modal'
     email_bot_llm_local = 'email_bot_llm_local'
@@ -1010,6 +1011,53 @@ class CandidatePlacementUpdate(BaseModel):
     fee_paid: Optional[float] = None
     no_of_installments: Optional[InstallmentEnum] = None
     notes: Optional[str] = None
+
+
+# ---------------- Candidate Setup Wizard Schemas ----------------
+
+class CandidateResumeBase(BaseModel):
+    resume_json: Dict[str, Any]
+    file_name: Optional[str] = None
+
+class CandidateResumeCreate(CandidateResumeBase):
+    pass
+
+class CandidateResumeUpdate(CandidateResumeBase):
+    pass
+
+class CandidateResumeOut(CandidateResumeBase):
+    id: int
+    candidate_id: int
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+class CandidateAPIKeyBase(BaseModel):
+    provider_name: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+class CandidateAPIKeyCreate(CandidateAPIKeyBase):
+    api_key: str
+
+class CandidateAPIKeyUpdate(BaseModel):
+    model_name: Optional[str] = None
+    api_key: Optional[str] = None
+
+class CandidateAPIKeyOut(CandidateAPIKeyBase):
+    id: int
+    candidate_id: int
+    masked_key: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    class Config:
+        from_attributes = True
+
+class CandidateSetupStatus(BaseModel):
+    resume_uploaded: bool
+    api_keys_configured: bool
+    setup_complete: bool
 
 
 # ----------------------------------------------------

@@ -22,6 +22,12 @@ if not ALGORITHM:
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))  # Defaults to 1440 if not set
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES  = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", 15))
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+if not ENCRYPTION_KEY:
+    # We should ideally raise an error here to prevent starting without security
+    # but for development we can default or warn.
+    # raise ValueError("ENCRYPTION_KEY environment variable is not set")
+    print("WARNING: ENCRYPTION_KEY not set. API keys will NOT be secured properly.")
 
 # Upstash Redis Configuration
 UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")

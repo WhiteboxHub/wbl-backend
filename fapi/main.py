@@ -14,7 +14,8 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, sync_cli
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup, report_data, report_pdf, sync_cli
+
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
@@ -35,13 +36,21 @@ logger = logging.getLogger("wbl")
 async def startup_event():
     redis_client.get_client()
     try:
-        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
+        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, CandidateResumeORM, CandidateAPIKeyORM
+        
+        # Coderpad Tables
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         logger.info("CoderPad tables checked/created successfully.")
+
+        # Candidate Setup Tables
+        CandidateResumeORM.__table__.create(bind=engine, checkfirst=True)
+        CandidateAPIKeyORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("Candidate Setup tables (Resume & API Keys) checked/created successfully.")
+
     except Exception as e:
-        logger.error(f"Failed to create CoderPad tables: {e}")
+        logger.error(f"Failed to initialize database tables: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -133,6 +142,7 @@ app.include_router(register.router,  prefix="/api", tags=["Register"])
 app.include_router(login.router,  prefix="/api", tags=["Login"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
+app.include_router(candidate_setup.router, prefix="/api", tags=["Candidate Setup"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
