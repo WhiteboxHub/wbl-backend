@@ -119,7 +119,7 @@ def delete_candidate(candidate_id: int):
 @router.get("/candidate/marketing", summary="Get all candidate marketing records")
 def read_all_marketing(
     page: int = Query(1, ge=1),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=10000),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
