@@ -280,6 +280,15 @@ class JobListingBulkResponse(BaseModel):
     total: int
     failed_contacts: List[dict] = []
 
+class PaginatedJobListingResponse(BaseModel):
+    data: List[JobListingOut]
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
 
 
 
