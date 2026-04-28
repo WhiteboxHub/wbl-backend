@@ -209,21 +209,15 @@ def send_weekly_marketing_report(db: Session) -> Dict[str, Any]:
     Used by the Backend internal scheduler.
     """
     try:
-        # 1. Generate the report data
         # Note: In the standalone architecture, we use the API to serve this data.
         # But this function remains for the internal WBL Scheduler trigger.
-        report_results = generate_weekly_marketing_report(db)
-        
-        if report_results.get("status") == "error":
-            return report_results
-
-        # Note: We don't generate HTML here because the formatting is now handled
-        # by the professional template in the report runner (or a shared utility).
-        # For simplicity in the backend, we can just return the data.
+        # We explicitly DO NOT send the email here. We just return a mock success
+        # to properly close out the backend scheduler loop, while the external 
+        # python script on the Windows machine does the actual email sending.
         return {
             "status": "success",
-            "records_processed": report_results.get("summary", {}).get("total_candidates", 0),
-            "message": "Report logic successfully triggered."
+            "records_processed": 0,
+            "message": "Report dispatch is handled by standalone external worker."
         }
     except Exception as e:
         logger.error(f"Failed to send marketing report from Backend: {e}")
