@@ -35,27 +35,23 @@ def validate_resume_json(resume_json: Dict[str, Any]):
         "Email ID": ["Email ID", "email", "email_id"]
     }
     
+    def find_field(data, keys):
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k in keys and str(v).strip():
+                    return True
+                if find_field(v, keys):
+                    return True
+        elif isinstance(data, list):
+            for item in data:
+                if find_field(item, keys):
+                    return True
+        return False
+
     missing_fields = []
     
-    # Check top-level or within 'contact' object
-    contact_obj = resume_json.get("contact", {}) if isinstance(resume_json.get("contact"), dict) else {}
-
     for label, possible_keys in field_maps.items():
-        found = False
-        # Check top level
-        for k in possible_keys:
-            if k in resume_json and str(resume_json[k]).strip():
-                found = True
-                break
-        
-        # Check within contact object if not found
-        if not found and contact_obj:
-            for k in possible_keys:
-                if k in contact_obj and str(contact_obj[k]).strip():
-                    found = True
-                    break
-        
-        if not found:
+        if not find_field(resume_json, possible_keys):
             missing_fields.append(label)
     
     if missing_fields:
