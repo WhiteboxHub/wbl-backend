@@ -1175,7 +1175,7 @@ class JobListingORM(Base):
             'trueup.io',
             'interview_modal',
             'email_bot_llm_local',
-            'jobright.ai',
+            'jobright',
             name='job_listing_source_enum'
         ),
         nullable=False,

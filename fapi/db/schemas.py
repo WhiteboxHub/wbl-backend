@@ -37,7 +37,7 @@ class JobListingSourceEnum(str, enum.Enum):
     job_board = 'job_board'
     scraper = 'scraper'
     hiring_cafe = 'hiring.cafe'
-    jobright_ai = 'jobright.ai'
+    jobright = 'jobright'
     trueup_io = 'trueup.io'
     interview_modal = 'interview_modal'
     email_bot_llm_local = 'email_bot_llm_local'
