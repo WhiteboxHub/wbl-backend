@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
@@ -15,14 +15,30 @@ from fapi.db.schemas import (
     CoderpadQuestionUpdate,
     CoderpadQuestionOut,
     CoderpadAssignableCandidateOut,
+    CoderpadLlmValidateRequest,
+    CoderpadLlmValidateResponse,
 )
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.utils import coderpad_utils
+from fapi.utils.coderpad_llm_utils import llm_validate_code_submission
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/coderpad", tags=["CoderPad"])
+
+# Aligns with coderpad_utils list_assignable_candidates limits (ORM-bound params only).
+_MAX_ASSIGNABLE_SEARCH = 200
+_MAX_RESOLVE_IDS = 200
+
+
+def _resolve_openai_api_key(header_key: Optional[str]) -> str:
+    """Prefer per-request header; else CODERPAD_OPENAI_API_KEY, then OPENAI_API_KEY (e.g. from .env)."""
+    k = (header_key or "").strip()
+    if k:
+        return k
+    return (os.getenv("CODERPAD_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
 
 
 # ==================== Code Snippet CRUD ====================
@@ -106,6 +122,40 @@ def execute_code(
 ):
     """Execute code directly without saving. Optional test_cases runs stdin tests (assignments)."""
     return coderpad_utils.execute_code_direct(db, current_user.id, request)
+
+
+@router.post("/llm-validate", response_model=CoderpadLlmValidateResponse)
+def llm_validate_coderpad(
+    body: CoderpadLlmValidateRequest,
+    x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
+    current_user: AuthUserORM = Depends(get_current_user),
+):
+    """
+    Validate candidate code against the problem + test cases using OpenAI.
+    Key resolution: optional X-OpenAI-Api-Key header, else server env
+    CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY (not persisted in DB yet).
+    """
+    key = _resolve_openai_api_key(x_openai_api_key)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+        )
+    if not (body.problem_statement or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="problem_statement is required",
+        )
+    model = (body.model or "gpt-4o-mini").strip()
+    result = llm_validate_code_submission(
+        problem_statement=body.problem_statement.strip(),
+        code=body.code,
+        language=body.language or "python",
+        test_cases=body.test_cases,
+        openai_api_key=key,
+        model=model,
+    )
+    return CoderpadLlmValidateResponse(**result)
 
 
 @router.post("/snippets/{snippet_id}/execute", response_model=CodeExecutionWithTestsResponse)
@@ -211,11 +261,16 @@ def list_coderpad_questions(
 
 @router.get("/assignable-candidates", response_model=List[CoderpadAssignableCandidateOut])
 def list_assignable_candidates(
-    search: Optional[str] = None,
+    search: Optional[str] = Query(
+        None,
+        max_length=_MAX_ASSIGNABLE_SEARCH,
+        description="Filter by candidate name or email (bounded length; passed as ORM bind param).",
+    ),
     limit: int = Query(100, ge=1, le=200),
     resolve_ids: Optional[str] = Query(
         None,
-        description="Comma-separated auth user ids to resolve names for selected candidates",
+        max_length=4000,
+        description="Comma-separated auth user ids to resolve names (numeric ids only; max 200).",
     ),
     current_user: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
@@ -224,6 +279,8 @@ def list_assignable_candidates(
     if resolve_ids and resolve_ids.strip():
         id_list = []
         for part in resolve_ids.split(","):
+            if len(id_list) >= _MAX_RESOLVE_IDS:
+                break
             p = part.strip()
             if p.isdigit():
                 id_list.append(int(p))

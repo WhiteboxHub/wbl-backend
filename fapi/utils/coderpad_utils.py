@@ -1,10 +1,15 @@
 """
 CodePad Utilities
-Handles database operations and orchestration for code snippets and execution
+Handles database operations and orchestration for code snippets and execution.
+
+Database access: all queries use the SQLAlchemy ORM (``Session.query``, filters,
+``in_()``, ``ilike()`` with bound parameters). There is no string-concatenated SQL
+or ``text()`` raw fragments here, so user input is not interpolated into query text.
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func as sa_func
 from typing import List, Optional, Dict, Any
+from fastapi import HTTPException, status
 from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, AuthUserORM, CandidateORM
 from fapi.db.schemas import (
     CodeSnippetCreate,
@@ -22,6 +27,19 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Limits for assignable-candidate search (defense in depth; ORM still binds values)
+MAX_ASSIGNABLE_SEARCH_LEN = 200
+
+
+def _sanitize_search_term(raw: Optional[str]) -> Optional[str]:
+    """Normalize search input: strip, drop NULs, cap length. Returns None if empty."""
+    if raw is None:
+        return None
+    t = raw.replace("\x00", "").strip()
+    if not t:
+        return None
+    return t[:MAX_ASSIGNABLE_SEARCH_LEN]
 
 
 # ==================== Code Snippet CRUD ====================
@@ -346,7 +364,11 @@ def list_questions(
     q = db.query(CoderpadQuestionORM)
     if not include_inactive:
         q = q.filter(CoderpadQuestionORM.is_active == True)
-    rows = q.order_by(CoderpadQuestionORM.sort_order.asc(), CoderpadQuestionORM.id.asc()).all()
+    rows = q.order_by(
+        CoderpadQuestionORM.sno.asc(),
+        CoderpadQuestionORM.sort_order.asc(),
+        CoderpadQuestionORM.id.asc(),
+    ).all()
 
     if is_staff or current_user_id is None:
         return rows
@@ -378,13 +400,50 @@ def create_question(
     admin_user_id: int,
     data: CoderpadQuestionCreate,
 ) -> CoderpadQuestionORM:
+    # Allow blank problem text when title is set (new question shell from UI).
+    q_in = data.question
+    p_in = data.problem_statement
+    if q_in is not None:
+        question_text = (q_in or "").strip()
+    elif p_in is not None:
+        question_text = (p_in or "").strip()
+    else:
+        question_text = ""
+
+    if p_in is not None:
+        problem_statement_text = (p_in or "").strip()
+    else:
+        problem_statement_text = question_text
+
+    title_text = (data.title or "").strip()
+    if not title_text and not question_text and not problem_statement_text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="title or problem text is required",
+        )
+    if not title_text:
+        combined = (question_text or problem_statement_text).strip()
+        title_text = (combined[:80] if combined else "CoderPad question")
+
     tc = None
     if data.test_cases:
         tc = [tc.model_dump() for tc in data.test_cases]
     assigned_ids = data.assigned_candidate_ids or None
     row = CoderpadQuestionORM(
-        title=data.title,
-        problem_statement=data.problem_statement,
+        sno=data.sno if data.sno is not None else data.sort_order,
+        question=question_text,
+        title=title_text,
+        problem_statement=problem_statement_text,
+        test_case_1=data.test_case_1,
+        test_case_2=data.test_case_2,
+        test_case_3=data.test_case_3,
+        test_case_4=data.test_case_4,
+        test_case_5=data.test_case_5,
+        test_case_6=data.test_case_6,
+        test_case_7=data.test_case_7,
+        test_case_8=data.test_case_8,
+        test_case_9=data.test_case_9,
+        test_case_10=data.test_case_10,
         language=data.language,
         starter_code=data.starter_code,
         test_cases=tc,
@@ -411,6 +470,33 @@ def update_question(
         payload["test_cases"] = [tc.model_dump() for tc in data.test_cases]
     if "assigned_candidate_ids" in payload and payload["assigned_candidate_ids"] == []:
         payload["assigned_candidate_ids"] = None
+    if "question" in payload and payload["question"] is not None:
+        payload["question"] = payload["question"].strip()
+    if "problem_statement" in payload and payload["problem_statement"] is not None:
+        payload["problem_statement"] = payload["problem_statement"].strip()
+
+    # UI sends `problem_statement`; keep DB `question` in sync (both Text, same content).
+    if "problem_statement" in payload:
+        ps = payload["problem_statement"]
+        payload["question"] = ps
+    elif "question" in payload:
+        payload["problem_statement"] = payload["question"]
+
+    merged_q = payload.get("question", row.question)
+    merged_p = payload.get("problem_statement", row.problem_statement)
+    normalized_question = (merged_q or merged_p or "").strip()
+    next_title = (payload.get("title", row.title) or "").strip()
+    if not normalized_question and not next_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="question or title is required",
+        )
+
+    payload["question"] = normalized_question
+    payload["problem_statement"] = normalized_question
+    if "sno" in payload and "sort_order" not in payload:
+        payload["sort_order"] = payload["sno"]
+
     for k, v in payload.items():
         setattr(row, k, v)
     db.commit()
@@ -435,6 +521,7 @@ def list_assignable_candidates(
     Optional resolve_ids returns those auth users (for showing selected labels).
     """
     limit = max(1, min(limit, 200))
+    search = _sanitize_search_term(search)
 
     if resolve_ids is not None and len(resolve_ids) > 0:
         uids = [i for i in resolve_ids if isinstance(i, int) and i > 0][:limit]
@@ -477,8 +564,9 @@ def list_assignable_candidates(
         .filter(CandidateORM.email.isnot(None))
         .filter(sa_func.trim(CandidateORM.email) != "")
     )
-    if search and search.strip():
-        term = f"%{search.strip()}%"
+    if search:
+        # Bound parameter via SQLAlchemy; % wildcards are part of the value, not SQL text.
+        term = f"%{search}%"
         cand_q = cand_q.filter(
             or_(
                 CandidateORM.full_name.ilike(term),

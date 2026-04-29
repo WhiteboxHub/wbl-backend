@@ -14,13 +14,12 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup, report_data, report_pdf, sync_cli
-
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys
 )
-import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
+import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
-from fapi.db.database import SessionLocal, engine
+from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -35,22 +34,8 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
-    try:
-        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, CandidateResumeORM, CandidateAPIKeyORM
-        
-        # Coderpad Tables
-        CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
-        CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
-        CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad tables checked/created successfully.")
-
-        # Candidate Setup Tables
-        CandidateResumeORM.__table__.create(bind=engine, checkfirst=True)
-        CandidateAPIKeyORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("Candidate Setup tables (Resume & API Keys) checked/created successfully.")
-
-    except Exception as e:
-        logger.error(f"Failed to initialize database tables: {e}")
+    # CoderPad schema (code_snippet, code_execution_log, coderpad_question) is managed
+    # only via Flyway in project-db-cicd/db/migrations — no runtime DDL here.
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -142,7 +127,6 @@ app.include_router(register.router,  prefix="/api", tags=["Register"])
 app.include_router(login.router,  prefix="/api", tags=["Login"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
-app.include_router(candidate_setup.router, prefix="/api", tags=["Candidate Setup"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
@@ -150,8 +134,6 @@ app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placem
 app.include_router(placement_commission.router, prefix="/api", tags=["Placement Commission"], dependencies=[Depends(enforce_access)])
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
-app.include_router(sync_cli.router, prefix="/api", tags=["JobCLI Sync"])
-
 
 # Job and Outreach Routers
 app.include_router(job_listing.router, prefix="/api", tags=["Positions"], dependencies=[Depends(enforce_access)])
@@ -159,8 +141,6 @@ app.include_router(email_position.router, prefix="/api", tags=["Email Positions"
 app.include_router(employee_dashboard.router, prefix="/api", tags=["Employee Dashboard"], dependencies=[Depends(enforce_access)])
 app.include_router(email_service.router, prefix="/api", tags=["Internal Email Service"])
 app.include_router(dynamic_weekly_report.router, prefix="/api", tags=["Dynamic Weekly Report"])
-app.include_router(report_data.router, prefix="/api", tags=["Marketing Report Data"])
-app.include_router(report_pdf.router, prefix="/api", tags=["Marketing Report PDF"])
 app.include_router(company.router, prefix="/api", tags=["Companies"], dependencies=[Depends(enforce_access)])
 app.include_router(company_contact.router, prefix="/api", tags=["Company Contacts"], dependencies=[Depends(enforce_access)])
 app.include_router(potential_leads.router, prefix="/api", tags=["Potential Leads"], dependencies=[Depends(enforce_access)])

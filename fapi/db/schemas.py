@@ -3974,6 +3974,8 @@ class TestCase(BaseModel):
     expected_output: str
     description: Optional[str] = None
     locked: Optional[bool] = None
+    # Stdout from the candidate's last run when sent (e.g. LLM validation); not persisted on snippets.
+    actual_output: Optional[str] = None
 
 
 class CodeSnippetBase(BaseModel):
@@ -4029,8 +4031,20 @@ class CodeSnippetListOut(BaseModel):
 
 
 class CoderpadQuestionBase(BaseModel):
-    title: str
-    problem_statement: str
+    sno: int = 0
+    title: Optional[str] = None
+    question: Optional[str] = None
+    problem_statement: Optional[str] = None
+    test_case_1: Optional[str] = None
+    test_case_2: Optional[str] = None
+    test_case_3: Optional[str] = None
+    test_case_4: Optional[str] = None
+    test_case_5: Optional[str] = None
+    test_case_6: Optional[str] = None
+    test_case_7: Optional[str] = None
+    test_case_8: Optional[str] = None
+    test_case_9: Optional[str] = None
+    test_case_10: Optional[str] = None
     language: str = "python"
     starter_code: str = ""
     test_cases: Optional[List[TestCase]] = None
@@ -4039,14 +4053,35 @@ class CoderpadQuestionBase(BaseModel):
     is_active: bool = True
     sort_order: int = 0
 
+    @model_validator(mode="after")
+    def ensure_question_present(self):
+        q = (self.question or "").strip()
+        p = (self.problem_statement or "").strip()
+        t = (self.title or "").strip()
+        if not q and not p and not t:
+            raise ValueError("title, question, or problem statement is required")
+        return self
+
 
 class CoderpadQuestionCreate(CoderpadQuestionBase):
     pass
 
 
 class CoderpadQuestionUpdate(BaseModel):
+    sno: Optional[int] = None
     title: Optional[str] = None
+    question: Optional[str] = None
     problem_statement: Optional[str] = None
+    test_case_1: Optional[str] = None
+    test_case_2: Optional[str] = None
+    test_case_3: Optional[str] = None
+    test_case_4: Optional[str] = None
+    test_case_5: Optional[str] = None
+    test_case_6: Optional[str] = None
+    test_case_7: Optional[str] = None
+    test_case_8: Optional[str] = None
+    test_case_9: Optional[str] = None
+    test_case_10: Optional[str] = None
     language: Optional[str] = None
     starter_code: Optional[str] = None
     test_cases: Optional[List[TestCase]] = None
@@ -4102,6 +4137,25 @@ class CodeExecutionWithTestsResponse(BaseModel):
     status: str
     execution_time_ms: int
     test_results: Optional[List[TestCaseExecutionResult]] = None
+
+
+class CoderpadLlmValidateRequest(BaseModel):
+    """Optional X-OpenAI-Api-Key header; else server uses CODERPAD_OPENAI_API_KEY / OPENAI_API_KEY."""
+
+    problem_statement: str
+    code: str
+    language: str = "python"
+    test_cases: Optional[List[TestCase]] = None
+    model: Optional[str] = "gpt-4o-mini"
+
+
+class CoderpadLlmValidateResponse(BaseModel):
+    passed: Optional[bool] = None
+    summary: str = ""
+    feedback: str = ""
+    confidence: Optional[str] = None
+    raw_model_text: Optional[str] = None
+    error: Optional[str] = None
 
 
 class CodeExecutionLogOut(BaseModel):
