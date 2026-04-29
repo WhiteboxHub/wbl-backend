@@ -11,8 +11,11 @@ from fapi.db.schemas import (
 from fapi.utils.auth_dependencies import get_current_user
 from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
 from fapi.utils.encryption_utils import encrypt_api_key, decrypt_api_key
+from fapi.core.redis_client import redis_client
 import logging
 import requests
+import uuid
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -246,3 +249,56 @@ def delete_api_key(key_id: int, db: Session = Depends(get_db), user = Depends(ge
     db.delete(key)
     db.commit()
     return {"message": "API key deleted successfully"}
+
+@router.post("/generate-prep-token")
+def generate_prep_token(db: Session = Depends(get_db), user = Depends(get_current_user)):
+    cid = get_candidate_id(user, db)
+    token = str(uuid.uuid4())
+    client = redis_client.get_client()
+    if client:
+        # Save token with cid mapping, TTL 5 mins
+        client.set(f"prep_token:{token}", json.dumps({"cid": cid}), ex=300)
+    else:
+        logger.error("Redis client not available for token generation")
+        raise HTTPException(status_code=500, detail="Redis service unavailable")
+        
+    return {"token": token}
+
+@router.get("/sync-data")
+def sync_data(token: str, db: Session = Depends(get_db)):
+    client = redis_client.get_client()
+    if not client:
+        raise HTTPException(status_code=500, detail="Redis service unavailable")
+    
+    data_str = client.get(f"prep_token:{token}")
+    if not data_str:
+        logger.warning(f"Invalid or expired prep token attempted: {token}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    # Delete token after use for security
+    client.delete(f"prep_token:{token}")
+    
+    data = json.loads(data_str)
+    cid = data["cid"]
+    
+    resume = db.query(CandidateResumeORM).filter(CandidateResumeORM.candidate_id == cid).first()
+    api_keys = db.query(CandidateAPIKeyORM).filter(CandidateAPIKeyORM.candidate_id == cid).all()
+    
+    # Decrypt keys
+    decrypted_keys = []
+    for k in api_keys:
+        try:
+            raw = decrypt_api_key(k.api_key)
+            decrypted_keys.append({
+                "provider": k.provider_name,
+                "key": raw,
+                "model": k.model_name,
+                "voice_enabled": k.voice_enabled
+            })
+        except Exception as e:
+            logger.error(f"Failed to decrypt key for cid {cid}: {e}")
+            
+    return {
+        "resume_json": resume.resume_json if resume else None,
+        "api_keys": decrypted_keys
+    }

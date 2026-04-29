@@ -765,7 +765,24 @@ def get_active_marketing_candidates(db: Session):
         }
         for marketing, candidate in results
     ]
-
+def get_active_dropdown_candidates(db: Session) -> list:
+    results = (
+        db.query(CandidateORM.id, CandidateORM.full_name)
+        .outerjoin(CandidateMarketingORM, CandidateORM.id == 
+    CandidateMarketingORM.candidate_id)
+        .outerjoin(CandidatePlacementORM, CandidateORM.id ==
+    CandidatePlacementORM.candidate_id)
+        .filter(
+            or_(
+                CandidateMarketingORM.status == "active",
+                CandidatePlacementORM.status == "Active",
+            )
+        )
+        .distinct()
+        .order_by(CandidateORM.full_name.asc())
+        .all()
+    )
+    return [{"id": row.id, "full_name": row.full_name} for row in results]
 
 # -------------------Candidate_Preparation-------------
 def is_valid_date(date_str):
