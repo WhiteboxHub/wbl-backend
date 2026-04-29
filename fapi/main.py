@@ -112,6 +112,7 @@ def redis_test():
 
 # Base Routes
 app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])
+app.include_router(candidate_setup.router, prefix="/api/candidate", tags=["Candidate Setup"])
 app.include_router(candidate.router, prefix="/api", tags=["Candidate"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])
@@ -142,7 +143,6 @@ app.include_router(register.router,  prefix="/api", tags=["Register"])
 app.include_router(login.router,  prefix="/api", tags=["Login"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
-app.include_router(candidate_setup.router, prefix="/api", tags=["Candidate Setup"])
 app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
