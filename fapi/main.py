@@ -16,7 +16,7 @@ from fapi.api.routes import (
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
     email_position, job_click, coderpad, dynamic_weekly_report, extension_keys
 )
-import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
+import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal
