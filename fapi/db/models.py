@@ -1175,13 +1175,7 @@ class JobListingORM(Base):
             'trueup.io',
             'interview_modal',
             'email_bot_llm_local',
-            'jobright.ai',
             'jobright',
-            'wellfound',
-            'email_bot_llm_qwen',
-            'email_bot_v2',
-            'bot_linkedin_post',
-            'Interview Modal',
             name='job_listing_source_enum'
         ),
         nullable=False,
