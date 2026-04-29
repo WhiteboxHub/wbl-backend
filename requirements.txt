@@ -22,4 +22,6 @@ croniter
 apscheduler
 upstash-redis
 
+fpdf2
+jinja2
 

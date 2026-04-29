@@ -1,7 +1,8 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -277,6 +278,36 @@ class CandidateORM(Base):
     batch = relationship("Batch", back_populates="candidates")
     preparation_records = relationship(
         "CandidatePreparation", back_populates="candidate", cascade="all, delete-orphan")
+
+
+class CandidateResumeORM(Base):
+    __tablename__ = "candidate_resume"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), unique=True, nullable=False)
+    resume_json = Column(JSON, nullable=False)
+    file_name = Column(String(255), nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    candidate = relationship("CandidateORM")
+
+
+class CandidateAPIKeyORM(Base):
+    __tablename__ = "candidate_api_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False)
+    provider_name = Column(String(50), nullable=False)
+    api_key = Column(Text, nullable=False)
+    model_name = Column(String(100), nullable=True)
+    voice_enabled = Column(Boolean, default=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+
+    candidate = relationship("CandidateORM")
+
+
 # --------------------- Candidate Marketing -----------------
 
 
@@ -376,6 +407,7 @@ class CandidateInterview(Base):
     audio_link = Column(String(500), nullable=True)
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
+    q_a = Column(Text, nullable=True)
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -798,6 +830,7 @@ class InternalDocument(Base):
 class JobTypeORM(Base):
     __tablename__ = "job_types"
 
+
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     unique_id = Column(String(100), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
@@ -1095,6 +1128,8 @@ class AutomationContactExtractORM(Base):
     mailbox_invalid = Column(Boolean, nullable=False, server_default='0')
 
     last_email_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     bounced_flag = Column(Boolean, nullable=False, server_default='0')
     unsubscribed_flag = Column(Boolean, nullable=False, server_default='0')
@@ -1105,10 +1140,9 @@ class AutomationContactExtractORM(Base):
     complained_at = Column(DateTime, nullable=True)
 
     # Timestamps
-    created_at = Column(TIMESTAMP, server_default=func.now())
-    processed_at = Column(TIMESTAMP, nullable=True)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
+    processed_at = Column(TIMESTAMP, nullable=True)
+    
     __table_args__ = (
         UniqueConstraint('email_key', 'linkedin_key', name='uq_email_linkedin'),
         Index('idx_status', 'processing_status'),
@@ -1141,6 +1175,7 @@ class JobListingORM(Base):
             'trueup.io',
             'interview_modal',
             'email_bot_llm_local',
+            'jobright.ai',
             name='job_listing_source_enum'
         ),
         nullable=False,
@@ -1530,3 +1565,52 @@ class ExtensionKeyORM(Base):
 
     authuser = relationship("AuthUserORM")
 
+
+# ---------------------------------------------
+# JobCLI Sync Models (Phase 2)
+# ---------------------------------------------
+
+class FieldAnswerSync(Base):
+    __tablename__ = "jobcli_field_answers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ats_type = Column(String(100), nullable=False)
+    normalized_label = Column(String(255), nullable=False)
+    value = Column(String(500), nullable=False)
+    total_success = Column(Integer, nullable=False, default=0)
+    total_failure = Column(Integer, nullable=False, default=0)
+    confidence = Column(DECIMAL(5, 4), nullable=False, default=0.0)
+    version = Column(String(50), nullable=True, server_default='v1.0.0')
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('ats_type', 'normalized_label', 'value', name='uk_ats_label'),
+    )
+
+class LocatorSync(Base):
+    __tablename__ = "jobcli_locators"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ats_type = Column(String(100), nullable=False)
+    purpose = Column(String(100), nullable=False)
+    selector = Column(Text, nullable=False)
+    selector_type = Column(String(50), default='css')
+    domain_pattern = Column(String(255), nullable=True)
+    total_success = Column(Integer, nullable=False, default=0)
+    total_failure = Column(Integer, nullable=False, default=0)
+    confidence = Column(Float, nullable=False, default=0.0)
+    version = Column(String(50), nullable=False)
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('ats_type', 'purpose', 'selector', name='uk_ats_purpose_selector'),
+        Index('idx_ats_purpose', 'ats_type', 'purpose'),
+    )
+
+class SyncVersion(Base):
+    __tablename__ = "jobcli_sync_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    version = Column(String(50), nullable=False, unique=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    notes = Column(Text, nullable=True)

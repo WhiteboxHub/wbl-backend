@@ -77,6 +77,17 @@ def search_candidates(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/candidates/credentials")
+def list_candidate_credentials(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: str = Query(None),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_candidate_credentials_paginated(db, page, limit, search)
+
+
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(
     candidate_id: int,
@@ -191,7 +202,12 @@ def update_existing_placement(placement_id: int, placement: CandidatePlacementCr
 def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
 
-
+@router.get("/candidate/active-dropdown", summary="Get unique candidates from marketing and placements for dropdown")
+def get_active_dropdown_candidates(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_active_dropdown_candidates(db)
 # -----------candidate interview metrics-------------
 
 

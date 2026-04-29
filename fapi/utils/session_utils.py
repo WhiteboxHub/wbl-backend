@@ -1,10 +1,11 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from fapi.db import models, schemas
 from fapi.core.cache import cache_result, invalidate_cache
 
 
 @cache_result(ttl=300, prefix="sessions")
-def get_sessions(db: Session, search_title: str = None):
+def get_sessions(db: Session, search_title: str = None, page: int = 1, size: int = 200):
     query = db.query(models.Session)
 
     if search_title:
@@ -13,10 +14,16 @@ def get_sessions(db: Session, search_title: str = None):
         else:
             query = query.filter(models.Session.title.ilike(f"%{search_title}%"))
 
-    sessions = query.order_by(models.Session.sessionid.desc()).all()
-    return sessions
+    # pagination FIX
+    query = query.order_by(models.Session.sessionid.desc())
+    query = query.offset((page - 1) * size).limit(size)
+
+    return query.all()
 
 
+# =========================
+# GET SINGLE SESSION
+# =========================
 @cache_result(ttl=300, prefix="sessions")
 def get_session(db: Session, sessionid: int):
     return db.query(models.Session).filter(models.Session.sessionid == sessionid).first()

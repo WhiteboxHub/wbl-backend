@@ -4,7 +4,8 @@ from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, CandidateResumeORM, CandidateAPIKeyORM
+from fapi.utils.encryption_utils import decrypt_api_key
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
 from fapi.db.models import JobListingORM
@@ -764,7 +765,24 @@ def get_active_marketing_candidates(db: Session):
         }
         for marketing, candidate in results
     ]
-
+def get_active_dropdown_candidates(db: Session) -> list:
+    results = (
+        db.query(CandidateORM.id, CandidateORM.full_name)
+        .outerjoin(CandidateMarketingORM, CandidateORM.id == 
+    CandidateMarketingORM.candidate_id)
+        .outerjoin(CandidatePlacementORM, CandidateORM.id ==
+    CandidatePlacementORM.candidate_id)
+        .filter(
+            or_(
+                CandidateMarketingORM.status == "active",
+                CandidatePlacementORM.status == "Active",
+            )
+        )
+        .distinct()
+        .order_by(CandidateORM.full_name.asc())
+        .all()
+    )
+    return [{"id": row.id, "full_name": row.full_name} for row in results]
 
 # -------------------Candidate_Preparation-------------
 def is_valid_date(date_str):
@@ -1362,3 +1380,60 @@ def get_preparations_version(db: Session) -> Response:
     response.headers["X-Total-Count"] = cnt
     return response
 
+def get_candidate_credentials_paginated(
+    db: Session,
+    page: int = 1,
+    limit: int = 20,
+    search: str = None
+) -> Dict[str, Any]:
+    # Join Candidate, CandidateResume and CandidateAPIKey
+    # Only fetch candidates who have BOTH resume and API keys
+    query = (
+        db.query(
+            CandidateORM.id,
+            CandidateORM.full_name,
+            CandidateORM.email,
+            CandidateResumeORM.resume_json,
+            CandidateResumeORM.created_at.label("resume_created_at"),
+            CandidateResumeORM.updated_at.label("resume_updated_at"),
+            CandidateAPIKeyORM.api_key,
+            CandidateAPIKeyORM.provider_name,
+            CandidateAPIKeyORM.model_name,
+            CandidateAPIKeyORM.created_at.label("api_key_created_at"),
+            CandidateAPIKeyORM.updated_at.label("api_key_updated_at")
+        )
+        .join(CandidateResumeORM, CandidateORM.id == CandidateResumeORM.candidate_id)
+        .join(CandidateAPIKeyORM, CandidateORM.id == CandidateAPIKeyORM.candidate_id)
+    )
+
+    if search:
+        filters = [
+            CandidateORM.full_name.ilike(f"%{search}%"),
+            CandidateORM.email.ilike(f"%{search}%"),
+            CandidateAPIKeyORM.provider_name.ilike(f"%{search}%")
+        ]
+        if search.isdigit():
+            filters.append(CandidateORM.id == int(search))
+            
+        query = query.filter(or_(*filters))
+
+    total = query.count()
+    
+    if limit > 0:
+        results = query.order_by(CandidateORM.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    else:
+        results = query.order_by(CandidateORM.id.desc()).all()
+
+    data = []
+    for row in results:
+        # Convert row to dict
+        item = dict(row._mapping)
+        
+        # Decrypt API Key
+        encrypted_key = item.get("api_key", "")
+        if encrypted_key:
+            item["api_key"] = decrypt_api_key(encrypted_key)
+            
+        data.append(item)
+
+    return {"data": data, "total": total, "page": page, "limit": limit}
