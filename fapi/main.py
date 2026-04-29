@@ -19,7 +19,7 @@ from fapi.api.routes import (
 import fapi.utils.workflow_scheduler_service  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
-from fapi.db.database import SessionLocal, engine
+from fapi.db.database import SessionLocal
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -34,14 +34,8 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
-    try:
-        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
-        CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
-        CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
-        CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad tables checked/created successfully.")
-    except Exception as e:
-        logger.error(f"Failed to create CoderPad tables: {e}")
+    # CoderPad schema (code_snippet, code_execution_log, coderpad_question) is managed
+    # only via Flyway in project-db-cicd/db/migrations — no runtime DDL here.
 
 @app.on_event("shutdown")
 async def shutdown_event():
