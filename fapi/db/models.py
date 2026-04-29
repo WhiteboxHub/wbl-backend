@@ -1175,6 +1175,7 @@ class JobListingORM(Base):
             'trueup.io',
             'interview_modal',
             'email_bot_llm_local',
+            'jobright',
             name='job_listing_source_enum'
         ),
         nullable=False,
@@ -1521,8 +1522,20 @@ class CoderpadQuestionORM(Base):
     __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    sno = Column(Integer, nullable=False, default=0)
+    question = Column(Text, nullable=False)
     title = Column(String(255), nullable=False)
     problem_statement = Column(Text, nullable=False)
+    test_case_1 = Column(Text, nullable=True)
+    test_case_2 = Column(Text, nullable=True)
+    test_case_3 = Column(Text, nullable=True)
+    test_case_4 = Column(Text, nullable=True)
+    test_case_5 = Column(Text, nullable=True)
+    test_case_6 = Column(Text, nullable=True)
+    test_case_7 = Column(Text, nullable=True)
+    test_case_8 = Column(Text, nullable=True)
+    test_case_9 = Column(Text, nullable=True)
+    test_case_10 = Column(Text, nullable=True)
     language = Column(String(50), nullable=False, default="python")
     starter_code = Column(Text, nullable=False, default="")
     test_cases = Column(JSON, nullable=True)
