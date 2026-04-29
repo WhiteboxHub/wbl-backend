@@ -19,7 +19,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/candidate", tags=["Candidate Setup"])
+router = APIRouter(tags=["Candidate Setup"])
 
 
 @router.get("/setup-status", response_model=CandidateSetupStatus)
