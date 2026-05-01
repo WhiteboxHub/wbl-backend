@@ -408,6 +408,7 @@ class CandidateInterview(Base):
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
     q_a = Column(Text, nullable=True)
+    email_text = Column(Text, nullable=True)
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -415,6 +416,7 @@ class CandidateInterview(Base):
         default="Pending"
     )
 
+    feedback_text = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
     last_mod_datetime = Column(

@@ -1217,6 +1217,8 @@ class CandidateInterviewBase(BaseModel):
     position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1239,6 +1241,8 @@ class CandidateInterviewCreate(BaseModel):
     position_title: Optional[str] = None
     position_location: Optional[str] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 
@@ -1268,6 +1272,8 @@ class CandidateInterviewUpdate(BaseModel):
     notes: Optional[str] = None
     position_id: Optional[int] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 # --- Output Schema ---
