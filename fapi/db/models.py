@@ -1195,6 +1195,7 @@ class JobListingORM(Base):
     contact_phone = Column(String(50), nullable=True)
     contact_linkedin = Column(String(255), nullable=True)
     job_url = Column(String(500), nullable=True)
+    job_url_type = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     status = Column(SQLAEnum(PositionStatusEnum),
