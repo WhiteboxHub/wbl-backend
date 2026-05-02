@@ -210,6 +210,7 @@ class JobListingBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    job_url_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: PositionStatusEnum = PositionStatusEnum.open
@@ -248,6 +249,7 @@ class JobListingUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    job_url_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[PositionStatusEnum] = None
