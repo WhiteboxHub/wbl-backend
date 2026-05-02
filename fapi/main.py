@@ -76,6 +76,7 @@ app.add_middleware(
         "https://www.innova-path.com",
         "https://wbl-frontend-560359652969.us-central1.run.app",
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:8000"
     ],
@@ -143,7 +144,7 @@ app.include_router(register.router,  prefix="/api", tags=["Register"])
 app.include_router(login.router,  prefix="/api", tags=["Login"])
 app.include_router(unsubscribe.router, prefix="/api", tags=["Unsubscribe"])
 app.include_router(google_auth.router, prefix="/api", tags=["Google Authentication"])
-app.include_router(candidate_dashboard.router, tags=["Candidate Dashboard"])
+app.include_router(candidate_dashboard.router, prefix="/api", tags=["Candidate Dashboard"])
 app.include_router(internal_documents.router, prefix="/api/internal-documents", tags=["Internal Documents"])
 app.include_router(jobs.router, prefix="/api", tags=["Job Activity Log"], dependencies=[Depends(enforce_access)])
 app.include_router(placement_fee_collection.router, prefix="/api", tags=["Placement Fee Collection"], dependencies=[Depends(enforce_access)])
