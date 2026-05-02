@@ -6,6 +6,7 @@ All business logic for dashboard operations using SQLAlchemy ORM
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, case, and_, or_, desc, distinct
 from fastapi import HTTPException
+from fapi.db.models import CandidateInterview
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -1243,3 +1244,17 @@ def _get_login_info(db: Session, email: str) -> Dict[str, Any]:
         "status": authuser.status or "active",
         "total_days_registered": total_days
     }
+
+
+def update_interview_feedback(db: Session, interview_id: int, feedback: str):
+    interview = db.query(CandidateInterview).filter(
+        CandidateInterview.id == interview_id
+    ).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    interview.feedback=feedback
+    candidate_id=interview.candidate_id
+    invalidate_cache("candidates")
+    db.commit()
+    db.refresh(interview)
+    return {"id": interview_id, "feedback": interview.feedback}
