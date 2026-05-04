@@ -234,6 +234,9 @@ def sync_data(token: str, db: Session = Depends(get_db)):
     resume = db.query(CandidateResumeORM).filter(CandidateResumeORM.candidate_id == cid).first()
     api_keys = db.query(CandidateAPIKeyORM).filter(CandidateAPIKeyORM.candidate_id == cid).all()
     
+    candidate = db.query(CandidateORM).filter(CandidateORM.id == cid).first()
+    candidate_name = candidate.full_name if candidate else None
+    
     # Decrypt keys
     decrypted_keys = []
     for k in api_keys:
@@ -250,5 +253,6 @@ def sync_data(token: str, db: Session = Depends(get_db)):
             
     return {
         "resume_json": resume.resume_json if resume else None,
-        "api_keys": decrypted_keys
+        "api_keys": decrypted_keys,
+        "candidate_name": candidate_name
     }
