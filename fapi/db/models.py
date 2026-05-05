@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
@@ -383,6 +383,7 @@ class CandidateInterview(Base):
     interviewer_contact = Column(Text, nullable=True)
     interviewer_linkedin = Column(String(500), nullable=True)
     interview_date = Column(Date, nullable=False)
+    interview_time = Column(Time, nullable=True)
 
     mode_of_interview = Column(
         Enum(
@@ -408,6 +409,7 @@ class CandidateInterview(Base):
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
     q_a = Column(Text, nullable=True)
+    email_text = Column(Text, nullable=True)
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -415,8 +417,10 @@ class CandidateInterview(Base):
         default="Pending"
     )
 
+    feedback_text = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
+    gcal_event_id = Column(String(255), nullable=True)  # Google Calendar event ID for auto-sync
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
@@ -1193,6 +1197,7 @@ class JobListingORM(Base):
     contact_phone = Column(String(50), nullable=True)
     contact_linkedin = Column(String(255), nullable=True)
     job_url = Column(String(500), nullable=True)
+    job_url_type = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     status = Column(SQLAEnum(PositionStatusEnum),

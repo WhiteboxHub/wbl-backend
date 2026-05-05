@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Enum, UniqueConstraint, BigInteger, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime, date
+from datetime import datetime, date, time
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal, model_validator
 from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
@@ -210,6 +210,7 @@ class JobListingBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    job_url_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: PositionStatusEnum = PositionStatusEnum.open
@@ -248,6 +249,7 @@ class JobListingUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    job_url_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[PositionStatusEnum] = None
@@ -1205,6 +1207,7 @@ class CandidateInterviewBase(BaseModel):
     interviewer_contact: Optional[str] = None
     interviewer_linkedin: Optional[str] = None
     interview_date: date
+    interview_time: Optional[time] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     transcript: Optional[str] = None
@@ -1217,6 +1220,8 @@ class CandidateInterviewBase(BaseModel):
     position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1225,6 +1230,7 @@ class CandidateInterviewCreate(BaseModel):
     company: str
     company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client
     interview_date: date
+    interview_time: Optional[time] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     interviewer_emails: Optional[str] = None
@@ -1239,6 +1245,8 @@ class CandidateInterviewCreate(BaseModel):
     position_title: Optional[str] = None
     position_location: Optional[str] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 
@@ -1257,6 +1265,7 @@ class CandidateInterviewUpdate(BaseModel):
     interviewer_contact: Optional[str] = None
     interviewer_linkedin: Optional[str] = None
     interview_date: Optional[date] = None
+    interview_time: Optional[time] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     transcript: Optional[str] = None
@@ -1268,6 +1277,8 @@ class CandidateInterviewUpdate(BaseModel):
     notes: Optional[str] = None
     position_id: Optional[int] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 # --- Output Schema ---
@@ -1279,7 +1290,7 @@ class CandidateInterviewOut(CandidateInterviewBase):
     instructor3_name: Optional[str] = None
     position_title: Optional[str] = None
     position_company: Optional[str] = None
-    # source_job_id: Optional[str] = None
+    gcal_event_id: Optional[str] = None  # Google Calendar event ID
     last_mod_datetime: Optional[datetime] = None
 
     class Config:
