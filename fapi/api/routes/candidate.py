@@ -17,7 +17,7 @@ from fapi.db.schemas import (
     CandidatePreparationOut, PlacementMetrics, InterviewMetrics,
     CandidateInterviewPerformanceResponse, CandidatePreparationMetrics
 )
-from fapi.db.models import CandidateORM, AuthUserORM, CandidateInterview
+from fapi.db.models import CandidateORM, AuthUserORM, CandidateInterview, JobLinkClicksORM, JobListingORM
 from sqlalchemy import func, or_
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
@@ -71,6 +71,31 @@ def search_candidates(
         for r in results:
             item = r.__dict__.copy()
             item.pop("_sa_instance_state", None)
+
+            # Extract job link clicks tracking for the candidate
+            authuser = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(r.email)).first() if r.email else None
+            job_listings_tracking = []
+            if authuser:
+                clicks = (
+                    db.query(
+                        JobListingORM.title.label("job_title"),
+                        JobListingORM.company_name,
+                        JobLinkClicksORM.click_count,
+                        JobLinkClicksORM.last_clicked_at
+                    )
+                    .join(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+                    .filter(JobLinkClicksORM.authuser_id == authuser.id)
+                    .all()
+                )
+                for click in clicks:
+                    job_listings_tracking.append({
+                        "job_title": click.job_title,
+                        "company_name": click.company_name,
+                        "activity": f"{click.click_count} clicks",
+                        "last_clicked_at": click.last_clicked_at.isoformat() if click.last_clicked_at else None
+                    })
+            item['job_listings_tracking'] = job_listings_tracking
+
             data.append(item)
         return {"data": data}
     except Exception as e:
