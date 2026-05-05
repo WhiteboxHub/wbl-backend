@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
@@ -383,6 +383,7 @@ class CandidateInterview(Base):
     interviewer_contact = Column(Text, nullable=True)
     interviewer_linkedin = Column(String(500), nullable=True)
     interview_date = Column(Date, nullable=False)
+    interview_time = Column(Time, nullable=True)
 
     mode_of_interview = Column(
         Enum(
@@ -419,6 +420,7 @@ class CandidateInterview(Base):
     feedback_text = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
+    gcal_event_id = Column(String(255), nullable=True)  # Google Calendar event ID for auto-sync
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
 

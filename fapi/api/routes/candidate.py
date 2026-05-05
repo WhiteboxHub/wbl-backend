@@ -25,6 +25,7 @@ from fapi.utils.avatar_dashboard_utils import (
     candidate_interview_performance,
     get_candidate_preparation_metrics
 )
+from fapi.utils import google_calendar_utils
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -245,6 +246,7 @@ def create_interview(
     db: Session = Depends(get_db),
 ):
     db_obj = candidate_utils.create_candidate_interview(db, interview)
+
     # Fetch with relationships for proper serialization
     full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
     return candidate_utils.serialize_interview(full_obj or db_obj)
@@ -275,6 +277,7 @@ def update_interview(
     db_obj = candidate_utils.update_candidate_interview(db, interview_id, updates)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
+
     # Fetch with relationships for proper serialization
     full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
     return candidate_utils.serialize_interview(full_obj or db_obj)
@@ -282,8 +285,21 @@ def update_interview(
 
 @router.delete("/interviews/{interview_id}")
 def delete_interview(interview_id: int, db: Session = Depends(get_db)):
-    db_obj = candidate_utils.delete_candidate_interview(db, interview_id)
+    # Fetch before deleting so we have the gcal_event_id
+    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
     if not db_obj:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    # --- Google Calendar Sync: delete event first ---
+    try:
+        if db_obj.gcal_event_id:
+            google_calendar_utils.delete_calendar_event(db_obj.gcal_event_id)
+    except Exception as e:
+        logger.error(f"[Google Calendar] Sync failed on delete for interview {interview_id}: {e}")
+    # --- End Google Calendar Sync ---
+
+    deleted = candidate_utils.delete_candidate_interview(db, interview_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Interview not found")
     return {"detail": "Interview deleted successfully"}
 
