@@ -25,3 +25,7 @@ upstash-redis
 fpdf2
 jinja2
 
+# Google Calendar API
+google-api-python-client
+google-auth
+google-auth-httplib2
