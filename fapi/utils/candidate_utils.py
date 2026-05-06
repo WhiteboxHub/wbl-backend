@@ -601,7 +601,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
                 contact_email=data.get("interviewer_emails"),     
                 contact_phone=data.get("interviewer_contact"),
                 contact_linkedin=data.get("interviewer_linkedin"),
-                source="manual",  # Fixed: 'Interview Modal' was not a valid ENUM value
+                source="interview_modal",  # Changed from "manual" to match JobListingSourceEnum
                 source_uid=str(uuid.uuid4()), # Generate unique ID to satisfy unique constraint
                 status=PositionStatusEnum.open,
                 position_type=PositionTypeEnum.full_time,
