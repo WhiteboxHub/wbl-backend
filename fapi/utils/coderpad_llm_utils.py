@@ -164,3 +164,77 @@ def llm_validate_code_submission(
         "raw_model_text": content,
         "error": None,
     }
+
+
+CODERPAD_GENERATE_SYSTEM_PROMPT = (
+    "You are an expert programming assignment creator. "
+    "Given a topic, generate a complete coding problem with a description, starter code, and test cases. "
+    "Output MUST be pure JSON with no markdown fences, matching the requested schema."
+)
+
+def llm_generate_question_from_topic(
+    *,
+    topic: str,
+    language: str = "python",
+    openai_api_key: str,
+    model: str = DEFAULT_MODEL,
+) -> Dict[str, Any]:
+    key = (openai_api_key or "").strip()
+    if not key:
+        return {"error": "OpenAI API key is required"}
+    
+    user_prompt = f"""Generate a coding problem based on the following topic: "{topic}".
+The target programming language is {language}.
+
+Format requirements for `problem_statement`:
+- Use rich HTML formatting in the style of LeetCode or HackerRank.
+- Start with a clear problem description wrapped in appropriate <p> tags.
+- Include an "Examples" section with at least two examples (Input, Output, and Explanation). Use <pre> or <code> blocks and <strong> text for clarity.
+- Include a "Constraints" section (e.g., as a <ul> list).
+- Ensure the formatting uses proper spacing and alignment, utilizing HTML tags.
+
+Output EXACTLY this JSON format and no accompanying text:
+{{
+  "title": "<A concise title for the assignment>",
+  "problem_statement": "<The richly formatted HTML string containing the description, examples, and constraints.>",
+  "starter_code": "<Initial code template for the candidate to start with. Should include function signature.>",
+  "language": "{language}",
+  "test_cases": [
+    {{
+      "input": "<string of input, or empty if args are passed in code directly>",
+      "expected_output": "<string of expected output when the function is run>",
+      "description": "<short description of what this tests>",
+      "locked": false
+    }}
+  ]
+}}
+Ensure you generate 3 to 5 test cases. Ensure starter_code has necessary imports and a working function signature.
+"""
+
+    result = openai_chat_with_prompts(
+        system_prompt=CODERPAD_GENERATE_SYSTEM_PROMPT,
+        user_prompt=user_prompt,
+        api_key=key,
+        model=model,
+        temperature=0.3,
+        max_tokens=3000,
+        timeout=90.0,
+    )
+
+    if result.error:
+        return {"error": result.error}
+
+    content = result.content or ""
+    parsed = _parse_json_from_text(content)
+    if not parsed:
+        return {"error": "Could not parse model output as JSON. Output was: " + content[:200]}
+
+    return {
+        "title": parsed.get("title", ""),
+        "problem_statement": parsed.get("problem_statement", ""),
+        "starter_code": parsed.get("starter_code", ""),
+        "language": parsed.get("language", language),
+        "test_cases": parsed.get("test_cases", []),
+        "error": None,
+    }
+
