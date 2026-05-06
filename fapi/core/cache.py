@@ -26,12 +26,13 @@ def alchemy_encoder(obj: Any) -> Any:
     return str(obj)
 
 def generate_cache_key(prefix: str, path: str, params: dict) -> str:
-    """Generate a unique cache key."""
+    """Generate a unique cache key with environment isolation."""
     # Sort params to ensure consistent key generation
     sorted_params = sorted(params.items())
     params_str = json.dumps(sorted_params)
     params_hash = hashlib.md5(params_str.encode()).hexdigest()
-    return f"cache:{prefix}:{path}:{params_hash}"
+    # Use APP_ENV to isolate local dev from production
+    return f"{config.APP_ENV}:cache:{prefix}:{path}:{params_hash}"
 
 def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
     """
