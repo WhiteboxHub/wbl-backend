@@ -25,6 +25,13 @@ ALLOWED_GET_PREFIXES = {
 
 ALLOWED_POST_PREFIXES = {
     "/api/candidates/track-clicks-batch",
+    "/api/interviews",
+    "/api/candidate/generate-prep-token",
+}
+
+ALLOWED_PUT_PREFIXES = {
+    "/api/interviews",
+    "/api/candidates/interviews",
 }
 
 def _is_admin(user) -> bool:
@@ -54,6 +61,12 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
         for prefix in ALLOWED_POST_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
+
+    if method == "PUT":
+        for prefix in ALLOWED_PUT_PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                return current_user
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="You do not have permission to access this resource."
