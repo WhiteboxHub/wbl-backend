@@ -11,6 +11,9 @@ from slowapi.util import get_remote_address
 load_dotenv()
 limiter = Limiter(key_func=get_remote_address)
 
+# Environment detection
+APP_ENV = os.getenv("APP_ENV", "local") 
+
 # Get secret values from environment
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:

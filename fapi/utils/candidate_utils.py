@@ -198,7 +198,6 @@ def delete_candidate(candidate_id: int):
 
 # # -----------------------------------------------Marketing----------------------------
 
-@cache_result(ttl=300, prefix="candidates")
 def get_all_marketing_records(page: int, limit: int) -> dict:
     db: Session = SessionLocal()
     try:
@@ -652,7 +651,6 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     return db_obj
 
 
-@cache_result(ttl=300, prefix="candidates")
 def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     return (
         db.query(CandidateInterview)
@@ -674,7 +672,6 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     )
 
 
-@cache_result(ttl=300, prefix="candidates")
 def list_interviews_with_instructors(db: Session):
     return (
         db.query(CandidateInterview)
