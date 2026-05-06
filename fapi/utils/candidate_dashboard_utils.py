@@ -565,7 +565,6 @@ def get_preparation_phase_details(
 
 # ==================== MARKETING PHASE (FIXED) ====================
 
-@cache_result(ttl=300, prefix="candidates")
 def get_marketing_phase_details(
     db: Session, 
     candidate_id: int, 
