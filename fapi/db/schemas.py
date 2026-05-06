@@ -4169,6 +4169,21 @@ class CoderpadLlmValidateResponse(BaseModel):
     error: Optional[str] = None
 
 
+class CoderpadLlmGenerateRequest(BaseModel):
+    topic: str
+    language: Optional[str] = "python"
+    model: Optional[str] = "gpt-4o-mini"
+
+
+class CoderpadLlmGenerateResponse(BaseModel):
+    title: str = ""
+    problem_statement: str = ""
+    starter_code: str = ""
+    language: str = "python"
+    test_cases: Optional[List[TestCase]] = None
+    error: Optional[str] = None
+
+
 class CodeExecutionLogOut(BaseModel):
     id: int
     code_snippet_id: Optional[int] = None  # None for direct executions (no saved snippet)
