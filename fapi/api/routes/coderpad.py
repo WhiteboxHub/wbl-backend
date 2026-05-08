@@ -43,6 +43,30 @@ def _resolve_openai_api_key(header_key: Optional[str]) -> str:
     return (os.getenv("CODERPAD_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
 
 
+def _resolve_openai_api_key_for_user(
+    db: Session,
+    current_user: AuthUserORM,
+    header_key: Optional[str],
+) -> str:
+    """
+    Resolve OpenAI key with candidate credentials first, then request/server fallback.
+    This lets employee logins tied to candidate records reuse stored API keys.
+    """
+    from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
+    from fapi.db.models import CandidateAPIKeyORM
+
+    candidate_info = fetch_candidate_id_and_status_by_email(db, current_user.uname)
+    if candidate_info:
+        api_key_record = db.query(CandidateAPIKeyORM).filter(
+            CandidateAPIKeyORM.candidate_id == candidate_info.candidateid,
+            CandidateAPIKeyORM.provider_name.ilike("%openai%"),
+        ).first()
+        if api_key_record and api_key_record.api_key:
+            return api_key_record.api_key
+
+    return _resolve_openai_api_key(header_key)
+
+
 # ==================== Code Snippet CRUD ====================
 
 @router.get("/snippets", response_model=List[CodeSnippetListOut])
@@ -187,11 +211,12 @@ def llm_generate_question(
     body: CoderpadLlmGenerateRequest,
     x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
     current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
 ):
     """
     Generate a CoderPad question (title, statement, starter code, test cases) from a topic.
     """
-    key = _resolve_openai_api_key(x_openai_api_key)
+    key = _resolve_openai_api_key_for_user(db, current_user, x_openai_api_key)
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -238,7 +263,7 @@ def update_question_statement_with_llm(
     if not question_row:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    key = _resolve_openai_api_key(x_openai_api_key)
+    key = _resolve_openai_api_key_for_user(db, current_user, x_openai_api_key)
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
