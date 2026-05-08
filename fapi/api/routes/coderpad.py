@@ -220,6 +220,62 @@ def llm_generate_question(
     return CoderpadLlmGenerateResponse(**result)
 
 
+@router.post("/questions/{question_id}/update-statement-with-llm", response_model=CoderpadLlmGenerateResponse)
+def update_question_statement_with_llm(
+    question_id: int,
+    body: CoderpadLlmGenerateRequest,
+    x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate an updated problem statement for an existing CoderPad question using LLM.
+    Takes the same topic/language/model as llm-generate, generates a new statement,
+    and updates the question with the generated content.
+    """
+    # Verify question exists
+    question_row = coderpad_utils.get_question_by_id(db, question_id)
+    if not question_row:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    key = _resolve_openai_api_key(x_openai_api_key)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+        )
+    if not (body.topic or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="topic is required",
+        )
+
+    model = (body.model or "gpt-4o-mini").strip()
+    result = llm_generate_question_from_topic(
+        topic=body.topic.strip(),
+        language=body.language or "python",
+        openai_api_key=key,
+        model=model,
+    )
+
+    if result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result["error"]
+        )
+
+    # Update the question with the generated content
+    update_data = CoderpadQuestionUpdate(
+        problem_statement=result.get("problem_statement"),
+        starter_code=result.get("starter_code"),
+        test_cases=result.get("test_cases"),
+        language=result.get("language", body.language or "python"),
+    )
+    coderpad_utils.update_question(db, question_row, update_data)
+
+    return CoderpadLlmGenerateResponse(**result)
+
+
 @router.post("/snippets/{snippet_id}/execute", response_model=CodeExecutionWithTestsResponse)
 def execute_snippet(
     snippet_id: int,
