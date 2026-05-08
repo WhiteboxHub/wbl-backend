@@ -5,7 +5,7 @@ from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
 from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, CandidateResumeORM, CandidateAPIKeyORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, CandidateResumeORM, CandidateAPIKeyORM, JobLinkClicksORM, JobListingORM
 from fapi.utils.encryption_utils import decrypt_api_key
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
@@ -1102,6 +1102,26 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "notes": i.notes,
                 }
                 for i in candidate.interviews
+            ],
+            "job_listings_tracking": [
+                {
+                    "job_title": click.job_title,
+                    "company_name": click.company_name,
+                    "activity": f"{click.click_count} clicks",
+                    "last_clicked_at": click.last_clicked_at.isoformat() if click.last_clicked_at else None
+                }
+                for click in (
+                    db.query(
+                        JobListingORM.title.label("job_title"),
+                        JobListingORM.company_name,
+                        JobLinkClicksORM.click_count,
+                        JobLinkClicksORM.last_clicked_at
+                    )
+                    .join(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+                    .filter(JobLinkClicksORM.authuser_id == authuser.id)
+                    .order_by(JobLinkClicksORM.last_clicked_at.desc())
+                    .all() if authuser else []
+                )
             ],
             "placement_records": [
                 {
