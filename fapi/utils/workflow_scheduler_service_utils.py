@@ -38,9 +38,19 @@ def _run_scheduler_job():
         db.close()
 
 
+_scheduler = None
+_scheduler_started = False
+
 # Create and auto-start the scheduler
-_scheduler = BackgroundScheduler()
-_scheduler.add_job(_run_scheduler_job, 'interval', minutes=5)
+try:
+    _scheduler = BackgroundScheduler()
+    _scheduler.add_job(_run_scheduler_job, "interval", minutes=5)
+    _scheduler.start()
+    _scheduler_started = True
+    logger.info("Automation Workflow Scheduler started (polling every 5 minutes)")
+except Exception as e:
+    # Never fail API startup because background scheduler failed to initialize.
+    logger.error(f"Failed to initialize automation workflow scheduler: {e}", exc_info=True)
 
 # Ensure our core workflows exist
 try:
@@ -53,11 +63,9 @@ try:
 except Exception as e:
     logger.error(f"Error ensuring workflows: {e}")
 
-_scheduler.start()
-logger.info("Automation Workflow Scheduler started (polling every 5 minutes)")
-
 # Auto-shutdown on app exit
-atexit.register(lambda: _scheduler.shutdown())
+if _scheduler_started and _scheduler is not None:
+    atexit.register(lambda: _scheduler.shutdown())
 
 
 # --------------- Next Run Calculation ---------------

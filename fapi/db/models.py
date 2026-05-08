@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal
 from datetime import time, date, datetime
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
@@ -383,6 +383,7 @@ class CandidateInterview(Base):
     interviewer_contact = Column(Text, nullable=True)
     interviewer_linkedin = Column(String(500), nullable=True)
     interview_date = Column(Date, nullable=False)
+    interview_time = Column(Time, nullable=True)
 
     mode_of_interview = Column(
         Enum(
@@ -408,6 +409,7 @@ class CandidateInterview(Base):
     backup_recording_url = Column(String(500), nullable=True)
     job_posting_url = Column(String(500), nullable=True)
     q_a = Column(Text, nullable=True)
+    email_text = Column(Text, nullable=True)
 
     feedback = Column(
         Enum("Pending", "Positive", "Negative", name="feedback_enum"),
@@ -415,8 +417,10 @@ class CandidateInterview(Base):
         default="Pending"
     )
 
+    feedback_text = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
+    gcal_event_id = Column(String(255), nullable=True)  # Google Calendar event ID for auto-sync
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
@@ -1175,6 +1179,7 @@ class JobListingORM(Base):
             'trueup.io',
             'interview_modal',
             'email_bot_llm_local',
+            'jobright',
             name='job_listing_source_enum'
         ),
         nullable=False,
@@ -1192,6 +1197,7 @@ class JobListingORM(Base):
     contact_phone = Column(String(50), nullable=True)
     contact_linkedin = Column(String(255), nullable=True)
     job_url = Column(String(500), nullable=True)
+    job_url_type = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     status = Column(SQLAEnum(PositionStatusEnum),
@@ -1521,8 +1527,20 @@ class CoderpadQuestionORM(Base):
     __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    sno = Column(Integer, nullable=False, default=0)
+    question = Column(Text, nullable=False)
     title = Column(String(255), nullable=False)
     problem_statement = Column(Text, nullable=False)
+    test_case_1 = Column(Text, nullable=True)
+    test_case_2 = Column(Text, nullable=True)
+    test_case_3 = Column(Text, nullable=True)
+    test_case_4 = Column(Text, nullable=True)
+    test_case_5 = Column(Text, nullable=True)
+    test_case_6 = Column(Text, nullable=True)
+    test_case_7 = Column(Text, nullable=True)
+    test_case_8 = Column(Text, nullable=True)
+    test_case_9 = Column(Text, nullable=True)
+    test_case_10 = Column(Text, nullable=True)
     language = Column(String(50), nullable=False, default="python")
     starter_code = Column(Text, nullable=False, default="")
     test_cases = Column(JSON, nullable=True)
@@ -1535,6 +1553,22 @@ class CoderpadQuestionORM(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     created_by = relationship("AuthUserORM", foreign_keys=[created_by_user_id])
+
+
+class CoderpadSecurityEventORM(Base):
+    __tablename__ = "coderpad_security_event"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    authuser_id = Column(Integer, ForeignKey("authuser.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, ForeignKey("coderpad_question.id", ondelete="SET NULL"), nullable=True)
+    type = Column(String(50), nullable=False)
+    message = Column(Text, nullable=False)
+    severity = Column(String(20), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    authuser = relationship("AuthUserORM")
+    question = relationship("CoderpadQuestionORM")
 
 #--------------------------------------extension keys--------------------------------------
 class ExtensionKeyORM(Base):

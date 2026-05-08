@@ -17,7 +17,7 @@ from fapi.db.schemas import (
     CandidatePreparationOut, PlacementMetrics, InterviewMetrics,
     CandidateInterviewPerformanceResponse, CandidatePreparationMetrics
 )
-from fapi.db.models import CandidateORM, AuthUserORM, CandidateInterview
+from fapi.db.models import CandidateORM, AuthUserORM, CandidateInterview, JobLinkClicksORM, JobListingORM
 from sqlalchemy import func, or_
 from fapi.utils.avatar_dashboard_utils import (
     get_placement_metrics,
@@ -25,6 +25,7 @@ from fapi.utils.avatar_dashboard_utils import (
     candidate_interview_performance,
     get_candidate_preparation_metrics
 )
+from fapi.utils import google_calendar_utils
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -71,6 +72,31 @@ def search_candidates(
         for r in results:
             item = r.__dict__.copy()
             item.pop("_sa_instance_state", None)
+
+            # Extract job link clicks tracking for the candidate
+            authuser = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(r.email)).first() if r.email else None
+            job_listings_tracking = []
+            if authuser:
+                clicks = (
+                    db.query(
+                        JobListingORM.title.label("job_title"),
+                        JobListingORM.company_name,
+                        JobLinkClicksORM.click_count,
+                        JobLinkClicksORM.last_clicked_at
+                    )
+                    .join(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+                    .filter(JobLinkClicksORM.authuser_id == authuser.id)
+                    .all()
+                )
+                for click in clicks:
+                    job_listings_tracking.append({
+                        "job_title": click.job_title,
+                        "company_name": click.company_name,
+                        "activity": f"{click.click_count} clicks",
+                        "last_clicked_at": click.last_clicked_at.isoformat() if click.last_clicked_at else None
+                    })
+            item['job_listings_tracking'] = job_listings_tracking
+
             data.append(item)
         return {"data": data}
     except Exception as e:
@@ -202,7 +228,12 @@ def update_existing_placement(placement_id: int, placement: CandidatePlacementCr
 def delete_existing_placement(placement_id: int):
     return candidate_utils.delete_placement(placement_id)
 
-
+@router.get("/candidate/active-dropdown", summary="Get unique candidates from marketing and placements for dropdown")
+def get_active_dropdown_candidates(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.get_active_dropdown_candidates(db)
 # -----------candidate interview metrics-------------
 
 
@@ -240,6 +271,7 @@ def create_interview(
     db: Session = Depends(get_db),
 ):
     db_obj = candidate_utils.create_candidate_interview(db, interview)
+
     # Fetch with relationships for proper serialization
     full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
     return candidate_utils.serialize_interview(full_obj or db_obj)
@@ -270,6 +302,7 @@ def update_interview(
     db_obj = candidate_utils.update_candidate_interview(db, interview_id, updates)
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
+
     # Fetch with relationships for proper serialization
     full_obj = candidate_utils.get_candidate_interview_with_instructors(db, db_obj.id)
     return candidate_utils.serialize_interview(full_obj or db_obj)
@@ -277,8 +310,21 @@ def update_interview(
 
 @router.delete("/interviews/{interview_id}")
 def delete_interview(interview_id: int, db: Session = Depends(get_db)):
-    db_obj = candidate_utils.delete_candidate_interview(db, interview_id)
+    # Fetch before deleting so we have the gcal_event_id
+    db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
     if not db_obj:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    # --- Google Calendar Sync: delete event first ---
+    try:
+        if db_obj.gcal_event_id:
+            google_calendar_utils.delete_calendar_event(db_obj.gcal_event_id)
+    except Exception as e:
+        logger.error(f"[Google Calendar] Sync failed on delete for interview {interview_id}: {e}")
+    # --- End Google Calendar Sync ---
+
+    deleted = candidate_utils.delete_candidate_interview(db, interview_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Interview not found")
     return {"detail": "Interview deleted successfully"}
 

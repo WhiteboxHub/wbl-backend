@@ -6,6 +6,7 @@ All business logic for dashboard operations using SQLAlchemy ORM
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, case, and_, or_, desc, distinct
 from fastapi import HTTPException
+from fapi.db.models import CandidateInterview
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -310,9 +311,12 @@ def _serialize_interview_summary(interview: CandidateInterview) -> Dict[str, Any
         "company": interview.company,
         "company_type": interview.company_type,
         "interview_date": interview.interview_date.isoformat() if interview.interview_date else None,
+        "interview_time": interview.interview_time if interview.interview_time else None,
         "type_of_interview": interview.type_of_interview,
         "mode_of_interview": interview.mode_of_interview,
         "feedback": interview.feedback,
+        "feedback_text": interview.feedback_text,
+        "notes": interview.notes,
         "has_recording": bool(interview.recording_link),
         "has_transcript": bool(interview.transcript),
         "source_job_id": interview.position.source_job_id if interview.position else None,
@@ -561,7 +565,6 @@ def get_preparation_phase_details(
 
 # ==================== MARKETING PHASE (FIXED) ====================
 
-@cache_result(ttl=300, prefix="candidates")
 def get_marketing_phase_details(
     db: Session, 
     candidate_id: int, 
@@ -1243,3 +1246,17 @@ def _get_login_info(db: Session, email: str) -> Dict[str, Any]:
         "status": authuser.status or "active",
         "total_days_registered": total_days
     }
+
+
+def update_interview_feedback(db: Session, interview_id: int, feedback: str):
+    interview = db.query(CandidateInterview).filter(
+        CandidateInterview.id == interview_id
+    ).first()
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    interview.feedback=feedback
+    candidate_id=interview.candidate_id
+    invalidate_cache("candidates")
+    db.commit()
+    db.refresh(interview)
+    return {"id": interview_id, "feedback": interview.feedback}

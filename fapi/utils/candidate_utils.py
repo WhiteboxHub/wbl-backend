@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
+from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, CandidateResumeORM, CandidateAPIKeyORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, CandidateResumeORM, CandidateAPIKeyORM, JobLinkClicksORM, JobListingORM
 from fapi.utils.encryption_utils import decrypt_api_key
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 
@@ -197,7 +198,6 @@ def delete_candidate(candidate_id: int):
 
 # # -----------------------------------------------Marketing----------------------------
 
-@cache_result(ttl=300, prefix="candidates")
 def get_all_marketing_records(page: int, limit: int) -> dict:
     db: Session = SessionLocal()
     try:
@@ -601,7 +601,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
                 contact_email=data.get("interviewer_emails"),     
                 contact_phone=data.get("interviewer_contact"),
                 contact_linkedin=data.get("interviewer_linkedin"),
-                source="Interview Modal",
+                source="interview_modal",  # Changed from "manual" to match JobListingSourceEnum
                 source_uid=str(uuid.uuid4()), # Generate unique ID to satisfy unique constraint
                 status=PositionStatusEnum.open,
                 position_type=PositionTypeEnum.full_time,
@@ -612,10 +612,10 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
             data["position_id"] = new_job.id
             logger.info(f"Created new Job Listing with ID: {new_job.id}")
         except Exception as e:
-            print(f"ERROR Creating Job Listing: {e}")
+            db.rollback()  # Critical: reset the broken session so the interview can still be saved
+            print(f"ERROR Creating Job Listing (interview will still be saved): {e}")
             logger.error(f"Failed to create Job Listing: {str(e)}")
             # Do not block interview creation, just log error
-            pass
 
     # Clean up fields not present in CandidateInterview model before creating
     # These fields were added to the Pydantic schema for transport but don't exist in the DB table
@@ -626,10 +626,31 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
+
+    # --- GOOGLE CALENDAR SYNC ---
+    try:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == db_obj.candidate_id).first()
+        candidate_name = candidate.full_name if candidate else "Candidate"
+        sync_data = {
+            "interview_date": db_obj.interview_date,
+            "interview_time": db_obj.interview_time,
+            "company": db_obj.company,
+            "type_of_interview": db_obj.type_of_interview,
+            "mode_of_interview": db_obj.mode_of_interview,
+            "notes": db_obj.notes,
+            "interviewer_emails": db_obj.interviewer_emails,
+            "feedback": db_obj.feedback,
+        }
+        event_id = create_calendar_event(sync_data, candidate_name)
+        if event_id:
+            db_obj.gcal_event_id = event_id
+            db.commit()
+    except Exception as e:
+        logger.error(f"Gcal Sync Error (Creation): {e}")
+
     return db_obj
 
 
-@cache_result(ttl=300, prefix="candidates")
 def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     return (
         db.query(CandidateInterview)
@@ -651,7 +672,6 @@ def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     )
 
 
-@cache_result(ttl=300, prefix="candidates")
 def list_interviews_with_instructors(db: Session):
     return (
         db.query(CandidateInterview)
@@ -731,6 +751,30 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
 
     db.commit()
     db.refresh(db_obj)
+
+    # --- GOOGLE CALENDAR SYNC ---
+    try:
+        candidate_name = db_obj.candidate.full_name if db_obj.candidate else "Candidate"
+        sync_data = {
+            "interview_date": db_obj.interview_date,
+            "interview_time": db_obj.interview_time,
+            "company": db_obj.company,
+            "type_of_interview": db_obj.type_of_interview,
+            "mode_of_interview": db_obj.mode_of_interview,
+            "notes": db_obj.notes,
+            "interviewer_emails": db_obj.interviewer_emails,
+            "feedback": db_obj.feedback,
+        }
+        if not db_obj.gcal_event_id:
+            event_id = create_calendar_event(sync_data, candidate_name)
+            if event_id:
+                db_obj.gcal_event_id = event_id
+                db.commit()
+        else:
+            update_calendar_event(db_obj.gcal_event_id, sync_data, candidate_name)
+    except Exception as e:
+        logger.error(f"Gcal Sync Error (Update): {e}")
+
     return db_obj
 
 
@@ -765,7 +809,24 @@ def get_active_marketing_candidates(db: Session):
         }
         for marketing, candidate in results
     ]
-
+def get_active_dropdown_candidates(db: Session) -> list:
+    results = (
+        db.query(CandidateORM.id, CandidateORM.full_name)
+        .outerjoin(CandidateMarketingORM, CandidateORM.id == 
+    CandidateMarketingORM.candidate_id)
+        .outerjoin(CandidatePlacementORM, CandidateORM.id ==
+    CandidatePlacementORM.candidate_id)
+        .filter(
+            or_(
+                CandidateMarketingORM.status == "active",
+                CandidatePlacementORM.status == "Active",
+            )
+        )
+        .distinct()
+        .order_by(CandidateORM.full_name.asc())
+        .all()
+    )
+    return [{"id": row.id, "full_name": row.full_name} for row in results]
 
 # -------------------Candidate_Preparation-------------
 def is_valid_date(date_str):
@@ -1041,6 +1102,26 @@ def get_candidate_details(candidate_id: int, db: Session):
                     "notes": i.notes,
                 }
                 for i in candidate.interviews
+            ],
+            "job_listings_tracking": [
+                {
+                    "job_title": click.job_title,
+                    "company_name": click.company_name,
+                    "activity": f"{click.click_count} clicks",
+                    "last_clicked_at": click.last_clicked_at.isoformat() if click.last_clicked_at else None
+                }
+                for click in (
+                    db.query(
+                        JobListingORM.title.label("job_title"),
+                        JobListingORM.company_name,
+                        JobLinkClicksORM.click_count,
+                        JobLinkClicksORM.last_clicked_at
+                    )
+                    .join(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+                    .filter(JobLinkClicksORM.authuser_id == authuser.id)
+                    .order_by(JobLinkClicksORM.last_clicked_at.desc())
+                    .all() if authuser else []
+                )
             ],
             "placement_records": [
                 {

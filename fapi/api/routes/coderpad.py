@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
@@ -15,14 +15,56 @@ from fapi.db.schemas import (
     CoderpadQuestionUpdate,
     CoderpadQuestionOut,
     CoderpadAssignableCandidateOut,
+    CoderpadLlmValidateRequest,
+    CoderpadLlmValidateResponse,
+    CoderpadLlmGenerateRequest,
+    CoderpadLlmGenerateResponse,
 )
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.utils import coderpad_utils
+from fapi.utils.coderpad_llm_utils import llm_validate_code_submission, llm_generate_question_from_topic
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/coderpad", tags=["CoderPad"])
+
+# Aligns with coderpad_utils list_assignable_candidates limits (ORM-bound params only).
+_MAX_ASSIGNABLE_SEARCH = 200
+_MAX_RESOLVE_IDS = 200
+
+
+def _resolve_openai_api_key(header_key: Optional[str]) -> str:
+    """Prefer per-request header; else CODERPAD_OPENAI_API_KEY, then OPENAI_API_KEY (e.g. from .env)."""
+    k = (header_key or "").strip()
+    if k:
+        return k
+    return (os.getenv("CODERPAD_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
+
+
+def _resolve_openai_api_key_for_user(
+    db: Session,
+    current_user: AuthUserORM,
+    header_key: Optional[str],
+) -> str:
+    """
+    Resolve OpenAI key with candidate credentials first, then request/server fallback.
+    This lets employee logins tied to candidate records reuse stored API keys.
+    """
+    from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
+    from fapi.db.models import CandidateAPIKeyORM
+
+    candidate_info = fetch_candidate_id_and_status_by_email(db, current_user.uname)
+    if candidate_info:
+        api_key_record = db.query(CandidateAPIKeyORM).filter(
+            CandidateAPIKeyORM.candidate_id == candidate_info.candidateid,
+            CandidateAPIKeyORM.provider_name.ilike("%openai%"),
+        ).first()
+        if api_key_record and api_key_record.api_key:
+            return api_key_record.api_key
+
+    return _resolve_openai_api_key(header_key)
 
 
 # ==================== Code Snippet CRUD ====================
@@ -106,6 +148,157 @@ def execute_code(
 ):
     """Execute code directly without saving. Optional test_cases runs stdin tests (assignments)."""
     return coderpad_utils.execute_code_direct(db, current_user.id, request)
+
+
+@router.post("/llm-validate", response_model=CoderpadLlmValidateResponse)
+def llm_validate_coderpad(
+    body: CoderpadLlmValidateRequest,
+    x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Validate candidate code against the problem + test cases using OpenAI.
+    Key resolution: checks CandidateAPIKeyORM first for candidates, then optional 
+    X-OpenAI-Api-Key header, else server env CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY.
+    """
+    key = _resolve_openai_api_key(x_openai_api_key)
+
+    is_admin = (
+        getattr(current_user, "role", None) == "admin"
+        or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
+        or (getattr(current_user, "uname", "") or "").lower() == "admin"
+    )
+
+    if not is_admin:
+        from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
+        from fapi.db.models import CandidateAPIKeyORM
+        candidate_info = fetch_candidate_id_and_status_by_email(db, current_user.uname)
+        if candidate_info:
+            cid = candidate_info.candidateid
+            api_key_record = db.query(CandidateAPIKeyORM).filter(
+                CandidateAPIKeyORM.candidate_id == cid,
+                CandidateAPIKeyORM.provider_name.ilike("%openai%")
+            ).first()
+            if api_key_record and api_key_record.api_key:
+                key = api_key_record.api_key
+
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+        )
+    if not (body.problem_statement or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="problem_statement is required",
+        )
+    model = (body.model or "gpt-4o-mini").strip()
+    result = llm_validate_code_submission(
+        problem_statement=body.problem_statement.strip(),
+        code=body.code,
+        language=body.language or "python",
+        test_cases=body.test_cases,
+        openai_api_key=key,
+        model=model,
+    )
+    return CoderpadLlmValidateResponse(**result)
+
+
+@router.post("/llm-generate", response_model=CoderpadLlmGenerateResponse)
+def llm_generate_question(
+    body: CoderpadLlmGenerateRequest,
+    x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate a CoderPad question (title, statement, starter code, test cases) from a topic.
+    """
+    key = _resolve_openai_api_key_for_user(db, current_user, x_openai_api_key)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+        )
+    if not (body.topic or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="topic is required",
+        )
+
+    model = (body.model or "gpt-4o-mini").strip()
+    result = llm_generate_question_from_topic(
+        topic=body.topic.strip(),
+        language=body.language or "python",
+        openai_api_key=key,
+        model=model,
+    )
+
+    if result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result["error"]
+        )
+
+    return CoderpadLlmGenerateResponse(**result)
+
+
+@router.post("/questions/{question_id}/update-statement-with-llm", response_model=CoderpadLlmGenerateResponse)
+def update_question_statement_with_llm(
+    question_id: int,
+    body: CoderpadLlmGenerateRequest,
+    x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate an updated problem statement for an existing CoderPad question using LLM.
+    Takes the same topic/language/model as llm-generate, generates a new statement,
+    and updates the question with the generated content.
+    """
+    # Verify question exists
+    question_row = coderpad_utils.get_question_by_id(db, question_id)
+    if not question_row:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    key = _resolve_openai_api_key_for_user(db, current_user, x_openai_api_key)
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+        )
+    if not (body.topic or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="topic is required",
+        )
+
+    model = (body.model or "gpt-4o-mini").strip()
+    result = llm_generate_question_from_topic(
+        topic=body.topic.strip(),
+        language=body.language or "python",
+        openai_api_key=key,
+        model=model,
+    )
+
+    if result.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result["error"]
+        )
+
+    # Update the question with the generated content
+    update_data = CoderpadQuestionUpdate(
+        problem_statement=result.get("problem_statement"),
+        starter_code=result.get("starter_code"),
+        test_cases=result.get("test_cases"),
+        language=result.get("language", body.language or "python"),
+    )
+    coderpad_utils.update_question(db, question_row, update_data)
+
+    return CoderpadLlmGenerateResponse(**result)
 
 
 @router.post("/snippets/{snippet_id}/execute", response_model=CodeExecutionWithTestsResponse)
@@ -211,11 +404,16 @@ def list_coderpad_questions(
 
 @router.get("/assignable-candidates", response_model=List[CoderpadAssignableCandidateOut])
 def list_assignable_candidates(
-    search: Optional[str] = None,
+    search: Optional[str] = Query(
+        None,
+        max_length=_MAX_ASSIGNABLE_SEARCH,
+        description="Filter by candidate name or email (bounded length; passed as ORM bind param).",
+    ),
     limit: int = Query(100, ge=1, le=200),
     resolve_ids: Optional[str] = Query(
         None,
-        description="Comma-separated auth user ids to resolve names for selected candidates",
+        max_length=4000,
+        description="Comma-separated auth user ids to resolve names (numeric ids only; max 200).",
     ),
     current_user: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
@@ -224,6 +422,8 @@ def list_assignable_candidates(
     if resolve_ids and resolve_ids.strip():
         id_list = []
         for part in resolve_ids.split(","):
+            if len(id_list) >= _MAX_RESOLVE_IDS:
+                break
             p = part.strip()
             if p.isdigit():
                 id_list.append(int(p))

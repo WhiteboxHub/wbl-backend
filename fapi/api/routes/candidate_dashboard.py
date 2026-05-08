@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from datetime import date
 from fapi.db.models import CandidateORM, AuthUserORM
+from fapi.db.models import CandidateInterview
 from fapi.api.routes import login
 from datetime import datetime
 from sqlalchemy import func
@@ -32,10 +33,11 @@ from fapi.utils.candidate_dashboard_utils import (
     get_candidate_phase_summary,
     get_candidate_team_members,
     update_candidate_phase_status,
+    update_interview_feedback,
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/candidates", tags=["Candidate Dashboard"])
+router = APIRouter(prefix="/candidates", tags=["Candidate Dashboard"])
 security = HTTPBearer()
 
 
@@ -505,3 +507,15 @@ def test_basic_candidate_data(
         logger.error(f"Test endpoint error: {str(e)}", exc_info=True)
         return {"error": str(e)}
     
+# ==================== INTERVIEW FEEDBACK ====================
+
+@router.patch("/interviews/{interview_id}/feedback")
+def update_interview_feedback_endpoint(
+    interview_id: int = Path(...),
+    feedback: str = Query(..., description="Pending, Positive, or Negative"),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    if feedback not in ("Pending", "Positive", "Negative"):
+        raise HTTPException(status_code=400, detail="Invalid feedback value")
+    return update_interview_feedback(db, interview_id, feedback)

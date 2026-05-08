@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Enum, UniqueConstraint, BigInteger, DateTime, Boolean, Date, DECIMAL, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime, date
+from datetime import datetime, date, time
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, validator, Field, HttpUrl, condecimal, model_validator
 from typing import Optional, List, Literal, Union, Dict, Any
 from enum import Enum
@@ -37,7 +37,7 @@ class JobListingSourceEnum(str, enum.Enum):
     job_board = 'job_board'
     scraper = 'scraper'
     hiring_cafe = 'hiring.cafe'
-    jobright_ai = 'jobright.ai'
+    jobright = 'jobright'
     trueup_io = 'trueup.io'
     interview_modal = 'interview_modal'
     email_bot_llm_local = 'email_bot_llm_local'
@@ -210,6 +210,7 @@ class JobListingBase(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    job_url_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: PositionStatusEnum = PositionStatusEnum.open
@@ -248,6 +249,7 @@ class JobListingUpdate(BaseModel):
     contact_phone: Optional[str] = None
     contact_linkedin: Optional[str] = None
     job_url: Optional[str] = None
+    job_url_type: Optional[str] = None
     description: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[PositionStatusEnum] = None
@@ -279,6 +281,15 @@ class JobListingBulkResponse(BaseModel):
     skipped: int
     total: int
     failed_contacts: List[dict] = []
+
+class PaginatedJobListingResponse(BaseModel):
+    data: List[JobListingOut]
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
 
 
 
@@ -1196,6 +1207,7 @@ class CandidateInterviewBase(BaseModel):
     interviewer_contact: Optional[str] = None
     interviewer_linkedin: Optional[str] = None
     interview_date: date
+    interview_time: Optional[time] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     transcript: Optional[str] = None
@@ -1208,6 +1220,8 @@ class CandidateInterviewBase(BaseModel):
     position_id: Optional[int] = None
     candidate: Optional["CandidateBase"] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1216,6 +1230,7 @@ class CandidateInterviewCreate(BaseModel):
     company: str
     company_type: Optional[CompanyTypeEnum] = CompanyTypeEnum.client
     interview_date: date
+    interview_time: Optional[time] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = ModeOfInterviewEnum.virtual
     type_of_interview: Optional[TypeOfInterviewEnum] = TypeOfInterviewEnum.recruiter_call
     interviewer_emails: Optional[str] = None
@@ -1230,6 +1245,8 @@ class CandidateInterviewCreate(BaseModel):
     position_title: Optional[str] = None
     position_location: Optional[str] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 
@@ -1248,6 +1265,7 @@ class CandidateInterviewUpdate(BaseModel):
     interviewer_contact: Optional[str] = None
     interviewer_linkedin: Optional[str] = None
     interview_date: Optional[date] = None
+    interview_time: Optional[time] = None
     mode_of_interview: Optional[ModeOfInterviewEnum] = None
     type_of_interview: Optional[TypeOfInterviewEnum] = None
     transcript: Optional[str] = None
@@ -1259,6 +1277,8 @@ class CandidateInterviewUpdate(BaseModel):
     notes: Optional[str] = None
     position_id: Optional[int] = None
     q_a: Optional[str] = None
+    email_text: Optional[str] = None
+    feedback_text: Optional[str] = None
 
 
 # --- Output Schema ---
@@ -1270,7 +1290,7 @@ class CandidateInterviewOut(CandidateInterviewBase):
     instructor3_name: Optional[str] = None
     position_title: Optional[str] = None
     position_company: Optional[str] = None
-    # source_job_id: Optional[str] = None
+    gcal_event_id: Optional[str] = None  # Google Calendar event ID
     last_mod_datetime: Optional[datetime] = None
 
     class Config:
@@ -3965,6 +3985,8 @@ class TestCase(BaseModel):
     expected_output: str
     description: Optional[str] = None
     locked: Optional[bool] = None
+    # Stdout from the candidate's last run when sent (e.g. LLM validation); not persisted on snippets.
+    actual_output: Optional[str] = None
 
 
 class CodeSnippetBase(BaseModel):
@@ -4020,8 +4042,20 @@ class CodeSnippetListOut(BaseModel):
 
 
 class CoderpadQuestionBase(BaseModel):
-    title: str
-    problem_statement: str
+    sno: int = 0
+    title: Optional[str] = None
+    question: Optional[str] = None
+    problem_statement: Optional[str] = None
+    test_case_1: Optional[str] = None
+    test_case_2: Optional[str] = None
+    test_case_3: Optional[str] = None
+    test_case_4: Optional[str] = None
+    test_case_5: Optional[str] = None
+    test_case_6: Optional[str] = None
+    test_case_7: Optional[str] = None
+    test_case_8: Optional[str] = None
+    test_case_9: Optional[str] = None
+    test_case_10: Optional[str] = None
     language: str = "python"
     starter_code: str = ""
     test_cases: Optional[List[TestCase]] = None
@@ -4030,14 +4064,35 @@ class CoderpadQuestionBase(BaseModel):
     is_active: bool = True
     sort_order: int = 0
 
+    @model_validator(mode="after")
+    def ensure_question_present(self):
+        q = (self.question or "").strip()
+        p = (self.problem_statement or "").strip()
+        t = (self.title or "").strip()
+        if not q and not p and not t:
+            raise ValueError("title, question, or problem statement is required")
+        return self
+
 
 class CoderpadQuestionCreate(CoderpadQuestionBase):
     pass
 
 
 class CoderpadQuestionUpdate(BaseModel):
+    sno: Optional[int] = None
     title: Optional[str] = None
+    question: Optional[str] = None
     problem_statement: Optional[str] = None
+    test_case_1: Optional[str] = None
+    test_case_2: Optional[str] = None
+    test_case_3: Optional[str] = None
+    test_case_4: Optional[str] = None
+    test_case_5: Optional[str] = None
+    test_case_6: Optional[str] = None
+    test_case_7: Optional[str] = None
+    test_case_8: Optional[str] = None
+    test_case_9: Optional[str] = None
+    test_case_10: Optional[str] = None
     language: Optional[str] = None
     starter_code: Optional[str] = None
     test_cases: Optional[List[TestCase]] = None
@@ -4093,6 +4148,40 @@ class CodeExecutionWithTestsResponse(BaseModel):
     status: str
     execution_time_ms: int
     test_results: Optional[List[TestCaseExecutionResult]] = None
+
+
+class CoderpadLlmValidateRequest(BaseModel):
+    """Optional X-OpenAI-Api-Key header; else server uses CODERPAD_OPENAI_API_KEY / OPENAI_API_KEY."""
+
+    problem_statement: str
+    code: str
+    language: str = "python"
+    test_cases: Optional[List[TestCase]] = None
+    model: Optional[str] = "gpt-4o-mini"
+
+
+class CoderpadLlmValidateResponse(BaseModel):
+    passed: Optional[bool] = None
+    summary: str = ""
+    feedback: str = ""
+    confidence: Optional[str] = None
+    raw_model_text: Optional[str] = None
+    error: Optional[str] = None
+
+
+class CoderpadLlmGenerateRequest(BaseModel):
+    topic: str
+    language: Optional[str] = "python"
+    model: Optional[str] = "gpt-4o-mini"
+
+
+class CoderpadLlmGenerateResponse(BaseModel):
+    title: str = ""
+    problem_statement: str = ""
+    starter_code: str = ""
+    language: str = "python"
+    test_cases: Optional[List[TestCase]] = None
+    error: Optional[str] = None
 
 
 class CodeExecutionLogOut(BaseModel):
@@ -4177,3 +4266,19 @@ class DownloadPayload(BaseModel):
     field_answers: List[FieldAnswerInput]
     locators: List[LocatorInput]
 
+class CoderpadSecurityEventCreate(BaseModel):
+    question_id: Optional[int] = None
+    type: str
+    message: str
+    severity: str
+
+class CoderpadTrackingCandidateStats(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    problems_solved: int
+    problems_correct: int
+    total_violations: int
+    last_activity_at: Optional[datetime] = None
+
+class CoderpadTrackingResponse(BaseModel):
+    candidates: List[CoderpadTrackingCandidateStats]

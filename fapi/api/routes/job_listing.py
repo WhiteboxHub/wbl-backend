@@ -8,7 +8,8 @@ from fapi.db.schemas import (
     JobListingUpdate, 
     JobListingOut,
     JobListingBulkCreate,
-    JobListingBulkResponse
+    JobListingBulkResponse,
+    PaginatedJobListingResponse
 )
 from fapi.utils import job_listing_utils
 from fapi.utils.job_listing_utils import get_positions_version
@@ -29,7 +30,7 @@ def check_version(
 def read_positions(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):
     return job_listing_utils.get_positions(db, skip=skip, limit=limit)
 
-@router.get("/paginated")
+@router.get("/paginated", response_model=PaginatedJobListingResponse)
 def read_positions_paginated(
     page: int = 1, 
     page_size: int = 5000, 
