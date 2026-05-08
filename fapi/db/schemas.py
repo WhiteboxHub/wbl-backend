@@ -4266,3 +4266,19 @@ class DownloadPayload(BaseModel):
     field_answers: List[FieldAnswerInput]
     locators: List[LocatorInput]
 
+class CoderpadSecurityEventCreate(BaseModel):
+    question_id: Optional[int] = None
+    type: str
+    message: str
+    severity: str
+
+class CoderpadTrackingCandidateStats(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    problems_solved: int
+    problems_correct: int
+    total_violations: int
+    last_activity_at: Optional[datetime] = None
+
+class CoderpadTrackingResponse(BaseModel):
+    candidates: List[CoderpadTrackingCandidateStats]
