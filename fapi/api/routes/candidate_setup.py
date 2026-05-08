@@ -59,10 +59,8 @@ def validate_resume_json(resume_json: Dict[str, Any]):
             missing_fields.append(label)
     
     if missing_fields:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Missing or invalid mandatory fields: {', '.join(missing_fields)}"
-        )
+        logger.warning(f"Missing or invalid recommended fields in resume: {', '.join(missing_fields)}")
+        # We no longer block saving for missing fields, just log it.
 
 def detect_provider(api_key: str) -> str:
     if api_key.startswith("sk-ant"):

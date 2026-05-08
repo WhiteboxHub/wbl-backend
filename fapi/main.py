@@ -77,7 +77,8 @@ app.add_middleware(
         "https://wbl-frontend-560359652969.us-central1.run.app",
         "http://localhost:3000",
         "http://localhost:3001",
-        "http://127.0.0.1:8000"
+        "http://127.0.0.1:8000",
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
