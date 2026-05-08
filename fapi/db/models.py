@@ -1554,6 +1554,22 @@ class CoderpadQuestionORM(Base):
 
     created_by = relationship("AuthUserORM", foreign_keys=[created_by_user_id])
 
+
+class CoderpadSecurityEventORM(Base):
+    __tablename__ = "coderpad_security_event"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    authuser_id = Column(Integer, ForeignKey("authuser.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, ForeignKey("coderpad_question.id", ondelete="SET NULL"), nullable=True)
+    type = Column(String(50), nullable=False)
+    message = Column(Text, nullable=False)
+    severity = Column(String(20), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    authuser = relationship("AuthUserORM")
+    question = relationship("CoderpadQuestionORM")
+
 #--------------------------------------extension keys--------------------------------------
 class ExtensionKeyORM(Base):
     __tablename__ = "extension_keys"
