@@ -38,6 +38,8 @@ def fetch_keyword_presentation(search: str, course: str):
         "Assignments": "A"
     }
     type_codes = type_mapping.get(search)
+    if type_codes and not isinstance(type_codes, list):
+        type_codes = [type_codes]
     if not type_codes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
