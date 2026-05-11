@@ -33,6 +33,12 @@ router = APIRouter(prefix="/coderpad", tags=["CoderPad"])
 _MAX_ASSIGNABLE_SEARCH = 200
 _MAX_RESOLVE_IDS = 200
 
+# Shown when ``X-OpenAI-Api-Key`` is missing (candidates/staff must paste per session).
+CODERPAD_MISSING_OPENAI_KEY_MSG = (
+    "No API key found. Please update your API key: paste your OpenAI key in CoderPad "
+    "and try again (nothing is stored on the server)."
+)
+
 
 def _openai_api_key_from_header_only(header_key: Optional[str]) -> str:
     """LLM routes use only ``X-OpenAI-Api-Key`` from the request (no DB or server env)."""
@@ -137,7 +143,7 @@ def llm_validate_coderpad(
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Send X-OpenAI-Api-Key with your OpenAI API key (nothing is read from credentials or env).",
+            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
         )
     if not (body.problem_statement or "").strip():
         raise HTTPException(
@@ -169,7 +175,7 @@ def llm_generate_question(
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Send X-OpenAI-Api-Key with your OpenAI API key (nothing is read from credentials or env).",
+            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
         )
     if not (body.topic or "").strip():
         raise HTTPException(
@@ -216,7 +222,7 @@ def update_question_statement_with_llm(
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Send X-OpenAI-Api-Key with your OpenAI API key (nothing is read from credentials or env).",
+            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
         )
     if not (body.topic or "").strip():
         raise HTTPException(
