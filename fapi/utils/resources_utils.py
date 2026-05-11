@@ -28,27 +28,23 @@ def fetch_keyword_presentation(search: str, course: str):
 
     type_mapping = {
         "Presentations": "P",
-        "Must See Youtube Videos": "Y",
+        "Must Watch": ["Y","B"],
         "Cheatsheets": "C",
         "Study Guides": "SG",
-        "Diagrams": "D",
         "Interactive Visual Explainers": "I",
         "Templates": "T",
         "Books": "B",
-        "Softwares": "S",
         "Newsletters": "N",
         "Assignments": "A"
     }
-    type_code = type_mapping.get(search)
-    if not type_code:
+    type_codes = type_mapping.get(search)
+    if not type_codes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Study Guides, Diagrams, Interactive Visual Explainers, Templates, Books, Softwares, Newsletters, Assignments"
+            detail="Invalid search keyword. Please select one of: Presentations, Cheatsheets, Study Guides, Interactive Visual Explainers, Templates, Books, Newsletters, Assignments"
         )
 
     courseid_mapping = {
-        "QA": 1,
-        "UI": 2,
         "ML": 3
     }
     selected_courseid = courseid_mapping.get(course.upper())
@@ -70,7 +66,7 @@ def fetch_keyword_presentation(search: str, course: str):
         results = (
             session.query(CourseMaterial)
             .filter(
-                CourseMaterial.type == type_code,
+                CourseMaterial.type.in_(type_codes),
                 or_(CourseMaterial.courseid == 0,
                     CourseMaterial.courseid == selected_courseid)
             )
