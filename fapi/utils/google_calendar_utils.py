@@ -155,7 +155,13 @@ def create_calendar_event(interview_data: dict, candidate_name: str) -> Optional
     """
     Creates a new Google Calendar event for an interview.
     Returns the event ID (stored in DB) or None if it fails.
+    Only runs in production (APP_ENV=production).
     """
+    app_env = os.getenv("APP_ENV", "local").strip().lower()
+    if app_env != "production":
+        _log("INFO", f"Skipping calendar CREATE — APP_ENV='{app_env}' (not production)")
+        return None
+
     company = interview_data.get("company", "Unknown")
     date = interview_data.get("interview_date", "Unknown date")
     _log("INFO", f"Attempting to create event: '{candidate_name} @ {company}' on {date} ...")
@@ -189,7 +195,13 @@ def update_calendar_event(event_id: str, interview_data: dict, candidate_name: s
     """
     Updates an existing Google Calendar event.
     Returns True on success, False on failure.
+    Only runs in production (APP_ENV=production).
     """
+    app_env = os.getenv("APP_ENV", "local").strip().lower()
+    if app_env != "production":
+        _log("INFO", f"Skipping calendar UPDATE — APP_ENV='{app_env}' (not production)")
+        return False
+
     if not event_id:
         _log("WARN", "Update skipped — no gcal_event_id stored for this interview")
         return False
@@ -223,7 +235,13 @@ def delete_calendar_event(event_id: str) -> bool:
     """
     Deletes a Google Calendar event.
     Returns True on success, False on failure.
+    Only runs in production (APP_ENV=production).
     """
+    app_env = os.getenv("APP_ENV", "local").strip().lower()
+    if app_env != "production":
+        _log("INFO", f"Skipping calendar DELETE — APP_ENV='{app_env}' (not production)")
+        return False
+
     if not event_id:
         _log("WARN", "Delete skipped — no gcal_event_id stored for this interview")
         return False

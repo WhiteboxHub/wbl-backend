@@ -8,11 +8,9 @@ from fapi.core.cache import cache_result, invalidate_cache
 
 COURSE_MATERIAL_TYPE_MAPPING = {
     "P": "Presentations",
-    "Y": "Must See Youtube Videos",
+    "Y": "Must Watch",
     "C": "Cheatsheets", 
     "SG": "Study Guides", 
-    "D": "Diagrams",
-    "S": "Softwares",
     "I": "Interactive Visual Explainers",
     "B": "Books",
     "N": "Newsletters",
@@ -142,7 +140,7 @@ def create_course_material(db: Session, course_material: schemas.CourseMaterialC
     invalidate_cache("resources") # Resources often fetch these
     """Create a new course material and return enriched data"""
     # Validate material type
-    valid_types = ['P', 'Y', 'C', 'SG', 'D', 'S', 'I', 'B', 'N', 'M', 'A']
+    valid_types = ['P', 'Y', 'C', 'SG', 'I', 'B', 'N', 'M', 'A']
     if course_material.type not in valid_types:
         raise ValueError(f"Invalid material type. Must be one of: {valid_types}")
     
@@ -181,7 +179,7 @@ def update_course_material(
     
     # Validate material type if being updated
     if 'type' in update_data:
-        valid_types = ['P', 'Y', 'C', 'SG', 'D', 'S', 'I', 'B', 'N', 'M', 'A']
+        valid_types = ['P', 'Y', 'C', 'SG', 'I', 'B', 'N', 'M', 'A']
         if update_data['type'] not in valid_types:
             raise ValueError(f"Invalid material type. Must be one of: {valid_types}")
     

@@ -4,7 +4,9 @@ Handles all dashboard-related endpoints for candidate management
 """
 
 import logging
-from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security
+import os
+import shutil
+from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, File, UploadFile, Form
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
@@ -35,10 +37,122 @@ from fapi.utils.candidate_dashboard_utils import (
     update_candidate_phase_status,
     update_interview_feedback,
 )
+from fapi.utils.email_utils import send_onboarding_documents_email
+from fapi.utils.google_drive_utils import create_drive_folder, upload_to_drive
+from fapi.utils.email_utils import send_consolidated_onboarding_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/candidates", tags=["Candidate Dashboard"])
 security = HTTPBearer()
+
+
+# ==================== ONBOARDING DOCUMENT UPLOAD ====================
+
+@router.post("/{candidate_id}/onboarding/upload")
+async def upload_onboarding_documents(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    govId: UploadFile = File(...),
+    workAuth: UploadFile = File(...),
+    resume: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+
+    try:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+
+        files_to_process = [
+            ("govId", govId),
+            ("workAuth", workAuth),
+            ("resume", resume)
+        ]
+
+        # --- GOOGLE DRIVE INTEGRATION ---
+        
+        
+        drive_folder_id = None
+        drive_link = None
+        
+        try:
+            # Create folder in Google Drive (organized by Candidate ID and Name)
+            folder_name = f"Candidate_{candidate_id}_{candidate.full_name or 'Unknown'}"
+            drive_folder = create_drive_folder(folder_name)
+            if drive_folder:
+                drive_folder_id = drive_folder.get('id')
+                drive_link = drive_folder.get('webViewLink')
+            else:
+                raise Exception("Failed to create or find Google Drive folder")
+        except Exception as drive_err:
+            logger.error(f"Google Drive folder creation failed: {str(drive_err)}")
+            raise HTTPException(status_code=500, detail="Cloud storage initialization failed. Please contact admin.")
+
+        upload_errors = []
+        for doc_type, file in files_to_process:
+            # Create a clean filename
+            ext = os.path.splitext(file.filename)[1]
+            safe_filename = f"{doc_type}_{int(datetime.now().timestamp())}{ext}"
+            
+            # Read file content
+            content = await file.read()
+            if not content:
+                continue
+
+            # Upload to Google Drive directly (Production primary)
+            try:
+                file_id = upload_to_drive(content, safe_filename, drive_folder_id, file.content_type)
+                if not file_id:
+                    upload_errors.append(safe_filename)
+                    logger.error(f"Drive upload failed for {safe_filename}")
+            except Exception as upload_err:
+                upload_errors.append(safe_filename)
+                logger.error(f"Failed to upload {safe_filename} to Drive: {str(upload_err)}")
+
+        if upload_errors:
+            raise HTTPException(status_code=500, detail=f"Failed to upload documents to Google Drive: {', '.join(upload_errors)}")
+
+        # Update candidate folder path in DB with the Drive link
+        candidate.candidate_folder = drive_link
+        db.commit()
+
+        # Send consolidated onboarding email to recruiters
+        try:
+            
+            # Extract signature from notes if possible
+            notes = candidate.notes or ""
+            signature = "Electronically Signed"
+            if "Signature:" in notes:
+                try:
+                    signature = notes.split("Signature:")[1].strip()
+                except:
+                    pass
+            
+            await send_consolidated_onboarding_email(
+                candidate_name=candidate.full_name or "Unknown",
+                candidate_email=candidate.email or "N/A",
+                candidate_phone=candidate.phone or "N/A",
+                signature=signature,
+                notes=notes,
+                drive_link=drive_link,
+                file_paths=[] # Exclusive use of Drive link for production
+            )
+            logger.info(f"Consolidated onboarding email sent for candidate {candidate_id}")
+        except Exception as email_err:
+            logger.error(f"Failed to send consolidated onboarding email for candidate {candidate_id}: {str(email_err)}")
+
+        return {
+            "message": "Documents uploaded successfully to Google Drive",
+            "storage_type": "google_drive",
+            "folder_link": drive_link
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading onboarding documents for candidate {candidate_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload documents to cloud: {str(e)}")
 
 
 # ==================== DASHBOARD OVERVIEW ====================
@@ -49,18 +163,7 @@ def get_candidate_dashboard_overview_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get comprehensive dashboard overview for a candidate**
     
-    Returns:
-    - Basic candidate information
-    - Journey timeline (enrolled → prep → marketing → placement)
-    - Phase metrics (duration, ratings, counts)
-    - Team information (instructors, managers)
-    - Interview statistics
-    - Recent interviews (last 5)
-    - Quick notes and alerts
-    """
     try:
         return get_dashboard_overview(db, candidate_id)
     except HTTPException:
@@ -76,15 +179,7 @@ def get_candidate_journey_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get candidate journey/timeline across all phases**
-    
-    Returns progression status:
-    - Enrolled (date, batch, status)
-    - Preparation (status, dates, completion)
-    - Marketing (status, dates, activity)
-    - Placement (status, date, company)
-    """
+   
     try:
         return get_candidate_journey_timeline(db, candidate_id)
     except HTTPException:
@@ -100,17 +195,7 @@ def get_candidate_full_profile_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get complete candidate profile with all details**
     
-    Comprehensive profile including:
-    - Personal information
-    - Contact details
-    - Emergency contacts
-    - Education & experience
-    - All phase records
-    - Financial information
-    """
     try:
         return get_candidate_full_profile(db, candidate_id)
     except HTTPException:
@@ -129,18 +214,7 @@ def get_candidate_preparation_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get preparation phase details for candidate**
     
-    Returns:
-    - Current/latest preparation record
-    - Assigned instructors (with contact info)
-    - Ratings (technical, communication)
-    - Topics completed and in-progress
-    - Duration and target dates
-    - Resources (LinkedIn, GitHub, Resume)
-    - Move to marketing flag
-    """
     try:
         return get_preparation_phase_details(db, candidate_id, include_inactive)
     except HTTPException:
@@ -159,18 +233,7 @@ def get_candidate_marketing_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get marketing phase details for candidate**
-    
-    Returns:
-    - Current/latest marketing record
-    - Marketing manager and team
-    - Marketing credentials (email, password, Google Voice)
-    - Interview statistics and breakdown
-    - Resume versions
-    - Top companies interviewed
-    - Move to placement flag
-    """
+
     try:
         return get_marketing_phase_details(db, candidate_id, include_inactive)
     except HTTPException:
@@ -189,18 +252,7 @@ def get_candidate_placement_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get placement phase details for candidate**
-    
-    Returns:
-    - Active/all placement records
-    - Company and position details
-    - Compensation package (salary, benefits, bonuses)
-    - Placement fees
-    - Placement type and status
-    - Other offers (accepted/declined)
-    - Follow-up schedule
-    """
+   
     try:
         return get_placement_phase_details(db, candidate_id, include_inactive)
     except HTTPException:
@@ -227,19 +279,7 @@ def get_candidate_interviews_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get all interviews for a candidate with optional filters**
-    
-    Supports filtering by:
-    - Company type (client, vendor, etc.)
-    - Feedback status (Positive, Negative, Pending)
-    - Interview type (Technical, HR, etc.)
-    - Mode (Virtual, In Person, Phone)
-    - Company name (partial match)
-    - Date range
-    
-    Returns paginated results with interviewer details and recordings
-    """
+   
     try:
         return get_candidate_interviews_with_filters(
             db=db,
@@ -267,20 +307,7 @@ def get_candidate_interview_analytics_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get comprehensive interview analytics for a candidate**
-    
-    Returns:
-    - Total interview count
-    - Feedback distribution (positive, negative, pending)
-    - Success rates by company type
-    - Success rates by interview type
-    - Success rates by mode
-    - Weekly/monthly activity trends
-    - Top companies (by interview count)
-    - Average time between interviews
-    - Conversion funnel (recruiter → technical → HR → offer)
-    """
+   
     try:
         return get_candidate_interview_analytics(db, candidate_id)
     except HTTPException:
@@ -298,15 +325,7 @@ def get_candidate_phase_summary_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get summary of all phases for quick metrics cards**
-    
-    Returns condensed metrics for:
-    - Enrolled phase (date, batch, fee)
-    - Preparation phase (duration, ratings, status)
-    - Marketing phase (duration, interview counts)
-    - Placement phase (company, salary, date)
-    """
+   
     try:
         return get_candidate_phase_summary(db, candidate_id)
     except HTTPException:
@@ -324,15 +343,7 @@ def get_candidate_team_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get all team members assigned to candidate**
-    
-    Returns:
-    - Preparation instructors (1, 2, 3) with contact info
-    - Marketing manager with contact info
-    - Marketing support team
-    - Batch coordinator (if applicable)
-    """
+   
     try:
         return get_candidate_team_members(db, candidate_id)
     except HTTPException:
@@ -429,16 +440,7 @@ def get_candidate_statistics_endpoint(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    """
-    **Get comprehensive statistics for candidate**
     
-    Returns:
-    - Total days in system
-    - Days in each phase
-    - Interview conversion rates
-    - Response time metrics
-    - Progress indicators
-    """
     try:
         from fapi.utils.candidate_dashboard_utils import get_candidate_statistics
         return get_candidate_statistics(db, candidate_id)

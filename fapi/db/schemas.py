@@ -604,6 +604,8 @@ class AuthUserCreate(AuthUserBase):
 
 class AuthUserUpdate(AuthUserBase):
     passwd: Optional[str] = None
+    logincount: Optional[int] = None
+    enddate: Optional[date] = None
 
 
 class AuthUserResponse(AuthUserBase):
@@ -774,6 +776,7 @@ class CandidateBase(BaseModel):
     move_to_prep: Optional[bool] = False
     is_in_prep: Optional[str] = "No"
     is_in_marketing: Optional[str] = "No"
+    login_count: Optional[int] = 0
 
     model_config = {
         "from_attributes": True,
@@ -804,7 +807,6 @@ class StatusEnum(str, Enum):
 class CandidateUpdate(BaseModel):
     id: Optional[int] = None
     full_name: Optional[str] = None
-    name: Optional[str] = None
     enrolled_date: Optional[date] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -829,7 +831,8 @@ class CandidateUpdate(BaseModel):
     notes: Optional[str] = None
     batchid: Optional[int] = None
     candidate_folder: Optional[str] = None
-    move_to_prep: Optional[bool] = False
+    github_link: Optional[str] = None
+    move_to_prep: Optional[bool] = None
 
     model_config = {
         "from_attributes": True,
@@ -3974,7 +3977,7 @@ class JobLinkClickAnalytics(BaseModel):
     click_count: int
     first_clicked_at: datetime
     last_clicked_at: datetime
-
+    logincount: int
     class Config:
         from_attributes = True
 

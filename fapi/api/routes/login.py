@@ -54,9 +54,25 @@ async def login_for_access_token(
             detail="Invalid username or password.",
         )
     db_user = get_user_by_username(db, user.get("uname"))
+    candidate_login_count = 0
     if db_user:
-
         db_user.logincount = (db_user.logincount or 0) + 1
+        
+        # If user is a candidate, also increment CandidateORM.login_count
+        if user.get("candidateid"):
+            from fapi.db.models import CandidateORM
+            candidate = db.query(CandidateORM).filter(CandidateORM.id == user.get("candidateid")).first()
+            if candidate:
+                candidate.login_count = (candidate.login_count or 0) + 1
+                candidate_login_count = candidate.login_count
+                
+                # Invalidate dashboard cache to show updated login count
+                try:
+                    from fapi.core.cache import invalidate_cache
+                    invalidate_cache("candidates", "get_dashboard_overview", candidate.id)
+                except Exception as e:
+                    print(f"Cache invalidation failed: {e}")
+        
         db.commit()
         db.refresh(db_user)
         login_count = db_user.logincount
@@ -76,5 +92,5 @@ async def login_for_access_token(
         "access_token": access_token,
         "token_type": "bearer",
         "team": user.get("team", "default_team"),
-        "login_count": login_count
+        "login_count": candidate_login_count if user.get("candidateid") else login_count
     }
