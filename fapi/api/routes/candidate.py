@@ -131,8 +131,18 @@ def create_candidate(candidate: CandidateCreate):
 
 
 @router.put("/candidates/{candidate_id}")
-def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdate):
-    candidate_utils.update_candidate(candidate_id, candidate.dict(exclude_unset=True))
+async def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdate, db: Session = Depends(get_db)):
+    # 1. Perform the update
+    candidate_dict = candidate.dict(exclude_unset=True)
+    candidate_utils.update_candidate(candidate_id, candidate_dict)
+    
+    # 2. Invalidate dashboard cache
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("candidates")
+    except Exception as e:
+        logger.error(f"Cache invalidation failed for update: {e}")
+
     return {"message": "Candidate updated successfully"}
 
 @router.delete("/candidates/{candidate_id}")

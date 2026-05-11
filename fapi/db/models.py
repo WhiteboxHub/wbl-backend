@@ -250,10 +250,11 @@ class CandidateORM(Base):
     emergcontactaddrs = Column(String(300), nullable=True)
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
-    batchid = Column(Integer, ForeignKey("batch.batchid"), nullable=False)
+    batchid = Column(Integer, ForeignKey("batch.batchid"), nullable=True)
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
+    login_count = Column(Integer, default=0, server_default="0")
 
 
     interviews = relationship(

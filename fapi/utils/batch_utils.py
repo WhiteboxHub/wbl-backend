@@ -62,3 +62,18 @@ def delete_batch(db: Session, batch_id: int):
     return db_batch
 def get_batches_version(db: Session) -> Response:
     return generate_version_for_model(db, models.Batch)
+
+def get_current_batch(db: Session):
+    from datetime import date
+    today = date.today()
+    # Find the most recently started batch that is still active
+    current_batch = db.query(models.Batch).filter(
+        models.Batch.startdate <= today,
+        models.Batch.enddate >= today
+    ).order_by(models.Batch.startdate.desc()).first()
+    
+    # If no active batch found, just get the latest started one
+    if not current_batch:
+        current_batch = db.query(models.Batch).order_by(models.Batch.startdate.desc()).first()
+        
+    return current_batch
