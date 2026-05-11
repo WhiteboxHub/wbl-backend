@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
-from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event
+from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event
 
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, CandidateResumeORM, CandidateAPIKeyORM, JobLinkClicksORM, JobListingORM
 from fapi.utils.encryption_utils import decrypt_api_key
@@ -783,6 +783,12 @@ def delete_candidate_interview(db: Session, interview_id: int):
     invalidate_cache("metrics")
     db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
     if db_obj:
+        # Remove the Google Calendar event before deleting from DB
+        if db_obj.gcal_event_id:
+            try:
+                delete_calendar_event(db_obj.gcal_event_id)
+            except Exception as e:
+                logger.error(f"Gcal Sync Error (Delete): {e}")
         db.delete(db_obj)
         db.commit()
     return db_obj
