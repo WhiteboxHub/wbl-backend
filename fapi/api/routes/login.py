@@ -54,14 +54,22 @@ async def login_for_access_token(
             detail="Invalid username or password.",
         )
     db_user = get_user_by_username(db, user.get("uname"))
+    login_count = 0
+    
     if db_user:
-
-        db_user.logincount = (db_user.logincount or 0) + 1
-        db.commit()
-        db.refresh(db_user)
-        login_count = db_user.logincount
-    else:
-        login_count = 0
+        try:
+            db_user.logincount = (db_user.logincount or 0) + 1
+            login_count = db_user.logincount
+            
+            db.commit()
+            db.refresh(db_user)
+            login_count = db_user.logincount
+        except Exception as db_err:
+            print(f"Database update failed during login: {db_err}")
+            db.rollback()
+            # If we couldn't update the count, we still want to allow the login
+            login_count = getattr(db_user, "logincount", 0) or 0
+    
     token_data = {
         "sub": user.get("uname"),
         "team": user.get("team", "default_team"),

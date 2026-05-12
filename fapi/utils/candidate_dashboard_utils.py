@@ -82,6 +82,10 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
     basic_info = _get_basic_candidate_info(candidate)
+    
+    # Fetch login count from authuser
+    auth_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == candidate.email.lower()).first() if candidate.email else None
+    basic_info["login_count"] = auth_user.logincount if auth_user else 0
 
     journey = _build_journey_timeline(candidate)
 
@@ -118,12 +122,12 @@ def _get_basic_candidate_info(candidate: CandidateORM) -> Dict[str, Any]:
         "full_name": candidate.full_name,
         "email": candidate.email,
         "phone": candidate.phone,
-        "secondary_email": candidate.secondaryemail,
-        "secondary_phone": candidate.secondaryphone,
+        "secondaryemail": candidate.secondaryemail,
+        "secondaryphone": candidate.secondaryphone,
         "status": candidate.status,
-        "work_status": candidate.workstatus,
+        "workstatus": candidate.workstatus,
         "education": candidate.education,
-        "work_experience": candidate.workexperience,
+        "workexperience": candidate.workexperience,
         "linkedin_id": candidate.linkedin_id,
         "github_link": candidate.github_link,
         "candidate_folder": candidate.candidate_folder,
@@ -408,16 +412,18 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
             "full_name": candidate.full_name,
             "email": candidate.email,
             "phone": candidate.phone,
-            "secondary_email": candidate.secondaryemail,
-            "secondary_phone": candidate.secondaryphone,
+            "secondaryemail": candidate.secondaryemail,
+            "secondaryphone": candidate.secondaryphone,
             "linkedin_id": candidate.linkedin_id,
             "github_link": candidate.github_link,
             "dob": candidate.dob.isoformat() if candidate.dob else None,
             "address": candidate.address,
+            "zip_code": candidate.zip_code,
+            "ssn": candidate.ssn,
             "status": candidate.status,
-            "work_status": candidate.workstatus,
+            "workstatus": candidate.workstatus,
             "education": candidate.education,
-            "work_experience": candidate.workexperience,
+            "workexperience": candidate.workexperience,
         },
         "emergency_contact": {
             "name": candidate.emergcontactname,

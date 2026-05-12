@@ -53,6 +53,11 @@ class AuthUserORM(Base):
         nullable=True
     )
     notes = Column(Text)
+    level3date = Column(DateTime)
+    demo = Column(String(1), server_default="N")
+    refresh_token = Column(String(255))
+    refresh_token_expiry = Column(DateTime)
+
 
 
 
@@ -250,7 +255,7 @@ class CandidateORM(Base):
     emergcontactaddrs = Column(String(300), nullable=True)
     fee_paid = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
-    batchid = Column(Integer, ForeignKey("batch.batchid"), nullable=False)
+    batchid = Column(Integer, ForeignKey("batch.batchid"), nullable=True)
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)

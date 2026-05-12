@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_,func
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
-from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event
+from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event
 
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM
 from fapi.utils.encryption_utils import decrypt_api_key
@@ -122,14 +122,33 @@ def create_candidate(candidate_data: dict) -> int:
         if "email" in candidate_data and candidate_data["email"]:
             candidate_data["email"] = candidate_data["email"].lower()
 
+        # Set default batch if not provided
+        if not candidate_data.get("batchid"):
+            from fapi.utils.batch_utils import get_current_batch
+            current_batch = get_current_batch(db)
+            if current_batch:
+                candidate_data["batchid"] = current_batch.batchid
+
         new_candidate = CandidateORM(**candidate_data)
         db.add(new_candidate)
         db.commit()
         db.refresh(new_candidate)
+
+        # Create Google Drive folder
+        try:
+            from fapi.utils.google_drive_utils import ensure_candidate_folder
+            folder = ensure_candidate_folder(new_candidate.id, new_candidate.full_name)
+            if folder:
+                new_candidate.candidate_folder = folder.get('webViewLink')
+                db.commit()
+                logger.info(f"Created Google Drive folder for candidate {new_candidate.id}")
+        except Exception as drive_err:
+            logger.error(f"Failed to create Google Drive folder for candidate {new_candidate.id}: {drive_err}")
+
         return new_candidate.id
     except Exception as e:
         db.rollback()
-        print("Error creating candidate:", e)  
+        logger.error(f"Error creating candidate: {e}")  
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
@@ -147,9 +166,29 @@ def update_candidate(candidate_id: int, candidate_data: dict):
             raise HTTPException(status_code=404, detail="Candidate not found")
 
         for key, value in candidate_data.items():
+            # If batchid is explicitly null/None, default it to current batch
+            if key == "batchid" and value is None:
+                from fapi.utils.batch_utils import get_current_batch
+                current_batch = get_current_batch(db)
+                if current_batch:
+                    value = current_batch.batchid
+            
             setattr(candidate, key, value)
 
         db.flush()
+
+        # Update Google Drive folder if name changed
+        if "full_name" in candidate_data and candidate.candidate_folder:
+            try:
+                from fapi.utils.google_drive_utils import ensure_candidate_folder
+                # Extract folder ID from URL
+                folder_id = candidate.candidate_folder.split('/')[-1]
+                if '?' in folder_id:
+                    folder_id = folder_id.split('?')[0]
+                
+                ensure_candidate_folder(candidate.id, candidate.full_name, existing_folder_id=folder_id)
+            except Exception as drive_err:
+                logger.error(f"Failed to update Google Drive folder name for candidate {candidate.id}: {drive_err}")
 
         if getattr(candidate, "move_to_prep", False):
             active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
@@ -783,6 +822,12 @@ def delete_candidate_interview(db: Session, interview_id: int):
     invalidate_cache("metrics")
     db_obj = db.query(CandidateInterview).filter(CandidateInterview.id == interview_id).first()
     if db_obj:
+        # Remove the Google Calendar event before deleting from DB
+        if db_obj.gcal_event_id:
+            try:
+                delete_calendar_event(db_obj.gcal_event_id)
+            except Exception as e:
+                logger.error(f"Gcal Sync Error (Delete): {e}")
         db.delete(db_obj)
         db.commit()
     return db_obj

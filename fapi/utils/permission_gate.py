@@ -31,7 +31,7 @@ ALLOWED_POST_PREFIXES = {
 
 ALLOWED_PUT_PREFIXES = {
     "/api/interviews",
-    "/api/candidates/interviews",
+    "/api/candidates",
 }
 
 ALLOWED_PATCH_PREFIXES = {
@@ -65,7 +65,6 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
         for prefix in ALLOWED_POST_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
-
     if method == "PUT":
         for prefix in ALLOWED_PUT_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):

@@ -24,7 +24,6 @@ from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_requir
 from fapi.utils import coderpad_utils
 from fapi.utils.coderpad_llm_utils import llm_validate_code_submission, llm_generate_question_from_topic
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -34,25 +33,16 @@ router = APIRouter(prefix="/coderpad", tags=["CoderPad"])
 _MAX_ASSIGNABLE_SEARCH = 200
 _MAX_RESOLVE_IDS = 200
 
-
-def _resolve_openai_api_key(header_key: Optional[str]) -> str:
-    """Prefer per-request header; else CODERPAD_OPENAI_API_KEY, then OPENAI_API_KEY (e.g. from .env)."""
-    k = (header_key or "").strip()
-    if k:
-        return k
-    return (os.getenv("CODERPAD_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY") or "").strip()
+# Shown when ``X-OpenAI-Api-Key`` is missing (candidates/staff must paste per session).
+CODERPAD_MISSING_OPENAI_KEY_MSG = (
+    "No API key found. Please update your API key: paste your OpenAI key in CoderPad "
+    "and try again (nothing is stored on the server)."
+)
 
 
-def _resolve_openai_api_key_for_user(
-    db: Session,
-    current_user: AuthUserORM,
-    header_key: Optional[str],
-) -> str:
-    """
-    Resolve OpenAI key with candidate credentials first, then request/server fallback.
-    This lets employee logins tied to candidate records reuse stored API keys.
-    """
-    return _resolve_openai_api_key(header_key)
+def _openai_api_key_from_header_only(header_key: Optional[str]) -> str:
+    """LLM routes use only ``X-OpenAI-Api-Key`` from the request (no DB or server env)."""
+    return (header_key or "").strip()
 
 
 # ==================== Code Snippet CRUD ====================
@@ -143,19 +133,17 @@ def llm_validate_coderpad(
     body: CoderpadLlmValidateRequest,
     x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
     current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
     """
     Validate candidate code against the problem + test cases using OpenAI.
-    Key resolution: checks CandidateAPIKeyORM first for candidates, then optional 
-    X-OpenAI-Api-Key header, else server env CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY.
+    Requires ``X-OpenAI-Api-Key`` (pasted client-side); no stored or server fallback keys.
     """
-    key = _resolve_openai_api_key(x_openai_api_key)
+    key = _openai_api_key_from_header_only(x_openai_api_key)
 
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
         )
     if not (body.problem_statement or "").strip():
         raise HTTPException(
@@ -179,16 +167,15 @@ def llm_generate_question(
     body: CoderpadLlmGenerateRequest,
     x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
     current_user: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
 ):
     """
     Generate a CoderPad question (title, statement, starter code, test cases) from a topic.
     """
-    key = _resolve_openai_api_key_for_user(db, current_user, x_openai_api_key)
+    key = _openai_api_key_from_header_only(x_openai_api_key)
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
         )
     if not (body.topic or "").strip():
         raise HTTPException(
@@ -231,11 +218,11 @@ def update_question_statement_with_llm(
     if not question_row:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    key = _resolve_openai_api_key_for_user(db, current_user, x_openai_api_key)
+    key = _openai_api_key_from_header_only(x_openai_api_key)
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OpenAI API key not configured: set CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY on the server, or send X-OpenAI-Api-Key",
+            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
         )
     if not (body.topic or "").strip():
         raise HTTPException(
