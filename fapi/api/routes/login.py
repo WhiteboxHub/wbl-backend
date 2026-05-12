@@ -55,29 +55,38 @@ async def login_for_access_token(
         )
     db_user = get_user_by_username(db, user.get("uname"))
     candidate_login_count = 0
+    login_count = 0
+    
     if db_user:
-        db_user.logincount = (db_user.logincount or 0) + 1
-        
-        # If user is a candidate, also increment CandidateORM.login_count
-        if user.get("candidateid"):
-            from fapi.db.models import CandidateORM
-            candidate = db.query(CandidateORM).filter(CandidateORM.id == user.get("candidateid")).first()
-            if candidate:
-                candidate.login_count = (candidate.login_count or 0) + 1
-                candidate_login_count = candidate.login_count
-                
-                # Invalidate dashboard cache to show updated login count
-                try:
-                    from fapi.core.cache import invalidate_cache
-                    invalidate_cache("candidates", "get_dashboard_overview", candidate.id)
-                except Exception as e:
-                    print(f"Cache invalidation failed: {e}")
-        
-        db.commit()
-        db.refresh(db_user)
-        login_count = db_user.logincount
-    else:
-        login_count = 0
+        try:
+            db_user.logincount = (db_user.logincount or 0) + 1
+            login_count = db_user.logincount
+            
+            # If user is a candidate, also increment CandidateORM.login_count
+            if user.get("candidateid"):
+                from fapi.db.models import CandidateORM
+                candidate = db.query(CandidateORM).filter(CandidateORM.id == user.get("candidateid")).first()
+                if candidate:
+                    # Use getattr/setattr safely in case the column is missing in production
+                    current_count = getattr(candidate, "login_count", 0) or 0
+                    setattr(candidate, "login_count", current_count + 1)
+                    candidate_login_count = current_count + 1
+                    
+                    # Invalidate dashboard cache
+                    try:
+                        from fapi.core.cache import invalidate_cache
+                        invalidate_cache("candidates", "get_dashboard_overview", candidate.id)
+                    except Exception as ce:
+                        print(f"Cache invalidation failed: {ce}")
+            
+            db.commit()
+            db.refresh(db_user)
+        except Exception as db_err:
+            print(f"Database update failed during login: {db_err}")
+            db.rollback()
+            # If we couldn't update the count, we still want to allow the login
+            login_count = getattr(db_user, "logincount", 0) or 0
+    
     token_data = {
         "sub": user.get("uname"),
         "team": user.get("team", "default_team"),

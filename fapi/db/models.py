@@ -53,6 +53,11 @@ class AuthUserORM(Base):
         nullable=True
     )
     notes = Column(Text)
+    level3date = Column(DateTime)
+    demo = Column(String(1), server_default="N")
+    refresh_token = Column(String(255))
+    refresh_token_expiry = Column(DateTime)
+
 
 
 
