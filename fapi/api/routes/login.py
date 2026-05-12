@@ -54,7 +54,6 @@ async def login_for_access_token(
             detail="Invalid username or password.",
         )
     db_user = get_user_by_username(db, user.get("uname"))
-    candidate_login_count = 0
     login_count = 0
     
     if db_user:
@@ -62,25 +61,9 @@ async def login_for_access_token(
             db_user.logincount = (db_user.logincount or 0) + 1
             login_count = db_user.logincount
             
-            # If user is a candidate, also increment CandidateORM.login_count
-            if user.get("candidateid"):
-                from fapi.db.models import CandidateORM
-                candidate = db.query(CandidateORM).filter(CandidateORM.id == user.get("candidateid")).first()
-                if candidate:
-                    # Use getattr/setattr safely in case the column is missing in production
-                    current_count = getattr(candidate, "login_count", 0) or 0
-                    setattr(candidate, "login_count", current_count + 1)
-                    candidate_login_count = current_count + 1
-                    
-                    # Invalidate dashboard cache
-                    try:
-                        from fapi.core.cache import invalidate_cache
-                        invalidate_cache("candidates", "get_dashboard_overview", candidate.id)
-                    except Exception as ce:
-                        print(f"Cache invalidation failed: {ce}")
-            
             db.commit()
             db.refresh(db_user)
+            login_count = db_user.logincount
         except Exception as db_err:
             print(f"Database update failed during login: {db_err}")
             db.rollback()
@@ -101,5 +84,5 @@ async def login_for_access_token(
         "access_token": access_token,
         "token_type": "bearer",
         "team": user.get("team", "default_team"),
-        "login_count": candidate_login_count if user.get("candidateid") else login_count
+        "login_count": login_count
     }
