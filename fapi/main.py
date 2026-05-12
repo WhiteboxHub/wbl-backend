@@ -14,7 +14,7 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, candidate_setup, report_data, report_pdf, sync_cli
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli
 
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
@@ -36,18 +36,13 @@ logger = logging.getLogger("wbl")
 async def startup_event():
     redis_client.get_client()
     try:
-        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, CandidateResumeORM, CandidateAPIKeyORM
+        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
         
         # Coderpad Tables
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         logger.info("CoderPad tables checked/created successfully.")
-
-        # Candidate Setup Tables
-        CandidateResumeORM.__table__.create(bind=engine, checkfirst=True)
-        CandidateAPIKeyORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("Candidate Setup tables (Resume & API Keys) checked/created successfully.")
 
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
@@ -114,7 +109,6 @@ def redis_test():
 
 # Base Routes
 app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])
-app.include_router(candidate_setup.router, prefix="/api/candidate", tags=["Candidate Setup"])
 app.include_router(candidate.router, prefix="/api", tags=["Candidate"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor_contact.router, prefix="/api", tags=["Vendor Contact Extracts"], dependencies=[Depends(enforce_access)])
 app.include_router(vendor.router, prefix="/api", tags=["Vendor"], dependencies=[Depends(enforce_access)])

@@ -52,18 +52,6 @@ def _resolve_openai_api_key_for_user(
     Resolve OpenAI key with candidate credentials first, then request/server fallback.
     This lets employee logins tied to candidate records reuse stored API keys.
     """
-    from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
-    from fapi.db.models import CandidateAPIKeyORM
-
-    candidate_info = fetch_candidate_id_and_status_by_email(db, current_user.uname)
-    if candidate_info:
-        api_key_record = db.query(CandidateAPIKeyORM).filter(
-            CandidateAPIKeyORM.candidate_id == candidate_info.candidateid,
-            CandidateAPIKeyORM.provider_name.ilike("%openai%"),
-        ).first()
-        if api_key_record and api_key_record.api_key:
-            return api_key_record.api_key
-
     return _resolve_openai_api_key(header_key)
 
 
@@ -163,26 +151,6 @@ def llm_validate_coderpad(
     X-OpenAI-Api-Key header, else server env CODERPAD_OPENAI_API_KEY or OPENAI_API_KEY.
     """
     key = _resolve_openai_api_key(x_openai_api_key)
-
-    is_admin = (
-        getattr(current_user, "role", None) == "admin"
-        or getattr(current_user, "is_admin", False)
-        or getattr(current_user, "is_employee", False)
-        or (getattr(current_user, "uname", "") or "").lower() == "admin"
-    )
-
-    if not is_admin:
-        from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
-        from fapi.db.models import CandidateAPIKeyORM
-        candidate_info = fetch_candidate_id_and_status_by_email(db, current_user.uname)
-        if candidate_info:
-            cid = candidate_info.candidateid
-            api_key_record = db.query(CandidateAPIKeyORM).filter(
-                CandidateAPIKeyORM.candidate_id == cid,
-                CandidateAPIKeyORM.provider_name.ilike("%openai%")
-            ).first()
-            if api_key_record and api_key_record.api_key:
-                key = api_key_record.api_key
 
     if not key:
         raise HTTPException(
