@@ -776,7 +776,6 @@ class CandidateBase(BaseModel):
     move_to_prep: Optional[bool] = False
     is_in_prep: Optional[str] = "No"
     is_in_marketing: Optional[str] = "No"
-    login_count: Optional[int] = 0
 
     model_config = {
         "from_attributes": True,

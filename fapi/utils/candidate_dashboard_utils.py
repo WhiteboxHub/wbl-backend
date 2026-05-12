@@ -82,6 +82,10 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Candidate not found")
 
     basic_info = _get_basic_candidate_info(candidate)
+    
+    # Fetch login count from authuser
+    auth_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == candidate.email.lower()).first() if candidate.email else None
+    basic_info["login_count"] = auth_user.logincount if auth_user else 0
 
     journey = _build_journey_timeline(candidate)
 
@@ -132,7 +136,6 @@ def _get_basic_candidate_info(candidate: CandidateORM) -> Dict[str, Any]:
         "batch_name": candidate.batch.batchname if candidate.batch else None,
         "address": candidate.address,
         "fee_paid": float(candidate.fee_paid) if candidate.fee_paid else 0.0,
-        "login_count": candidate.login_count or 0,
         "agreement": candidate.agreement,
         "notes": candidate.notes,
     }

@@ -259,7 +259,6 @@ class CandidateORM(Base):
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
-    login_count = Column(Integer, default=0, server_default="0")
 
 
     interviews = relationship(
