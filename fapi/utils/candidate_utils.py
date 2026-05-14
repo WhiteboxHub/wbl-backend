@@ -134,16 +134,6 @@ def create_candidate(candidate_data: dict) -> int:
         db.commit()
         db.refresh(new_candidate)
 
-        # Create Google Drive folder
-        try:
-            from fapi.utils.google_drive_utils import ensure_candidate_folder
-            folder = ensure_candidate_folder(new_candidate.id, new_candidate.full_name)
-            if folder:
-                new_candidate.candidate_folder = folder.get('webViewLink')
-                db.commit()
-                logger.info(f"Created Google Drive folder for candidate {new_candidate.id}")
-        except Exception as drive_err:
-            logger.error(f"Failed to create Google Drive folder for candidate {new_candidate.id}: {drive_err}")
 
         return new_candidate.id
     except Exception as e:
@@ -177,18 +167,6 @@ def update_candidate(candidate_id: int, candidate_data: dict):
 
         db.flush()
 
-        # Update Google Drive folder if name changed
-        if "full_name" in candidate_data and candidate.candidate_folder:
-            try:
-                from fapi.utils.google_drive_utils import ensure_candidate_folder
-                # Extract folder ID from URL
-                folder_id = candidate.candidate_folder.split('/')[-1]
-                if '?' in folder_id:
-                    folder_id = folder_id.split('?')[0]
-                
-                ensure_candidate_folder(candidate.id, candidate.full_name, existing_folder_id=folder_id)
-            except Exception as drive_err:
-                logger.error(f"Failed to update Google Drive folder name for candidate {candidate.id}: {drive_err}")
 
         if getattr(candidate, "move_to_prep", False):
             active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
@@ -1086,7 +1064,6 @@ def get_candidate_details(candidate_id: int, db: Session):
                 "ssn": f"-*-{str(candidate.ssn)[-4:]}" if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
                 "dob": candidate.dob.isoformat() if candidate.dob else None,
                 "address": candidate.address,
-                "agreement": candidate.agreement,
                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                 "batch_name": batch_name,
                 "candidate_folder": candidate.candidate_folder,
