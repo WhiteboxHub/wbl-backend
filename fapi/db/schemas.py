@@ -292,6 +292,31 @@ class PaginatedJobListingResponse(BaseModel):
     has_prev: bool
 
 
+class CliWindowJobItem(BaseModel):
+    """Single job row for JobCLI discovery (subset of JobListingOut)."""
+
+    id: int
+    job_url: str
+    title: str
+    company_name: str
+    created_at: datetime
+    status: str
+    source: str
+    already_applied: bool = False
+
+
+class CliWindowResponse(BaseModel):
+    """Response for JobCLI ``GET /positions/cli_window`` (optional time window)."""
+
+    days: int
+    page_size: int
+    offset: int = 0
+    total_in_window: int
+    returned_count: int
+    sort: str = "created_at_asc"
+    data: List[CliWindowJobItem]
+
+
 
 
 class EmailPositionBase(BaseModel):
