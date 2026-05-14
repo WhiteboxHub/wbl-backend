@@ -784,6 +784,12 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
         update_data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in update_data["interviewer_emails"].split(",")]
         )
+    if "position_title" in update_data:
+        title = update_data.pop("position_title")
+        if db_obj.position_id and db_obj.position:
+            db_obj.position.title = title
+        elif hasattr(db_obj, "position_title"):
+            db_obj.position_title = title
 
     for key, value in update_data.items():
         setattr(db_obj, key, value)
