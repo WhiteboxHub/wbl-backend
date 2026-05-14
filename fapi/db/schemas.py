@@ -863,14 +863,6 @@ class CandidateUpdate(BaseModel):
         "populate_by_name": True
     }
 
-    @field_validator("agreement", mode="before")
-    def normalize_agreement(cls, v):
-        if v is True:
-            return "Y"
-        if v is False:
-            return "N"
-        return v
-
 
 class CandidateDelete(CandidateBase):
     id: int
