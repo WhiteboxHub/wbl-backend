@@ -397,6 +397,8 @@ class CandidateInterview(Base):
     )
 
     feedback_text = Column(Text, nullable=True)
+    job_description = Column(Text, nullable=True)
+    position_title = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
     gcal_event_id = Column(String(255), nullable=True)  # Google Calendar event ID for auto-sync

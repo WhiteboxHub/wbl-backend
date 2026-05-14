@@ -1249,6 +1249,8 @@ class CandidateInterviewBase(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
+    position_title: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1274,6 +1276,7 @@ class CandidateInterviewCreate(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
 
 
 
@@ -1285,6 +1288,8 @@ model_config = {
 
 # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
+    model_config = {"extra": "ignore"}
+    position_title: Optional[str] = None
     candidate_id: Optional[int] = None
     company: Optional[str] = None
     company_type: Optional[CompanyTypeEnum] = None
@@ -1306,6 +1311,7 @@ class CandidateInterviewUpdate(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
 
 
 # --- Output Schema ---
