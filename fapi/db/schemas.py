@@ -292,6 +292,31 @@ class PaginatedJobListingResponse(BaseModel):
     has_prev: bool
 
 
+class CliWindowJobItem(BaseModel):
+    """Single job row for JobCLI discovery (subset of JobListingOut)."""
+
+    id: int
+    job_url: str
+    title: str
+    company_name: str
+    created_at: datetime
+    status: str
+    source: str
+    already_applied: bool = False
+
+
+class CliWindowResponse(BaseModel):
+    """Response for JobCLI ``GET /positions/cli_window`` (optional time window)."""
+
+    days: int
+    page_size: int
+    offset: int = 0
+    total_in_window: int
+    returned_count: int
+    sort: str = "created_at_asc"
+    data: List[CliWindowJobItem]
+
+
 
 
 class EmailPositionBase(BaseModel):
@@ -838,14 +863,6 @@ class CandidateUpdate(BaseModel):
         "populate_by_name": True
     }
 
-    @field_validator("agreement", mode="before")
-    def normalize_agreement(cls, v):
-        if v is True:
-            return "Y"
-        if v is False:
-            return "N"
-        return v
-
 
 class CandidateDelete(CandidateBase):
     id: int
@@ -1224,6 +1241,8 @@ class CandidateInterviewBase(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
+    position_title: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1249,6 +1268,7 @@ class CandidateInterviewCreate(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
 
 
 
@@ -1260,6 +1280,8 @@ model_config = {
 
 # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
+    model_config = {"extra": "ignore"}
+    position_title: Optional[str] = None
     candidate_id: Optional[int] = None
     company: Optional[str] = None
     company_type: Optional[CompanyTypeEnum] = None
@@ -1281,6 +1303,7 @@ class CandidateInterviewUpdate(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
 
 
 # --- Output Schema ---
