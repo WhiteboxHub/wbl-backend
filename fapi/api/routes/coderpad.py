@@ -21,6 +21,7 @@ from fapi.db.schemas import (
     CoderpadLlmGenerateResponse,
     CoderpadMyOpenaiKeyStatusOut,
     CoderpadMyOpenaiKeyPreviewOut,
+    CoderpadMyOpenaiKeyRevealOut,
     CoderpadSaveOpenaiKeyRequest,
 )
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
@@ -28,6 +29,8 @@ from fapi.utils import coderpad_utils
 from fapi.utils.coderpad_llm_utils import llm_validate_code_submission, llm_generate_question_from_topic
 from fapi.utils.coderpad_openai_key import (
     CODERPAD_MISSING_OPENAI_KEY_MSG,
+    candidate_has_openai_key_in_db,
+    get_stored_openai_key_for_owner,
     openai_key_configured_for_user,
     openai_key_db_preview_for_user,
     resolve_coderpad_openai_api_key,
@@ -55,6 +58,7 @@ def get_my_openai_key_status(
     """True if LLM can run without pasting a key (stored row or server env)."""
     return CoderpadMyOpenaiKeyStatusOut(
         configured=openai_key_configured_for_user(db, current_user),
+        stored_in_db=candidate_has_openai_key_in_db(db, current_user),
     )
 
 
@@ -69,6 +73,21 @@ def get_my_openai_key_preview(
         has_stored_key=has_stored,
         masked_preview=masked,
     )
+
+
+@router.get("/me/openai-key-reveal", response_model=CoderpadMyOpenaiKeyRevealOut)
+def reveal_my_openai_key(
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return the full stored OpenAI key for the authenticated candidate (explicit reveal only)."""
+    raw = get_stored_openai_key_for_owner(db, current_user)
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No OpenAI API key stored for your account.",
+        )
+    return CoderpadMyOpenaiKeyRevealOut(api_key=raw)
 
 
 @router.post("/me/openai-api-key", status_code=status.HTTP_204_NO_CONTENT)

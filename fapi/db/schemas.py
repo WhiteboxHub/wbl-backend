@@ -4210,9 +4210,10 @@ class CoderpadLlmGenerateResponse(BaseModel):
 
 
 class CoderpadMyOpenaiKeyStatusOut(BaseModel):
-    """True when an OpenAI key is available for LLM (DB row, or server env fallback)."""
+    """``configured``: LLM can run (DB or env). ``stored_in_db``: row in ``candidate_llm_api_keys``."""
 
     configured: bool
+    stored_in_db: bool
 
 
 class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
@@ -4220,6 +4221,12 @@ class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
 
     has_stored_key: bool
     masked_preview: Optional[str] = None
+
+
+class CoderpadMyOpenaiKeyRevealOut(BaseModel):
+    """Full stored OpenAI key (owner only; use only after explicit user action to reveal)."""
+
+    api_key: str
 
 
 class CoderpadSaveOpenaiKeyRequest(BaseModel):

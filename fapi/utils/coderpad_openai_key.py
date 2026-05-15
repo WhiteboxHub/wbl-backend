@@ -81,6 +81,29 @@ def openai_key_db_preview_for_user(
     return True, mask_openai_api_key(raw)
 
 
+def get_stored_openai_key_for_owner(db: Session, current_user: AuthUserORM) -> Optional[str]:
+    """Full OpenAI API key from ``candidate_llm_api_keys`` for this user's ``candidate.id``."""
+    uname = (getattr(current_user, "uname", None) or "").strip()
+    if not uname:
+        return None
+    row = fetch_candidate_id_and_status_by_email(db, uname)
+    if not row or row.candidateid is None:
+        return None
+    return _openai_key_for_candidate_id(db, int(row.candidateid))
+
+
+def candidate_has_openai_key_in_db(db: Session, current_user: AuthUserORM) -> bool:
+    """True if ``candidate_llm_api_keys`` has a non-empty OpenAI row for this user's ``candidate.id``."""
+    uname = (getattr(current_user, "uname", None) or "").strip()
+    if not uname:
+        return False
+    row = fetch_candidate_id_and_status_by_email(db, uname)
+    if not row or row.candidateid is None:
+        return False
+    raw = _openai_key_for_candidate_id(db, int(row.candidateid))
+    return bool(raw and str(raw).strip())
+
+
 def openai_key_configured_for_user(db: Session, current_user: AuthUserORM) -> bool:
     """Whether LLM calls can proceed without the client sending X-OpenAI-Api-Key."""
     return bool(resolve_coderpad_openai_api_key(db, current_user, None).strip())
