@@ -35,8 +35,10 @@ def read_positions(skip: int = 0, limit: Optional[int] = None, db: Session = Dep
 
 @router.get("/paginated", response_model=PaginatedJobListingResponse)
 def read_positions_paginated(
-    page: int = 1,
+
+  page: int = 1,
     page_size: int = 500,
+
     search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
