@@ -209,7 +209,7 @@ def run_weekly_marketing_report_from_schedule(
     db.refresh(log)
 
     try:
-        result = run_weekly_marketing_report_workflow(db, dry_run=dry_run)
+        result = run_weekly_marketing_report_workflow(db)
 
         finished = datetime.now(timezone.utc)
         # Update schedule timing + unlock
@@ -220,13 +220,13 @@ def run_weekly_marketing_report_from_schedule(
         # Update log
         log.status = "success" if not dry_run else "success"
         log.finished_at = finished
-        log.records_processed = len(result.metrics)
+        log.records_processed = result.get('records_processed', 0)
         log.records_failed = 0
         log.execution_metadata = {
             **(log.execution_metadata or {}),
-            "recipients": result.recipients,
-            "subject": result.subject,
-            "date_range": result.date_range,
+            "recipients": result.get('recipients',""),
+            "subject": result.get('subject',""),
+            "date_range": result.get('date_range',""),
         }
         db.commit()
 
@@ -236,10 +236,10 @@ def run_weekly_marketing_report_from_schedule(
             "schedule_id": int(sched.id),
             "dry_run": dry_run,
             "status": "success",
-            "candidates_processed": len(result.metrics),
-            "recipients_resolved": result.recipients,
-            "subject": result.subject,
-            "date_range": result.date_range,
+            "candidates_processed": result.get('records_processed', 0),
+            "recipients_resolved": result.get('recipients', ""),
+            "subject": result.get('subject', ""),
+            "date_range": result.get('date_range', ""),
             "next_run_at": sched.next_run_at,
         }
     except Exception as e:
