@@ -4176,7 +4176,7 @@ class CodeExecutionWithTestsResponse(BaseModel):
 
 
 class CoderpadLlmValidateRequest(BaseModel):
-    """Optional X-OpenAI-Api-Key header; else server uses CODERPAD_OPENAI_API_KEY / OPENAI_API_KEY."""
+    """Uses X-OpenAI-Api-Key when sent; else candidate_llm_api_keys (OpenAI), then env keys."""
 
     problem_statement: str
     code: str
@@ -4207,6 +4207,24 @@ class CoderpadLlmGenerateResponse(BaseModel):
     language: str = "python"
     test_cases: Optional[List[TestCase]] = None
     error: Optional[str] = None
+
+
+class CoderpadMyOpenaiKeyStatusOut(BaseModel):
+    """True when an OpenAI key is available for LLM (DB row, or server env fallback)."""
+
+    configured: bool
+
+
+class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
+    """OpenAI row in ``candidate_llm_api_keys`` for this user’s ``candidate.id`` (masked only)."""
+
+    has_stored_key: bool
+    masked_preview: Optional[str] = None
+
+
+class CoderpadSaveOpenaiKeyRequest(BaseModel):
+    api_key: str
+    model_name: Optional[str] = "gpt-4o-mini"
 
 
 class CodeExecutionLogOut(BaseModel):

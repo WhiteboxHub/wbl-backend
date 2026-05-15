@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
@@ -19,10 +19,20 @@ from fapi.db.schemas import (
     CoderpadLlmValidateResponse,
     CoderpadLlmGenerateRequest,
     CoderpadLlmGenerateResponse,
+    CoderpadMyOpenaiKeyStatusOut,
+    CoderpadMyOpenaiKeyPreviewOut,
+    CoderpadSaveOpenaiKeyRequest,
 )
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.utils import coderpad_utils
 from fapi.utils.coderpad_llm_utils import llm_validate_code_submission, llm_generate_question_from_topic
+from fapi.utils.coderpad_openai_key import (
+    CODERPAD_MISSING_OPENAI_KEY_MSG,
+    openai_key_configured_for_user,
+    openai_key_db_preview_for_user,
+    resolve_coderpad_openai_api_key,
+    save_candidate_openai_key_to_db,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,16 +43,53 @@ router = APIRouter(prefix="/coderpad", tags=["CoderPad"])
 _MAX_ASSIGNABLE_SEARCH = 200
 _MAX_RESOLVE_IDS = 200
 
-# Shown when ``X-OpenAI-Api-Key`` is missing (candidates/staff must paste per session).
-CODERPAD_MISSING_OPENAI_KEY_MSG = (
-    "No API key found. Please update your API key: paste your OpenAI key in CoderPad "
-    "and try again (nothing is stored on the server)."
-)
+
+# -------------------- Candidate OpenAI key (DB) --------------------
 
 
-def _openai_api_key_from_header_only(header_key: Optional[str]) -> str:
-    """LLM routes use only ``X-OpenAI-Api-Key`` from the request (no DB or server env)."""
-    return (header_key or "").strip()
+@router.get("/me/openai-key-status", response_model=CoderpadMyOpenaiKeyStatusOut)
+def get_my_openai_key_status(
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """True if LLM can run without pasting a key (stored row or server env)."""
+    return CoderpadMyOpenaiKeyStatusOut(
+        configured=openai_key_configured_for_user(db, current_user),
+    )
+
+
+@router.get("/me/openai-key-preview", response_model=CoderpadMyOpenaiKeyPreviewOut)
+def get_my_openai_key_preview(
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Masked hint for the OpenAI key stored for ``candidate.id`` (full key never returned)."""
+    has_stored, masked = openai_key_db_preview_for_user(db, current_user)
+    return CoderpadMyOpenaiKeyPreviewOut(
+        has_stored_key=has_stored,
+        masked_preview=masked,
+    )
+
+
+@router.post("/me/openai-api-key", status_code=status.HTTP_204_NO_CONTENT)
+def save_my_openai_api_key(
+    body: CoderpadSaveOpenaiKeyRequest,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Store or replace the candidate's OpenAI key in ``candidate_llm_api_keys``."""
+    try:
+        save_candidate_openai_key_to_db(
+            db,
+            current_user,
+            body.api_key,
+            body.model_name,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ==================== Code Snippet CRUD ====================
@@ -133,12 +180,14 @@ def llm_validate_coderpad(
     body: CoderpadLlmValidateRequest,
     x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
     current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Validate candidate code against the problem + test cases using OpenAI.
-    Requires ``X-OpenAI-Api-Key`` (pasted client-side); no stored or server fallback keys.
+    Uses ``X-OpenAI-Api-Key`` when provided; otherwise the candidate's row in
+    ``candidate_llm_api_keys`` (OpenAI), then ``CODERPAD_OPENAI_API_KEY`` / ``OPENAI_API_KEY``.
     """
-    key = _openai_api_key_from_header_only(x_openai_api_key)
+    key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
 
     if not key:
         raise HTTPException(
@@ -167,11 +216,12 @@ def llm_generate_question(
     body: CoderpadLlmGenerateRequest,
     x_openai_api_key: Optional[str] = Header(None, alias="X-OpenAI-Api-Key"),
     current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
 ):
     """
     Generate a CoderPad question (title, statement, starter code, test cases) from a topic.
     """
-    key = _openai_api_key_from_header_only(x_openai_api_key)
+    key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -218,7 +268,7 @@ def update_question_statement_with_llm(
     if not question_row:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    key = _openai_api_key_from_header_only(x_openai_api_key)
+    key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
     if not key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
