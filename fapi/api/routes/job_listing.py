@@ -35,14 +35,21 @@ def read_positions(skip: int = 0, limit: Optional[int] = None, db: Session = Dep
 
 @router.get("/paginated", response_model=PaginatedJobListingResponse)
 def read_positions_paginated(
+
+  page: int = 1,
+    page_size: int = 500,
+
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
     page: int = 1,
     page_size: int = 100,
     search: Optional[str] = Query(None, description="Filter by title, company, or location (ILIKE)"),
     require_apply_link: bool = Query(False, description="If true, only return jobs with an apply URL (candidate dashboard mode)"),
     db: Session = Depends(get_db),
 ):
-    """Get job listings with page-based pagination (dashboard-friendly defaults)."""
-    page_size = min(max(1, page_size), 500)
+    """Get job listings with page-based pagination"""
+    page_size = min(max(1, page_size), 1500)
+
     page = max(1, page)
     skip = (page - 1) * page_size
     total_records = job_listing_utils.count_positions(db, search=search, require_apply_link=require_apply_link)
