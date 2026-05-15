@@ -335,6 +335,21 @@ class CandidateMarketingORM(Base):
         "EmployeeORM", foreign_keys=[marketing_manager])
     # email_logs = relationship(
     #     "EmailActivityLogORM", back_populates="marketing", cascade="all, delete-orphan")
+
+
+class CandidateLlmApiKeyORM(Base):
+    """LLM provider keys. ``candidate_id`` is FK to ``candidate.id`` (candidate table PK), not marketing or auth ids."""
+
+    __tablename__ = "candidate_llm_api_keys"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id"), nullable=False, index=True)
+    provider_name = Column(String(100), nullable=False)
+    api_key = Column(Text, nullable=False)
+    model_name = Column(String(200), nullable=True)
+
+
 # # -------------------------------------- Candidate Interview -------------------------------
 
 
