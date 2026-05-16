@@ -1245,6 +1245,7 @@ class CandidateInterviewBase(BaseModel):
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
     position_title: Optional[str] = None
+    gcal_event_id: Optional[str] = None
 
 
 # --- Create Schema ---
@@ -1271,6 +1272,7 @@ class CandidateInterviewCreate(BaseModel):
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
+    gcal_event_id: Optional[str] = None
 
 
 
@@ -1306,6 +1308,8 @@ class CandidateInterviewUpdate(BaseModel):
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
+    gcal_event_id: Optional[str] = None
+
 
 
 # --- Output Schema ---

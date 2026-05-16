@@ -1413,7 +1413,12 @@ class OutreachContactORM(Base):
     unsubscribe_reason = Column(String(255), nullable=True)
 
     bounce_flag = Column(Boolean, nullable=False, server_default="0")
-    bounce_type = Column(String(20), nullable=True)
+    bounce_type = Column(
+        SQLAEnum("none", "soft", "hard", "invalid",
+                 name="outreach_bounce_type_enum"),
+        nullable=False, server_default="none"
+    )
+
     bounce_reason = Column(String(255), nullable=True)
     bounce_code = Column(String(100), nullable=True)
     bounced_at = Column(TIMESTAMP, nullable=True)
@@ -1631,3 +1636,53 @@ class ExtensionKeyORM(Base):
     expires_at = Column(TIMESTAMP, nullable=True, default=None)
 
     authuser = relationship("AuthUserORM")
+
+
+# ---------------------------------------------
+# JobCLI Sync Models (Phase 2)
+# ---------------------------------------------
+
+class FieldAnswerSync(Base):
+    __tablename__ = "jobcli_field_answers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ats_type = Column(String(100), nullable=False)
+    normalized_label = Column(String(255), nullable=False)
+    value = Column(String(500), nullable=False)
+    total_success = Column(Integer, nullable=False, default=0)
+    total_failure = Column(Integer, nullable=False, default=0)
+    confidence = Column(DECIMAL(5, 4), nullable=False, default=0.0)
+    version = Column(String(50), nullable=True, server_default='v1.0.0')
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('ats_type', 'normalized_label', 'value', name='uk_ats_label'),
+    )
+
+class LocatorSync(Base):
+    __tablename__ = "jobcli_locators"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ats_type = Column(String(100), nullable=False)
+    purpose = Column(String(100), nullable=False)
+    selector = Column(Text, nullable=False)
+    selector_type = Column(String(50), default='css')
+    domain_pattern = Column(String(255), nullable=True)
+    total_success = Column(Integer, nullable=False, default=0)
+    total_failure = Column(Integer, nullable=False, default=0)
+    confidence = Column(Float, nullable=False, default=0.0)
+    version = Column(String(50), nullable=False)
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (
+        UniqueConstraint('ats_type', 'purpose', 'selector', name='uk_ats_purpose_selector'),
+        Index('idx_ats_purpose', 'ats_type', 'purpose'),
+    )
+
+class SyncVersion(Base):
+    __tablename__ = "jobcli_sync_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    version = Column(String(50), nullable=False, unique=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+    notes = Column(Text, nullable=True)
