@@ -6,7 +6,7 @@ from . import (
     user_dashboard, password, employee, course, subject, 
     course_subject, course_content, course_material, batch,
     authuser, avatar_dashboard, session, recording, recording_batch,
-    referrals, candidate_dashboard, internal_documents,
+    referrals, candidate_dashboard, internal_documents, candidate_resume,
     jobs, placement_fee_collection, employee_tasks, job_automation_keywords,
     hr_contact, projects, job_listing, employee_dashboard,
     email_service,
