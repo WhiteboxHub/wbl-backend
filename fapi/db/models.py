@@ -324,6 +324,7 @@ class CandidateMarketingORM(Base):
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
     run_email_extraction = Column(Boolean, nullable=False, server_default="0")
     run_raw_positions_workflow = Column(Boolean, nullable=False, server_default="0")
+    run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
     
@@ -660,31 +661,6 @@ class YesNoEnum(str, enum.Enum):
     YES = "YES"
     NO = "NO"
 
-
-# ---------linkedin_activity_log----------------------
-class LinkedInActivityLogORM(Base):
-    __tablename__ = "linkedin_activity_log"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(
-        Integer,
-        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    source_email = Column(String(100), nullable=True)
-    activity_type = Column(
-        Enum('extraction', 'connection', name='activity_type'), nullable=False)
-    linkedin_profile_url = Column(String(255), nullable=True)
-    full_name = Column(String(255), nullable=True)
-    company_name = Column(String(255), nullable=True)
-    status = Column(Enum('success', 'failed', name='status'),
-                    server_default='success')
-    message = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
-# ---------------------------------------------------------------------
-
-
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -936,6 +912,13 @@ class EmailSMTPCredentialsORM(Base):
         server_default=func.now(), 
         onupdate=func.now()
     )
+    current_day_sent = Column(Integer, nullable=False, server_default="0")
+    last_reset_date = Column(Date, nullable=False, server_default=func.current_date())
+    is_warming_up = Column(Boolean, nullable=False, server_default="0")
+    warmup_started_at = Column(DateTime, nullable=True)
+    warmup_daily_limit = Column(Integer, nullable=True, server_default="5")
+    last_used_at = Column(DateTime, nullable=True)
+    is_healthy = Column(Boolean, nullable=False, server_default="1")
 
 
 # -------------------- Personal Domain Contact --------------------
@@ -1344,6 +1327,73 @@ class AutomationWorkflowLogORM(Base):
     schedule = relationship("AutomationWorkflowScheduleORM")
 
 
+# -------------------- Campaign Emails --------------------
+class CampaignEmailORM(Base):
+    __tablename__ = "campaign_emails"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    workflow_id = Column(
+        BigInteger,
+        ForeignKey("automation_workflows.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    candidate_id = Column(Integer, nullable=False)
+    vendor_email = Column(String(150), nullable=False)
+    scheduler_id = Column(
+        BigInteger,
+        ForeignKey("automation_workflows_schedule.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    # State Tracking
+    status = Column(
+        SQLAEnum("pending", "processing", "sent", "failed", "bounced",
+                 name="campaign_email_status_enum"),
+        nullable=False, server_default="pending"
+    )
+    bounce_type = Column(
+        SQLAEnum("none", "soft", "hard", "invalid",
+                 name="bounce_type_enum"),
+        nullable=False, server_default="none"
+    )
+    retry_count = Column(Integer, nullable=False, server_default="0")
+    last_attempt_at = Column(DateTime, nullable=True)
+
+    run_log_id = Column(
+        BigInteger,
+        ForeignKey("automation_workflow_logs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    credential_id = Column(
+        Integer,
+        ForeignKey("email_smtp_credentials.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    message_id = Column(String(255), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False,
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    workflow = relationship("AutomationWorkflowORM")
+    scheduler = relationship("AutomationWorkflowScheduleORM")
+    run_log = relationship("AutomationWorkflowLogORM")
+    credential = relationship("EmailSMTPCredentialsORM")
+
+    __table_args__ = (
+        UniqueConstraint("scheduler_id", "candidate_id", "vendor_email", name="uniq_scheduler_candidate_email"),
+        Index("idx_status", "status", "retry_count"),
+        Index("idx_lookup", "workflow_id", "candidate_id", "status"),
+        Index("idx_retry", "retry_count", "status"),
+        Index("idx_scheduler", "scheduler_id"),
+    )
+
+
 # -------------------- Outreach Contacts --------------------
 class OutreachContactORM(Base):
     __tablename__ = "outreach_contacts"
@@ -1581,53 +1631,3 @@ class ExtensionKeyORM(Base):
     expires_at = Column(TIMESTAMP, nullable=True, default=None)
 
     authuser = relationship("AuthUserORM")
-
-
-# ---------------------------------------------
-# JobCLI Sync Models (Phase 2)
-# ---------------------------------------------
-
-class FieldAnswerSync(Base):
-    __tablename__ = "jobcli_field_answers"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    ats_type = Column(String(100), nullable=False)
-    normalized_label = Column(String(255), nullable=False)
-    value = Column(String(500), nullable=False)
-    total_success = Column(Integer, nullable=False, default=0)
-    total_failure = Column(Integer, nullable=False, default=0)
-    confidence = Column(DECIMAL(5, 4), nullable=False, default=0.0)
-    version = Column(String(50), nullable=True, server_default='v1.0.0')
-    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-
-    __table_args__ = (
-        UniqueConstraint('ats_type', 'normalized_label', 'value', name='uk_ats_label'),
-    )
-
-class LocatorSync(Base):
-    __tablename__ = "jobcli_locators"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    ats_type = Column(String(100), nullable=False)
-    purpose = Column(String(100), nullable=False)
-    selector = Column(Text, nullable=False)
-    selector_type = Column(String(50), default='css')
-    domain_pattern = Column(String(255), nullable=True)
-    total_success = Column(Integer, nullable=False, default=0)
-    total_failure = Column(Integer, nullable=False, default=0)
-    confidence = Column(Float, nullable=False, default=0.0)
-    version = Column(String(50), nullable=False)
-    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-
-    __table_args__ = (
-        UniqueConstraint('ats_type', 'purpose', 'selector', name='uk_ats_purpose_selector'),
-        Index('idx_ats_purpose', 'ats_type', 'purpose'),
-    )
-
-class SyncVersion(Base):
-    __tablename__ = "jobcli_sync_versions"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    version = Column(String(50), nullable=False, unique=True)
-    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-    notes = Column(Text, nullable=True)

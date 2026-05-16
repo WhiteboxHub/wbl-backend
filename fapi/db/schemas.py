@@ -905,6 +905,7 @@ class CandidateMarketingBase(BaseModel):
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
     run_raw_positions_workflow: bool = False
+    run_outreach_emails: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
     candidate: Optional["CandidateBase"] = None
@@ -966,6 +967,7 @@ class CandidateMarketingUpdate(BaseModel):
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
     run_raw_positions_workflow: Optional[bool] = None
+    run_outreach_emails: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
 
@@ -3614,6 +3616,93 @@ class AutomationWorkflowLog(AutomationWorkflowLogBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# -------------------- Campaign Emails --------------------
+class CampaignEmailBase(BaseModel):
+    workflow_id: int
+    candidate_id: int
+    vendor_email: str
+    scheduler_id: Optional[int] = None
+    status: Literal["pending", "processing", "sent", "failed", "bounced"] = "pending"
+    bounce_type: Literal["none", "soft", "hard", "invalid"] = "none"
+    retry_count: int = 0
+    last_attempt_at: Optional[datetime] = None
+    run_log_id: Optional[int] = None
+    credential_id: Optional[int] = None
+    message_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @field_validator('vendor_email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "pending"
+                    elif k == 'bounce_type':
+                        processed[k] = "none"
+                    elif k in ('retry_count',):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('status', 'bounce_type') and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class CampaignEmailCreate(CampaignEmailBase):
+    pass
+
+class CampaignEmailUpdate(BaseModel):
+    scheduler_id: Optional[int] = None
+    status: Optional[Literal["pending", "processing", "sent", "failed", "bounced"]] = None
+    bounce_type: Optional[Literal["none", "soft", "hard", "invalid"]] = None
+    retry_count: Optional[int] = None
+    last_attempt_at: Optional[datetime] = None
+    run_log_id: Optional[int] = None
+    credential_id: Optional[int] = None
+    message_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "pending"
+                    elif k == 'bounce_type':
+                        processed[k] = "none"
+                    elif k in ('retry_count',):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('status', 'bounce_type') and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class CampaignEmailOut(CampaignEmailBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 # -------------------- Outreach Contacts --------------------
 class OutreachContactBase(BaseModel):
     email: str
@@ -3899,6 +3988,13 @@ class EmailSMTPCredentialsBase(BaseModel):
     daily_limit: int
     note: Optional[str] = None
     is_active: bool = True
+    current_day_sent: int = 0
+    last_reset_date: Optional[date] = None
+    is_warming_up: bool = False
+    warmup_started_at: Optional[datetime] = None
+    warmup_daily_limit: int = 5
+    last_used_at: Optional[datetime] = None
+    is_healthy: bool = True
 
     @model_validator(mode='before')
     @classmethod
@@ -3907,18 +4003,20 @@ class EmailSMTPCredentialsBase(BaseModel):
             processed = {}
             for k, v in data.items():
                 if v == "":
-                    if k == 'is_active':
+                    if k in ('is_active', 'is_healthy'):
                         processed[k] = True
+                    elif k == 'is_warming_up':
+                        processed[k] = False
                     else:
                         processed[k] = None
-                elif k == 'is_active' and isinstance(v, str):
+                elif k in ('is_active', 'is_healthy', 'is_warming_up') and isinstance(v, str):
                     if v.lower() == 'true':
                         processed[k] = True
                     elif v.lower() == 'false':
                         processed[k] = False
                     else:
                         processed[k] = v
-                elif k == 'daily_limit' and isinstance(v, str) and v.isdigit():
+                elif k in ('daily_limit', 'current_day_sent', 'warmup_daily_limit') and isinstance(v, str) and v.isdigit():
                      processed[k] = int(v)
                 else:
                     processed[k] = v
@@ -3944,6 +4042,13 @@ class EmailSMTPCredentialsUpdate(BaseModel):
     daily_limit: Optional[int] = None
     note: Optional[str] = None
     is_active: Optional[bool] = None
+    current_day_sent: Optional[int] = None
+    last_reset_date: Optional[date] = None
+    is_warming_up: Optional[bool] = None
+    warmup_started_at: Optional[datetime] = None
+    warmup_daily_limit: Optional[int] = None
+    last_used_at: Optional[datetime] = None
+    is_healthy: Optional[bool] = None
 
     @model_validator(mode='before')
     @classmethod
@@ -3953,9 +4058,9 @@ class EmailSMTPCredentialsUpdate(BaseModel):
             for k, v in data.items():
                 if v == "":
                     processed[k] = None
-                elif k == 'is_active' and isinstance(v, str):
+                elif k in ('is_active', 'is_healthy', 'is_warming_up') and isinstance(v, str):
                     processed[k] = v.lower() == 'true'
-                elif k == 'daily_limit' and isinstance(v, str) and v.isdigit():
+                elif k in ('daily_limit', 'current_day_sent', 'warmup_daily_limit') and isinstance(v, str) and v.isdigit():
                      processed[k] = int(v)
                 else:
                     processed[k] = v

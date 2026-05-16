@@ -18,5 +18,6 @@ from . import (
     personal_domain_contact, outreach_email_recipient,
     linkedin_only_contact, email_smtp_credentials,
     placement_commission,
-    job_click, coderpad, dynamic_weekly_report, extension_keys
+    job_click, coderpad, dynamic_weekly_report, extension_keys,
+    campaign_email
 )
