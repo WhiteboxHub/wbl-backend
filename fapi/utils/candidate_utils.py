@@ -1,15 +1,13 @@
 # wbl-backend/fapi/utils/candidate_utils.py
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
-from sqlalchemy import or_,func
+from sqlalchemy import or_, func, distinct
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
 from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM, CandidateMarketingORM, CandidateInterview, CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM, CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
 from fapi.utils.encryption_utils import decrypt_api_key
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
-
-from fapi.db.models import JobListingORM
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateBase, BatchOut, CandidatePlacementUpdate, CandidateMarketingUpdate, CandidateInterviewUpdate, CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 from fapi.db.schemas import PositionStatusEnum, PositionTypeEnum, EmploymentModeEnum
 from fastapi import HTTPException, APIRouter, Depends, Response
 import hashlib
@@ -1151,6 +1149,54 @@ def get_candidate_details(candidate_id: int, db: Session):
                     .all() if authuser else []
                 )
             ],
+            "coderpad_tracking": {
+                "summary": {
+                    "questions_solved": (
+                        db.query(func.count(distinct(CodeExecutionLogORM.code_snippet_id)))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "success", CodeExecutionLogORM.code_snippet_id.isnot(None))
+                        .scalar() if authuser else 0
+                    ),
+                    "total_attempts": (
+                        db.query(func.count(CodeExecutionLogORM.id))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id)
+                        .scalar() if authuser else 0
+                    ),
+                    "passed": (
+                        db.query(func.count(CodeExecutionLogORM.id))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "success")
+                        .scalar() if authuser else 0
+                    ),
+                    "failed": (
+                        db.query(func.count(CodeExecutionLogORM.id))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "error")
+                        .scalar() if authuser else 0
+                    ),
+                    "success_rate": (
+                        round(
+                            (db.query(func.count(CodeExecutionLogORM.id)).filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "success").scalar() or 0) /
+                            (db.query(func.count(CodeExecutionLogORM.id)).filter(CodeExecutionLogORM.authuser_id == authuser.id).scalar() or 1) * 100, 
+                            2
+                        ) if authuser and db.query(func.count(CodeExecutionLogORM.id)).filter(CodeExecutionLogORM.authuser_id == authuser.id).scalar() else 0
+                    )
+                },
+                "logs": [
+                    {
+                        "language": log.language,
+                        "status": log.status,
+                        "execution_time": f"{log.execution_time_ms}ms",
+                        "created_at": log.created_at.isoformat() if log.created_at else None,
+                        "snippet_title": log.snippet.title if log.snippet else "Direct Execution"
+                    }
+                    for log in (
+                        db.query(CodeExecutionLogORM)
+                        .options(joinedload(CodeExecutionLogORM.snippet))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id)
+                        .order_by(CodeExecutionLogORM.created_at.desc())
+                        .limit(10)
+                        .all() if authuser else []
+                    )
+                ]
+            },
             "placement_records": [
                 {
                     "position": p.position,
