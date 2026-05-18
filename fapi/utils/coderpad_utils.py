@@ -146,7 +146,7 @@ def run_test_cases_against_code(
     test_results: List[TestCaseExecutionResult] = []
     for idx, test_case_data in enumerate(test_cases_data):
         test_case = TestCase(**test_case_data)
-        test_result = CodeExecutor.execute(
+        test_result = CodeExecutor.execute_for_test_case(
             code=code,
             language=language,
             input_data=test_case.input,
