@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Query, Session
 
 from fapi.db.models import JobLinkClicksORM, JobListingORM
-from fapi.db.schemas import JobListingCreate, JobListingUpdate, PositionStatusEnum
+from fapi.db.schemas import JobListingCreate, JobListingUpdate, PositionStatusEnum, JobListingSourceEnum
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
 from fapi.core.cache import cache_result, invalidate_cache
@@ -25,17 +25,57 @@ def _apply_positions_search(query: Query, search: Optional[str]) -> Query:
     )
 
 
+def _apply_has_apply_link_filter(query: Query) -> Query:
+    """Only return jobs that have an apply link and are from verified sources.
+
+    A job is considered to have an apply link if:
+    - ``job_url`` is set (non-null, non-empty), OR
+    - ``source_uid`` is set — the frontend synthesises a URL from it based on
+      the source (LinkedIn, TrueUp, Hiring.cafe, Jobright).
+
+    Used only for the candidate-facing Job Board; restricted to specific
+    sources: LinkedIn, TrueUp, Hiring.cafe, Jobright.
+    """
+    allowed_sources = [
+        JobListingSourceEnum.linkedin,
+        JobListingSourceEnum.trueup_io,
+        JobListingSourceEnum.hiring_cafe,
+        JobListingSourceEnum.jobright,
+    ]
+
+    return query.filter(
+        and_(
+            JobListingORM.source.in_(allowed_sources),
+            or_(
+                # Direct URL stored in the row
+                and_(
+                    JobListingORM.job_url.isnot(None),
+                    func.length(func.trim(JobListingORM.job_url)) > 0,
+                ),
+                # Source-based URL constructed by frontend from source_uid
+                and_(
+                    JobListingORM.source_uid.isnot(None),
+                    func.length(func.trim(JobListingORM.source_uid)) > 0,
+                ),
+            ),
+        )
+    )
+
+
 @cache_result(ttl=300, prefix="positions")
 def get_positions(
     db: Session,
     skip: int = 0,
     limit: Optional[int] = None,
     search: Optional[str] = None,
+    require_apply_link: bool = False,
 ) -> List[JobListingORM]:
     DEFAULT_LIMIT = 5000
     MAX_LIMIT = 999999
 
     query = db.query(JobListingORM)
+    if require_apply_link:
+        query = _apply_has_apply_link_filter(query)
     query = _apply_positions_search(query, search)
     query = query.order_by(JobListingORM.id.desc()).offset(skip)
     if limit is None:
@@ -91,9 +131,15 @@ def search_positions(db: Session, term: str) -> List[JobListingORM]:
     ).limit(100).all()
 
 @cache_result(ttl=300, prefix="positions")
-def count_positions(db: Session, search: Optional[str] = None) -> int:
+def count_positions(
+    db: Session,
+    search: Optional[str] = None,
+    require_apply_link: bool = False,
+) -> int:
     """Get total count of job listings for pagination (optional search filter)."""
     q = db.query(JobListingORM)
+    if require_apply_link:
+        q = _apply_has_apply_link_filter(q)
     q = _apply_positions_search(q, search)
     return q.count()
 

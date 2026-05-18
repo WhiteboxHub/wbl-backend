@@ -209,10 +209,11 @@ def check_and_execute_due_workflows(db: Session) -> list:
         now = datetime.now(timezone.utc)
         
         # Step 1: Identify candidate IDs that are due (non-locking first pass)
-        candidates = db.query(AutomationWorkflowScheduleORM.id).filter(
+        candidates = db.query(AutomationWorkflowScheduleORM.id).join(AutomationWorkflowORM).filter(
             AutomationWorkflowScheduleORM.enabled == True,
             AutomationWorkflowScheduleORM.is_running == False,
-            AutomationWorkflowScheduleORM.next_run_at <= now
+            AutomationWorkflowScheduleORM.next_run_at <= now,
+            AutomationWorkflowORM.workflow_key != "weekly_marketing_report"
         ).all()
 
         if candidates:
