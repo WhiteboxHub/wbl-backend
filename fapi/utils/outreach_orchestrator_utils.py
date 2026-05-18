@@ -392,7 +392,9 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     Ensures the next run is always in the future.
     """
     anchor = schedule.next_run_at or datetime.now(timezone.utc)
-    now = datetime.now(timezone.utc)
+    if anchor.tzinfo is not None:
+        anchor = anchor.replace(tzinfo=None)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if schedule.frequency == "weekly":
         next_run = anchor + timedelta(weeks=1)
@@ -422,7 +424,7 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     elif schedule.frequency == "custom" and schedule.cron_expression:
         try:
             cron = croniter(schedule.cron_expression, now)
-            return cron.get_next(datetime).replace(tzinfo=timezone.utc)
+            return cron.get_next(datetime).replace(tzinfo=None)
         except Exception as e:
             logger.error(f"Error parsing cron {schedule.cron_expression}: {e}")
             return None
@@ -462,14 +464,16 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
                 schedule.is_running = True
             elif status in ["success", "failed", "completed"]:
                 schedule.is_running = False
-                schedule.last_run_at = now
+                schedule.last_run_at = now.replace(tzinfo=None)
                 
-                if schedule.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
+                if schedule.workflow and schedule.workflow.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
                     # Marketing Report specific logic (Update next_run_at and set back to idle)
                     # This ensures it runs exactly once per day and is ready for tomorrow
-                    if schedule.next_run_at:
-                        schedule.next_run_at = schedule.next_run_at + timedelta(days=1)
-                    schedule.state = 'idle'
+                    next_run_naive = schedule.next_run_at
+                    if next_run_naive:
+                        if next_run_naive.tzinfo is not None:
+                            next_run_naive = next_run_naive.replace(tzinfo=None)
+                        schedule.next_run_at = next_run_naive + timedelta(days=1)
                     logger.info(f"Marketing report {schedule_id} successfully finished. Rescheduled to {schedule.next_run_at}")
                 else:
                     # Update state for all other workflows as normal
