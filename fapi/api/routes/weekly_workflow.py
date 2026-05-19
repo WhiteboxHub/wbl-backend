@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,11 +19,11 @@ SCHEDULE_ID = 7  # automation_workflows_schedule.id for weekly_automation_applic
 
 def _compute_next_run(schedule: AutomationWorkflowScheduleORM) -> datetime | None:
     """Compute next_run_at from the schedule's own cron or frequency settings."""
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
 
     if schedule.cron_expression and croniter:
         try:
-            return croniter(schedule.cron_expression, now).get_next(datetime).replace(tzinfo=timezone.utc)
+            return croniter(schedule.cron_expression, now).get_next(datetime)
         except Exception:
             pass
 
@@ -66,7 +66,7 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
     # Update the schedule if it exists
     schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == SCHEDULE_ID).first()
     if schedule:
-        schedule.last_run_at = datetime.now(timezone.utc)
+        schedule.last_run_at = datetime.utcnow()
         schedule.next_run_at = _compute_next_run(schedule)
     
     # Reset candidate workflow so it doesn't loop
@@ -141,4 +141,4 @@ def update_run_parameters(
         
     db.commit()
     return {"message": "Successfully saved run_parameters back to the database UI!"}
-
+
