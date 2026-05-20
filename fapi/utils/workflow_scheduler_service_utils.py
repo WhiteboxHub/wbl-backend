@@ -84,7 +84,9 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     reports in a row).
     """
     anchor = schedule.next_run_at or datetime.now(timezone.utc)
-    now = datetime.now(timezone.utc)
+    if anchor.tzinfo is not None:
+        anchor = anchor.replace(tzinfo=None)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if schedule.frequency == "weekly":
         next_run = anchor + timedelta(weeks=1)
@@ -116,7 +118,7 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
         return next_run
     elif schedule.frequency == "custom" and schedule.cron_expression:
         cron = croniter(schedule.cron_expression, now)
-        return cron.get_next(datetime).replace(tzinfo=timezone.utc)
+        return cron.get_next(datetime).replace(tzinfo=None)
     elif schedule.frequency == "once":
         return None
 

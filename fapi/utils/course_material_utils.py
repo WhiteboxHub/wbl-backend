@@ -15,7 +15,8 @@ COURSE_MATERIAL_TYPE_MAPPING = {
     "B": "Books",
     "N": "Newsletters",
     "M": "Materials",
-    "A": "Assignments"
+    "A": "Assignments",
+    "G": "Git Repo's"
 }
 
 def get_type_display_name(type_code: str) -> str:
@@ -140,7 +141,7 @@ def create_course_material(db: Session, course_material: schemas.CourseMaterialC
     invalidate_cache("resources") # Resources often fetch these
     """Create a new course material and return enriched data"""
     # Validate material type
-    valid_types = ['P', 'Y', 'C', 'SG', 'I', 'B', 'N', 'M', 'A']
+    valid_types = ['P', 'Y', 'C', 'SG', 'I', 'B', 'N', 'M', 'A', 'G']
     if course_material.type not in valid_types:
         raise ValueError(f"Invalid material type. Must be one of: {valid_types}")
     
@@ -179,7 +180,7 @@ def update_course_material(
     
     # Validate material type if being updated
     if 'type' in update_data:
-        valid_types = ['P', 'Y', 'C', 'SG', 'I', 'B', 'N', 'M', 'A']
+        valid_types = ['P', 'Y', 'C', 'SG', 'I', 'B', 'N', 'M', 'A', 'G']
         if update_data['type'] not in valid_types:
             raise ValueError(f"Invalid material type. Must be one of: {valid_types}")
     
