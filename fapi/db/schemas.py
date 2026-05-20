@@ -4249,6 +4249,24 @@ class CodeExecutionLogOut(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class CoderpadTrackingLogOut(BaseModel):
+    id: int
+    candidate_email: str
+    candidate_name: str
+    question_title: str
+    language: str
+    status: str
+    execution_time_ms: int = 0
+    created_at: datetime
+    test_passed: int = 0
+    test_total: int = 0
+    security_events_count: int = 0
+
+
+class CoderpadTrackingLogsResponse(BaseModel):
+    data: List[CoderpadTrackingLogOut]
 #--------------------------------------extension keys--------------------------------------
 
 class ExtensionKeyBase(BaseModel):
