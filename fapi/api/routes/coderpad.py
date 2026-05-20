@@ -11,6 +11,7 @@ from fapi.db.schemas import (
     CodeExecutionRequest,
     CodeExecutionWithTestsResponse,
     CodeExecutionLogOut,
+    CoderpadTrackingLogsResponse,
     CoderpadQuestionCreate,
     CoderpadQuestionUpdate,
     CoderpadQuestionOut,
@@ -352,6 +353,17 @@ def get_execution_logs(
 ):
     """Get execution logs for current user"""
     return coderpad_utils.get_execution_logs(db, current_user.id, snippet_id, limit)
+
+
+@router.get("/tracking/execution-logs", response_model=CoderpadTrackingLogsResponse)
+def get_tracking_execution_logs(
+    limit: int = Query(1000, ge=1, le=5000),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Staff: all CoderPad execution logs with candidate name/email for Avatar tracking."""
+    logs = coderpad_utils.get_tracking_execution_logs(db, limit=limit)
+    return {"data": logs}
 
 
 # ==================== Code Sharing ====================
