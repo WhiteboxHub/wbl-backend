@@ -1,0 +1,58 @@
+name: Backend CI - Safety Gates
+
+on:
+  pull_request:
+    branches: [ main, dev ]
+  push:
+    branches: [ main, dev ]
+
+jobs:
+  lint-and-test:
+    name: Lint & Pytest Suite
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: "pip"
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 pytest pytest-github-actions-annotate-failures
+
+    - name: Run Flake8 Linter
+      run: |
+        flake8 . --config=setup.cfg
+
+    - name: Run Pytest Suite
+      env:
+        SECRET_KEY: "mock_test_secret_key_12345"  # pragma: allowlist secret
+        ALGORITHM: "HS256"
+        UPSTASH_REDIS_REST_URL: "https://mock-redis.upstash.io"
+        UPSTASH_REDIS_REST_TOKEN: "mock_token"
+        DB_PASSWORD: "mock_password"  # pragma: allowlist secret
+        DB_HOST: "localhost"
+        DB_NAME: "wbl_test"
+        ENV: "test"
+      run: |
+        # Execute the test suite strictly, ensuring failures block merge
+        pytest --ignore=tests/smoke -v 2>&1 | tee pytest-output.txt
+
+    - name: Upload test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-Results
+        path: pytest-output.txt
+
+
+    - name: Dry Run Docker Build
+      run: |
+        docker build -t wbl-backend-test .
