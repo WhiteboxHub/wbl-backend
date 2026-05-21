@@ -138,7 +138,7 @@ async def get_sessions(
 
 
 @router.get("/materials")
-@limiter.limit("15/minute")
+@limiter.limit("60/minute")
 async def get_materials(
     request: Request, 
     course: str = Query(..., description="Course name: QA, UI, or ML"),
@@ -155,7 +155,7 @@ async def get_materials(
     return JSONResponse(content=data)
 
 @router.get("/github-classroom-repos")
-@limiter.limit("15/minute")
+@limiter.limit("60/minute")
 async def get_github_classroom_repos(
     request: Request,
     course: str = Query("ML", description="Course name: ML"),
