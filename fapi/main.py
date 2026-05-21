@@ -23,10 +23,15 @@ from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+from fapi.core.config import limiter
 import logging
 import traceback
 
 app = FastAPI(title="WBL Backend")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 logging.basicConfig(level=logging.INFO)
