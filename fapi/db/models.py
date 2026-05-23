@@ -1686,3 +1686,65 @@ class SyncVersion(Base):
     version = Column(String(50), nullable=False, unique=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     notes = Column(Text, nullable=True)
+
+
+# -------------------- Outreach Emails --------------------
+class OutreachEmailORM(Base):
+    __tablename__ = "outreach_emails"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, unique=True)
+    status = Column(
+        SQLAEnum(
+            'ACTIVE', 'PAUSED', 'SUPPRESSED', 'UNSUBSCRIBED', 'INVALID', 'BOUNCED', 'COMPLAINED',
+            name="outreach_email_status_enum"
+        ),
+        nullable=False,
+        server_default="ACTIVE"
+    )
+    validation_status = Column(
+        SQLAEnum(
+            'VALID', 'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'UNKNOWN',
+            name="outreach_email_validation_status_enum"
+        ),
+        nullable=True,
+        server_default="VALID"
+    )
+    bounce_type = Column(
+        SQLAEnum(
+            'HARD', 'SOFT', 'TRANSIENT', 'BLOCKED', 'POLICY', 'SPAM', 'UNKNOWN',
+            name="outreach_email_bounce_type_enum"
+        ),
+        nullable=True
+    )
+    failure_type = Column(
+        SQLAEnum(
+            'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'DNS_FAILURE', 'SMTP_REJECTED',
+            'SPAM_BLOCKED', 'RATE_LIMITED', 'TIMEOUT', 'PROVIDER_ERROR', 'TEMPLATE_ERROR',
+            'SUPPRESSION_LIST', 'UNKNOWN',
+            name="outreach_email_failure_type_enum"
+        ),
+        nullable=True
+    )
+    suppression_source = Column(String(50), nullable=True)
+    send_attempt_count = Column(Integer, nullable=False, server_default="0")
+    provider_name = Column(String(50), nullable=True)
+    provider_message_id = Column(String(255), nullable=True)
+    last_email_sent_at = Column(DateTime, nullable=True)
+    last_attempted_at = Column(DateTime, nullable=True)
+    unsubscribed_at = Column(TIMESTAMP, nullable=True)
+    bounced_at = Column(TIMESTAMP, nullable=True)
+    complained_at = Column(TIMESTAMP, nullable=True)
+    failed_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(
+        TIMESTAMP, nullable=True,
+        onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_outreach_email"),
+        Index("idx_status", "status"),
+        Index("idx_status_sent", "status", "last_email_sent_at"),
+        Index("idx_status_attempt", "status", "send_attempt_count"),
+    )

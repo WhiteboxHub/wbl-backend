@@ -20,5 +20,5 @@ from . import (
     placement_commission,
     job_click, coderpad, dynamic_weekly_report, extension_keys,
     campaign_email,
-    sync_cli, report_data, report_pdf, email_position, weekly_workflow
+    sync_cli, report_data, report_pdf, email_position, weekly_workflow, outreach_email
 )

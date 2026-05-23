@@ -15,10 +15,28 @@ CACHE_PREFIX = "campaign_emails"
 
 
 @cache_result(ttl=300, prefix=CACHE_PREFIX)
-def get_all(db: Session) -> List[CampaignEmailORM]:
-    return db.query(CampaignEmailORM).order_by(
-        CampaignEmailORM.created_at.desc()
-    ).all()
+def get_all(
+    db: Session,
+    status: Optional[str] = None,
+    candidate_id: Optional[int] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None
+) -> List[CampaignEmailORM]:
+    query = db.query(CampaignEmailORM)
+    
+    if status:
+        query = query.filter(CampaignEmailORM.status == status)
+    if candidate_id:
+        query = query.filter(CampaignEmailORM.candidate_id == candidate_id)
+        
+    query = query.order_by(CampaignEmailORM.created_at.desc())
+    
+    if offset is not None:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+        
+    return query.all()
 
 
 @cache_result(ttl=300, prefix=CACHE_PREFIX)
@@ -169,14 +187,16 @@ def generate_snapshot(db: Session, candidate_id: int, workflow_id: int, schedule
             0,
             NOW(),
             NOW()
-        FROM outreach_emails oe
+        FROM outreach_email_recipients oe
         LEFT JOIN campaign_emails ce
             ON ce.candidate_id = :candidate_id
             AND ce.vendor_email = oe.email
             AND (ce.scheduler_id = :scheduler_id OR (ce.scheduler_id IS NULL AND :scheduler_id IS NULL))
         WHERE oe.email IS NOT NULL
           AND oe.status           = 'ACTIVE'
-          AND oe.validation_status = 'VALID'
+          AND oe.email_invalid    = 0
+          AND oe.domain_invalid   = 0
+          AND (oe.mailbox_invalid IS NULL OR oe.mailbox_invalid = 0)
           AND ce.id IS NULL
     """)
     db.execute(sql, {

@@ -21,6 +21,8 @@ from fapi.db.models import (
     CandidateORM,
     DeliveryEngineORM,
     EmailTemplateORM,
+    OutreachEmailORM,
+    CampaignEmailORM,
 )
 
 logger = logging.getLogger(__name__)
@@ -518,3 +520,34 @@ def update_log(
 
     db.commit()
     return db_log
+
+
+# ---------------------------------------------------------------------------
+# Candidate Outreach Emails
+# ---------------------------------------------------------------------------
+
+def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -> List[Dict[str, Any]]:
+    """
+    Return list of eligible outreach emails for a candidate.
+    Emails must be ACTIVE and VALID in outreach_emails, and NOT already present
+    in campaign_emails for this candidate.
+    """
+    # Subquery to find email addresses already present in campaign_emails for this candidate
+    sent_emails = (
+        db.query(CampaignEmailORM.vendor_email)
+        .filter(CampaignEmailORM.candidate_id == candidate_id)
+        .subquery()
+    )
+
+    # Query outreach_emails that are ACTIVE, VALID, and not in the sent subquery
+    emails = (
+        db.query(OutreachEmailORM)
+        .filter(
+            OutreachEmailORM.status == 'ACTIVE',
+            OutreachEmailORM.validation_status == 'VALID',
+            ~OutreachEmailORM.email.in_(sent_emails)
+        )
+        .all()
+    )
+
+    return [{"id": e.id, "vendor_email": e.email} for e in emails]

@@ -4459,3 +4459,99 @@ class CoderpadTrackingCandidateStats(BaseModel):
 
 class CoderpadTrackingResponse(BaseModel):
     candidates: List[CoderpadTrackingCandidateStats]
+
+
+# -------------------- Outreach Emails --------------------
+class OutreachEmailBase(BaseModel):
+    email: str
+    status: Literal['ACTIVE', 'PAUSED', 'SUPPRESSED', 'UNSUBSCRIBED', 'INVALID', 'BOUNCED', 'COMPLAINED'] = 'ACTIVE'
+    validation_status: Literal['VALID', 'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'UNKNOWN'] = 'VALID'
+    bounce_type: Optional[Literal['HARD', 'SOFT', 'TRANSIENT', 'BLOCKED', 'POLICY', 'SPAM', 'UNKNOWN']] = None
+    failure_type: Optional[Literal['EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'DNS_FAILURE', 'SMTP_REJECTED', 'SPAM_BLOCKED', 'RATE_LIMITED', 'TIMEOUT', 'PROVIDER_ERROR', 'TEMPLATE_ERROR', 'SUPPRESSION_LIST', 'UNKNOWN']] = None
+    suppression_source: Optional[str] = None
+    send_attempt_count: int = 0
+    provider_name: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    last_email_sent_at: Optional[datetime] = None
+    last_attempted_at: Optional[datetime] = None
+    unsubscribed_at: Optional[datetime] = None
+    bounced_at: Optional[datetime] = None
+    complained_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "ACTIVE"
+                    elif k == 'validation_status':
+                        processed[k] = "VALID"
+                    elif k in ('send_attempt_count',):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('status', 'validation_status', 'bounce_type', 'failure_type') and isinstance(v, str):
+                    processed[k] = v.upper().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class OutreachEmailCreate(OutreachEmailBase):
+    pass
+
+class OutreachEmailUpdate(BaseModel):
+    email: Optional[str] = None
+    status: Optional[Literal['ACTIVE', 'PAUSED', 'SUPPRESSED', 'UNSUBSCRIBED', 'INVALID', 'BOUNCED', 'COMPLAINED']] = None
+    validation_status: Optional[Literal['VALID', 'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'UNKNOWN']] = None
+    bounce_type: Optional[Literal['HARD', 'SOFT', 'TRANSIENT', 'BLOCKED', 'POLICY', 'SPAM', 'UNKNOWN']] = None
+    failure_type: Optional[Literal['EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'DNS_FAILURE', 'SMTP_REJECTED', 'SPAM_BLOCKED', 'RATE_LIMITED', 'TIMEOUT', 'PROVIDER_ERROR', 'TEMPLATE_ERROR', 'SUPPRESSION_LIST', 'UNKNOWN']] = None
+    suppression_source: Optional[str] = None
+    send_attempt_count: Optional[int] = None
+    provider_name: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    last_email_sent_at: Optional[datetime] = None
+    last_attempted_at: Optional[datetime] = None
+    unsubscribed_at: Optional[datetime] = None
+    bounced_at: Optional[datetime] = None
+    complained_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    processed[k] = None
+                elif k in ('status', 'validation_status', 'bounce_type', 'failure_type') and isinstance(v, str):
+                    processed[k] = v.upper().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class OutreachEmailOut(OutreachEmailBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
