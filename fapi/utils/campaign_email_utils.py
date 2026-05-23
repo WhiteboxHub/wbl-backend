@@ -187,7 +187,7 @@ def generate_snapshot(db: Session, candidate_id: int, workflow_id: int, schedule
             0,
             NOW(),
             NOW()
-        FROM outreach_emails oe
+        FROM outreach_email_recipients oe
         LEFT JOIN campaign_emails ce
             ON ce.candidate_id = :candidate_id
             AND ce.vendor_email = oe.email
