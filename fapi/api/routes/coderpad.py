@@ -24,6 +24,14 @@ from fapi.db.schemas import (
     CoderpadMyOpenaiKeyPreviewOut,
     CoderpadMyOpenaiKeyRevealOut,
     CoderpadSaveOpenaiKeyRequest,
+    CoderpadSaveLlmKeyRequest,
+    CoderpadUpdateLlmKeyRequest,
+    CandidateLlmKeyListItemOut,
+    CoderpadLlmKeyValidateBatchIn,
+    CoderpadLlmKeyValidateBatchOut,
+    CoderpadLlmKeyValidateResultOut,
+    CoderpadLlmKeyVoiceEnabledIn,
+    CoderpadLlmKeyIsDefaultIn,
 )
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.utils import coderpad_utils
@@ -36,6 +44,14 @@ from fapi.utils.coderpad_openai_key import (
     openai_key_db_preview_for_user,
     resolve_coderpad_openai_api_key,
     save_candidate_openai_key_to_db,
+    create_candidate_llm_key_to_db,
+    update_candidate_llm_key_to_db,
+    list_candidate_llm_keys_for_user,
+    reveal_candidate_llm_key_by_id,
+    delete_candidate_llm_key_for_user,
+    update_candidate_llm_key_voice_enabled,
+    update_candidate_llm_key_is_default,
+    validate_llm_key_batch_for_user,
 )
 import logging
 
@@ -69,10 +85,11 @@ def get_my_openai_key_preview(
     db: Session = Depends(get_db),
 ):
     """Masked hint for the OpenAI key stored for ``candidate.id`` (full key never returned)."""
-    has_stored, masked = openai_key_db_preview_for_user(db, current_user)
+    has_stored, masked, key_id = openai_key_db_preview_for_user(db, current_user)
     return CoderpadMyOpenaiKeyPreviewOut(
         has_stored_key=has_stored,
         masked_preview=masked,
+        key_id=key_id,
     )
 
 
@@ -104,12 +121,167 @@ def save_my_openai_api_key(
             current_user,
             body.api_key,
             body.model_name,
+            body.voice_enabled,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/me/llm-keys", status_code=status.HTTP_204_NO_CONTENT)
+def create_my_llm_key(
+    body: CoderpadSaveLlmKeyRequest,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Store a new LLM API key for a supported provider."""
+    try:
+        create_candidate_llm_key_to_db(
+            db,
+            current_user,
+            body.provider_name,
+            body.api_key,
+            body.model_name,
+            body.voice_enabled,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/me/llm-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+def update_my_llm_key(
+    key_id: int,
+    body: CoderpadUpdateLlmKeyRequest,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update provider, model, speech flag, and optionally replace the API key."""
+    try:
+        update_candidate_llm_key_to_db(
+            db,
+            current_user,
+            key_id,
+            body.provider_name,
+            body.api_key,
+            body.model_name,
+            body.voice_enabled,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/me/llm-keys", response_model=List[CandidateLlmKeyListItemOut])
+def list_my_llm_keys(
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List masked LLM keys from ``candidate_llm_api_keys`` for ``candidate.id`` linked to this user."""
+    try:
+        rows = list_candidate_llm_keys_for_user(db, current_user)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.exception("list_my_llm_keys failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+    return [CandidateLlmKeyListItemOut(**r) for r in rows]
+
+
+@router.get("/me/llm-keys/{key_id}/reveal", response_model=CoderpadMyOpenaiKeyRevealOut)
+def reveal_my_llm_key(
+    key_id: int,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return full stored key for one row (owner only)."""
+    try:
+        raw = reveal_candidate_llm_key_by_id(db, current_user, key_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return CoderpadMyOpenaiKeyRevealOut(api_key=raw)
+
+
+@router.patch("/me/llm-keys/{key_id}/voice-enabled", status_code=status.HTTP_204_NO_CONTENT)
+def patch_my_llm_key_voice_enabled(
+    key_id: int,
+    body: CoderpadLlmKeyVoiceEnabledIn,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update speech-enabled flag for one LLM key row."""
+    try:
+        update_candidate_llm_key_voice_enabled(
+            db, current_user, key_id, body.voice_enabled
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/me/llm-keys/{key_id}/is-default", status_code=status.HTTP_204_NO_CONTENT)
+def patch_my_llm_key_is_default(
+    key_id: int,
+    body: CoderpadLlmKeyIsDefaultIn,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Set or clear the default LLM key for this candidate."""
+    try:
+        update_candidate_llm_key_is_default(
+            db, current_user, key_id, body.is_default
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/me/llm-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_llm_key(
+    key_id: int,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete one row from ``candidate_llm_api_keys``."""
+    try:
+        delete_candidate_llm_key_for_user(db, current_user, key_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/me/llm-keys/validate-batch", response_model=CoderpadLlmKeyValidateBatchOut)
+def validate_my_llm_keys_batch(
+    body: CoderpadLlmKeyValidateBatchIn,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Validate stored keys (active / inactive / invalid) via provider APIs."""
+    try:
+        raw = validate_llm_key_batch_for_user(
+            db,
+            current_user,
+            [k.model_dump() for k in body.keys],
+            body.session_id,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return CoderpadLlmKeyValidateBatchOut(
+        results=[CoderpadLlmKeyValidateResultOut(**r) for r in raw]
+    )
 
 
 # ==================== Code Snippet CRUD ====================
@@ -204,8 +376,8 @@ def llm_validate_coderpad(
 ):
     """
     Validate candidate code against the problem + test cases using OpenAI.
-    Uses ``X-OpenAI-Api-Key`` when provided; otherwise the candidate's row in
-    ``candidate_llm_api_keys`` (OpenAI), then ``CODERPAD_OPENAI_API_KEY`` / ``OPENAI_API_KEY``.
+    Uses ``X-OpenAI-Api-Key`` when provided; otherwise the candidate's **default**
+  My LLM key when OpenAI, else latest OpenAI row, then server env keys.
     """
     key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
 

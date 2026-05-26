@@ -4221,6 +4221,7 @@ class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
 
     has_stored_key: bool
     masked_preview: Optional[str] = None
+    key_id: Optional[int] = None
 
 
 class CoderpadMyOpenaiKeyRevealOut(BaseModel):
@@ -4232,6 +4233,61 @@ class CoderpadMyOpenaiKeyRevealOut(BaseModel):
 class CoderpadSaveOpenaiKeyRequest(BaseModel):
     api_key: str
     model_name: Optional[str] = "gpt-4o-mini"
+    voice_enabled: bool = False
+
+
+class CoderpadSaveLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+class CoderpadUpdateLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+class CandidateLlmKeyListItemOut(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[datetime] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+
+
+class CoderpadLlmKeyVoiceEnabledIn(BaseModel):
+    voice_enabled: bool
+
+
+class CoderpadLlmKeyIsDefaultIn(BaseModel):
+    is_default: bool
+
+
+class CoderpadLlmKeyValidateItemIn(BaseModel):
+    id: int
+    provider_name: str
+    source: str = "wbl"
+
+
+class CoderpadLlmKeyValidateBatchIn(BaseModel):
+    session_id: Optional[str] = None
+    keys: List[CoderpadLlmKeyValidateItemIn]
+
+
+class CoderpadLlmKeyValidateResultOut(BaseModel):
+    id: int
+    source: str = "wbl"
+    status: str
+    message: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchOut(BaseModel):
+    results: List[CoderpadLlmKeyValidateResultOut]
 
 
 class CodeExecutionLogOut(BaseModel):

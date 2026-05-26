@@ -338,7 +338,7 @@ class CandidateMarketingORM(Base):
 
 
 class CandidateLlmApiKeyORM(Base):
-    """LLM provider keys. ``candidate_id`` is FK to ``candidate.id`` (candidate table PK), not marketing or auth ids."""
+    """LLM API keys for a candidate — many rows per candidate and per provider."""
 
     __tablename__ = "candidate_llm_api_keys"
     __table_args__ = {"extend_existing": True}
@@ -348,6 +348,11 @@ class CandidateLlmApiKeyORM(Base):
     provider_name = Column(String(100), nullable=False)
     api_key = Column(Text, nullable=False)
     model_name = Column(String(200), nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    voice_enabled = Column(Boolean, nullable=False, default=False)
+    is_default = Column(Boolean, nullable=False, default=False)
 
 
 # # -------------------------------------- Candidate Interview -------------------------------
