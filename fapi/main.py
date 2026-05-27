@@ -14,7 +14,7 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli
+    email_position, job_click, coderpad, dynamic_weekly_report,     extension_keys, report_data, report_pdf, sync_cli, cli_analytics
 
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
@@ -41,13 +41,19 @@ logger = logging.getLogger("wbl")
 async def startup_event():
     redis_client.get_client()
     try:
-        from fapi.db.models import CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
+        from fapi.db.models import (
+            CodeSnippetORM,
+            CodeExecutionLogORM,
+            CoderpadQuestionORM,
+            CliUsageEventORM,
+        )
         
         # Coderpad Tables
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad tables checked/created successfully.")
+        CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad and CLI analytics tables checked/created successfully.")
 
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
@@ -152,6 +158,7 @@ app.include_router(placement_commission.router, prefix="/api", tags=["Placement 
 app.include_router(job_automation_keywords.router, prefix="/api", tags=["Job Automation Keywords"], dependencies=[Depends(enforce_access)])
 app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], dependencies=[Depends(enforce_access)])
 app.include_router(sync_cli.router, prefix="/api", tags=["JobCLI Sync"])
+app.include_router(cli_analytics.router, prefix="/api", tags=["WboxCLI Analytics"])
 
 
 # Job and Outreach Routers
