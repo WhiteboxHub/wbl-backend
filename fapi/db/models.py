@@ -1635,3 +1635,27 @@ class SyncVersion(Base):
     version = Column(String(50), nullable=False, unique=True)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     notes = Column(Text, nullable=True)
+
+
+# -------------------- WboxCLI usage analytics --------------------
+class CliUsageEventORM(Base):
+    """Telemetry events from the WboxCLI desktop client."""
+
+    __tablename__ = "cli_usage_events"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    event_name = Column(String(100), nullable=False, index=True)
+    command = Column(String(100), nullable=True)
+    result = Column(String(50), nullable=True)
+    event_ts = Column(DateTime, nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    jobs_attempted_count = Column(Integer, nullable=True)
+    jobs_submitted_count = Column(Integer, nullable=True)
+    jobs_failed_count = Column(Integer, nullable=True)
+    event_metadata = Column(JSON, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index("idx_cli_usage_user_ts", "user_id", "event_ts"),
+    )
