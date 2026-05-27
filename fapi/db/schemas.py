@@ -4446,6 +4446,22 @@ class CliUsageUserRow(BaseModel):
     apply_log_history: List[dict] = []
 
 
+class CliUsageUserMetricsUpdate(BaseModel):
+    """Staff adjustment of aggregated per-user job counters."""
+
+    jobs_attempted: int = Field(ge=0)
+    jobs_submitted: int = Field(ge=0)
+    jobs_failed: int = Field(ge=0)
+
+
+class CliUsageUserMutationResponse(BaseModel):
+    user_id: str
+    deleted_events: int = 0
+    jobs_attempted: Optional[int] = None
+    jobs_submitted: Optional[int] = None
+    jobs_failed: Optional[int] = None
+
+
 class PaginatedCliUsageUsers(BaseModel):
     total: int
     page: int

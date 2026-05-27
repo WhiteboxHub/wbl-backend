@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
@@ -12,6 +12,8 @@ from fapi.db.schemas import (
     CliUsageEventBulkResponse,
     CliUsageAnalyticsSummary,
     CliUsageUserSummary,
+    CliUsageUserMetricsUpdate,
+    CliUsageUserMutationResponse,
     PaginatedCliUsageEvents,
     PaginatedCliUsageUsers,
 )
@@ -54,6 +56,37 @@ def analytics_user_summary(
     """Per-user application totals from CLI usage events."""
     _ = current_user
     return cli_analytics_utils.get_user_summary(db, user_id)
+
+
+@router.patch("/users/{user_id:path}", response_model=CliUsageUserMutationResponse)
+def update_usage_user_metrics(
+    user_id: str,
+    body: CliUsageUserMetricsUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(staff_or_admin_required),
+):
+    """Staff: adjust aggregated job counters for a WboxCLI user."""
+    _ = current_user
+    try:
+        return cli_analytics_utils.update_user_usage_metrics(db, user_id, body)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/users/{user_id:path}", response_model=CliUsageUserMutationResponse)
+def delete_usage_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(staff_or_admin_required),
+):
+    """Staff: delete all CLI usage events for a WboxCLI user."""
+    _ = current_user
+    try:
+        return cli_analytics_utils.delete_user_usage_events(db, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/users", response_model=PaginatedCliUsageUsers)
