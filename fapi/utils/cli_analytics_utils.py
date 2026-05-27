@@ -17,6 +17,8 @@ from fapi.db.schemas import (
     CliUsageAnalyticsSummary,
     CliUsageUserSummary,
     CliUsageUserRow,
+    CliUsageUserMetricsUpdate,
+    CliUsageUserMutationResponse,
     PaginatedCliUsageEvents,
     PaginatedCliUsageUsers,
     CliUsageEventOut,
@@ -249,6 +251,63 @@ def get_paginated_users(
         page=page,
         page_size=page_size,
         users=users,
+    )
+
+
+def delete_user_usage_events(db: Session, user_id: str) -> CliUsageUserMutationResponse:
+    """Delete all CLI usage events for a WBL login (admin cleanup)."""
+    uid = (user_id or "").strip()
+    if not uid:
+        raise ValueError("user_id is required")
+    deleted = (
+        db.query(CliUsageEventORM)
+        .filter(CliUsageEventORM.user_id == uid)
+        .delete(synchronize_session=False)
+    )
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("CLI usage delete failed for %s: %s", uid, exc)
+        raise
+    return CliUsageUserMutationResponse(user_id=uid, deleted_events=int(deleted or 0))
+
+
+def update_user_usage_metrics(
+    db: Session,
+    user_id: str,
+    body: CliUsageUserMetricsUpdate,
+) -> CliUsageUserMutationResponse:
+    """Adjust aggregated job counters by zeroing all events then setting the latest."""
+    uid = (user_id or "").strip()
+    if not uid:
+        raise ValueError("user_id is required")
+    rows = db.query(CliUsageEventORM).filter(CliUsageEventORM.user_id == uid).all()
+    if not rows:
+        raise LookupError(f"No usage events found for user_id={uid!r}")
+
+    for row in rows:
+        row.jobs_attempted_count = 0
+        row.jobs_submitted_count = 0
+        row.jobs_failed_count = 0
+
+    latest = max(rows, key=lambda r: r.event_ts)
+    latest.jobs_attempted_count = int(body.jobs_attempted)
+    latest.jobs_submitted_count = int(body.jobs_submitted)
+    latest.jobs_failed_count = int(body.jobs_failed)
+
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("CLI usage metrics update failed for %s: %s", uid, exc)
+        raise
+
+    return CliUsageUserMutationResponse(
+        user_id=uid,
+        jobs_attempted=int(body.jobs_attempted),
+        jobs_submitted=int(body.jobs_submitted),
+        jobs_failed=int(body.jobs_failed),
     )
 
 
