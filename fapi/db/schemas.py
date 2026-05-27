@@ -899,7 +899,6 @@ class CandidateMarketingBase(BaseModel):
     linkedin_premium_end_date: Optional[date] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = False
-    mass_email: Optional[bool] = False
     candidate_intro: Optional[str] = None
     run_daily_workflow: bool = False
     run_weekly_workflow: bool = False
@@ -960,7 +959,6 @@ class CandidateMarketingUpdate(BaseModel):
     linkedin_premium_end_date: Optional[date] = None
     resume_url: Optional[HttpUrl] = None
     move_to_placement: Optional[bool] = None
-    mass_email: Optional[bool] = None
     candidate_intro: Optional[str] = None
     run_daily_workflow: Optional[bool] = None
     run_weekly_workflow: Optional[bool] = None
