@@ -14,7 +14,8 @@ from fapi.api.routes import (
     weekly_workflow,
     company, company_contact, potential_leads,personal_domain_contact,outreach_email_recipient,
     linkedin_only_contact, automation_contact_extract, email_smtp_credentials,
-    email_position, job_click, coderpad, dynamic_weekly_report,     extension_keys, report_data, report_pdf, sync_cli, cli_analytics
+    email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli, cli_analytics,
+    campaign_email, outreach_email
 
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
@@ -185,6 +186,8 @@ app.include_router(automation_workflow.router, prefix="/api", tags=["Automation 
 app.include_router(automation_workflow_schedule.router, prefix="/api", tags=["Automation Workflow Schedule"], dependencies=[Depends(enforce_access)])
 app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automation Workflow Log"], dependencies=[Depends(enforce_access)])
 app.include_router(coderpad.router, prefix="/api", tags=["CoderPad"], dependencies=[Depends(enforce_access)])
+app.include_router(campaign_email.router, prefix="/api", tags=["Campaign Emails"], dependencies=[Depends(enforce_access)])
+app.include_router(outreach_email.router, prefix="/api", tags=["Outreach Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])

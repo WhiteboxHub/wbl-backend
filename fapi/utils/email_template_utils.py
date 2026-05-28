@@ -14,6 +14,10 @@ def get_email_templates(db: Session) -> List[EmailTemplateORM]:
 def get_email_template(db: Session, template_id: int) -> Optional[EmailTemplateORM]:
     return db.query(EmailTemplateORM).filter(EmailTemplateORM.id == template_id).first()
 
+@cache_result(ttl=300, prefix="email_templates")
+def get_email_template_by_key(db: Session, template_key: str) -> Optional[EmailTemplateORM]:
+    return db.query(EmailTemplateORM).filter(EmailTemplateORM.template_key == template_key).first()
+
 def create_email_template(db: Session, template: EmailTemplateCreate) -> EmailTemplateORM:
     invalidate_cache("email_templates")
     db_template = EmailTemplateORM(**template.model_dump())

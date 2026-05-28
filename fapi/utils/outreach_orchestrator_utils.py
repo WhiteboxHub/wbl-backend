@@ -21,6 +21,8 @@ from fapi.db.models import (
     CandidateORM,
     DeliveryEngineORM,
     EmailTemplateORM,
+    OutreachEmailORM,
+    CampaignEmailORM,
 )
 
 logger = logging.getLogger(__name__)
@@ -390,11 +392,18 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     """
     Calculate the next run time based on the schedule's frequency.
     Ensures the next run is always in the future.
+    Always operates with timezone-aware UTC datetimes to prevent
+    naive/aware comparison errors.
     """
-    anchor = schedule.next_run_at or datetime.now(timezone.utc)
-    if anchor.tzinfo is not None:
-        anchor = anchor.replace(tzinfo=None)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    anchor = schedule.next_run_at
+    # Normalize: if anchor is naive, treat it as UTC
+    if anchor and anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=timezone.utc)
+    # If no anchor at all, use now
+    if not anchor:
+        anchor = datetime.now(timezone.utc)
+
+    now = datetime.now(timezone.utc)
 
     if schedule.frequency == "weekly":
         next_run = anchor + timedelta(weeks=1)
@@ -424,7 +433,8 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     elif schedule.frequency == "custom" and schedule.cron_expression:
         try:
             cron = croniter(schedule.cron_expression, now)
-            return cron.get_next(datetime).replace(tzinfo=None)
+            # croniter returns naive datetimes — re-attach UTC so comparisons stay consistent
+            return cron.get_next(datetime).replace(tzinfo=timezone.utc)
         except Exception as e:
             logger.error(f"Error parsing cron {schedule.cron_expression}: {e}")
             return None
@@ -464,29 +474,28 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
                 schedule.is_running = True
             elif status in ["success", "failed", "completed"]:
                 schedule.is_running = False
-                schedule.last_run_at = now.replace(tzinfo=None)
-                
+                schedule.last_run_at = now  # now is already timezone-aware UTC
+
                 if schedule.workflow and schedule.workflow.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
-                    # Marketing Report specific logic (Update next_run_at and set back to idle)
-                    # This ensures it runs exactly once per day and is ready for tomorrow
-                    next_run_naive = schedule.next_run_at
-                    if next_run_naive:
-                        if next_run_naive.tzinfo is not None:
-                            next_run_naive = next_run_naive.replace(tzinfo=None)
-                        schedule.next_run_at = next_run_naive + timedelta(days=1)
+                    # Marketing Report specific logic — advance by 1 day and reset to idle
+                    existing = schedule.next_run_at
+                    if existing:
+                        # Normalize to UTC-aware if stored as naive
+                        if existing.tzinfo is None:
+                            existing = existing.replace(tzinfo=timezone.utc)
+                        schedule.next_run_at = existing + timedelta(days=1)
                     logger.info(f"Marketing report {schedule_id} successfully finished. Rescheduled to {schedule.next_run_at}")
                 else:
                     # Update state for all other workflows as normal
                     schedule.state = status
-                    
-                    # Reschedule only on success or if we want to retry on failure
-                    # For now, we reschedule on both success and failure to prevent loops
+
+                    # Reschedule (on both success and failure to prevent stuck schedules)
                     next_run = _calculate_next_run(schedule)
                     schedule.next_run_at = next_run
-                    
+
                     if schedule.frequency == "once":
                         schedule.enabled = False
-                    
+
                     logger.info(f"Schedule {schedule_id} finished with {status}. Next run: {next_run}")
 
     db.commit()
@@ -511,3 +520,34 @@ def update_log(
 
     db.commit()
     return db_log
+
+
+# ---------------------------------------------------------------------------
+# Candidate Outreach Emails
+# ---------------------------------------------------------------------------
+
+def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -> List[Dict[str, Any]]:
+    """
+    Return list of eligible outreach emails for a candidate.
+    Emails must be ACTIVE and VALID in outreach_emails, and NOT already present
+    in campaign_emails for this candidate.
+    """
+    # Subquery to find email addresses already present in campaign_emails for this candidate
+    sent_emails = (
+        db.query(CampaignEmailORM.vendor_email)
+        .filter(CampaignEmailORM.candidate_id == candidate_id)
+        .subquery()
+    )
+
+    # Query outreach_emails that are ACTIVE, VALID, and not in the sent subquery
+    emails = (
+        db.query(OutreachEmailORM)
+        .filter(
+            OutreachEmailORM.status == 'ACTIVE',
+            OutreachEmailORM.validation_status == 'VALID',
+            ~OutreachEmailORM.email.in_(sent_emails)
+        )
+        .all()
+    )
+
+    return [{"id": e.id, "vendor_email": e.email} for e in emails]
