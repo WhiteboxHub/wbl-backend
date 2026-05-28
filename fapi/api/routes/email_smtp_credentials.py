@@ -11,7 +11,6 @@ from fapi.db.schemas import (
 )
 from fapi.utils import email_smtp_credentials_utils
 from fapi.utils.email_smtp_credentials_utils import get_email_smtp_credentials_version
-
 router = APIRouter()
 
 security = HTTPBearer()

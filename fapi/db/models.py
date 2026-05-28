@@ -324,6 +324,7 @@ class CandidateMarketingORM(Base):
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
     run_email_extraction = Column(Boolean, nullable=False, server_default="0")
     run_raw_positions_workflow = Column(Boolean, nullable=False, server_default="0")
+    run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
     
@@ -665,31 +666,6 @@ class YesNoEnum(str, enum.Enum):
     YES = "YES"
     NO = "NO"
 
-
-# ---------linkedin_activity_log----------------------
-class LinkedInActivityLogORM(Base):
-    __tablename__ = "linkedin_activity_log"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    candidate_id = Column(
-        Integer,
-        ForeignKey("candidate_marketing.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    source_email = Column(String(100), nullable=True)
-    activity_type = Column(
-        Enum('extraction', 'connection', name='activity_type'), nullable=False)
-    linkedin_profile_url = Column(String(255), nullable=True)
-    full_name = Column(String(255), nullable=True)
-    company_name = Column(String(255), nullable=True)
-    status = Column(Enum('success', 'failed', name='status'),
-                    server_default='success')
-    message = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
-# ---------------------------------------------------------------------
-
-
 class CourseContent(Base):
     __tablename__ = "course_content"
 
@@ -941,6 +917,13 @@ class EmailSMTPCredentialsORM(Base):
         server_default=func.now(), 
         onupdate=func.now()
     )
+    current_day_sent = Column(Integer, nullable=False, server_default="0")
+    last_reset_date = Column(Date, nullable=False, server_default=func.current_date())
+    is_warming_up = Column(Boolean, nullable=False, server_default="0")
+    warmup_started_at = Column(DateTime, nullable=True)
+    warmup_daily_limit = Column(Integer, nullable=True, server_default="5")
+    last_used_at = Column(DateTime, nullable=True)
+    is_healthy = Column(Boolean, nullable=False, server_default="1")
 
 
 # -------------------- Personal Domain Contact --------------------
@@ -1349,6 +1332,73 @@ class AutomationWorkflowLogORM(Base):
     schedule = relationship("AutomationWorkflowScheduleORM")
 
 
+# -------------------- Campaign Emails --------------------
+class CampaignEmailORM(Base):
+    __tablename__ = "campaign_emails"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    workflow_id = Column(
+        BigInteger,
+        ForeignKey("automation_workflows.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    candidate_id = Column(Integer, nullable=False)
+    vendor_email = Column(String(150), nullable=False)
+    scheduler_id = Column(
+        BigInteger,
+        ForeignKey("automation_workflows_schedule.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    # State Tracking
+    status = Column(
+        SQLAEnum("pending", "processing", "sent", "failed", "bounced",
+                 name="campaign_email_status_enum"),
+        nullable=False, server_default="pending"
+    )
+    bounce_type = Column(
+        SQLAEnum("none", "soft", "hard", "invalid",
+                 name="bounce_type_enum"),
+        nullable=False, server_default="none"
+    )
+    retry_count = Column(Integer, nullable=False, server_default="0")
+    last_attempt_at = Column(DateTime, nullable=True)
+
+    run_log_id = Column(
+        BigInteger,
+        ForeignKey("automation_workflow_logs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    credential_id = Column(
+        Integer,
+        ForeignKey("email_smtp_credentials.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    message_id = Column(String(255), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False,
+        server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    workflow = relationship("AutomationWorkflowORM")
+    scheduler = relationship("AutomationWorkflowScheduleORM")
+    run_log = relationship("AutomationWorkflowLogORM")
+    credential = relationship("EmailSMTPCredentialsORM")
+
+    __table_args__ = (
+        UniqueConstraint("scheduler_id", "candidate_id", "vendor_email", name="uniq_scheduler_candidate_email"),
+        Index("idx_status", "status", "retry_count"),
+        Index("idx_lookup", "workflow_id", "candidate_id", "status"),
+        Index("idx_retry", "retry_count", "status"),
+        Index("idx_scheduler", "scheduler_id"),
+    )
+
+
 # -------------------- Outreach Contacts --------------------
 class OutreachContactORM(Base):
     __tablename__ = "outreach_contacts"
@@ -1368,7 +1418,12 @@ class OutreachContactORM(Base):
     unsubscribe_reason = Column(String(255), nullable=True)
 
     bounce_flag = Column(Boolean, nullable=False, server_default="0")
-    bounce_type = Column(String(20), nullable=True)
+    bounce_type = Column(
+        SQLAEnum("none", "soft", "hard", "invalid",
+                 name="outreach_bounce_type_enum"),
+        nullable=False, server_default="none"
+    )
+
     bounce_reason = Column(String(255), nullable=True)
     bounce_code = Column(String(100), nullable=True)
     bounced_at = Column(TIMESTAMP, nullable=True)
@@ -1638,6 +1693,67 @@ class SyncVersion(Base):
     notes = Column(Text, nullable=True)
 
 
+
+# -------------------- Outreach Emails --------------------
+class OutreachEmailORM(Base):
+    __tablename__ = "outreach_emails"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), nullable=False, unique=True)
+    status = Column(
+        SQLAEnum(
+            'ACTIVE', 'PAUSED', 'SUPPRESSED', 'UNSUBSCRIBED', 'INVALID', 'BOUNCED', 'COMPLAINED',
+            name="outreach_email_status_enum"
+        ),
+        nullable=False,
+        server_default="ACTIVE"
+    )
+    validation_status = Column(
+        SQLAEnum(
+            'VALID', 'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'UNKNOWN',
+            name="outreach_email_validation_status_enum"
+        ),
+        nullable=True,
+        server_default="VALID"
+    )
+    bounce_type = Column(
+        SQLAEnum(
+            'HARD', 'SOFT', 'TRANSIENT', 'BLOCKED', 'POLICY', 'SPAM', 'UNKNOWN',
+            name="outreach_email_bounce_type_enum"
+        ),
+        nullable=True
+    )
+    failure_type = Column(
+        SQLAEnum(
+            'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'DNS_FAILURE', 'SMTP_REJECTED',
+            'SPAM_BLOCKED', 'RATE_LIMITED', 'TIMEOUT', 'PROVIDER_ERROR', 'TEMPLATE_ERROR',
+            'SUPPRESSION_LIST', 'UNKNOWN',
+            name="outreach_email_failure_type_enum"
+        ),
+        nullable=True
+    )
+    suppression_source = Column(String(50), nullable=True)
+    send_attempt_count = Column(Integer, nullable=False, server_default="0")
+    provider_name = Column(String(50), nullable=True)
+    provider_message_id = Column(String(255), nullable=True)
+    last_email_sent_at = Column(DateTime, nullable=True)
+    last_attempted_at = Column(DateTime, nullable=True)
+    unsubscribed_at = Column(TIMESTAMP, nullable=True)
+    bounced_at = Column(TIMESTAMP, nullable=True)
+    complained_at = Column(TIMESTAMP, nullable=True)
+    failed_at = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    updated_at = Column(
+        TIMESTAMP, nullable=True,
+        onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_outreach_email"),
+        Index("idx_status", "status"),
+        Index("idx_status_sent", "status", "last_email_sent_at"),
+        Index("idx_status_attempt", "status", "send_attempt_count"),
+
 # -------------------- WboxCLI usage analytics --------------------
 class CliUsageEventORM(Base):
     """Telemetry events from the WboxCLI desktop client."""
@@ -1659,4 +1775,5 @@ class CliUsageEventORM(Base):
 
     __table_args__ = (
         Index("idx_cli_usage_user_ts", "user_id", "event_ts"),
+
     )
