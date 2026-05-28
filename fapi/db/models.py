@@ -1753,6 +1753,8 @@ class OutreachEmailORM(Base):
         Index("idx_status", "status"),
         Index("idx_status_sent", "status", "last_email_sent_at"),
         Index("idx_status_attempt", "status", "send_attempt_count"),
+    )
+
 
 # -------------------- WboxCLI usage analytics --------------------
 class CliUsageEventORM(Base):
