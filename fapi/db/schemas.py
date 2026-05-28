@@ -4330,6 +4330,7 @@ class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
 
     has_stored_key: bool
     masked_preview: Optional[str] = None
+    key_id: Optional[int] = None
 
 
 class CoderpadMyOpenaiKeyRevealOut(BaseModel):
@@ -4341,6 +4342,61 @@ class CoderpadMyOpenaiKeyRevealOut(BaseModel):
 class CoderpadSaveOpenaiKeyRequest(BaseModel):
     api_key: str
     model_name: Optional[str] = "gpt-4o-mini"
+    voice_enabled: bool = False
+
+
+class CoderpadSaveLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+class CoderpadUpdateLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+class CandidateLlmKeyListItemOut(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[datetime] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+
+
+class CoderpadLlmKeyVoiceEnabledIn(BaseModel):
+    voice_enabled: bool
+
+
+class CoderpadLlmKeyIsDefaultIn(BaseModel):
+    is_default: bool
+
+
+class CoderpadLlmKeyValidateItemIn(BaseModel):
+    id: int
+    provider_name: str
+    source: str = "wbl"
+
+
+class CoderpadLlmKeyValidateBatchIn(BaseModel):
+    session_id: Optional[str] = None
+    keys: List[CoderpadLlmKeyValidateItemIn]
+
+
+class CoderpadLlmKeyValidateResultOut(BaseModel):
+    id: int
+    source: str = "wbl"
+    status: str
+    message: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchOut(BaseModel):
+    results: List[CoderpadLlmKeyValidateResultOut]
 
 
 class CodeExecutionLogOut(BaseModel):
@@ -4442,6 +4498,108 @@ class DownloadPayload(BaseModel):
     version: str
     field_answers: List[FieldAnswerInput]
     locators: List[LocatorInput]
+
+
+class CliUsageEventIn(BaseModel):
+    user_id: str
+    event_name: str
+    event_ts: Optional[datetime] = None
+    command: Optional[str] = None
+    result: Optional[str] = None
+    duration_ms: Optional[int] = None
+    jobs_attempted_count: Optional[int] = None
+    jobs_submitted_count: Optional[int] = None
+    jobs_failed_count: Optional[int] = None
+    metadata: Optional[dict] = None
+
+
+class CliUsageEventBulkCreate(BaseModel):
+    events: List[CliUsageEventIn]
+
+
+class CliUsageEventBulkResponse(BaseModel):
+    status: str = "success"
+    ingested: int
+    failed: int = 0
+    total: int
+    failed_events: List[dict] = []
+
+
+class CliUsageAnalyticsSummary(BaseModel):
+    total_events: int
+    total_users: int
+    active_users_7d: int
+    total_jobs_attempted: int
+    total_jobs_submitted: int
+    total_jobs_failed: int
+    command_counts: dict = {}
+
+
+class CliUsageUserSummary(BaseModel):
+    user_id: str
+    events: int
+    jobs_attempted: int
+    jobs_submitted: int
+    jobs_failed: int
+    last_event_at: Optional[datetime] = None
+
+
+class CliUsageUserRow(BaseModel):
+    """One row per WBL user for the admin dashboard."""
+
+    user_id: str
+    jobs_attempted: int
+    jobs_submitted: int
+    jobs_failed: int = 0
+    last_event_at: Optional[datetime] = None
+    apply_log_history: List[dict] = []
+
+
+class CliUsageUserMetricsUpdate(BaseModel):
+    """Staff adjustment of aggregated per-user job counters."""
+
+    jobs_attempted: int = Field(ge=0)
+    jobs_submitted: int = Field(ge=0)
+    jobs_failed: int = Field(ge=0)
+
+
+class CliUsageUserMutationResponse(BaseModel):
+    user_id: str
+    deleted_events: int = 0
+    jobs_attempted: Optional[int] = None
+    jobs_submitted: Optional[int] = None
+    jobs_failed: Optional[int] = None
+
+
+class PaginatedCliUsageUsers(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    users: List[CliUsageUserRow]
+
+
+class CliUsageEventOut(BaseModel):
+    id: int
+    user_id: str
+    event_name: str
+    command: Optional[str] = None
+    result: Optional[str] = None
+    event_ts: datetime
+    duration_ms: Optional[int] = None
+    jobs_attempted_count: Optional[int] = None
+    jobs_submitted_count: Optional[int] = None
+    jobs_failed_count: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedCliUsageEvents(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    events: List[CliUsageEventOut]
+
 
 class CoderpadSecurityEventCreate(BaseModel):
     question_id: Optional[int] = None

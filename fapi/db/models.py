@@ -339,7 +339,7 @@ class CandidateMarketingORM(Base):
 
 
 class CandidateLlmApiKeyORM(Base):
-    """LLM provider keys. ``candidate_id`` is FK to ``candidate.id`` (candidate table PK), not marketing or auth ids."""
+    """LLM API keys for a candidate — many rows per candidate and per provider."""
 
     __tablename__ = "candidate_llm_api_keys"
     __table_args__ = {"extend_existing": True}
@@ -349,6 +349,11 @@ class CandidateLlmApiKeyORM(Base):
     provider_name = Column(String(100), nullable=False)
     api_key = Column(Text, nullable=False)
     model_name = Column(String(200), nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    voice_enabled = Column(Boolean, nullable=False, default=False)
+    is_default = Column(Boolean, nullable=False, default=False)
 
 
 # # -------------------------------------- Candidate Interview -------------------------------
@@ -1688,6 +1693,7 @@ class SyncVersion(Base):
     notes = Column(Text, nullable=True)
 
 
+
 # -------------------- Outreach Emails --------------------
 class OutreachEmailORM(Base):
     __tablename__ = "outreach_emails"
@@ -1747,4 +1753,27 @@ class OutreachEmailORM(Base):
         Index("idx_status", "status"),
         Index("idx_status_sent", "status", "last_email_sent_at"),
         Index("idx_status_attempt", "status", "send_attempt_count"),
+
+# -------------------- WboxCLI usage analytics --------------------
+class CliUsageEventORM(Base):
+    """Telemetry events from the WboxCLI desktop client."""
+
+    __tablename__ = "cli_usage_events"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    event_name = Column(String(100), nullable=False, index=True)
+    command = Column(String(100), nullable=True)
+    result = Column(String(50), nullable=True)
+    event_ts = Column(DateTime, nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    jobs_attempted_count = Column(Integer, nullable=True)
+    jobs_submitted_count = Column(Integer, nullable=True)
+    jobs_failed_count = Column(Integer, nullable=True)
+    event_metadata = Column(JSON, nullable=True)
+    created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index("idx_cli_usage_user_ts", "user_id", "event_ts"),
+
     )
