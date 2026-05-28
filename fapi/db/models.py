@@ -316,7 +316,6 @@ class CandidateMarketingORM(Base):
     notes = Column(Text, nullable=True)
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
-    mass_email = Column(Boolean, nullable=False, server_default="0")
     candidate_intro = Column(Text, nullable=True)
 
     # Outreach Automation Flags
