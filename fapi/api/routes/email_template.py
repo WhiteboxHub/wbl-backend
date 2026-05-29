@@ -23,6 +23,13 @@ def check_version(
 def get_email_templates(db: Session = Depends(get_db)):
     return email_template_utils.get_email_templates(db)
 
+@router.get("/by-key/{template_key}", response_model=EmailTemplate)
+def get_email_template_by_key(template_key: str, db: Session = Depends(get_db)):
+    template = email_template_utils.get_email_template_by_key(db, template_key)
+    if not template:
+        raise HTTPException(status_code=404, detail="Email Template not found")
+    return template
+
 @router.post("/", response_model=EmailTemplate, status_code=status.HTTP_201_CREATED)
 def create_email_template(template: EmailTemplateCreate, db: Session = Depends(get_db)):
     return email_template_utils.create_email_template(db, template)

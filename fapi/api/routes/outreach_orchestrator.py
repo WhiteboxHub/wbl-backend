@@ -77,6 +77,7 @@ def get_schedule(schedule_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.patch("/schedules/{schedule_id}")
 @router.put("/schedules/{schedule_id}")
 def update_schedule(
     schedule_id: int,
@@ -153,6 +154,38 @@ def execute_reset_sql(
 def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
     """Return sender email/password/IMAP credentials for an active candidate marketing record."""
     return orc_utils.get_candidate_credentials(db, candidate_id)
+
+
+@router.get("/candidates/{candidate_id}/outreach-emails")
+def get_candidate_outreach_emails(
+    candidate_id: int,
+    limit: int = 1000,
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch all active, valid outreach email recipients that this candidate has not yet sent to.
+    """
+    from sqlalchemy import text
+    try:
+        sql = text("""
+            SELECT id, email AS vendor_email
+            FROM outreach_email_recipients
+            WHERE status = 'ACTIVE'
+              AND email_invalid = 0
+              AND domain_invalid = 0
+              AND (mailbox_invalid IS NULL OR mailbox_invalid = 0)
+              AND email NOT IN (
+                  SELECT vendor_email
+                  FROM campaign_emails
+                  WHERE candidate_id = :candidate_id
+              )
+            LIMIT :limit
+        """)
+        result = db.execute(sql, {"candidate_id": candidate_id, "limit": limit}).mappings().all()
+        return [dict(r) for r in result]
+    except Exception as e:
+        logger.error("Error fetching outreach emails for candidate %s: %s", candidate_id, e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Delivery engine & email template
 

@@ -31,13 +31,7 @@ def get_email_smtp_credentials(
 def create_email_smtp_credential(db: Session, credential_in: EmailSMTPCredentialsCreate):
     invalidate_cache("email_smtp_credentials")
     db_credential = EmailSMTPCredentialsORM(
-        name=credential_in.name,
-        email=credential_in.email,
-        password=credential_in.password,
-        app_password=credential_in.app_password,
-        daily_limit=credential_in.daily_limit,
-        note=credential_in.note,
-        is_active=credential_in.is_active
+        **credential_in.model_dump(exclude_unset=True)
     )
     db.add(db_credential)
     db.commit()
@@ -56,7 +50,10 @@ def update_email_smtp_credential(
     
     update_data = credential_in.model_dump(exclude_unset=True)
     # These columns are NOT NULL in the DB — skip if None to preserve existing value
-    NOT_NULLABLE = {"name", "email", "password", "daily_limit", "is_active"}
+    NOT_NULLABLE = {
+        "name", "email", "password", "daily_limit", "is_active", 
+        "current_day_sent", "last_reset_date", "is_warming_up", "is_healthy"
+    }
     for field, value in update_data.items():
         if field in NOT_NULLABLE and value is None:
             continue
