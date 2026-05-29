@@ -47,6 +47,7 @@ async def startup_event():
             CodeExecutionLogORM,
             CoderpadQuestionORM,
             CliUsageEventORM,
+            WboxcliApplyAnalyticsORM,
         )
         
         # Coderpad Tables
@@ -54,6 +55,7 @@ async def startup_event():
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
+        WboxcliApplyAnalyticsORM.__table__.create(bind=engine, checkfirst=True)
         logger.info("CoderPad and CLI analytics tables checked/created successfully.")
 
     except Exception as e:

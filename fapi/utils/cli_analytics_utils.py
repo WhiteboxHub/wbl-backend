@@ -6,11 +6,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from fapi.db.models import CliUsageEventORM
+from fapi.db.models import CliUsageEventORM, WboxcliApplyAnalyticsORM
 from fapi.db.schemas import (
     CliUsageEventBulkResponse,
     CliUsageEventIn,
@@ -56,6 +56,186 @@ def _sanitize_metadata(metadata: Optional[dict]) -> Optional[dict]:
     }
 
 
+def _counts_from_apply_event(row: Optional[CliUsageEventORM]) -> tuple[int, int, int]:
+    """Job counters from one apply usage event (columns or apply_run_log.summary)."""
+    if row is None:
+        return 0, 0, 0
+    if (
+        row.jobs_attempted_count is not None
+        or row.jobs_submitted_count is not None
+        or row.jobs_failed_count is not None
+    ):
+        return (
+            int(row.jobs_attempted_count or 0),
+            int(row.jobs_submitted_count or 0),
+            int(row.jobs_failed_count or 0),
+        )
+    meta = row.event_metadata if isinstance(row.event_metadata, dict) else {}
+    run_log = meta.get("apply_run_log") or meta.get("apply_summary") or {}
+    summary = run_log.get("summary") if isinstance(run_log, dict) else {}
+    if isinstance(summary, dict):
+        return (
+            int(summary.get("jobs_attempted") or 0),
+            int(summary.get("jobs_submitted") or 0),
+            int(summary.get("jobs_failed") or 0),
+        )
+    return 0, 0, 0
+
+
+def _latest_apply_events_query(db: Session):
+    """One row per user: their most recent ``command=apply`` event."""
+    latest_ts = (
+        db.query(
+            CliUsageEventORM.user_id.label("user_id"),
+            func.max(CliUsageEventORM.event_ts).label("max_ts"),
+        )
+        .filter(CliUsageEventORM.command == "apply")
+        .group_by(CliUsageEventORM.user_id)
+        .subquery("latest_apply_ts")
+    )
+    return db.query(CliUsageEventORM).join(
+        latest_ts,
+        and_(
+            CliUsageEventORM.user_id == latest_ts.c.user_id,
+            CliUsageEventORM.event_ts == latest_ts.c.max_ts,
+            CliUsageEventORM.command == "apply",
+        ),
+    )
+
+
+def _parse_iso_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            pass
+    return None
+
+
+def _extract_apply_run_log(
+    item: CliUsageEventIn,
+    event_row: CliUsageEventORM,
+) -> dict[str, Any]:
+    meta = item.metadata if isinstance(item.metadata, dict) else {}
+    if not meta and isinstance(event_row.event_metadata, dict):
+        meta = event_row.event_metadata
+    run_log = meta.get("apply_run_log")
+    return run_log if isinstance(run_log, dict) else {}
+
+
+def upsert_apply_analytics_grid(
+    db: Session,
+    *,
+    user_id: str,
+    jobs_attempted: int,
+    jobs_submitted: int,
+    jobs_failed: int,
+    last_activity: datetime,
+    usage_event_id: Optional[int] = None,
+    result: Optional[str] = None,
+) -> WboxcliApplyAnalyticsORM:
+    """Upsert one row in wboxcli_apply_analytics (matches AG Grid columns)."""
+    uid = (user_id or "").strip()[:255] or "unknown_user"
+    row = db.query(WboxcliApplyAnalyticsORM).filter(WboxcliApplyAnalyticsORM.user_id == uid).first()
+    if row is None:
+        row = WboxcliApplyAnalyticsORM(
+            user_id=uid,
+            jobs_attempted=int(jobs_attempted or 0),
+            jobs_submitted=int(jobs_submitted or 0),
+            jobs_failed=int(jobs_failed or 0),
+            last_activity=last_activity,
+            usage_event_id=usage_event_id,
+            result=(result or "")[:50] or None,
+        )
+        db.add(row)
+    elif last_activity >= row.last_activity:
+        row.jobs_attempted = int(jobs_attempted or 0)
+        row.jobs_submitted = int(jobs_submitted or 0)
+        row.jobs_failed = int(jobs_failed or 0)
+        row.last_activity = last_activity
+        row.usage_event_id = usage_event_id
+        row.result = (result or "")[:50] or None
+    return row
+
+
+def persist_apply_analytics_from_ingest(
+    db: Session,
+    event_row: CliUsageEventORM,
+    item: CliUsageEventIn,
+) -> None:
+    """Write latest apply snapshot to wboxcli_apply_analytics for apply events."""
+    if (item.command or event_row.command or "").strip().lower() != "apply":
+        return
+    run_log = _extract_apply_run_log(item, event_row)
+    summary = run_log.get("summary") if isinstance(run_log.get("summary"), dict) else {}
+    user_id = (item.user_id or event_row.user_id or "").strip()[:255] or "unknown_user"
+    run_ended = _parse_iso_datetime(run_log.get("run_ended_at")) or event_row.event_ts
+    result = (run_log.get("result") or item.result or event_row.result or "unknown").strip()[:50]
+    jobs_attempted = int(
+        summary.get("jobs_attempted")
+        if summary.get("jobs_attempted") is not None
+        else (item.jobs_attempted_count or event_row.jobs_attempted_count or 0)
+    )
+    jobs_submitted = int(
+        summary.get("jobs_submitted")
+        if summary.get("jobs_submitted") is not None
+        else (item.jobs_submitted_count or event_row.jobs_submitted_count or 0)
+    )
+    jobs_failed = int(
+        summary.get("jobs_failed")
+        if summary.get("jobs_failed") is not None
+        else (item.jobs_failed_count or event_row.jobs_failed_count or 0)
+    )
+    upsert_apply_analytics_grid(
+        db,
+        user_id=user_id,
+        jobs_attempted=jobs_attempted,
+        jobs_submitted=jobs_submitted,
+        jobs_failed=jobs_failed,
+        last_activity=run_ended,
+        usage_event_id=event_row.id,
+        result=result,
+    )
+
+
+def backfill_apply_analytics_from_events(db: Session, *, limit: Optional[int] = None) -> dict:
+    """Populate wboxcli_apply_analytics from historical apply events."""
+    q = (
+        db.query(CliUsageEventORM)
+        .filter(CliUsageEventORM.command == "apply")
+        .order_by(CliUsageEventORM.event_ts.asc())
+    )
+    if limit:
+        q = q.limit(limit)
+    rows = q.all()
+    updated = 0
+    for row in rows:
+        meta = row.event_metadata if isinstance(row.event_metadata, dict) else {}
+        item = CliUsageEventIn(
+            user_id=row.user_id,
+            event_name=row.event_name,
+            event_ts=row.event_ts,
+            command=row.command,
+            result=row.result,
+            duration_ms=row.duration_ms,
+            jobs_attempted_count=row.jobs_attempted_count,
+            jobs_submitted_count=row.jobs_submitted_count,
+            jobs_failed_count=row.jobs_failed_count,
+            metadata=meta,
+        )
+        try:
+            persist_apply_analytics_from_ingest(db, row, item)
+            updated += 1
+        except Exception as exc:
+            logger.warning("Backfill skip event %s: %s", row.id, exc)
+    db.commit()
+    return {"updated": updated, "scanned": len(rows)}
+
+
 def _event_from_input(data: CliUsageEventIn) -> CliUsageEventORM:
     return CliUsageEventORM(
         user_id=(data.user_id or "").strip()[:255],
@@ -83,7 +263,17 @@ def insert_usage_events_bulk(
         try:
             if not (item.user_id or "").strip() or not (item.event_name or "").strip():
                 raise ValueError("user_id and event_name are required")
-            db.add(_event_from_input(item))
+            event_row = _event_from_input(item)
+            db.add(event_row)
+            db.flush()
+            try:
+                persist_apply_analytics_from_ingest(db, event_row, item)
+            except Exception as persist_exc:
+                logger.warning(
+                    "Apply analytics persistence failed for user %s: %s",
+                    item.user_id,
+                    persist_exc,
+                )
             ingested += 1
             if ingested % 50 == 0:
                 db.flush()
@@ -117,15 +307,21 @@ def get_global_summary(db: Session) -> CliUsageAnalyticsSummary:
         .scalar()
         or 0
     )
-    total_jobs_attempted = (
-        db.query(func.coalesce(func.sum(CliUsageEventORM.jobs_attempted_count), 0)).scalar() or 0
-    )
-    total_jobs_submitted = (
-        db.query(func.coalesce(func.sum(CliUsageEventORM.jobs_submitted_count), 0)).scalar() or 0
-    )
-    total_jobs_failed = (
-        db.query(func.coalesce(func.sum(CliUsageEventORM.jobs_failed_count), 0)).scalar() or 0
-    )
+    analytics_rows = db.query(WboxcliApplyAnalyticsORM).all()
+    if analytics_rows:
+        total_jobs_attempted = sum(int(r.jobs_attempted or 0) for r in analytics_rows)
+        total_jobs_submitted = sum(int(r.jobs_submitted or 0) for r in analytics_rows)
+        total_jobs_failed = sum(int(r.jobs_failed or 0) for r in analytics_rows)
+    else:
+        latest_apply_rows = _latest_apply_events_query(db).all()
+        total_jobs_attempted = 0
+        total_jobs_submitted = 0
+        total_jobs_failed = 0
+        for row in latest_apply_rows:
+            a, s, f = _counts_from_apply_event(row)
+            total_jobs_attempted += a
+            total_jobs_submitted += s
+            total_jobs_failed += f
 
     command_rows = (
         db.query(CliUsageEventORM.command, func.count(CliUsageEventORM.id))
@@ -154,12 +350,18 @@ def get_user_summary(db: Session, user_id: str) -> CliUsageUserSummary:
         .all()
     )
     last_ts = rows[0].event_ts if rows else None
+    latest_apply = (
+        _latest_apply_events_query(db)
+        .filter(CliUsageEventORM.user_id == user_id)
+        .first()
+    )
+    jobs_attempted, jobs_submitted, jobs_failed = _counts_from_apply_event(latest_apply)
     return CliUsageUserSummary(
         user_id=user_id,
         events=len(rows),
-        jobs_attempted=sum(int(r.jobs_attempted_count or 0) for r in rows),
-        jobs_submitted=sum(int(r.jobs_submitted_count or 0) for r in rows),
-        jobs_failed=sum(int(r.jobs_failed_count or 0) for r in rows),
+        jobs_attempted=jobs_attempted,
+        jobs_submitted=jobs_submitted,
+        jobs_failed=jobs_failed,
         last_event_at=last_ts,
     )
 
@@ -171,29 +373,53 @@ def get_paginated_users(
     page_size: int = 50,
     user_id: Optional[str] = None,
 ) -> PaginatedCliUsageUsers:
-    """Aggregate usage metrics to one row per user."""
+    """One row per user from wboxcli_apply_analytics (same columns as AG Grid)."""
     page = max(1, page)
     page_size = max(1, min(page_size, 500))
 
+    query = db.query(WboxcliApplyAnalyticsORM)
+    if user_id:
+        query = query.filter(WboxcliApplyAnalyticsORM.user_id.ilike(f"%{user_id.strip()}%"))
+
+    total = query.count()
+    analytics = (
+        query.order_by(WboxcliApplyAnalyticsORM.last_activity.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    if analytics:
+        users = [
+            CliUsageUserRow(
+                user_id=row.user_id,
+                jobs_attempted=int(row.jobs_attempted or 0),
+                jobs_submitted=int(row.jobs_submitted or 0),
+                jobs_failed=int(row.jobs_failed or 0),
+                last_event_at=row.last_activity,
+                apply_log_history=[],
+            )
+            for row in analytics
+        ]
+        return PaginatedCliUsageUsers(
+            total=int(total),
+            page=page,
+            page_size=page_size,
+            users=users,
+        )
+
+    # Fallback before backfill / first apply ingest
     base = db.query(
         CliUsageEventORM.user_id.label("user_id"),
-        func.coalesce(func.sum(CliUsageEventORM.jobs_attempted_count), 0).label(
-            "jobs_attempted"
-        ),
-        func.coalesce(func.sum(CliUsageEventORM.jobs_submitted_count), 0).label(
-            "jobs_submitted"
-        ),
-        func.coalesce(func.sum(CliUsageEventORM.jobs_failed_count), 0).label(
-            "jobs_failed"
-        ),
         func.max(CliUsageEventORM.event_ts).label("last_event_at"),
     )
     if user_id:
         base = base.filter(CliUsageEventORM.user_id.ilike(f"%{user_id.strip()}%"))
-
     grouped = base.group_by(CliUsageEventORM.user_id).subquery()
+    counts_by_user: Dict[str, tuple[int, int, int]] = {}
+    for ev in _latest_apply_events_query(db).all():
+        counts_by_user[ev.user_id] = _counts_from_apply_event(ev)
     total = db.query(func.count()).select_from(grouped).scalar() or 0
-
     rows = (
         db.query(grouped)
         .order_by(grouped.c.last_event_at.desc())
@@ -201,51 +427,17 @@ def get_paginated_users(
         .limit(page_size)
         .all()
     )
-
-    user_ids = [row.user_id for row in rows]
-    apply_history_by_user: Dict[str, List[dict]] = {uid: [] for uid in user_ids}
-    if user_ids:
-        apply_rows = (
-            db.query(
-                CliUsageEventORM.user_id,
-                CliUsageEventORM.event_ts,
-                CliUsageEventORM.event_metadata,
-            )
-            .filter(
-                CliUsageEventORM.user_id.in_(user_ids),
-                CliUsageEventORM.command == "apply",
-            )
-            .order_by(CliUsageEventORM.user_id.asc(), CliUsageEventORM.event_ts.asc())
-            .all()
+    users = [
+        CliUsageUserRow(
+            user_id=row.user_id,
+            jobs_attempted=counts_by_user.get(row.user_id, (0, 0, 0))[0],
+            jobs_submitted=counts_by_user.get(row.user_id, (0, 0, 0))[1],
+            jobs_failed=counts_by_user.get(row.user_id, (0, 0, 0))[2],
+            last_event_at=row.last_event_at,
+            apply_log_history=[],
         )
-        for uid, event_ts, meta in apply_rows:
-            if not isinstance(meta, dict):
-                continue
-            entry = meta.get("apply_run_log")
-            if not isinstance(entry, dict):
-                entry = meta.get("apply_summary")
-            if not isinstance(entry, dict):
-                continue
-            if "run_ended_at" not in entry and "timestamp" not in entry:
-                entry = {
-                    **entry,
-                    "timestamp": entry.get("applied_at") or event_ts.isoformat(),
-                }
-            apply_history_by_user.setdefault(uid, []).append(entry)
-
-    users: List[CliUsageUserRow] = []
-    for row in rows:
-        users.append(
-            CliUsageUserRow(
-                user_id=row.user_id,
-                jobs_attempted=int(row.jobs_attempted or 0),
-                jobs_submitted=int(row.jobs_submitted or 0),
-                jobs_failed=int(row.jobs_failed or 0),
-                last_event_at=row.last_event_at,
-                apply_log_history=apply_history_by_user.get(row.user_id, []),
-            )
-        )
-
+        for row in rows
+    ]
     return PaginatedCliUsageUsers(
         total=int(total),
         page=page,
@@ -259,6 +451,9 @@ def delete_user_usage_events(db: Session, user_id: str) -> CliUsageUserMutationR
     uid = (user_id or "").strip()
     if not uid:
         raise ValueError("user_id is required")
+    db.query(WboxcliApplyAnalyticsORM).filter(WboxcliApplyAnalyticsORM.user_id == uid).delete(
+        synchronize_session=False
+    )
     deleted = (
         db.query(CliUsageEventORM)
         .filter(CliUsageEventORM.user_id == uid)
@@ -295,6 +490,14 @@ def update_user_usage_metrics(
     latest.jobs_attempted_count = int(body.jobs_attempted)
     latest.jobs_submitted_count = int(body.jobs_submitted)
     latest.jobs_failed_count = int(body.jobs_failed)
+
+    analytics = (
+        db.query(WboxcliApplyAnalyticsORM).filter(WboxcliApplyAnalyticsORM.user_id == uid).first()
+    )
+    if analytics:
+        analytics.jobs_attempted = int(body.jobs_attempted)
+        analytics.jobs_submitted = int(body.jobs_submitted)
+        analytics.jobs_failed = int(body.jobs_failed)
 
     try:
         db.commit()

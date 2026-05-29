@@ -4599,6 +4599,11 @@ class PaginatedCliUsageEvents(BaseModel):
     events: List[CliUsageEventOut]
 
 
+class CliApplyRunBackfillResponse(BaseModel):
+    updated: int
+    scanned: int
+
+
 class CoderpadSecurityEventCreate(BaseModel):
     question_id: Optional[int] = None
     type: str
