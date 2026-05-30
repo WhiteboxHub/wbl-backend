@@ -4550,6 +4550,9 @@ class CliUsageUserRow(BaseModel):
     jobs_submitted: int
     jobs_failed: int = 0
     last_event_at: Optional[datetime] = None
+    result: Optional[str] = None
+    apply_run_log: Optional[dict] = None
+    apply_run_log_preview: Optional[str] = None
     apply_log_history: List[dict] = []
 
 
@@ -4602,6 +4605,30 @@ class PaginatedCliUsageEvents(BaseModel):
 class CliApplyRunBackfillResponse(BaseModel):
     updated: int
     scanned: int
+
+
+class CliApplyRunJobOut(BaseModel):
+    """One job from the latest apply_run_log (matches CLI apply table)."""
+
+    job_id: Optional[int] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    url: Optional[str] = None
+    status: Optional[str] = None
+    applied_at: Optional[str] = None
+    application_log_line_count: int = 0
+
+
+class CliApplyRunLatestOut(BaseModel):
+    """Latest apply run for a user (from cli_usage_events event_metadata)."""
+
+    user_id: str
+    run_started_at: Optional[str] = None
+    run_ended_at: Optional[str] = None
+    result: Optional[str] = None
+    summary: dict = {}
+    jobs: List[CliApplyRunJobOut] = []
+    apply_run_log: Optional[dict] = None
 
 
 class CoderpadSecurityEventCreate(BaseModel):
