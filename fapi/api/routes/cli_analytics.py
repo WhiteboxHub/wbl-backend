@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import (
     CliApplyRunBackfillResponse,
+    CliApplyRunLatestOut,
     CliUsageEventBulkCreate,
     CliUsageEventBulkResponse,
     CliUsageAnalyticsSummary,
@@ -68,6 +69,23 @@ def analytics_user_summary(
     """Per-user application totals from CLI usage events."""
     _ = current_user
     return cli_analytics_utils.get_user_summary(db, user_id)
+
+
+@router.get("/users/{user_id:path}/apply-run/latest", response_model=CliApplyRunLatestOut)
+def latest_apply_run_for_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(staff_or_admin_required),
+):
+    """Latest apply_run_log JSON and per-job rows for staff analytics UI."""
+    _ = current_user
+    payload = cli_analytics_utils.get_latest_apply_run_for_user(db, user_id)
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No apply run log found for user_id={user_id!r}",
+        )
+    return payload
 
 
 @router.patch("/users/{user_id:path}", response_model=CliUsageUserMutationResponse)

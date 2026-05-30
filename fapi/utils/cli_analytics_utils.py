@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from fapi.db.models import CliUsageEventORM, WboxcliApplyAnalyticsORM
 from fapi.db.schemas import (
+    CliApplyRunJobOut,
+    CliApplyRunLatestOut,
     CliUsageEventBulkResponse,
     CliUsageEventIn,
     CliUsageAnalyticsSummary,
@@ -82,17 +84,18 @@ def _counts_from_apply_event(row: Optional[CliUsageEventORM]) -> tuple[int, int,
     return 0, 0, 0
 
 
-def _latest_apply_events_query(db: Session):
+def _latest_apply_events_query(db: Session, user_ids: Optional[List[str]] = None):
     """One row per user: their most recent ``command=apply`` event."""
-    latest_ts = (
+    latest_ts_q = (
         db.query(
             CliUsageEventORM.user_id.label("user_id"),
             func.max(CliUsageEventORM.event_ts).label("max_ts"),
         )
         .filter(CliUsageEventORM.command == "apply")
-        .group_by(CliUsageEventORM.user_id)
-        .subquery("latest_apply_ts")
     )
+    if user_ids:
+        latest_ts_q = latest_ts_q.filter(CliUsageEventORM.user_id.in_(user_ids))
+    latest_ts = latest_ts_q.group_by(CliUsageEventORM.user_id).subquery("latest_apply_ts")
     return db.query(CliUsageEventORM).join(
         latest_ts,
         and_(
@@ -100,6 +103,44 @@ def _latest_apply_events_query(db: Session):
             CliUsageEventORM.event_ts == latest_ts.c.max_ts,
             CliUsageEventORM.command == "apply",
         ),
+    )
+
+
+def _apply_run_log_preview(run_log: dict[str, Any]) -> str:
+    """Short grid label — full JSON is opened via View (eye) in the UI."""
+    if not run_log:
+        return "—"
+    jobs = run_log.get("jobs")
+    if isinstance(jobs, list) and len(jobs) > 0:
+        return f"{len(jobs)} jobs"
+    summary = run_log.get("summary") if isinstance(run_log.get("summary"), dict) else {}
+    attempted = summary.get("jobs_attempted")
+    if attempted is not None:
+        return f"{int(attempted)} jobs (summary)"
+    return "Log available"
+
+
+def _build_cli_usage_user_row(
+    *,
+    user_id: str,
+    jobs_attempted: int,
+    jobs_submitted: int,
+    jobs_failed: int,
+    last_event_at: Optional[datetime],
+    result: Optional[str] = None,
+    event: Optional[CliUsageEventORM] = None,
+) -> CliUsageUserRow:
+    run_log = _run_log_from_event(event) if event else {}
+    return CliUsageUserRow(
+        user_id=user_id,
+        jobs_attempted=int(jobs_attempted or 0),
+        jobs_submitted=int(jobs_submitted or 0),
+        jobs_failed=int(jobs_failed or 0),
+        last_event_at=last_event_at,
+        result=(result or (event.result if event else None)),
+        apply_run_log=run_log if run_log else None,
+        apply_run_log_preview=_apply_run_log_preview(run_log),
+        apply_log_history=[],
     )
 
 
@@ -125,6 +166,77 @@ def _extract_apply_run_log(
         meta = event_row.event_metadata
     run_log = meta.get("apply_run_log")
     return run_log if isinstance(run_log, dict) else {}
+
+
+def _run_log_from_event(event: Optional[CliUsageEventORM]) -> dict[str, Any]:
+    if event is None:
+        return {}
+    meta = event.event_metadata if isinstance(event.event_metadata, dict) else {}
+    run_log = meta.get("apply_run_log") or meta.get("apply_summary") or {}
+    return run_log if isinstance(run_log, dict) else {}
+
+
+def _normalize_apply_run_jobs(run_log: dict[str, Any]) -> List[CliApplyRunJobOut]:
+    jobs = run_log.get("jobs")
+    if not isinstance(jobs, list):
+        return []
+    out: List[CliApplyRunJobOut] = []
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        app_log = job.get("application_log")
+        line_count = len(app_log) if isinstance(app_log, list) else 0
+        applied = job.get("applied_at")
+        out.append(
+            CliApplyRunJobOut(
+                job_id=job.get("job_id"),
+                title=(job.get("title") or None),
+                company=(job.get("company") or None),
+                url=(job.get("url") or None),
+                status=str(job.get("status") or "") or None,
+                applied_at=str(applied)[:50] if applied is not None else None,
+                application_log_line_count=int(line_count),
+            )
+        )
+    return out
+
+
+def get_latest_apply_run_for_user(db: Session, user_id: str) -> Optional[CliApplyRunLatestOut]:
+    """Latest apply_run_log for a WBL user (from linked usage event or newest apply)."""
+    uid = (user_id or "").strip()
+    if not uid:
+        return None
+
+    event: Optional[CliUsageEventORM] = None
+    analytics = (
+        db.query(WboxcliApplyAnalyticsORM).filter(WboxcliApplyAnalyticsORM.user_id == uid).first()
+    )
+    if analytics and analytics.usage_event_id:
+        event = db.query(CliUsageEventORM).filter(CliUsageEventORM.id == analytics.usage_event_id).first()
+    if event is None or (event.command or "").strip().lower() != "apply":
+        event = (
+            _latest_apply_events_query(db).filter(CliUsageEventORM.user_id == uid).first()
+        )
+
+    run_log = _run_log_from_event(event)
+    if not run_log and event is not None:
+        return None
+    if not run_log:
+        return None
+
+    summary = run_log.get("summary")
+    if not isinstance(summary, dict):
+        summary = {}
+
+    return CliApplyRunLatestOut(
+        user_id=uid,
+        run_started_at=str(run_log.get("run_started_at") or "") or None,
+        run_ended_at=str(run_log.get("run_ended_at") or "") or None,
+        result=str(run_log.get("result") or event.result if event else "") or None,
+        summary=summary,
+        jobs=_normalize_apply_run_jobs(run_log),
+        apply_run_log=run_log,
+    )
 
 
 def upsert_apply_analytics_grid(
@@ -390,14 +502,22 @@ def get_paginated_users(
     )
 
     if analytics:
+        event_ids = [int(r.usage_event_id) for r in analytics if r.usage_event_id]
+        events_by_id: Dict[int, CliUsageEventORM] = {}
+        if event_ids:
+            for ev in db.query(CliUsageEventORM).filter(CliUsageEventORM.id.in_(event_ids)).all():
+                events_by_id[int(ev.id)] = ev
         users = [
-            CliUsageUserRow(
+            _build_cli_usage_user_row(
                 user_id=row.user_id,
                 jobs_attempted=int(row.jobs_attempted or 0),
                 jobs_submitted=int(row.jobs_submitted or 0),
                 jobs_failed=int(row.jobs_failed or 0),
                 last_event_at=row.last_activity,
-                apply_log_history=[],
+                result=row.result,
+                event=events_by_id.get(int(row.usage_event_id))
+                if row.usage_event_id
+                else None,
             )
             for row in analytics
         ]
@@ -416,9 +536,6 @@ def get_paginated_users(
     if user_id:
         base = base.filter(CliUsageEventORM.user_id.ilike(f"%{user_id.strip()}%"))
     grouped = base.group_by(CliUsageEventORM.user_id).subquery()
-    counts_by_user: Dict[str, tuple[int, int, int]] = {}
-    for ev in _latest_apply_events_query(db).all():
-        counts_by_user[ev.user_id] = _counts_from_apply_event(ev)
     total = db.query(func.count()).select_from(grouped).scalar() or 0
     rows = (
         db.query(grouped)
@@ -427,17 +544,25 @@ def get_paginated_users(
         .limit(page_size)
         .all()
     )
-    users = [
-        CliUsageUserRow(
-            user_id=row.user_id,
-            jobs_attempted=counts_by_user.get(row.user_id, (0, 0, 0))[0],
-            jobs_submitted=counts_by_user.get(row.user_id, (0, 0, 0))[1],
-            jobs_failed=counts_by_user.get(row.user_id, (0, 0, 0))[2],
-            last_event_at=row.last_event_at,
-            apply_log_history=[],
+    page_user_ids = [row.user_id for row in rows]
+    events_by_user: Dict[str, CliUsageEventORM] = {}
+    if page_user_ids:
+        for ev in _latest_apply_events_query(db, page_user_ids).all():
+            events_by_user[ev.user_id] = ev
+    users = []
+    for row in rows:
+        ev = events_by_user.get(row.user_id)
+        attempted, submitted, failed = _counts_from_apply_event(ev)
+        users.append(
+            _build_cli_usage_user_row(
+                user_id=row.user_id,
+                jobs_attempted=attempted,
+                jobs_submitted=submitted,
+                jobs_failed=failed,
+                last_event_at=row.last_event_at,
+                event=ev,
+            )
         )
-        for row in rows
-    ]
     return PaginatedCliUsageUsers(
         total=int(total),
         page=page,
