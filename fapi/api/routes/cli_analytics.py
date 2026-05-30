@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
 from fapi.db.schemas import (
+    CliApplyRunBackfillResponse,
     CliUsageEventBulkCreate,
     CliUsageEventBulkResponse,
     CliUsageAnalyticsSummary,
@@ -45,6 +46,17 @@ def analytics_summary(
     """Global WboxCLI usage counters for staff dashboards."""
     _ = current_user
     return cli_analytics_utils.get_global_summary(db)
+
+
+@router.post("/apply-runs/backfill", response_model=CliApplyRunBackfillResponse)
+def backfill_apply_analytics(
+    limit: Optional[int] = Query(None, ge=1, le=100000),
+    db: Session = Depends(get_db),
+    current_user=Depends(staff_or_admin_required),
+):
+    """Staff: backfill wboxcli_apply_analytics from historical cli_usage_events."""
+    _ = current_user
+    return cli_analytics_utils.backfill_apply_analytics_from_events(db, limit=limit)
 
 
 @router.get("/users/{user_id}/applications/summary", response_model=CliUsageUserSummary)
