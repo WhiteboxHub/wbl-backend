@@ -1052,6 +1052,20 @@ def get_candidate_details(candidate_id: int, db: Session):
         if candidate.email:
             authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
 
+        cli_tracking_summary = None
+        cli_tracking_logs = []
+        if authuser and authuser.uname:
+            try:
+                from fapi.utils import cli_analytics_utils
+                user_summary = cli_analytics_utils.get_user_summary(db, authuser.uname)
+                cli_tracking_summary = user_summary.dict() if hasattr(user_summary, "dict") else user_summary.model_dump()
+                
+                paginated_events = cli_analytics_utils.get_paginated_events(db, page=1, page_size=10, user_id=authuser.uname)
+                for ev in paginated_events.events:
+                    cli_tracking_logs.append(ev.dict() if hasattr(ev, "dict") else ev.model_dump())
+            except Exception as e:
+                logger.error(f"Error fetching cli_tracking for {authuser.uname}: {e}")
+
         return {
             "candidate_id": candidate.id,
             "basic_info": {
@@ -1197,6 +1211,10 @@ def get_candidate_details(candidate_id: int, db: Session):
                     )
                 ]
             },
+            "cli_tracking": {
+                "summary": cli_tracking_summary,
+                "logs": cli_tracking_logs,
+            } if cli_tracking_summary else None,
             "placement_records": [
                 {
                     "position": p.position,
