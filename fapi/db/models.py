@@ -1776,5 +1776,20 @@ class CliUsageEventORM(Base):
 
     __table_args__ = (
         Index("idx_cli_usage_user_ts", "user_id", "event_ts"),
-
     )
+
+class WboxcliApplyAnalyticsORM(Base):
+    """One row per user — latest apply run (matches analytics AG Grid columns)."""
+
+    __tablename__ = "wboxcli_apply_analytics"
+
+    user_id = Column(String(255), primary_key=True)
+    jobs_attempted = Column(Integer, nullable=False, default=0)
+    jobs_submitted = Column(Integer, nullable=False, default=0)
+    jobs_failed = Column(Integer, nullable=False, default=0)
+    last_activity = Column(DateTime, nullable=False)
+    usage_event_id = Column(Integer, nullable=True)
+    result = Column(String(50), nullable=True)
+    updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+
+    __table_args__ = (Index("idx_wboxcli_apply_analytics_activity", "last_activity"),)
