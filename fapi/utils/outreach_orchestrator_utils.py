@@ -333,7 +333,7 @@ def get_candidate_credentials(db: Session, candidate_id: int) -> Dict[str, Any]:
             status_code=404, detail="Active marketing record not found"
         )
 
-    # B6 fix: normalize linkedin_url — prepend https:// when the slug
+    # Normalize linkedin_url — prepend https:// when the slug
     # starts with www. or is already a partial URL without a scheme.
     raw_linkedin = res.linkedin_id or ""
     if raw_linkedin and not raw_linkedin.startswith(("http://", "https://")):
@@ -514,14 +514,14 @@ def update_log(
     """
     Update a workflow log entry.
 
-    CRITICAL (B1 fix): When the status transitions to a terminal state
+    When the status transitions to a terminal state
     (success / failed / completed), this also:
       - unlocks the associated schedule (is_running = False)
       - advances next_run_at via _calculate_next_run()
       - records last_run_at
 
-    Without this, the schedule stays locked (is_running=1) forever, so
-    /schedules/due never returns it again and weekly outreach stops permanently.
+    Without this, the schedule would stay locked (is_running=1) forever, so
+    /schedules/due would never return it again and outreach would stop permanently.
     """
     db_log = (
         db.query(AutomationWorkflowLogORM)
@@ -535,7 +535,7 @@ def update_log(
         if hasattr(db_log, k):
             setattr(db_log, k, v)
 
-    # --- B1 fix: unlock + reschedule when status becomes terminal ---
+    # --- Unlock + reschedule when status becomes terminal ---
     new_status = updates.get("status")
     if new_status in ("success", "failed", "completed"):
         schedule_id = db_log.schedule_id
@@ -592,18 +592,16 @@ def update_log(
 
 def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -> List[Dict[str, Any]]:
     """
-    B5 fix: Return eligible outreach email recipients for a specific candidate.
+    Return eligible outreach email recipients for a specific candidate.
 
-    Uses outreach_email_recipients (the live table, same as the
-    GET /orchestrator/candidates/{id}/outreach-emails route) instead of the
-    defunct outreach_emails table.  Filters out:
+    Uses the outreach_emails table (the live table, same as the
+    GET /orchestrator/candidates/{id}/outreach-emails route). 
+    Filters out:
       - rows the candidate has already been sent to (via campaign_emails)
-      - invalid / bounced / unsubscribed / complained recipients
-
-    NOTE: The preferred path is the REST route above which uses raw SQL for
-    performance.  This ORM helper is kept for any Python callers that need it.
+      - recipients whose validation_status is not 'VALID'
+      - recipients whose status is not 'ACTIVE'
     """
-    from fapi.db.models import OutreachEmailRecipient
+    from fapi.db.models import OutreachEmailORM
 
     # Subquery: emails already sent to this candidate
     sent_emails = (
@@ -613,15 +611,11 @@ def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -
     )
 
     recipients = (
-        db.query(OutreachEmailRecipient)
+        db.query(OutreachEmailORM)
         .filter(
-            OutreachEmailRecipient.status == "ACTIVE",
-            OutreachEmailRecipient.email_invalid == False,
-            OutreachEmailRecipient.domain_invalid == False,
-            OutreachEmailRecipient.unsubscribe_flag == False,
-            OutreachEmailRecipient.bounce_flag == False,
-            OutreachEmailRecipient.complaint_flag == False,
-            ~OutreachEmailRecipient.email.in_(sent_emails),
+            OutreachEmailORM.status == "ACTIVE",
+            OutreachEmailORM.validation_status == "VALID",
+            ~OutreachEmailORM.email.in_(sent_emails),
         )
         .all()
     )

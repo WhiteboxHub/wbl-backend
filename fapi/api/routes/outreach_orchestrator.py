@@ -169,11 +169,9 @@ def get_candidate_outreach_emails(
     try:
         sql = text("""
             SELECT id, email AS vendor_email
-            FROM outreach_email_recipients
+            FROM outreach_emails
             WHERE status = 'ACTIVE'
-              AND email_invalid = 0
-              AND domain_invalid = 0
-              AND (mailbox_invalid IS NULL OR mailbox_invalid = 0)
+              AND validation_status = 'VALID'
               AND email NOT IN (
                   SELECT vendor_email
                   FROM campaign_emails
