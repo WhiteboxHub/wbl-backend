@@ -1642,6 +1642,7 @@ class ExtensionKeyORM(Base):
     authuser = relationship("AuthUserORM")
 
 
+
 # ---------------------------------------------
 # JobCLI Sync Models (Phase 2)
 # ---------------------------------------------
@@ -1753,8 +1754,6 @@ class OutreachEmailORM(Base):
         Index("idx_status_sent", "status", "last_email_sent_at"),
         Index("idx_status_attempt", "status", "send_attempt_count"),
     )
-
-
 # -------------------- WboxCLI usage analytics --------------------
 class CliUsageEventORM(Base):
     """Telemetry events from the WboxCLI desktop client."""
