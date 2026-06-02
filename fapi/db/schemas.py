@@ -4025,6 +4025,26 @@ class EmailSMTPCredentialsBase(BaseModel):
             return processed
         return data
 
+    @field_validator('is_healthy', 'is_active', mode='before')
+    @classmethod
+    def default_true(cls, v):
+        return True if v is None else v
+
+    @field_validator('is_warming_up', mode='before')
+    @classmethod
+    def default_false(cls, v):
+        return False if v is None else v
+
+    @field_validator('current_day_sent', mode='before')
+    @classmethod
+    def default_zero(cls, v):
+        return 0 if v is None else v
+
+    @field_validator('warmup_daily_limit', mode='before')
+    @classmethod
+    def default_five(cls, v):
+        return 5 if v is None else v
+
     @field_validator('daily_limit')
     @classmethod
     def validate_daily_limit(cls, v: int) -> int:
