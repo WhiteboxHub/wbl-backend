@@ -1,6 +1,7 @@
 import pytest
 import sqlalchemy
 from fastapi.exceptions import ResponseValidationError
+from fapi.db.models import CoderpadQuestionORM
 
 def test_google_auth_routes(client, admin_headers):
     payload = {"email": "test@test.com", "name": "Test", "google_id": "12345"}
@@ -103,3 +104,30 @@ def test_coderpad_routes(client, admin_headers):
             pytest.xfail(f"SQLite DB mapping error: {e}")
         except Exception:
             pass
+
+
+def test_get_coderpad_question_by_id_success(client, admin_headers, db_session):
+    """
+    Test retrieving a coderpad question by ID with seeded SQLite data.
+    Seeds a CoderpadQuestionORM record and asserts the exact status code 200
+    along with the expected title field returned by the route.
+    """
+    question = CoderpadQuestionORM(
+        id=701,
+        sno=1,
+        title="Two Sum",
+        question="Given an array, find two numbers that add up to target.",
+        problem_statement="Return indices of the two numbers such that they add up to the target.",
+        language="python",
+        starter_code="def two_sum(nums, target): pass",
+        is_active=True,
+        sort_order=1,
+    )
+    db_session.add(question)
+    db_session.commit()
+
+    response = client.get("/api/coderpad/questions/701", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Two Sum"
+    assert data["id"] == 701

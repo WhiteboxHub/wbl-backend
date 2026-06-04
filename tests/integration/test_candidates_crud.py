@@ -110,6 +110,32 @@ class TestCandidateRead:
             # joinedload on Batch can crash during serialization in the test session context
             pytest.xfail("list_candidates joinedload path incompatible with isolated test session")
 
+    def test_list_candidates_sorting_by_name(self, client, admin_headers, db_session):
+        from fapi.db.models import CandidateORM
+
+        # Patch any null batchid candidates in the database first to avoid serialization crashes
+        db_session.query(CandidateORM).filter(CandidateORM.batchid == None).update({"batchid": 1})
+        db_session.commit()
+
+        # Seed with batchid=1 to satisfy Pydantic's integer validation
+        c1 = CandidateORM(full_name="Charlie", email="charlie@test.com", status="active", batchid=1)
+        c2 = CandidateORM(full_name="Alice", email="alice@test.com", status="active", batchid=1)
+        c3 = CandidateORM(full_name="Bob", email="bob@test.com", status="active", batchid=1)
+        db_session.add_all([c1, c2, c3])
+        db_session.commit()
+
+        # 2. Test Ascending Sort
+        r_asc = client.get("/api/candidates?sort=full_name:asc", headers=admin_headers)
+        assert r_asc.status_code == 200
+        names_asc = [item["full_name"] for item in r_asc.json()["data"] if item["full_name"] in ["Alice", "Bob", "Charlie"]]
+        assert names_asc == ["Alice", "Bob", "Charlie"]
+
+        # 3. Test Descending Sort
+        r_desc = client.get("/api/candidates?sort=full_name:desc", headers=admin_headers)
+        assert r_desc.status_code == 200
+        names_desc = [item["full_name"] for item in r_desc.json()["data"] if item["full_name"] in ["Alice", "Bob", "Charlie"]]
+        assert names_desc == ["Charlie", "Bob", "Alice"]
+
     def test_get_candidate_by_id(self, client, admin_headers, created_candidate):
         response = client.get(f"/api/candidates/{created_candidate}", headers=admin_headers)
         assert response.status_code == 200
@@ -121,6 +147,17 @@ class TestCandidateRead:
         # block and re-raises as HTTP 500 in the current production code.
         response = client.get("/api/candidates/9999999", headers=admin_headers)
         assert response.status_code in [404, 500], response.text
+
+    def test_candidate_negative_values_fail(self, client, admin_headers):
+        # 1. Invalid status value (Literal Enum check)
+        payload_bad_status = {"full_name": "Bad Status User", "email": "valid@email.com", "status": "INVALID_STATUS", "batchid": 1}
+        r1 = client.post("/api/candidates", json=payload_bad_status, headers=admin_headers)
+        assert r1.status_code == 422
+
+        # 2. Invalid batchid type (string instead of int)
+        payload_bad_batch = {"full_name": "Bad Batch User", "email": "valid@email.com", "batchid": "string-batch-id"}
+        r2 = client.post("/api/candidates", json=payload_bad_batch, headers=admin_headers)
+        assert r2.status_code == 422
 
     def test_search_candidates_returns_results(self, client, admin_headers, created_candidate):
         response = client.get("/api/candidates/search?term=Test", headers=admin_headers)

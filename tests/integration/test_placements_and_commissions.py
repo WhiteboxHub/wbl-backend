@@ -14,6 +14,7 @@ All requests run as authenticated admin.
 import uuid
 import pytest
 from datetime import date
+from decimal import Decimal
 
 from fapi.db.models import (
     CandidateORM,
@@ -315,3 +316,45 @@ class TestCommissionScheduler:
             headers=admin_headers,
         )
         assert response.status_code == 200
+
+    def test_placement_commission_math_sum(self, client, admin_headers, created_commission):
+        """
+        Verify that the sum of scheduler installments matches the total commission amount.
+        If a developer modifies the logic of commission installment division, this mathematical
+        contract ensures the ledger balance is maintained.
+        """
+        # 1. Fetch the parent commission and get its total amount
+        commission_res = client.get(f"/api/placement-commission/{created_commission}", headers=admin_headers)
+        assert commission_res.status_code == 200
+        total_amount = Decimal(commission_res.json()["amount"])
+
+        # 2. Add two installments to the scheduler
+        inst1_payload = {
+            "placement_commission_id": created_commission,
+            "installment_no": 1,
+            "installment_amount": str(total_amount / 2),
+            "scheduled_date": "2026-07-01",
+            "payment_status": "Pending",
+        }
+        inst2_payload = {
+            "placement_commission_id": created_commission,
+            "installment_no": 2,
+            "installment_amount": str(total_amount / 2),
+            "scheduled_date": "2026-08-01",
+            "payment_status": "Pending",
+        }
+        
+        r1 = client.post("/api/placement-commission-scheduler", json=inst1_payload, headers=admin_headers)
+        r2 = client.post("/api/placement-commission-scheduler", json=inst2_payload, headers=admin_headers)
+        assert r1.status_code in [200, 201]
+        assert r2.status_code in [200, 201]
+
+        # 3. Retrieve the scheduler list for this commission
+        list_res = client.get(f"/api/placement-commission-scheduler/by-commission/{created_commission}", headers=admin_headers)
+        assert list_res.status_code == 200
+        installments = list_res.json()
+
+        # 4. Assert sum of installments equals the total commission amount
+        inst_sum = sum(Decimal(str(inst["installment_amount"])) for inst in installments)
+        assert inst_sum == total_amount, f"ledger imbalance: expected {total_amount}, got {inst_sum}"
+

@@ -1,6 +1,7 @@
 import pytest
 import sqlalchemy
 import fastapi
+from fapi.db.models import CandidateORM
 
 def handle_sqlite_constraint(response):
     if response.status_code == 500:
@@ -109,3 +110,25 @@ def test_employee_dashboard_metrics(client, admin_headers):
              pytest.xfail("SQLite error on employee metrics")
     except Exception as e:
         pytest.xfail(f"SQLite/Pydantic validation error: {str(e)}")
+
+
+def test_candidate_profile_dashboard_success(client, admin_headers, db_session):
+    """
+    Test fetching the candidate profile dashboard route with seeded SQLite data.
+    Seeds a CandidateORM record and asserts the exact status code 200
+    along with specific fields returned by the route.
+    """
+    candidate = CandidateORM(
+        id=901,
+        full_name="Taylor Morgan",
+        email="taylor.morgan@testdashboard.com",
+        status="active",
+        phone="555-9010",
+    )
+    db_session.add(candidate)
+    db_session.commit()
+
+    response = client.get("/api/candidates/901/profile", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["candidate_id"] == 901

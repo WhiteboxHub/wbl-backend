@@ -2,6 +2,8 @@ import pytest
 import sqlalchemy
 from fastapi.exceptions import ResponseValidationError
 import base64
+from fapi.db.models import CandidateORM, CandidateMarketingORM
+from datetime import date
 
 def test_outreach_orchestrator_routes(client, admin_headers):
     # GET routes
@@ -18,7 +20,7 @@ def test_outreach_orchestrator_routes(client, admin_headers):
     for route in get_routes:
         try:
             res = client.get(route, headers=admin_headers)
-            assert res.status_code in [200, 401, 403, 404, 422, 500]
+            assert res.status_code in [200, 401, 403, 404, 422]
         except sqlalchemy.exc.SQLAlchemyError as e:
             pytest.xfail(f"SQLite DB missing mapping: {e}")
         except Exception:
@@ -151,3 +153,42 @@ def test_automation_workflow_schedule_routes(client, admin_headers):
         pytest.xfail(f"SQLite mapping error: {e}")
     except Exception:
         pass
+
+
+def test_get_candidate_credentials_success(client, admin_headers, db_session):
+    """
+    Test retrieving SMTP/IMAP credentials for an active CandidateMarketing record.
+    Seeds necessary data in the mock SQLite database first.
+    """
+    # 1. Seed Parent Candidate Record
+    candidate = CandidateORM(
+        id=777,
+        full_name="Alex Smith",
+        email="alex.smith@test.com",
+        status="active"
+    )
+    db_session.add(candidate)
+    db_session.flush() # Ensure candidate ID 777 is persisted in session
+    
+    # 2. Seed Candidate Marketing Credentials Record
+    marketing = CandidateMarketingORM(
+        candidate_id=777,
+        email="alex.smith@test.com",
+        password="mock_smtp_password",
+        imap_password="mock_imap_password",
+        status="active",
+        start_date=date(2026, 1, 1)
+    )
+    db_session.add(marketing)
+    db_session.commit()
+    
+    # 3. Request credentials via endpoint
+    response = client.get("/api/orchestrator/candidate-credentials/777", headers=admin_headers)
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "alex.smith@test.com"
+    assert data["candidate_name"] == "Alex Smith"
+    assert data["password"] == "mock_smtp_password"
+    assert data["imap_password"] == "mock_imap_password"
+    assert data["linkedin_url"] is None

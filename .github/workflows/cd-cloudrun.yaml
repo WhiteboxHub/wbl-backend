@@ -11,6 +11,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run Pytest Suite (Pre-Deploy Check)
+        env:
+          SECRET_KEY: "mock_test_secret_key_12345"  # pragma: allowlist secret
+          ALGORITHM: "HS256"
+          UPSTASH_REDIS_REST_URL: "https://mock-redis.upstash.io"
+          UPSTASH_REDIS_REST_TOKEN: "mock_token"
+          DB_PASSWORD: "mock_password"  # pragma: allowlist secret
+          DB_HOST: "localhost"
+          DB_NAME: "wbl_test"
+          ENV: "test"
+        run: |
+          # Ensure deployment fails if unit/integration tests fail
+          pytest --ignore=tests/smoke -v
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:

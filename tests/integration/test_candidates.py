@@ -1,5 +1,8 @@
 import pytest
 import sqlalchemy
+from datetime import date
+from fapi.db.models import CandidateORM, CandidateInterview
+
 
 def handle_sqlite_constraint(response):
     if response.status_code == 500:
@@ -17,7 +20,7 @@ def test_candidates_sprint2_routes(client, admin_headers):
     for route in head_routes:
         response = client.head(route, headers=admin_headers)
         assert response.status_code in [200, 401, 404, 422, 500]
-        
+
     # 2. GET Routes
     candidate_id = 999
     get_routes = [
@@ -146,3 +149,57 @@ def test_vendors_sprint2(client, admin_headers):
         client.get("/api/vendors/search-names/tech", headers=admin_headers)
     except Exception:
         pytest.xfail("SQLite constraint")
+
+
+def test_get_candidate_by_id_success(client, admin_headers, db_session):
+    """
+    Test fetching a candidate by ID with seeded SQLite data.
+    Asserts the exact status code 200 and that core identity fields are present in the response.
+    """
+    candidate = CandidateORM(
+        id=801,
+        full_name="Jordan Lee",
+        email="jordan.lee@testcandidates.com",
+        status="active",
+        phone="555-8010",
+        batchid=1,
+    )
+    db_session.add(candidate)
+    db_session.commit()
+
+    response = client.get("/api/candidates/801", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert "id" in data or "full_name" in data
+
+
+def test_get_interview_by_id_success(client, admin_headers, db_session):
+    """
+    Test fetching a single interview by ID with seeded SQLite data.
+    Seeds a parent candidate and then an interview record, then asserts an exact 200
+    response with the expected company field present.
+    """
+    candidate = CandidateORM(
+        id=802,
+        full_name="Sam Rivera",
+        email="sam.rivera@testcandidates.com",
+        status="active",
+        batchid=1,
+    )
+    db_session.add(candidate)
+    db_session.flush()
+
+    interview = CandidateInterview(
+        id=802,
+        candidate_id=802,
+        company="TechCorp Seeded",
+        interview_date=date(2026, 6, 15),
+    )
+    db_session.add(interview)
+    db_session.commit()
+
+    response = client.get("/api/interviews/802", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["company"] == "TechCorp Seeded"
+    assert data["id"] == 802

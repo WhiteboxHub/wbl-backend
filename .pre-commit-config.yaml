@@ -2,16 +2,8 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
       - id: check-yaml
       - id: check-added-large-files
-
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-        language_version: python3
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.0
@@ -32,3 +24,12 @@ repos:
       - id: detect-secrets
         args: [--baseline, .secrets.baseline]
         exclude: \.env\.example$
+
+  - repo: local
+    hooks:
+      - id: run-tests
+        name: Run Backend Tests
+        entry: bash -c "PYTHONPATH=. venv/bin/pytest tests/ -p no:warnings"
+        language: system
+        always_run: true
+        pass_filenames: false

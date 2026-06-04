@@ -1,6 +1,7 @@
 import pytest
 import sqlalchemy
 from fastapi.exceptions import ResponseValidationError
+from fapi.db.models import ExtensionKeyORM, OutreachEmailRecipient
 
 def test_miscellaneous_routes_get(client, admin_headers):
     get_routes = [
@@ -121,3 +122,55 @@ def test_miscellaneous_routes_delete(client, admin_headers):
             pytest.xfail(f"SQLite DB mapping error: {e}")
         except Exception:
             pass
+
+
+def test_get_extension_key_by_id_success(client, admin_headers, admin_user, db_session):
+    """
+    Test retrieving a single extension key by ID with seeded SQLite data.
+    Seeds an ExtensionKeyORM record linked to the authenticated admin user
+    and asserts the exact status code 200 with the expected uname field present.
+    """
+    key = ExtensionKeyORM(
+        id=601,
+        user_id=admin_user.id,
+        uname=admin_user.uname,
+        api_key="test-api-key-seeded-601",
+        device_name="Test Device",
+        is_active=True,
+    )
+    db_session.add(key)
+    db_session.commit()
+
+    response = client.get("/api/extension-keys/601", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == 601
+    assert data["uname"] == admin_user.uname
+    assert data["api_key"] == "test-api-key-seeded-601"
+
+
+def test_get_outreach_email_recipient_by_id_success(client, admin_headers, db_session):
+    """
+    Test retrieving a single outreach email recipient by ID with seeded SQLite data.
+    Seeds an OutreachEmailRecipient record and asserts the exact status code 200
+    with the expected email field returned by the route.
+    """
+    recipient = OutreachEmailRecipient(
+        id=602,
+        email="seeded.recipient@testoutreach.com",
+        source_type="manual",
+        status="ACTIVE",
+        email_invalid=False,
+        domain_invalid=False,
+        unsubscribe_flag=False,
+        bounce_flag=False,
+        complaint_flag=False,
+    )
+    db_session.add(recipient)
+    db_session.commit()
+
+    response = client.get("/api/outreach-email-recipients/602", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == 602
+    assert data["email"] == "seeded.recipient@testoutreach.com"

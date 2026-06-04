@@ -1,8 +1,12 @@
 import os
 import uuid
 import pytest
+import logging
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock
+
+# Suppress all post-exit closed-stream logging tracebacks during test runs
+logging.raiseExceptions = False
 
 # 1. Set Mock Environment Variables BEFORE any imports happen
 os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"
@@ -62,6 +66,16 @@ def _forge_token(user_id: int, uname: str, role: str = "admin", is_admin: bool =
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_database():
     """Create all tables at the start of the testing session, clean up at the end."""
+    # SQLite requires index names to be unique across the entire database.
+    # We dynamically rename duplicate indexes so production code doesn't need to change.
+    seen_indexes = {}
+    for table in Base.metadata.tables.values():
+        for index in list(table.indexes):
+            if index.name:
+                if index.name in seen_indexes:
+                    index.name = f"{index.name}_{table.name}"
+                else:
+                    seen_indexes[index.name] = table.name
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
