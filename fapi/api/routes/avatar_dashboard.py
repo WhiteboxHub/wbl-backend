@@ -28,7 +28,7 @@ def get_financial_metrics_endpoint(db: Session = Depends(get_db)):
     return get_financial_metrics(db)
 
 
-@router.get("/metrics/all", response_model=DashboardMetrics)
+@router.post("/metrics/all", response_model=DashboardMetrics)
 def get_all_metrics_endpoint(db: Session = Depends(get_db), current_user = Depends(enforce_access)):
     metrics = {
         "batch_metrics": get_batch_metrics(db),
