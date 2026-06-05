@@ -33,7 +33,7 @@ jobs:
           DB_HOST: "localhost"
           DB_NAME: "wbl_test"
           ENV: "test"
-          MAIL_REPORT: "587"
+          MAIL_PORT: "587"
         run: |
           # Ensure deployment fails if unit/integration tests fail
           pytest --ignore=tests/smoke -v
