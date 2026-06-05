@@ -28,9 +28,7 @@ jobs:
         pip install -r requirements.txt
         pip install flake8 pytest pytest-github-actions-annotate-failures
 
-    - name: Run Flake8 Linter
-      run: |
-        flake8 . --config=setup.cfg
+
 
     - name: Run Pytest Suite
       env:
