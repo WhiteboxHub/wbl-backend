@@ -9,11 +9,11 @@ from unittest.mock import MagicMock
 logging.raiseExceptions = False
 
 # 1. Set Mock Environment Variables BEFORE any imports happen
-os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"
+os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"  # pragma: allowlist secret
 os.environ["ALGORITHM"] = "HS256"
 os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
 os.environ["UPSTASH_REDIS_REST_TOKEN"] = "mock_token"
-os.environ["DB_PASSWORD"] = "mock_password"
+os.environ["DB_PASSWORD"] = "mock_password"  # pragma: allowlist secret
 os.environ["DB_HOST"] = "localhost"
 os.environ["DB_NAME"] = "wbl_test"
 os.environ["ENV"] = "test"
@@ -33,9 +33,10 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 3. Globally override SessionLocal BEFORE any other module imports it
+# 3. Globally override SessionLocal and engine BEFORE any other module imports it
 import fapi.db.database
 fapi.db.database.SessionLocal = TestingSessionLocal
+fapi.db.database.engine = engine
 
 # Now it is safe to import backend modules
 from fapi.main import app
@@ -121,7 +122,7 @@ def admin_user(db_session):
     uid = uuid.uuid4().hex[:8]
     user = AuthUserORM(
         uname=f"admin_{uid}@test.com",
-        passwd="hashed_password",
+        passwd="hashed_password",  # pragma: allowlist secret
         status="active",
         role="admin",
         enddate=date(1990,1 ,1),
@@ -143,7 +144,7 @@ def candidate_db_user(db_session):
     email = f"candidate_{uid}@test.com"
     auth_user = AuthUserORM(
         uname=email,
-        passwd="hashed_password",
+        passwd="hashed_password",  # pragma: allowlist secret
         status="active",
         role="",
         enddate=date(1990,1 ,1),
