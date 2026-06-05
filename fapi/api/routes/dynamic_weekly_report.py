@@ -43,7 +43,7 @@ async def send_weekly_report(
         raise HTTPException(status_code=500, detail=f"Failed to send weekly report: {str(e)}")
 
 
-@router.get("/send")
+@router.get("/preview")
 async def preview_weekly_report(
     db: Session = Depends(get_db),
     # dependencies=[Depends(enforce_access)]  # Uncomment if authentication needed
