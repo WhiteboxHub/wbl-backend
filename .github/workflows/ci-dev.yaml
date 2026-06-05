@@ -40,6 +40,7 @@ jobs:
         DB_HOST: "localhost"
         DB_NAME: "wbl_test"
         ENV: "test"
+        MAIL_PORT: "587"
       run: |
         # Run suite while ignoring smoke tests
         pytest --ignore=tests/smoke -v
