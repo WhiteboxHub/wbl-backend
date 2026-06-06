@@ -31,7 +31,7 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: "mock_token"
           DB_PASSWORD: "mock_password"  # pragma: allowlist secret
           DB_HOST: "localhost"
-          DB_NAME: "wbl_test"
+          DB_NAME: "wbl_test" 
           ENV: "test"
           MAIL_PORT: "587"
           MAIL_USERNAME: "mock_username"
@@ -52,11 +52,32 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run (No public traffic)
         run: |
           gcloud run deploy fastapi-backend \
             --source . \
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
-            --port 8080
+            --port 8080 \
+            --no-traffic \
+            --tag=smoke
+
+      - name: Get smoke test URL
+        run: |
+          SMOKE_URL=$(gcloud run services describe fastapi-backend --region us-central1 --format='value(status.traffic.filter(tag="smoke").url)')
+          echo "SMOKE_URL=$SMOKE_URL" >> $GITHUB_ENV
+          echo "Smoke test URL: $SMOKE_URL"
+
+      - name: Run Live Smoke Tests
+        env:
+          PROD_URL: ${{ env.SMOKE_URL }}
+        run: |
+          pytest tests/smoke/test_production_smoke.py -v
+
+      - name: Promote new revision to 100% traffic
+        if: success()
+        run: |
+          gcloud run services update-traffic fastapi-backend \
+            --region us-central1 \
+            --to-latest
