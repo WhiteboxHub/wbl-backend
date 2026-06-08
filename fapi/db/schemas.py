@@ -1244,6 +1244,7 @@ class CandidateInterviewBase(BaseModel):
     job_description: Optional[str] = None
     position_title: Optional[str] = None
     gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 
 # --- Create Schema ---
@@ -1271,6 +1272,7 @@ class CandidateInterviewCreate(BaseModel):
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
     gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 
 
@@ -1307,6 +1309,7 @@ class CandidateInterviewUpdate(BaseModel):
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
     gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = None
 
 
 
@@ -1320,6 +1323,7 @@ class CandidateInterviewOut(CandidateInterviewBase):
     position_title: Optional[str] = None
     position_company: Optional[str] = None
     gcal_event_id: Optional[str] = None  # Google Calendar event ID
+    duration_minutes: Optional[int] = 60
     last_mod_datetime: Optional[datetime] = None
 
     class Config:

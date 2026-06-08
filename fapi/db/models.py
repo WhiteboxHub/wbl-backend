@@ -422,6 +422,7 @@ class CandidateInterview(Base):
     notes = Column(Text, nullable=True)
     position_id = Column(BigInteger, ForeignKey("job_listing.id", ondelete="SET NULL"), nullable=True)
     gcal_event_id = Column(String(255), nullable=True)  # Google Calendar event ID for auto-sync
+    duration_minutes = Column(Integer, nullable=True, default=60)  # Calendar event duration in minutes
     last_mod_datetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
 

@@ -115,7 +115,8 @@ def _build_event_body(interview_data: dict, candidate_name: str) -> dict:
         start_datetime_str = f"{date_str}T{time_str}"
         # Start datetime object to calculate end time
         start_dt = datetime.fromisoformat(start_datetime_str)
-        end_dt = start_dt + timedelta(hours=1) # Default to 1 hour duration
+        duration_minutes = int(interview_data.get("duration_minutes") or 60)
+        end_dt = start_dt + timedelta(minutes=duration_minutes)
         
         return {
             "summary": title,

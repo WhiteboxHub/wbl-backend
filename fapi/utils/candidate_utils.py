@@ -655,6 +655,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
             "notes": db_obj.notes,
             "interviewer_emails": db_obj.interviewer_emails,
             "feedback": db_obj.feedback,
+            "duration_minutes": db_obj.duration_minutes,
         }
         event_id = create_calendar_event(sync_data, candidate_name)
         if event_id:
@@ -785,6 +786,7 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
             "notes": db_obj.notes,
             "interviewer_emails": db_obj.interviewer_emails,
             "feedback": db_obj.feedback,
+            "duration_minutes": db_obj.duration_minutes,
         }
         if not db_obj.gcal_event_id:
             event_id = create_calendar_event(sync_data, candidate_name)
