@@ -49,8 +49,8 @@ def test_production_redis_health_active(client):
     # Assert JSON response structure is healthy
     data = response.json()
     assert (
-        data.get("status") == "healthy"
-    ), f"Expected Redis status 'healthy', got: {data.get('status')}"
+        data.get("status") == "connected"
+    ), f"Expected Redis status 'connected', got: {data.get('status')}"
 
 
 @pytest.mark.smoke
