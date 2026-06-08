@@ -63,6 +63,8 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
 
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
     pass  # Upstash Redis is HTTP-based; no persistent connection to close
