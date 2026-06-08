@@ -163,7 +163,8 @@ def get_candidate_outreach_emails(
     db: Session = Depends(get_db),
 ):
     """
-    Fetch all active, valid outreach email recipients that this candidate has not yet sent to.
+    Fetch all active, valid outreach email recipients.
+    Deduplication and queue tracking are handled locally by the DuckDB engine.
     """
     from sqlalchemy import text
     try:
@@ -172,14 +173,9 @@ def get_candidate_outreach_emails(
             FROM outreach_emails
             WHERE status = 'ACTIVE'
               AND validation_status = 'VALID'
-              AND email NOT IN (
-                  SELECT vendor_email
-                  FROM campaign_emails
-                  WHERE candidate_id = :candidate_id
-              )
             LIMIT :limit
         """)
-        result = db.execute(sql, {"candidate_id": candidate_id, "limit": limit}).mappings().all()
+        result = db.execute(sql, {"limit": limit}).mappings().all()
         return [dict(r) for r in result]
     except Exception as e:
         logger.error("Error fetching outreach emails for candidate %s: %s", candidate_id, e)
