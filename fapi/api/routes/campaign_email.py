@@ -81,7 +81,7 @@ def create_campaign_email(
     return row
 
 
-@router.post("/bulk", status_code=status.HTTP_201_CREATED)
+@router.get("/bulk", status_code=status.HTTP_201_CREATED)
 def create_bulk_campaign_emails(
     data: List[CampaignEmailCreate],
     db: Session = Depends(get_db),
