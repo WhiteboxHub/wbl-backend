@@ -22014,7 +22014,7 @@
           "Outreach Orchestrator"
         ],
         "summary": "Get Candidate Outreach Emails",
-        "description": "Fetch all active, valid outreach email recipients that this candidate has not yet sent to.",
+        "description": "Fetch all active, valid outreach email recipients.\nDeduplication and queue tracking are handled locally by the DuckDB engine.",
         "operationId": "get_candidate_outreach_emails_api_orchestrator_candidates__candidate_id__outreach_emails_get",
         "parameters": [
           {
