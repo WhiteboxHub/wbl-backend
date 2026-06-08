@@ -17,6 +17,12 @@ os.environ["DB_PASSWORD"] = "mock_password"  # pragma: allowlist secret
 os.environ["DB_HOST"] = "localhost"
 os.environ["DB_NAME"] = "wbl_test"
 os.environ["ENV"] = "test"
+os.environ["MAIL_PORT"] = "587"
+os.environ["MAIL_USERNAME"] = "mock_username"
+os.environ["MAIL_PASSWORD"] = "mock_password"  # pragma: allowlist secret
+os.environ["MAIL_SERVER"] = "smtp.mock.com"
+os.environ["MAIL_FROM"] = "mock@mock.com"
+
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
