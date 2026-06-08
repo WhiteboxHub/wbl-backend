@@ -65,7 +65,7 @@ jobs:
 
       - name: Get smoke test URL
         run: |
-          SMOKE_URL=$(gcloud run services describe fastapi-backend --region us-central1 --format='value(status.traffic.filter(tag="smoke").url)')
+          SMOKE_URL=$(gcloud run services describe fastapi-backend --region us-central1 --format=json | jq -r '.status.traffic[] | select(.tag=="smoke") | .url')
           echo "SMOKE_URL=$SMOKE_URL" >> $GITHUB_ENV
           echo "Smoke test URL: $SMOKE_URL"
 
