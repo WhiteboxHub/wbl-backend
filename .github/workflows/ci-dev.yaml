@@ -47,9 +47,7 @@ jobs:
         MAIL_FROM: "mock@mock.com"
       run: |
         # Run suite while ignoring smoke tests
-        # pytest --ignore=tests/smoke -v
-        echo "Skipping tests for CI"
-        
+        pytest --ignore=tests/smoke -v
     - name: Docker build check
       run: |
         docker build -t fastapi-test .
