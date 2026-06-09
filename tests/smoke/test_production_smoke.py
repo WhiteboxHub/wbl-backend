@@ -23,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def client():
     # Standard HTTPX client pointing to the production deployment URL
-    with httpx.Client(base_url=PROD_URL, timeout=10.0) as c:
+    with httpx.Client(base_url=PROD_URL, timeout=30.0) as c:
         yield c
 
 
