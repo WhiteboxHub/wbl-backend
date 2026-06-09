@@ -11924,6 +11924,32 @@
         ]
       }
     },
+    "/api/analytics/daily-summary": {
+      "get": {
+        "tags": [
+          "WboxCLI Analytics",
+          "WboxCLI Analytics"
+        ],
+        "summary": "Get Daily Summary",
+        "description": "Return the global analytics for the last 24 hours (for CLI email dispatch).",
+        "operationId": "get_daily_summary_api_analytics_daily_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/analytics/summary": {
       "get": {
         "tags": [
@@ -27295,6 +27321,18 @@
               }
             ],
             "title": "Gcal Event Id"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes",
+            "default": 60
           }
         },
         "type": "object",
@@ -27560,6 +27598,18 @@
               }
             ],
             "title": "Gcal Event Id"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes",
+            "default": 60
           },
           "id": {
             "type": "integer",
@@ -27948,6 +27998,17 @@
               }
             ],
             "title": "Gcal Event Id"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
           }
         },
         "type": "object",

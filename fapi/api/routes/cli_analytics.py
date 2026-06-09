@@ -39,6 +39,62 @@ def ingest_usage_events_bulk(
     return cli_analytics_utils.insert_usage_events_bulk(db, body.events)
 
 
+@router.get("/daily-summary")
+def get_daily_summary(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return the global analytics for the last 24 hours (for CLI email dispatch)."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+    from fapi.db.models import CliUsageEventORM
+    
+    since = datetime.utcnow() - timedelta(hours=24)
+    query = db.query(CliUsageEventORM).filter(CliUsageEventORM.event_ts >= since)
+    
+    total_jobs_attempted = 0
+    total_jobs_submitted = 0
+    total_events = 0
+    total_jobs_failed = 0
+    
+    user_totals = {}
+    
+    for row in query.all():
+        total_events += 1
+        
+        attempted = int(row.jobs_attempted_count or 0)
+        submitted = int(row.jobs_submitted_count or 0)
+        failed = int(row.jobs_failed_count or 0)
+        
+        # fallback to metadata if counters are null
+        if attempted == 0 and submitted == 0 and failed == 0:
+            meta = row.event_metadata if isinstance(row.event_metadata, dict) else {}
+            run_log = meta.get("apply_run_log") or meta.get("apply_summary") or {}
+            summary = (run_log.get("summary") if isinstance(run_log, dict) else {}) or {}
+            attempted = int(summary.get("jobs_attempted") or 0)
+            submitted = int(summary.get("jobs_submitted") or 0)
+            failed = int(summary.get("jobs_failed") or 0)
+            
+        total_jobs_attempted += attempted
+        total_jobs_submitted += submitted
+        total_jobs_failed += failed
+        
+        if submitted > 0:
+            user_id = row.user_id or "Unknown User"
+            user_totals[user_id] = user_totals.get(user_id, 0) + submitted
+            
+    # Sort leaderboard descending
+    sorted_users = [{"email": k, "submitted": v} for k, v in sorted(user_totals.items(), key=lambda item: item[1], reverse=True)]
+    
+    return {
+        "total_jobs_attempted": total_jobs_attempted,
+        "total_jobs_submitted": total_jobs_submitted,
+        "total_events": total_events,
+        "total_jobs_failed": total_jobs_failed,
+        "user_breakdown": sorted_users,
+    }
+
+
 @router.get("/summary", response_model=CliUsageAnalyticsSummary)
 def analytics_summary(
     db: Session = Depends(get_db),
