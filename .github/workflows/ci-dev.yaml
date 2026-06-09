@@ -51,3 +51,37 @@ jobs:
     - name: Docker build check
       run: |
         docker build -t fastapi-test .
+
+  ai-review:
+    name: AI Code Review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run AI Review
+        uses: Nikita-Filonov/ai-review@v0.67.0
+        with:
+          review-command: run-summary
+        env:
+          AGENT__ENABLED: "false"
+
+          LLM__PROVIDER: "GEMINI"
+          LLM__META__MODEL: "gemini-1.5-flash"
+          LLM__META__MAX_TOKENS: "15000"
+          LLM__META__TEMPERATURE: "0.2"
+          LLM__HTTP_CLIENT__API_TOKEN: ${{ secrets.GEMINI_API_KEY }}
+
+          VCS__PROVIDER: "GITHUB"
+          VCS__PIPELINE__OWNER: ${{ github.repository_owner }}
+          VCS__PIPELINE__REPO: ${{ github.event.repository.name }}
+          VCS__PIPELINE__PULL_NUMBER: ${{ github.event.pull_request.number }}
+          VCS__HTTP_CLIENT__API_URL: "https://api.github.com"
+          VCS__HTTP_CLIENT__API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
