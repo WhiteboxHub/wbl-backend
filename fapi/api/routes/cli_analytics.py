@@ -20,8 +20,7 @@ from fapi.db.schemas import (
     PaginatedCliUsageUsers,
 )
 from fapi.utils import cli_analytics_utils
-from fapi.utils.auth_dependencies import staff_or_admin_required
-from fapi.utils.user_dashboard_utils import get_current_user
+from fapi.utils.auth_dependencies import staff_or_admin_required, get_current_user
 
 logger = logging.getLogger(__name__)
 
