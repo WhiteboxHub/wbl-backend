@@ -231,6 +231,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "pending_interviews": interview_counts["pending"],
             "negative_interviews": interview_counts["negative"],
             "success_rate": interview_counts["success_rate"],
+            "candidate_resume": marketing.resume_url,
         }
 
     placement = _get_active_or_latest(candidate.placements, "status", "Active")
@@ -629,6 +630,8 @@ def get_marketing_phase_details(
     # Calculate detailed stats
     interview_breakdown = _calculate_interview_breakdown(interviews)
     top_companies = _get_top_companies_for_candidate(db, candidate_id)
+
+    prep = _get_active_or_latest(current_marketing.candidate.preparations, "status", "active") if current_marketing.candidate else None
 
     # Build result with actual marketing data
     result = {
