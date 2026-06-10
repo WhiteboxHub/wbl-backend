@@ -12400,6 +12400,50 @@
         }
       }
     },
+    "/api/reports/applications/bulk": {
+      "post": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Save Application Reports Bulk",
+        "operationId": "save_application_reports_bulk_api_reports_applications_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ApplicationReportSchema"
+                },
+                "type": "array",
+                "title": "Reports"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/positions/paginated": {
       "head": {
         "tags": [
@@ -22818,6 +22862,54 @@
           "no"
         ],
         "title": "AmountCollectedEnum"
+      },
+      "ApplicationReportSchema": {
+        "properties": {
+          "candidate_name": {
+            "type": "string",
+            "title": "Candidate Name"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "ats_platform": {
+            "type": "string",
+            "title": "Ats Platform"
+          },
+          "total_fields": {
+            "type": "integer",
+            "title": "Total Fields"
+          },
+          "autofill_fields": {
+            "type": "integer",
+            "title": "Autofill Fields"
+          },
+          "llm_fields": {
+            "type": "integer",
+            "title": "Llm Fields"
+          },
+          "human_fields": {
+            "type": "integer",
+            "title": "Human Fields"
+          },
+          "automation_rate": {
+            "type": "number",
+            "title": "Automation Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_name",
+          "company_name",
+          "ats_platform",
+          "total_fields",
+          "autofill_fields",
+          "llm_fields",
+          "human_fields",
+          "automation_rate"
+        ],
+        "title": "ApplicationReportSchema"
       },
       "AuthUserCreate": {
         "properties": {
