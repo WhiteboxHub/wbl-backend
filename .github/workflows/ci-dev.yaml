@@ -77,6 +77,7 @@ jobs:
           LLM__META__MODEL: "gemini-1.5-flash"
           LLM__META__MAX_TOKENS: "15000"
           LLM__META__TEMPERATURE: "0.2"
+          LLM__HTTP_CLIENT__API_URL: "https://generativelanguage.googleapis.com"
           LLM__HTTP_CLIENT__API_TOKEN: ${{ secrets.GEMINI_API_KEY }}
 
           VCS__PROVIDER: "GITHUB"
