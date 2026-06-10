@@ -1793,3 +1793,18 @@ class WboxcliApplyAnalyticsORM(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
 
     __table_args__ = (Index("idx_wboxcli_apply_analytics_activity", "last_activity"),)
+
+# -------------------- Application Report (ATS CLI) --------------------
+class ApplicationReportORM(Base):
+    __tablename__ = "application_report"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    candidate_name  = Column(String(150), index=True)
+    company_name    = Column(String(200))
+    ats_platform    = Column(String(100))
+    total_fields    = Column(Integer)
+    autofill_fields = Column(Integer)
+    llm_fields      = Column(Integer)
+    human_fields    = Column(Integer)
+    automation_rate = Column(DECIMAL(5, 2))
+    submitted_at    = Column(DateTime, server_default=func.now(), index=True)
