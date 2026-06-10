@@ -74,7 +74,7 @@ jobs:
           AGENT__ENABLED: "false"
 
           LLM__PROVIDER: "GEMINI"
-          LLM__META__MODEL: "gemini-1.5-flash-latest"
+          LLM__META__MODEL: "gemini-3.5-flash"
           LLM__META__MAX_TOKENS: "15000"
           LLM__META__TEMPERATURE: "0.2"
           LLM__HTTP_CLIENT__API_URL: "https://generativelanguage.googleapis.com"
