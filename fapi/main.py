@@ -26,6 +26,9 @@ from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+import traceback
+from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
@@ -52,13 +55,25 @@ async def startup_event():
             WboxcliApplyAnalyticsORM,
             ApplicationReportORM,
         )
+    # Ensure all tables (including new columns) are created/updated
+    from fapi.db.models import Base
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+
         
-        # Coderpad Tables
+    # Ensure outreach_date column exists (for older DB schemas)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE candidate_marketing ADD COLUMN outreach_date DATE"))
+    except Exception as e:
+        logger.info(f"outreach_date column may already exist or failed to add: {e}")
+    # Coderpad Tables
+    try:
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
         WboxcliApplyAnalyticsORM.__table__.create(bind=engine, checkfirst=True)
+
         # ATS Application Report Table
         ApplicationReportORM.__table__.create(bind=engine, checkfirst=True)
         logger.info("CoderPad, CLI analytics, and ATS report tables checked/created successfully.")
@@ -85,18 +100,7 @@ async def redis_health():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://whitebox-learning.com",
-        "https://www.whitebox-learning.com",
-        "https://innova-path.com",
-        "https://www.innova-path.com",
-        "https://wbl-frontend-560359652969.us-central1.run.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:8000",
-        "*"
-    ],
+    allow_origin_regex=".*",  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

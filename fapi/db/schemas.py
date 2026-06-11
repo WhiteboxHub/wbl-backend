@@ -901,12 +901,17 @@ class CandidateMarketingBase(BaseModel):
     move_to_placement: Optional[bool] = False
     candidate_intro: Optional[str] = None
     run_daily_workflow: bool = False
+    outreach_date: Optional[date] = None
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
     run_raw_positions_workflow: bool = False
     run_outreach_emails: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
+    total_outreach_count: Optional[int] = 0
+    daily_outreach_limit: Optional[int] = 250
+    max_outreach_limit: Optional[int] = 500
+    fcount: Optional[int] = 0
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -962,12 +967,17 @@ class CandidateMarketingUpdate(BaseModel):
     move_to_placement: Optional[bool] = None
     candidate_intro: Optional[str] = None
     run_daily_workflow: Optional[bool] = None
+    outreach_date: Optional[date] = None
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
     run_raw_positions_workflow: Optional[bool] = None
     run_outreach_emails: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
+    total_outreach_count: Optional[int] = None
+    daily_outreach_limit: Optional[int] = None
+    max_outreach_limit: Optional[int] = None
+    fcount: Optional[int] = None
 
     @field_validator("candidate_json", mode="before")
     @classmethod
