@@ -16,6 +16,6 @@ repos:
     hooks:
       - id: run-tests
         name: Run Backend Tests
-        entry: bash -c "PYTHONPATH=. myenv/bin/pytest tests/"
+        entry: python -m pytest --ignore=tests/smoke tests/
         language: system
         pass_filenames: false

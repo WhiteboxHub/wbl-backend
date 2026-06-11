@@ -66,23 +66,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run AI Review
-        uses: Nikita-Filonov/ai-review@v0.67.0
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          review-command: run-summary
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: pip install openai python-dotenv
+
+      - name: Run Smart AI Code Review
         env:
-          AGENT__ENABLED: "false"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python .github/scripts/demo_review.py -r . -m smart > review_output.txt
 
-          LLM__PROVIDER: "GEMINI"
-          LLM__META__MODEL: "gemini-3.5-flash"
-          LLM__META__MAX_TOKENS: "15000"
-          LLM__META__TEMPERATURE: "0.2"
-          LLM__HTTP_CLIENT__API_URL: "https://generativelanguage.googleapis.com"
-          LLM__HTTP_CLIENT__API_TOKEN: ${{ secrets.GEMINI_API_KEY }}
-
-          VCS__PROVIDER: "GITHUB"
-          VCS__PIPELINE__OWNER: ${{ github.repository_owner }}
-          VCS__PIPELINE__REPO: ${{ github.event.repository.name }}
-          VCS__PIPELINE__PULL_NUMBER: ${{ github.event.pull_request.number }}
-          VCS__HTTP_CLIENT__API_URL: "https://api.github.com"
-          VCS__HTTP_CLIENT__API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Post PR Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} -F review_output.txt
