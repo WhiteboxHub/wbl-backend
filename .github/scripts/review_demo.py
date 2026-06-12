@@ -7,8 +7,9 @@ from openai.types.responses import ResponseOutputMessage, ResponseOutputText
 
 def changed_lines(repo=".") -> Dict[str, Set[int]]:
     """Extract changed line numbers from git diff."""
+    target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
-        ["git", "-C", repo, "diff", "--unified=0", "--no-color", "HEAD~1"]
+        ["git", "-C", repo, "diff", "--unified=0", "--no-color", f"{target_branch}...HEAD"]
     ).decode()
     current = None
     changes: Dict[str, Set[int]] = {}
@@ -205,8 +206,9 @@ def build_review_context() -> str:
     impact_files = set(one_hop_slice(changed_symbols, cg))
 
     # Full git diff
+    target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff_text = subprocess.check_output(
-        ["git", "diff", "--unified=3", "--no-color", "HEAD~1"]
+        ["git", "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"]
     ).decode()
 
     # Snippets of changed code (grouped by proximity)

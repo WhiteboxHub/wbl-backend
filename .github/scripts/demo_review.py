@@ -22,15 +22,17 @@ load_dotenv()
 VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff']
 
 def build_diff_only_context(repo_path: str) -> str:
+    target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
-        ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", "HEAD~1"],
+        ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"],
         text=True
     )
     return f"# Code Review Context\n\n## Git Diff (What Changed)\n\n```diff\n{diff}\n```\n"
 
 def build_all_code_context(repo_path: str) -> str:
+    target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
-        ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", "HEAD~1"],
+        ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"],
         text=True
     )
     repo = pathlib.Path(repo_path)
@@ -85,7 +87,8 @@ def build_smart_context(repo_path: str) -> str:
         cg = callgraph_for_files(repo_files)
         impact_files = set(one_hop_slice(changed_symbols, cg))
 
-        diff_text = subprocess.check_output(["git", "diff", "--unified=3", "--no-color", "HEAD~1"], text=True)
+        target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
+        diff_text = subprocess.check_output(["git", "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"], text=True)
 
         changed_snippets = []
         for f, lines in changes.items():
@@ -250,8 +253,11 @@ def build_smart_context(repo_path: str) -> str:
 
         if critical:
             print("❌ CRITICAL AST FINDINGS DETECTED - FAILING PR IMMEDIATELY", file=sys.stderr)
+            critical_markdown = "## 🚨 CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
             for c in critical:
                 print(f" - {c}", file=sys.stderr)
+                critical_markdown += f"- **{c}**\n"
+            print(critical_markdown)
             sys.exit(1)
             
         final_context = "# 1. AST Findings (Facts)\n"
@@ -338,49 +344,83 @@ If no bugs found, return empty bugs array."""
     }
     
     start_time = time.time()
-    
-    response = client.chat.completions.create(
-        model="gemini-3.5-flash",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "bug_report",
-                "schema": json_schema,
-                "strict": True
+    try:
+        response = client.chat.completions.create(
+            model="gemini-3.5-flash",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "bug_report",
+                    "schema": json_schema,
+                    "strict": True
+                }
             }
+        )
+        
+        elapsed_time = time.time() - start_time
+        output_text = response.choices[0].message.content
+        data = json.loads(output_text)
+        
+        input_tokens = getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0
+        output_tokens = getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0
+        
+        result = {
+            "mode": mode_name,
+            "bugs": data.get("bugs", []),
+            "bug_found": len(data.get("bugs", [])) > 0,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "time_seconds": elapsed_time,
+            "context_preview": context[:500] + "..." if len(context) > 500 else context
         }
-    )
-    
-    elapsed_time = time.time() - start_time
-    output_text = response.choices[0].message.content
-    data = json.loads(output_text)
-    
-    input_tokens = getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0
-    output_tokens = getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0
-    
-    result = {
-        "mode": mode_name,
-        "bugs": data.get("bugs", []),
-        "bug_found": len(data.get("bugs", [])) > 0,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": input_tokens + output_tokens,
-        "time_seconds": elapsed_time,
-        "context_preview": context[:500] + "..." if len(context) > 500 else context
-    }
-    
-    if verbose:
-        print(json.dumps(data, indent=2))
-        print("\n" + "="*80)
-        print("STATISTICS")
-        print("="*80)
-        print(f"Time taken: {elapsed_time:.2f} seconds")
-        print(f"Input tokens: {input_tokens}")
-        print(f"Output tokens: {output_tokens}")
-        print(f"Total tokens: {input_tokens + output_tokens}")
-    
-    return result
+        
+        if verbose:
+            print(f"Time taken: {elapsed_time:.2f} seconds", file=sys.stderr)
+            print(f"Input tokens: {input_tokens}", file=sys.stderr)
+            print(f"Output tokens: {output_tokens}", file=sys.stderr)
+            print(f"Total tokens: {input_tokens + output_tokens}", file=sys.stderr)
+            
+            if data.get("bugs"):
+                markdown = "## 🤖 AI Code Review Findings\n\n"
+                for bug in data.bugs:
+                    cat = bug.get('bug_category', 'issue').upper()
+                    markdown += f"### 🚨 [{cat}] {bug.get('summary')}\n"
+                    markdown += f"**File:** `{bug.get('changed_file')}` (Lines: {bug.get('changed_lines')})\n\n"
+                    markdown += f"{bug.get('comment')}\n\n"
+                    if bug.get('diff_fix_suggestion'):
+                        markdown += f"**Suggested Fix:**\n```diff\n{bug.get('diff_fix_suggestion')}\n```\n\n"
+                    markdown += "---\n\n"
+                print(markdown)
+            else:
+                print("## 🤖 AI Code Review\n\nNo significant risks or bugs found. LGTM! ✅")
+        
+        return result
+    except Exception as e:
+        print(f"Gemini API Error: {str(e)}", file=sys.stderr)
+        
+        fallback_markdown = "## ⚠️ AI Reviewer Unavailable\n\n"
+        fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and blast radius analysis gathered by the engine:\n\n"
+        
+        # Extract findings from the context string that was built by the AST engine
+        if "## 🚨 CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
+            fallback_markdown += "### 🔍 AST Engine Output\n\n"
+            fallback_markdown += context.split("# 5. Code Context")[0].strip()
+        else:
+            fallback_markdown += "No structural violations detected by the AST engine."
+            
+        print(fallback_markdown)
+        return {
+            "mode": mode_name,
+            "bugs": [],
+            "bug_found": False,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "time_seconds": time.time() - start_time,
+            "context_preview": ""
+        }
 
 
 def run_comparison(repo_path: str) -> None:
@@ -450,7 +490,7 @@ def main():
         run_comparison(repo_path)
         return
     
-    print(f"Building review context ({args.mode} mode)…")
+    print(f"Building review context ({args.mode} mode)…", file=sys.stderr)
     if args.mode == "diff-only":
         context = build_diff_only_context(repo_path)
     elif args.mode == "all-code":
@@ -458,9 +498,9 @@ def main():
     elif args.mode == "smart":
         context = build_smart_context(repo_path)
     
-    print("\n" + "="*80)
-    print("Calling the model…")
-    print("="*80 + "\n")
+    print("\n" + "="*80, file=sys.stderr)
+    print("Calling the model…", file=sys.stderr)
+    print("="*80 + "\n", file=sys.stderr)
     run_review(context, args.mode)
 
 
