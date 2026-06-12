@@ -40,6 +40,7 @@ def test_enforce_permission_gates_across_all_routes(client):
         "/api/user-role",
         "/api/password",
         "/api/employee-tasks",
+        "/api/reports",
     ]
     
     checked_routes = 0

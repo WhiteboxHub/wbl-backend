@@ -26,6 +26,9 @@ from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+import traceback
+from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
@@ -43,22 +46,36 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
-    try:
-        from fapi.db.models import (
-            CodeSnippetORM,
-            CodeExecutionLogORM,
-            CoderpadQuestionORM,
-            CliUsageEventORM,
-            WboxcliApplyAnalyticsORM,
-        )
+    from fapi.db.models import (
+        CodeSnippetORM,
+        CodeExecutionLogORM,
+        CoderpadQuestionORM,
+        CliUsageEventORM,
+        WboxcliApplyAnalyticsORM,
+        ApplicationReportORM
+    )
+    # Ensure all tables (including new columns) are created/updated
+    from fapi.db.models import Base
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+
         
-        # Coderpad Tables
+    # Ensure outreach_date column exists (for older DB schemas)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE candidate_marketing ADD COLUMN outreach_date DATE"))
+    except Exception as e:
+        logger.info(f"outreach_date column may already exist or failed to add: {e}")
+    # Coderpad Tables
+    try:
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
         WboxcliApplyAnalyticsORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad and CLI analytics tables checked/created successfully.")
+
+        # ATS Application Report Table
+        ApplicationReportORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad, CLI analytics, and ATS report tables checked/created successfully.")
 
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
@@ -82,18 +99,7 @@ async def redis_health():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://whitebox-learning.com",
-        "https://www.whitebox-learning.com",
-        "https://innova-path.com",
-        "https://www.innova-path.com",
-        "https://wbl-frontend-560359652969.us-central1.run.app",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:8000",
-        "*"
-    ],
+    allow_origin_regex=".*",  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -195,8 +201,6 @@ app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automat
 app.include_router(campaign_email.router, prefix="/api", tags=["Campaign Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_email.router, prefix="/api", tags=["Outreach Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(coderpad.router, prefix="/api", tags=["CoderPad"], dependencies=[Depends(enforce_access)])
-app.include_router(campaign_email.router, prefix="/api", tags=["Campaign Emails"], dependencies=[Depends(enforce_access)])
-app.include_router(outreach_email.router, prefix="/api", tags=["Outreach Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
