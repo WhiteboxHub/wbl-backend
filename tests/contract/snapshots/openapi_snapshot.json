@@ -22125,6 +22125,16 @@
             }
           },
           {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
