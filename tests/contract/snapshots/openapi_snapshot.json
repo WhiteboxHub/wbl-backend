@@ -12407,7 +12407,7 @@
           "ATS Reporting"
         ],
         "summary": "Get Application Reports Today",
-        "description": "Return all ATS application reports submitted today (UTC date).",
+        "description": "Return all ATS application reports submitted today (UTC date).\n\nUses a UTC-aware window (midnight UTC \u2192 next midnight UTC) so records\nstored by MySQL's NOW() (UTC) are never missed due to timezone skew.",
         "operationId": "get_application_reports_today_api_reports_applications_today_get",
         "responses": {
           "200": {
