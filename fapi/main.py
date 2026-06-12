@@ -46,15 +46,14 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
-    try:
-        from fapi.db.models import (
-            CodeSnippetORM,
-            CodeExecutionLogORM,
-            CoderpadQuestionORM,
-            CliUsageEventORM,
-            WboxcliApplyAnalyticsORM,
-            ApplicationReportORM,
-        )
+    from fapi.db.models import (
+        CodeSnippetORM,
+        CodeExecutionLogORM,
+        CoderpadQuestionORM,
+        CliUsageEventORM,
+        WboxcliApplyAnalyticsORM,
+        ApplicationReportORM
+    )
     # Ensure all tables (including new columns) are created/updated
     from fapi.db.models import Base
     Base.metadata.create_all(bind=engine, checkfirst=True)
