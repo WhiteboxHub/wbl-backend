@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
@@ -43,11 +43,23 @@ class ApplicationReportOut(ApplicationReportIn):
 async def get_application_reports_today(
     db: Session = Depends(get_db),
 ):
-    """Return all ATS application reports submitted today (UTC date)."""
-    today = date.today()
+    """Return all ATS application reports submitted today (UTC date).
+
+    Uses a UTC-aware window (midnight UTC → next midnight UTC) so records
+    stored by MySQL's NOW() (UTC) are never missed due to timezone skew.
+    """
+    now_utc = datetime.now(timezone.utc)
+    # Start of today in UTC (midnight)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Start of tomorrow in UTC (exclusive upper bound)
+    tomorrow_start = today_start + timedelta(days=1)
     return (
         db.query(ApplicationReportORM)
-        .filter(ApplicationReportORM.submitted_at >= today)
+        .filter(
+            ApplicationReportORM.submitted_at >= today_start,
+            ApplicationReportORM.submitted_at < tomorrow_start,
+        )
+        .order_by(ApplicationReportORM.submitted_at.asc())
         .all()
     )
 
