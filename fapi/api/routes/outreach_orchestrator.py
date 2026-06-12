@@ -159,6 +159,7 @@ def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
 @router.get("/candidates/{candidate_id}/outreach-emails")
 def get_candidate_outreach_emails(
     candidate_id: int,
+    skip: int = 0,
     limit: int = 1000,
     db: Session = Depends(get_db),
 ):
@@ -173,9 +174,9 @@ def get_candidate_outreach_emails(
             FROM outreach_emails
             WHERE status = 'ACTIVE'
               AND validation_status = 'VALID'
-            LIMIT :limit
+            LIMIT :limit OFFSET :skip
         """)
-        result = db.execute(sql, {"limit": limit}).mappings().all()
+        result = db.execute(sql, {"limit": limit, "skip": skip}).mappings().all()
         return [dict(r) for r in result]
     except Exception as e:
         logger.error("Error fetching outreach emails for candidate %s: %s", candidate_id, e)
