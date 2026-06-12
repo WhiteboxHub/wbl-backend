@@ -1,6 +1,6 @@
 from decimal import Decimal
-from typing import Optional, List, Literal
-from datetime import time, date, datetime
+from typing import Optional, List, Literal, Dict, Any
+from datetime import time, date, datetime, timedelta
 from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
 
 from sqlalchemy.ext.declarative import declarative_base
@@ -320,12 +320,19 @@ class CandidateMarketingORM(Base):
 
     # Outreach Automation Flags
     run_daily_workflow = Column(Boolean, nullable=False, server_default="0")
+    outreach_date = Column(Date, nullable=True, comment='Daily outreach target date')
     run_weekly_workflow = Column(Boolean, nullable=False, server_default="0")
     run_email_extraction = Column(Boolean, nullable=False, server_default="0")
     run_raw_positions_workflow = Column(Boolean, nullable=False, server_default="0")
     run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
+    
+    # Outreach Metrics
+    total_outreach_count = Column(Integer, nullable=False, default=0, server_default="0")
+    daily_outreach_limit = Column(Integer, nullable=False, default=250, server_default="250")
+    max_outreach_limit = Column(Integer, nullable=False, default=500, server_default="500")
+    fcount = Column(Integer, nullable=False, default=0, server_default="0")
     
     
     # Relationships
@@ -1793,3 +1800,18 @@ class WboxcliApplyAnalyticsORM(Base):
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
 
     __table_args__ = (Index("idx_wboxcli_apply_analytics_activity", "last_activity"),)
+
+# -------------------- Application Report (ATS CLI) --------------------
+class ApplicationReportORM(Base):
+    __tablename__ = "application_report"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    candidate_name  = Column(String(150), index=True)
+    company_name    = Column(String(200))
+    ats_platform    = Column(String(100))
+    total_fields    = Column(Integer)
+    autofill_fields = Column(Integer)
+    llm_fields      = Column(Integer)
+    human_fields    = Column(Integer)
+    automation_rate = Column(DECIMAL(5, 2))
+    submitted_at    = Column(DateTime, server_default=func.now(), index=True)
