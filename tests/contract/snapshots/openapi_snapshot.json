@@ -12400,6 +12400,33 @@
         }
       }
     },
+    "/api/reports/applications/today": {
+      "get": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Get Application Reports Today",
+        "description": "Return all ATS application reports submitted today (UTC date).",
+        "operationId": "get_application_reports_today_api_reports_applications_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationReportOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Application Reports Today Api Reports Applications Today Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports/applications/bulk": {
       "post": {
         "tags": [
@@ -12407,13 +12434,14 @@
           "ATS Reporting"
         ],
         "summary": "Save Application Reports Bulk",
+        "description": "Persist a batch of ATS application field-ownership reports.",
         "operationId": "save_application_reports_bulk_api_reports_applications_bulk_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "items": {
-                  "$ref": "#/components/schemas/ApplicationReportSchema"
+                  "$ref": "#/components/schemas/ApplicationReportIn"
                 },
                 "type": "array",
                 "title": "Reports"
@@ -22863,7 +22891,7 @@
         ],
         "title": "AmountCollectedEnum"
       },
-      "ApplicationReportSchema": {
+      "ApplicationReportIn": {
         "properties": {
           "candidate_name": {
             "type": "string",
@@ -22909,7 +22937,74 @@
           "human_fields",
           "automation_rate"
         ],
-        "title": "ApplicationReportSchema"
+        "title": "ApplicationReportIn",
+        "description": "Payload accepted when saving a batch of ATS application reports."
+      },
+      "ApplicationReportOut": {
+        "properties": {
+          "candidate_name": {
+            "type": "string",
+            "title": "Candidate Name"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "ats_platform": {
+            "type": "string",
+            "title": "Ats Platform"
+          },
+          "total_fields": {
+            "type": "integer",
+            "title": "Total Fields"
+          },
+          "autofill_fields": {
+            "type": "integer",
+            "title": "Autofill Fields"
+          },
+          "llm_fields": {
+            "type": "integer",
+            "title": "Llm Fields"
+          },
+          "human_fields": {
+            "type": "integer",
+            "title": "Human Fields"
+          },
+          "automation_rate": {
+            "type": "number",
+            "title": "Automation Rate"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_name",
+          "company_name",
+          "ats_platform",
+          "total_fields",
+          "autofill_fields",
+          "llm_fields",
+          "human_fields",
+          "automation_rate",
+          "id"
+        ],
+        "title": "ApplicationReportOut",
+        "description": "Response schema \u2014 adds DB-generated fields."
       },
       "AuthUserCreate": {
         "properties": {
@@ -28335,6 +28430,18 @@
             "title": "Run Daily Workflow",
             "default": false
           },
+          "outreach_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outreach Date"
+          },
           "run_weekly_workflow": {
             "type": "boolean",
             "title": "Run Weekly Workflow",
@@ -28371,6 +28478,54 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "total_outreach_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Outreach Count",
+            "default": 0
+          },
+          "daily_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Outreach Limit",
+            "default": 250
+          },
+          "max_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Outreach Limit",
+            "default": 500
+          },
+          "fcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fcount",
+            "default": 0
           },
           "candidate": {
             "anyOf": [
@@ -28591,6 +28746,18 @@
             "title": "Run Daily Workflow",
             "default": false
           },
+          "outreach_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outreach Date"
+          },
           "run_weekly_workflow": {
             "type": "boolean",
             "title": "Run Weekly Workflow",
@@ -28627,6 +28794,54 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "total_outreach_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Outreach Count",
+            "default": 0
+          },
+          "daily_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Outreach Limit",
+            "default": 250
+          },
+          "max_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Outreach Limit",
+            "default": 500
+          },
+          "fcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fcount",
+            "default": 0
           },
           "candidate": {
             "anyOf": [
@@ -28854,6 +29069,18 @@
             ],
             "title": "Run Daily Workflow"
           },
+          "outreach_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outreach Date"
+          },
           "run_weekly_workflow": {
             "anyOf": [
               {
@@ -28920,6 +29147,50 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "total_outreach_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Outreach Count"
+          },
+          "daily_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Outreach Limit"
+          },
+          "max_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Outreach Limit"
+          },
+          "fcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fcount"
           }
         },
         "type": "object",

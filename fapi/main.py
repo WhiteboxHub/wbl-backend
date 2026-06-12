@@ -46,6 +46,14 @@ logger = logging.getLogger("wbl")
 @app.on_event("startup")
 async def startup_event():
     redis_client.get_client()
+    from fapi.db.models import (
+        CodeSnippetORM,
+        CodeExecutionLogORM,
+        CoderpadQuestionORM,
+        CliUsageEventORM,
+        WboxcliApplyAnalyticsORM,
+        ApplicationReportORM
+    )
     # Ensure all tables (including new columns) are created/updated
     from fapi.db.models import Base
     Base.metadata.create_all(bind=engine, checkfirst=True)
@@ -64,7 +72,11 @@ async def startup_event():
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
         WboxcliApplyAnalyticsORM.__table__.create(bind=engine, checkfirst=True)
-        logger.info("CoderPad and CLI analytics tables checked/created successfully.")
+
+        # ATS Application Report Table
+        ApplicationReportORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad, CLI analytics, and ATS report tables checked/created successfully.")
+
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
 
@@ -189,8 +201,6 @@ app.include_router(automation_workflow_log.router, prefix="/api", tags=["Automat
 app.include_router(campaign_email.router, prefix="/api", tags=["Campaign Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_email.router, prefix="/api", tags=["Outreach Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(coderpad.router, prefix="/api", tags=["CoderPad"], dependencies=[Depends(enforce_access)])
-app.include_router(campaign_email.router, prefix="/api", tags=["Campaign Emails"], dependencies=[Depends(enforce_access)])
-app.include_router(outreach_email.router, prefix="/api", tags=["Outreach Emails"], dependencies=[Depends(enforce_access)])
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
