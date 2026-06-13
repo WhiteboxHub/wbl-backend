@@ -264,7 +264,7 @@ def build_smart_context(repo_path: str) -> str:
 
         if critical:
             print("❌ CRITICAL AST FINDINGS DETECTED - FAILING PR IMMEDIATELY", file=sys.stderr)
-            critical_markdown = "## 🚨 CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
+            critical_markdown = "##    CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
             for c in critical:
                 print(f" - {c}", file=sys.stderr)
                 critical_markdown += f"- **{c}**\n"
@@ -357,7 +357,7 @@ If no bugs found, return empty bugs array."""
     start_time = time.time()
     try:
         response = client.chat.completions.create(
-            model="gemini-3.5-flash",
+            model="gemini-1.5-flash",
             messages=[{"role": "user", "content": prompt}],
             response_format={
                 "type": "json_schema",
@@ -394,10 +394,10 @@ If no bugs found, return empty bugs array."""
             print(f"Total tokens: {input_tokens + output_tokens}", file=sys.stderr)
             
             if data.get("bugs"):
-                markdown = "## 🤖 AI Code Review Findings\n\n"
-                for bug in data.bugs:
+                markdown = "##  AI Code Review Findings\n\n"
+                for bug in data.get("bugs", []):
                     cat = bug.get('bug_category', 'issue').upper()
-                    markdown += f"### 🚨 [{cat}] {bug.get('summary')}\n"
+                    markdown += f"###    [{cat}] {bug.get('summary')}\n"
                     markdown += f"**File:** `{bug.get('changed_file')}` (Lines: {bug.get('changed_lines')})\n\n"
                     markdown += f"{bug.get('comment')}\n\n"
                     if bug.get('diff_fix_suggestion'):
@@ -405,7 +405,7 @@ If no bugs found, return empty bugs array."""
                     markdown += "---\n\n"
                 print(markdown)
             else:
-                print("## 🤖 AI Code Review\n\nNo significant risks or bugs found. LGTM! ✅")
+                print("##  AI Code Review\n\nNo significant risks or bugs found. LGTM! ✅")
         
         return result
     except Exception as e:
@@ -416,7 +416,7 @@ If no bugs found, return empty bugs array."""
         fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and downstream impact analysis gathered by the engine:\n\n"
         
         # Extract findings from the context string that was built by the AST engine
-        if "## 🚨 CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
+        if "##    CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
             fallback_markdown += "### 🔍 AST Engine Output\n\n"
             fallback_markdown += context.split("# 5. Code Context")[0].strip()
         else:
