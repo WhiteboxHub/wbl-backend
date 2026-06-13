@@ -2,8 +2,7 @@
 # Outside-Diff Impact Slicing: Find bugs by analyzing callers/callees around the diff.
 
 import os, json, pathlib, subprocess, ast, getpass
-from typing import Dict, Set, List, Tuple
-from openai.types.responses import ResponseOutputMessage, ResponseOutputText
+from typing import Dict, Set, List, Tuple, Any
 
 def changed_lines(repo=".") -> Dict[str, Set[int]]:
     """Extract changed line numbers from git diff."""

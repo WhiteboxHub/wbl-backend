@@ -305,8 +305,8 @@ def build_smart_context(repo_path: str) -> str:
 def run_review(context: str, mode_name: str, verbose: bool = True) -> dict:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        print("Error: GEMINI_API_KEY environment variable not found.")
-        sys.exit(1)
+        print("Warning: GEMINI_API_KEY environment variable not found. Skipping AI review gracefully.", file=sys.stderr)
+        sys.exit(0)
     
     client = OpenAI(
         api_key=api_key,
