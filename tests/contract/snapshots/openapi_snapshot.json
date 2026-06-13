@@ -2261,6 +2261,53 @@
         ]
       }
     },
+    "/api/vendor_contact/touch-timestamps": {
+      "patch": {
+        "tags": [
+          "Vendor Contact Extracts"
+        ],
+        "summary": "Touch Vendor Contact Timestamps Handler",
+        "description": "Refresh last_modified_datetime and extraction_date to NOW for a list of duplicate emails.\n\nCalled by the email extractor after Layer 2 global dedup: emails that already\nexist in the DB are not re-inserted, but their timestamps are bumped so the\nemail-sending workflow treats them as 'seen today' and includes them in the\ncurrent candidate's outreach batch.",
+        "operationId": "touch_vendor_contact_timestamps_handler_api_vendor_contact_touch_timestamps_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TouchTimestampsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TouchTimestampsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/vendor_contact/{contact_id}": {
       "put": {
         "tags": [
@@ -45867,6 +45914,39 @@
           "access_token"
         ],
         "title": "TokenRequest"
+      },
+      "TouchTimestampsRequest": {
+        "properties": {
+          "emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Emails",
+            "description": "List of vendor emails whose timestamps should be refreshed to now"
+          }
+        },
+        "type": "object",
+        "required": [
+          "emails"
+        ],
+        "title": "TouchTimestampsRequest",
+        "description": "Request body for bumping last_modified_datetime on duplicate vendor contacts."
+      },
+      "TouchTimestampsResponse": {
+        "properties": {
+          "touched": {
+            "type": "integer",
+            "title": "Touched",
+            "description": "Number of vendor_contact_extracts rows whose last_modified_datetime was updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "touched"
+        ],
+        "title": "TouchTimestampsResponse",
+        "description": "Response from the touch-timestamps endpoint."
       },
       "TypeOfInterviewEnum": {
         "type": "string",
