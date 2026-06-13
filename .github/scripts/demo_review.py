@@ -197,9 +197,15 @@ def build_smart_context(repo_path: str) -> str:
             if f.endswith(".py") and pathlib.Path(f).exists():
                 calls_from_changed.update(calls_in_lines(f, lines))
 
+        target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
+        
+        # Identify newly added files so we don't flag them for "Signature Changes"
+        added_files_out = subprocess.check_output(["git", "diff", "--name-status", f"{target_branch}...HEAD"], text=True)
+        added_files = {line.split('\t')[1].strip() for line in added_files_out.splitlines() if line.startswith('A\t')}
+
         changed_signature_names = set()
         for f, lines in changes.items():
-            if f.endswith(".py") and pathlib.Path(f).exists():
+            if f.endswith(".py") and pathlib.Path(f).exists() and f not in added_files:
                 changed_signature_names.update(symbols_with_signature_changes(f, lines))
 
         impact_snippets = []
