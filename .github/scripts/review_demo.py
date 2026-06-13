@@ -9,7 +9,7 @@ def changed_lines(repo=".") -> Dict[str, Set[int]]:
     """Extract changed line numbers from git diff."""
     target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
-        ["git", "-C", repo, "diff", "--unified=0", "--no-color", f"{target_branch}...HEAD"]
+        ["git", "-C", repo, "diff", "--unified=0", "-w", "-B", "--no-color", f"{target_branch}...HEAD"]
     ).decode()
     current = None
     changes: Dict[str, Set[int]] = {}

@@ -55,7 +55,95 @@ def build_all_code_context(repo_path: str) -> str:
             pass
     return "".join(context_parts)
 
+def compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis):
+    impact_analysis = []
+    findings = []
+    for sym, callers in caller_counts.items():
+        score = 0
+        for ref_f in callers:
+            ref_f_norm = ref_f.replace("\\", "/")
+            if 'api/' in ref_f_norm or 'routes/' in ref_f_norm or 'routers/' in ref_f_norm: score += 5
+            elif 'hooks/' in ref_f_norm or 'shared/' in ref_f_norm: score += 4
+            elif 'components/' in ref_f_norm or 'pages/' in ref_f_norm: score += 2
+            else: score += 1
+        
+        is_public_api = False
+        for (ch_f, ch_n, _, _) in changed_symbols:
+            if ch_n == sym:
+                ch_f_norm = ch_f.replace("\\", "/")
+                if 'api/' in ch_f_norm or 'services/' in ch_f_norm or 'routers/' in ch_f_norm:
+                    is_public_api = True
+                    if ch_f_norm not in modified_public_apis: modified_public_apis.append(ch_f_norm)
+        
+        if is_public_api: score *= 2
+        det = 'HIGH' if score > 10 else ('MEDIUM' if score > 3 else 'LOW')
+        impact_analysis.append(f"- Symbol '{sym}' (Score: {score}, Downstream Impact: {det}, References: {len(callers)})")
+        findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Signature Change", "evidence": f"Signature of '{sym}' was changed. Downstream impact score: {score}."})
+    return impact_analysis, findings
 
+def run_static_analysis(f, lines, modified_public_apis):
+    findings = []
+    critical = []
+    f_norm = f.replace("\\", "/")
+    if 'api/' in f_norm or 'services/' in f_norm or 'routers/' in f_norm:
+        if f_norm not in modified_public_apis: modified_public_apis.append(f_norm)
+    
+    try:
+        src = pathlib.Path(f).read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                start = getattr(node, 'lineno', -1)
+                end = getattr(node, 'end_lineno', -1)
+                if start != -1 and end != -1 and any(start <= l <= end for l in lines):
+                    if (end - start) > 150:
+                        findings.append({"severity": "MEDIUM", "confidence": "HIGH", "type": "Code Smell", "evidence": f"Function '{node.name}' exceeds 150 lines ({end-start} lines) at line {start}."})
+                    
+                    is_endpoint = False
+                    for dec in node.decorator_list:
+                        if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute) and dec.func.attr in ('get', 'post', 'put', 'delete', 'patch'):
+                            is_endpoint = True
+                            break
+                    if is_endpoint:
+                        has_auth = False
+                        for arg in getattr(node.args, 'args', []) + getattr(node.args, 'kwonlyargs', []):
+                            if arg.arg in VALID_AUTH_DEPENDENCIES: has_auth = True
+                        for d in getattr(node.args, 'defaults', []) + getattr(node.args, 'kw_defaults', []):
+                            if d and isinstance(d, ast.Call) and isinstance(d.func, ast.Name) and d.func.id == 'Depends':
+                                for a in d.args:
+                                    if isinstance(a, ast.Name) and a.id in VALID_AUTH_DEPENDENCIES: has_auth = True
+                        if not has_auth:
+                            findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Architectural Violation", "evidence": f"FastAPI endpoint '{node.name}' at line {start} is missing a valid auth dependency (e.g. Depends(get_current_user))."})
+                            
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'execute':
+                if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                    critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
+                    
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        name = target.id.lower()
+                        if any(x in name for x in ['secret', 'password', 'token', 'api_key']) or target.id.isupper():
+                            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                                val = node.value.value
+                                if len(val) > 5 and 'ENV_' not in val and not val.startswith('os.getenv'):
+                                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                                        critical.append(f"[{f}] Potential hardcoded secret assigned to '{target.id}' at line {node.lineno}.")
+                            elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'get':
+                                if len(node.value.args) == 2 and isinstance(node.value.args[1], ast.Constant) and isinstance(node.value.args[1].value, str):
+                                    if len(node.value.args[1].value) > 3:
+                                        if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                                            critical.append(f"[{f}] Hardcoded fallback secret detected in os.getenv or environ.get at line {node.lineno}.")
+                            elif isinstance(node.value, ast.BoolOp) and isinstance(node.value.op, ast.Or):
+                                for val in node.value.values:
+                                    if isinstance(val, ast.Constant) and isinstance(val.value, str) and len(val.value) > 3:
+                                        if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                                            critical.append(f"[{f}] Hardcoded fallback secret detected in OR expression at line {node.lineno}.")
+    except Exception:
+        pass
+    
+    return critical, findings
 def build_smart_context(repo_path: str) -> str:
     from review_demo import (
         changed_lines,
@@ -154,102 +242,19 @@ def build_smart_context(repo_path: str) -> str:
         critical = []
         findings = []
         modified_public_apis = []
-        blast_radius_analysis = []
+        impact_analysis = []
         
-        # Compute Blast Radius for changed signatures
-        for sym, callers in caller_counts.items():
-            score = 0
-            for ref_f in callers:
-                ref_f_norm = ref_f.replace("\\", "/")
-                if 'api/' in ref_f_norm or 'routes/' in ref_f_norm or 'routers/' in ref_f_norm: score += 5
-                elif 'hooks/' in ref_f_norm or 'shared/' in ref_f_norm: score += 4
-                elif 'components/' in ref_f_norm or 'pages/' in ref_f_norm: score += 2
-                else: score += 1
-            
-            # Note: finding the original file for the symbol to apply public API multiplier
-            # Since this is a heuristic, we'll assume the symbol belongs to one of the changed files
-            is_public_api = False
-            for (ch_f, ch_n, _, _) in changed_symbols:
-                if ch_n == sym:
-                    ch_f_norm = ch_f.replace("\\", "/")
-                    if 'api/' in ch_f_norm or 'services/' in ch_f_norm or 'routers/' in ch_f_norm:
-                        is_public_api = True
-                        if ch_f_norm not in modified_public_apis: modified_public_apis.append(ch_f_norm)
-            
-            if is_public_api: score *= 2
-            
-            det = 'HIGH' if score > 10 else ('MEDIUM' if score > 3 else 'LOW')
-            blast_radius_analysis.append(f"- Symbol '{sym}' (Score: {score}, Blast Radius: {det}, References: {len(callers)})")
-            findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Signature Change", "evidence": f"Signature of '{sym}' was changed. Blast radius score: {score}."})
+        impact_analysis, impact_findings = compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis)
+        findings.extend(impact_findings)
         
         # Standard Rules
         for f, lines in changes.items():
             if not f.endswith('.py') or not pathlib.Path(f).exists():
                 continue
             
-            f_norm = f.replace("\\", "/")
-            if 'api/' in f_norm or 'services/' in f_norm or 'routers/' in f_norm:
-                if f_norm not in modified_public_apis: modified_public_apis.append(f_norm)
-            
-            try:
-                src = pathlib.Path(f).read_text(encoding="utf-8")
-                tree = ast.parse(src)
-                
-                for node in ast.walk(tree):
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        start = getattr(node, 'lineno', -1)
-                        end = getattr(node, 'end_lineno', -1)
-                        if start != -1 and end != -1 and any(start <= l <= end for l in lines):
-                            if (end - start) > 150:
-                                findings.append({"severity": "MEDIUM", "confidence": "HIGH", "type": "Code Smell", "evidence": f"Function '{node.name}' exceeds 150 lines ({end-start} lines) at line {start}."})
-                            
-                            is_endpoint = False
-                            for dec in node.decorator_list:
-                                if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute) and dec.func.attr in ('get', 'post', 'put', 'delete', 'patch'):
-                                    is_endpoint = True
-                                    break
-                            if is_endpoint:
-                                has_auth = False
-                                for arg in getattr(node.args, 'args', []) + getattr(node.args, 'kwonlyargs', []):
-                                    if arg.arg in VALID_AUTH_DEPENDENCIES: has_auth = True
-                                for d in getattr(node.args, 'defaults', []) + getattr(node.args, 'kw_defaults', []):
-                                    if d and isinstance(d, ast.Call) and isinstance(d.func, ast.Name) and d.func.id == 'Depends':
-                                        for a in d.args:
-                                            if isinstance(a, ast.Name) and a.id in VALID_AUTH_DEPENDENCIES: has_auth = True
-                                if not has_auth:
-                                    findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Architectural Violation", "evidence": f"FastAPI endpoint '{node.name}' at line {start} is missing a valid auth dependency (e.g. Depends(get_current_user))."})
-                                    
-                    # Critical: Direct SQL
-                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'execute':
-                        if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                            critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
-                            
-                    # Critical: Hardcoded Secrets & Data-Flow Secrets
-                    if isinstance(node, ast.Assign):
-                        for target in node.targets:
-                            if isinstance(target, ast.Name):
-                                name = target.id.lower()
-                                if any(x in name for x in ['secret', 'password', 'token', 'api_key']) or target.id.isupper():
-                                    # string assignment
-                                    if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                                        val = node.value.value
-                                        if len(val) > 5 and 'ENV_' not in val and not val.startswith('os.getenv'):
-                                            if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                                                critical.append(f"[{f}] Potential hardcoded secret assigned to '{target.id}' at line {node.lineno}.")
-                                    # fallback assignment: os.getenv("API_KEY", "fallback")
-                                    elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'get':
-                                        if len(node.value.args) == 2 and isinstance(node.value.args[1], ast.Constant) and isinstance(node.value.args[1].value, str):
-                                            if len(node.value.args[1].value) > 3:
-                                                if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                                                    critical.append(f"[{f}] Hardcoded fallback secret detected in os.getenv or environ.get at line {node.lineno}.")
-                                    # bool op fallback: os.getenv("API_KEY") or "fallback"
-                                    elif isinstance(node.value, ast.BoolOp) and isinstance(node.value.op, ast.Or):
-                                        for val in node.value.values:
-                                            if isinstance(val, ast.Constant) and isinstance(val.value, str) and len(val.value) > 3:
-                                                if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                                                    critical.append(f"[{f}] Hardcoded fallback secret detected in OR expression at line {node.lineno}.")
-            except Exception:
-                pass
+            c, fnd = run_static_analysis(f, lines, modified_public_apis)
+            critical.extend(c)
+            findings.extend(fnd)
 
         if critical:
             print("❌ CRITICAL AST FINDINGS DETECTED - FAILING PR IMMEDIATELY", file=sys.stderr)
@@ -268,11 +273,11 @@ def build_smart_context(repo_path: str) -> str:
                 final_context += f"- [Severity: {fnd['severity']}] [Confidence: {fnd['confidence']}] [Type: {fnd['type']}]\n  Evidence: {fnd['evidence']}\n"
             final_context += "\n"
             
-        final_context += "# 2. Blast Radius Analysis\n"
-        if not blast_radius_analysis:
+        final_context += "# 2. Downstream Impact Analysis\n"
+        if not impact_analysis:
             final_context += "No major downstream impacts detected.\n\n"
         else:
-            final_context += "\n".join(blast_radius_analysis) + "\n\n"
+            final_context += "\n".join(impact_analysis) + "\n\n"
             
         final_context += "# 3. Modified Public APIs\n"
         if not modified_public_apis:
@@ -315,7 +320,7 @@ Focus only on:
 - migration concerns
 - testing recommendations
 
-When reviewing, pay special attention to functions with HIGH Blast Radius or Modified Public APIs.
+When reviewing, pay special attention to functions with HIGH Downstream Impact or Modified Public APIs.
 
 If no bugs found, return empty bugs array."""
     
@@ -401,7 +406,7 @@ If no bugs found, return empty bugs array."""
         print(f"Gemini API Error: {str(e)}", file=sys.stderr)
         
         fallback_markdown = "## ⚠️ AI Reviewer Unavailable\n\n"
-        fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and blast radius analysis gathered by the engine:\n\n"
+        fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and downstream impact analysis gathered by the engine:\n\n"
         
         # Extract findings from the context string that was built by the AST engine
         if "## 🚨 CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
