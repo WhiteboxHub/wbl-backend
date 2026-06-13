@@ -357,7 +357,7 @@ If no bugs found, return empty bugs array."""
     start_time = time.time()
     try:
         response = client.chat.completions.create(
-            model="gemini-1.5-flash",
+            model="gemini-.5-flash",
             messages=[{"role": "user", "content": prompt}],
             response_format={
                 "type": "json_schema",
