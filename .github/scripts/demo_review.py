@@ -340,7 +340,7 @@ If no bugs found, return empty bugs array."""
                     "properties": {
                         "changed_file": {"type": "string"},
                         "changed_lines": {"type": "string"},
-                        "bug_category": {"type": "string", "enum": ["contract-mismatch", "logic-error", "concurrency", "resource-management", "error-handling", "security"]},
+                        "bug_category": {"type": "string"},
                         "summary": {"type": "string"},
                         "comment": {"type": "string"},
                         "diff_fix_suggestion": {"type": "string"}
