@@ -412,6 +412,7 @@ If no bugs found, return empty bugs array."""
         print(f"Gemini API Error: {str(e)}", file=sys.stderr)
         
         fallback_markdown = "## ⚠️ AI Reviewer Unavailable\n\n"
+        fallback_markdown += f"**Error Details:** `{str(e)}`\n\n"
         fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and downstream impact analysis gathered by the engine:\n\n"
         
         # Extract findings from the context string that was built by the AST engine
