@@ -227,3 +227,37 @@ def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db)):
         logger.error("Error updating log %s: %s", log_id, e)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+class CandidateMetricsUpdate(BaseModel):
+    sent_count: int
+
+
+@router.get("/candidates/outreach")
+def get_outreach_candidates(db: Session = Depends(get_db)):
+    """Fetch eligible primary and backup candidates for daily outreach."""
+    try:
+        return orc_utils.get_outreach_candidates(db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error fetching outreach candidates: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/candidates/{candidate_id}/metrics")
+def update_candidate_metrics(
+    candidate_id: int,
+    req: CandidateMetricsUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update candidate fcount, total outreach count, and next date."""
+    try:
+        success = orc_utils.update_candidate_metrics(db, candidate_id, req.sent_count)
+        return {"success": success}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating candidate metrics: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+

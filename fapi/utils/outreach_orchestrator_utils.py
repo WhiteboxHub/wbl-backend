@@ -621,3 +621,41 @@ def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -
     )
 
     return [{"id": r.id, "vendor_email": r.email} for r in recipients]
+
+
+def get_outreach_candidates(db: Session) -> List[Dict[str, Any]]:
+    """Fetch primary and backup candidates using existing backend logic."""
+    from fapi.utils.candidate_utils import get_candidates_for_outreach, get_backup_candidates
+    primary_candidates = get_candidates_for_outreach(db)
+    primary_ids = [c["id"] for c in primary_candidates]
+    backups = get_backup_candidates(exclude_ids=primary_ids, db=db)
+    return primary_candidates + backups
+
+
+def update_candidate_metrics(db: Session, candidate_id: int, sent_count: int) -> bool:
+    """Increment fcount, add sent_count to outreach count, and advance date to tomorrow."""
+    from datetime import date, timedelta
+    marketing = (
+        db.query(CandidateMarketingORM)
+        .filter(
+            CandidateMarketingORM.candidate_id == candidate_id,
+            CandidateMarketingORM.status == "active",
+        )
+        .first()
+    )
+    if not marketing:
+        return False
+
+    marketing.fcount += 1
+    marketing.total_outreach_count += sent_count
+    marketing.outreach_date = date.today() + timedelta(days=1)
+
+    if marketing.total_outreach_count >= marketing.max_outreach_limit:
+        marketing.run_daily_workflow = False
+        logger.info(
+            f"Candidate {candidate_id} reached max outreach limit ({marketing.max_outreach_limit}). Disabled daily program."
+        )
+
+    db.commit()
+    return True
+

@@ -22320,6 +22320,79 @@
         }
       }
     },
+    "/api/orchestrator/candidates/outreach": {
+      "get": {
+        "tags": [
+          "Outreach Orchestrator",
+          "Outreach Orchestrator"
+        ],
+        "summary": "Get Outreach Candidates",
+        "description": "Fetch eligible primary and backup candidates for daily outreach.",
+        "operationId": "get_outreach_candidates_api_orchestrator_candidates_outreach_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/candidates/{candidate_id}/metrics": {
+      "post": {
+        "tags": [
+          "Outreach Orchestrator",
+          "Outreach Orchestrator"
+        ],
+        "summary": "Update Candidate Metrics",
+        "description": "Update candidate fcount, total outreach count, and next date.",
+        "operationId": "update_candidate_metrics_api_orchestrator_candidates__candidate_id__metrics_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateMetricsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/weekly-workflow/trigger-run": {
       "get": {
         "tags": [
@@ -28243,6 +28316,18 @@
             "title": "Run Daily Workflow",
             "default": false
           },
+          "outreach_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outreach Date"
+          },
           "run_weekly_workflow": {
             "type": "boolean",
             "title": "Run Weekly Workflow",
@@ -28279,6 +28364,54 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "total_outreach_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Outreach Count",
+            "default": 0
+          },
+          "daily_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Outreach Limit",
+            "default": 250
+          },
+          "max_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Outreach Limit",
+            "default": 500
+          },
+          "fcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fcount",
+            "default": 0
           },
           "candidate": {
             "anyOf": [
@@ -28499,6 +28632,18 @@
             "title": "Run Daily Workflow",
             "default": false
           },
+          "outreach_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outreach Date"
+          },
           "run_weekly_workflow": {
             "type": "boolean",
             "title": "Run Weekly Workflow",
@@ -28535,6 +28680,54 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "total_outreach_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Outreach Count",
+            "default": 0
+          },
+          "daily_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Outreach Limit",
+            "default": 250
+          },
+          "max_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Outreach Limit",
+            "default": 500
+          },
+          "fcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fcount",
+            "default": 0
           },
           "candidate": {
             "anyOf": [
@@ -28762,6 +28955,18 @@
             ],
             "title": "Run Daily Workflow"
           },
+          "outreach_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outreach Date"
+          },
           "run_weekly_workflow": {
             "anyOf": [
               {
@@ -28828,10 +29033,67 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "total_outreach_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Outreach Count"
+          },
+          "daily_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Outreach Limit"
+          },
+          "max_outreach_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Outreach Limit"
+          },
+          "fcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fcount"
           }
         },
         "type": "object",
         "title": "CandidateMarketingUpdate"
+      },
+      "CandidateMetricsUpdate": {
+        "properties": {
+          "sent_count": {
+            "type": "integer",
+            "title": "Sent Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sent_count"
+        ],
+        "title": "CandidateMetricsUpdate"
       },
       "CandidatePlacement": {
         "properties": {
