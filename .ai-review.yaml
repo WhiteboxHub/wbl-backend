@@ -1,0 +1,11 @@
+policy:
+  exclude_patterns:
+    - "package-lock.json"
+    - "yarn.lock"
+    - "pnpm-lock.yaml"
+    - "requirements.txt"
+    - "poetry.lock"
+    - "Pipfile.lock"
+    - "dist/**/*"
+    - "build/**/*"
+    - ".next/**/*"
