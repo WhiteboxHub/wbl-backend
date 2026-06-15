@@ -3,7 +3,6 @@
 # 1. diff-only: Just the git diff (LLM likely misses bugs)
 # 2. all-code: Entire codebase (finds bugs but uses many tokens)
 # 3. smart: Impact slicing (finds bugs with minimal tokens)
-
 import os
 import sys
 import json
