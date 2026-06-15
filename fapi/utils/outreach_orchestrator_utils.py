@@ -505,6 +505,13 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
 
     db.commit()
     db.refresh(new_log)
+    
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("automation_workflow_logs")
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {e}")
+        
     return new_log
 
 
@@ -566,7 +573,7 @@ def update_log(
                         "update_log: marketing report schedule %s rescheduled to %s",
                         schedule_id,
                         schedule.next_run_at,
-                    )
+                     )
                 else:
                     next_run = _calculate_next_run(schedule)
                     schedule.next_run_at = next_run
@@ -583,6 +590,13 @@ def update_log(
 
     db.commit()
     db.refresh(db_log)
+    
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("automation_workflow_logs")
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {e}")
+        
     return db_log
 
 
