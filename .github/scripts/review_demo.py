@@ -379,15 +379,12 @@ def run_llm(review_context: str):
     }
 
     start_time = time.time()
-    response = client.responses.create(
+    response = client.chat.completions.create(
         model="gpt-4o-mini-2024-07-18",
-        #model="gpt-5-mini",
-        input=prompt,
-        #reasoning={"effort": "low"},
-        text={
-             #"verbosity": "low",
-            "format": {
-                "type": "json_schema",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
                 "name": "bug_report",
                 "schema": json_schema,
                 "strict": True
@@ -399,14 +396,7 @@ def run_llm(review_context: str):
     elapsed_time = end_time - start_time
 
     # Extract the JSON output from the response
-    output_text = ""
-    for item in response.output:
-        # Only process ResponseOutputMessage items (these contain the actual output)
-        if isinstance(item, ResponseOutputMessage):
-            if item.content is not None:
-                for content in item.content:
-                    if isinstance(content, ResponseOutputText):
-                        output_text += content.text
+    output_text = response.choices[0].message.content
 
     data = json.loads(output_text)
     print(json.dumps(data, indent=2))
