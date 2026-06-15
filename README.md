@@ -258,3 +258,119 @@ See `.env.example` for a safe template.
 - Verify that your MySQL database is running and accessible with the provided credentials.
 - Check the FastAPI logs for any errors or warnings during requests.
 - Make sure the token has not expired and is correctly formatted in the Authorization header.
+
+## Testing Suite & Git Commits
+
+This project uses `pytest` for functional testing, structured into unit, integration, contract, and smoke tests.
+
+### Running Tests Locally
+
+Always run tests from the root of the project. If you are using a virtual environment named `myenv`, use the following commands:
+
+
+#### On macOS / Linux (Zsh/Bash)
+
+##### 1. Virtual Environment Setup & Installation
+```bash
+# Create virtual environment
+python3 -m venv myenv
+
+# Activate virtual environment
+source myenv/bin/activate
+
+# Upgrade pip and install dependencies
+python3 -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install pytest pytest-mock pre-commit
+
+# Register git hooks (only once)
+pre-commit install
+```
+
+##### 2. Running Tests
+*Note: Make sure your virtual environment is active before running tests.*
+* **Run all tests**:
+  ```bash
+  PYTHONPATH=. myenv/bin/pytest tests/
+  ```
+* **Run tests ignoring smoke tests (Standard Development Run)**:
+  ```bash
+  PYTHONPATH=. myenv/bin/pytest --ignore=tests/smoke tests/
+  ```
+* **Run a specific test category (e.g., Integration tests)**:
+  ```bash
+  PYTHONPATH=. myenv/bin/pytest tests/integration/
+  ```
+* **Update the OpenAPI Contract Snapshot**:
+  ```bash
+  UPDATE_SNAPSHOT=1 PYTHONPATH=. myenv/bin/pytest tests/contract/test_openapi_snapshot.py
+  ```
+
+---
+
+#### On Windows (PowerShell)
+
+##### 1. Virtual Environment Setup & Installation
+```powershell
+# Create virtual environment
+python -m venv myenv
+
+# Activate virtual environment
+# Note: If you get a script execution policy error, run PowerShell as Admin and execute:
+# Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\myenv\Scripts\Activate.ps1
+
+# Upgrade pip and install dependencies
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install pytest pytest-mock pre-commit
+
+# Register git hooks (only once)
+pre-commit install
+```
+
+##### 2. Running Tests
+*Note: Make sure your virtual environment is active before running tests.*
+* **Run all tests**:
+  ```powershell
+  $env:PYTHONPATH="."
+  myenv\Scripts\pytest tests/
+  ```
+* **Run tests ignoring smoke tests (Standard Development Run)**:
+  ```powershell
+  $env:PYTHONPATH="."
+  myenv\Scripts\pytest --ignore=tests/smoke tests/
+  ```
+* **Run a specific test category (e.g., Integration tests)**:
+  ```powershell
+  $env:PYTHONPATH="."
+  myenv\Scripts\pytest tests/integration/
+  ```
+* **Update the OpenAPI Contract Snapshot**:
+  ```powershell
+  $env:UPDATE_SNAPSHOT="1"
+  $env:PYTHONPATH="."
+  myenv\Scripts\pytest tests/contract/test_openapi_snapshot.py
+
+  # Reset snapshot flag after run
+  $env:UPDATE_SNAPSHOT=""
+  ```
+
+---
+
+### Git Commit & Push Workflow
+
+The repository uses `pre-commit` hooks to check configuration sanity and run tests before allowing commits.
+
+* **Standard Commit (Runs local tests and checks)**:
+  ```bash
+  git commit -m "your commit message"
+  ```
+* **Bypass / Skip tests in urgent situations**:
+  ```bash
+  git commit --no-verify -m "your commit message"
+  ```
+* **Handling Test File Renames/Deletions**:
+  ```bash
+  git add -u tests/
+  ```

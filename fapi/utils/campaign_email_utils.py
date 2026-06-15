@@ -187,16 +187,14 @@ def generate_snapshot(db: Session, candidate_id: int, workflow_id: int, schedule
             0,
             NOW(),
             NOW()
-        FROM outreach_email_recipients oe
+        FROM outreach_emails oe
         LEFT JOIN campaign_emails ce
             ON ce.candidate_id = :candidate_id
             AND ce.vendor_email = oe.email
             AND (ce.scheduler_id = :scheduler_id OR (ce.scheduler_id IS NULL AND :scheduler_id IS NULL))
         WHERE oe.email IS NOT NULL
-          AND oe.status           = 'ACTIVE'
-          AND oe.email_invalid    = 0
-          AND oe.domain_invalid   = 0
-          AND (oe.mailbox_invalid IS NULL OR oe.mailbox_invalid = 0)
+          AND oe.status = 'ACTIVE'
+          AND oe.validation_status = 'VALID'
           AND ce.id IS NULL
     """)
     db.execute(sql, {

@@ -901,12 +901,17 @@ class CandidateMarketingBase(BaseModel):
     move_to_placement: Optional[bool] = False
     candidate_intro: Optional[str] = None
     run_daily_workflow: bool = False
+    outreach_date: Optional[date] = None
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
     run_raw_positions_workflow: bool = False
     run_outreach_emails: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
+    total_outreach_count: Optional[int] = 0
+    daily_outreach_limit: Optional[int] = 250
+    max_outreach_limit: Optional[int] = 500
+    fcount: Optional[int] = 0
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -962,12 +967,17 @@ class CandidateMarketingUpdate(BaseModel):
     move_to_placement: Optional[bool] = None
     candidate_intro: Optional[str] = None
     run_daily_workflow: Optional[bool] = None
+    outreach_date: Optional[date] = None
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
     run_raw_positions_workflow: Optional[bool] = None
     run_outreach_emails: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
+    total_outreach_count: Optional[int] = None
+    daily_outreach_limit: Optional[int] = None
+    max_outreach_limit: Optional[int] = None
+    fcount: Optional[int] = None
 
     @field_validator("candidate_json", mode="before")
     @classmethod
@@ -1244,6 +1254,7 @@ class CandidateInterviewBase(BaseModel):
     job_description: Optional[str] = None
     position_title: Optional[str] = None
     gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 
 # --- Create Schema ---
@@ -1271,6 +1282,7 @@ class CandidateInterviewCreate(BaseModel):
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
     gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 
 
@@ -1307,6 +1319,7 @@ class CandidateInterviewUpdate(BaseModel):
     feedback_text: Optional[str] = None
     job_description: Optional[str] = None
     gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = None
 
 
 
@@ -1320,6 +1333,7 @@ class CandidateInterviewOut(CandidateInterviewBase):
     position_title: Optional[str] = None
     position_company: Optional[str] = None
     gcal_event_id: Optional[str] = None  # Google Calendar event ID
+    duration_minutes: Optional[int] = 60
     last_mod_datetime: Optional[datetime] = None
 
     class Config:
@@ -4025,6 +4039,26 @@ class EmailSMTPCredentialsBase(BaseModel):
             return processed
         return data
 
+    @field_validator('is_healthy', 'is_active', mode='before')
+    @classmethod
+    def default_true(cls, v):
+        return True if v is None else v
+
+    @field_validator('is_warming_up', mode='before')
+    @classmethod
+    def default_false(cls, v):
+        return False if v is None else v
+
+    @field_validator('current_day_sent', mode='before')
+    @classmethod
+    def default_zero(cls, v):
+        return 0 if v is None else v
+
+    @field_validator('warmup_daily_limit', mode='before')
+    @classmethod
+    def default_five(cls, v):
+        return 5 if v is None else v
+
     @field_validator('daily_limit')
     @classmethod
     def validate_daily_limit(cls, v: int) -> int:
@@ -4550,6 +4584,9 @@ class CliUsageUserRow(BaseModel):
     jobs_submitted: int
     jobs_failed: int = 0
     last_event_at: Optional[datetime] = None
+    result: Optional[str] = None
+    apply_run_log: Optional[dict] = None
+    apply_run_log_preview: Optional[str] = None
     apply_log_history: List[dict] = []
 
 
@@ -4597,6 +4634,35 @@ class PaginatedCliUsageEvents(BaseModel):
     page: int
     page_size: int
     events: List[CliUsageEventOut]
+
+
+class CliApplyRunBackfillResponse(BaseModel):
+    updated: int
+    scanned: int
+
+
+class CliApplyRunJobOut(BaseModel):
+    """One job from the latest apply_run_log (matches CLI apply table)."""
+
+    job_id: Optional[int] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    url: Optional[str] = None
+    status: Optional[str] = None
+    applied_at: Optional[str] = None
+    application_log_line_count: int = 0
+
+
+class CliApplyRunLatestOut(BaseModel):
+    """Latest apply run for a user (from cli_usage_events event_metadata)."""
+
+    user_id: str
+    run_started_at: Optional[str] = None
+    run_ended_at: Optional[str] = None
+    result: Optional[str] = None
+    summary: dict = {}
+    jobs: List[CliApplyRunJobOut] = []
+    apply_run_log: Optional[dict] = None
 
 
 class CoderpadSecurityEventCreate(BaseModel):

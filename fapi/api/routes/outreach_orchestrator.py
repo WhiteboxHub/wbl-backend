@@ -159,29 +159,24 @@ def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
 @router.get("/candidates/{candidate_id}/outreach-emails")
 def get_candidate_outreach_emails(
     candidate_id: int,
+    skip: int = 0,
     limit: int = 1000,
     db: Session = Depends(get_db),
 ):
     """
-    Fetch all active, valid outreach email recipients that this candidate has not yet sent to.
+    Fetch all active, valid outreach email recipients.
+    Deduplication and queue tracking are handled locally by the DuckDB engine.
     """
     from sqlalchemy import text
     try:
         sql = text("""
             SELECT id, email AS vendor_email
-            FROM outreach_email_recipients
+            FROM outreach_emails
             WHERE status = 'ACTIVE'
-              AND email_invalid = 0
-              AND domain_invalid = 0
-              AND (mailbox_invalid IS NULL OR mailbox_invalid = 0)
-              AND email NOT IN (
-                  SELECT vendor_email
-                  FROM campaign_emails
-                  WHERE candidate_id = :candidate_id
-              )
-            LIMIT :limit
+              AND validation_status = 'VALID'
+            LIMIT :limit OFFSET :skip
         """)
-        result = db.execute(sql, {"candidate_id": candidate_id, "limit": limit}).mappings().all()
+        result = db.execute(sql, {"limit": limit, "skip": skip}).mappings().all()
         return [dict(r) for r in result]
     except Exception as e:
         logger.error("Error fetching outreach emails for candidate %s: %s", candidate_id, e)

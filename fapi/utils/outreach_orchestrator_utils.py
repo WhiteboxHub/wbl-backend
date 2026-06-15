@@ -333,13 +333,21 @@ def get_candidate_credentials(db: Session, candidate_id: int) -> Dict[str, Any]:
             status_code=404, detail="Active marketing record not found"
         )
 
+    # Normalize linkedin_url — prepend https:// when the slug
+    # starts with www. or is already a partial URL without a scheme.
+    raw_linkedin = res.linkedin_id or ""
+    if raw_linkedin and not raw_linkedin.startswith(("http://", "https://")):
+        linkedin_url = "https://" + raw_linkedin
+    else:
+        linkedin_url = raw_linkedin or None
+
     return {
         "email": res.email,
         "password": res.password,
         "imap_password": res.imap_password,
         "start_date": str(res.start_date) if res.start_date else None,
         "candidate_name": res.full_name,
-        "linkedin_url": res.linkedin_id,
+        "linkedin_url": linkedin_url,
     }
 
 
@@ -486,9 +494,6 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
                         schedule.next_run_at = existing + timedelta(days=1)
                     logger.info(f"Marketing report {schedule_id} successfully finished. Rescheduled to {schedule.next_run_at}")
                 else:
-                    # Update state for all other workflows as normal
-                    schedule.state = status
-
                     # Reschedule (on both success and failure to prevent stuck schedules)
                     next_run = _calculate_next_run(schedule)
                     schedule.next_run_at = next_run
@@ -506,6 +511,18 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
 def update_log(
     db: Session, log_id: int, updates: Dict[str, Any]
 ) -> AutomationWorkflowLogORM:
+    """
+    Update a workflow log entry.
+
+    When the status transitions to a terminal state
+    (success / failed / completed), this also:
+      - unlocks the associated schedule (is_running = False)
+      - advances next_run_at via _calculate_next_run()
+      - records last_run_at
+
+    Without this, the schedule would stay locked (is_running=1) forever, so
+    /schedules/due would never return it again and outreach would stop permanently.
+    """
     db_log = (
         db.query(AutomationWorkflowLogORM)
         .filter(AutomationWorkflowLogORM.id == log_id)
@@ -518,7 +535,54 @@ def update_log(
         if hasattr(db_log, k):
             setattr(db_log, k, v)
 
+    # --- Unlock + reschedule when status becomes terminal ---
+    new_status = updates.get("status")
+    if new_status in ("success", "failed", "completed"):
+        schedule_id = db_log.schedule_id
+        if schedule_id:
+            schedule = (
+                db.query(AutomationWorkflowScheduleORM)
+                .filter(AutomationWorkflowScheduleORM.id == schedule_id)
+                .first()
+            )
+            if schedule:
+                now = datetime.now(timezone.utc)
+                schedule.is_running = False
+                schedule.last_run_at = now
+
+                if (
+                    schedule.workflow
+                    and schedule.workflow.workflow_key
+                    in ("daily_marketing_report", "weekly_marketing_report")
+                    and new_status == "success"
+                ):
+                    # Marketing report: advance by 1 day
+                    existing = schedule.next_run_at
+                    if existing:
+                        if existing.tzinfo is None:
+                            existing = existing.replace(tzinfo=timezone.utc)
+                        schedule.next_run_at = existing + timedelta(days=1)
+                    logger.info(
+                        "update_log: marketing report schedule %s rescheduled to %s",
+                        schedule_id,
+                        schedule.next_run_at,
+                    )
+                else:
+                    next_run = _calculate_next_run(schedule)
+                    schedule.next_run_at = next_run
+
+                    if schedule.frequency == "once":
+                        schedule.enabled = False
+
+                    logger.info(
+                        "update_log: schedule %s unlocked after %s. Next run: %s",
+                        schedule_id,
+                        new_status,
+                        next_run,
+                    )
+
     db.commit()
+    db.refresh(db_log)
     return db_log
 
 
@@ -528,26 +592,32 @@ def update_log(
 
 def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -> List[Dict[str, Any]]:
     """
-    Return list of eligible outreach emails for a candidate.
-    Emails must be ACTIVE and VALID in outreach_emails, and NOT already present
-    in campaign_emails for this candidate.
+    Return eligible outreach email recipients for a specific candidate.
+
+    Uses the outreach_emails table (the live table, same as the
+    GET /orchestrator/candidates/{id}/outreach-emails route). 
+    Filters out:
+      - rows the candidate has already been sent to (via campaign_emails)
+      - recipients whose validation_status is not 'VALID'
+      - recipients whose status is not 'ACTIVE'
     """
-    # Subquery to find email addresses already present in campaign_emails for this candidate
+    from fapi.db.models import OutreachEmailORM
+
+    # Subquery: emails already sent to this candidate
     sent_emails = (
         db.query(CampaignEmailORM.vendor_email)
         .filter(CampaignEmailORM.candidate_id == candidate_id)
         .subquery()
     )
 
-    # Query outreach_emails that are ACTIVE, VALID, and not in the sent subquery
-    emails = (
+    recipients = (
         db.query(OutreachEmailORM)
         .filter(
-            OutreachEmailORM.status == 'ACTIVE',
-            OutreachEmailORM.validation_status == 'VALID',
-            ~OutreachEmailORM.email.in_(sent_emails)
+            OutreachEmailORM.status == "ACTIVE",
+            OutreachEmailORM.validation_status == "VALID",
+            ~OutreachEmailORM.email.in_(sent_emails),
         )
         .all()
     )
 
-    return [{"id": e.id, "vendor_email": e.email} for e in emails]
+    return [{"id": r.id, "vendor_email": r.email} for r in recipients]

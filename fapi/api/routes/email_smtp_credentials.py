@@ -59,6 +59,19 @@ def update_existing_email_smtp_credential(
         raise HTTPException(status_code=404, detail="Email SMTP Credential not found")
     return db_credential
 
+
+@router.post("/email-smtp-credentials/{credential_id}/increment-sent")
+def increment_credential_sent(
+    credential_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    B4: Atomically increment current_day_sent for an SMTP credential.
+    Resets the counter to 1 if last_reset_date < today.
+    Returns updated counters so callers don't need a follow-up GET.
+    """
+    return email_smtp_credentials_utils.increment_credential_sent(db, credential_id)
+
 @router.delete("/email-smtp-credentials/{credential_id}", response_model=EmailSMTPCredentialsOut)
 def delete_existing_email_smtp_credential(credential_id: int, db: Session = Depends(get_db)):
     db_credential = email_smtp_credentials_utils.delete_email_smtp_credential(db, credential_id)
