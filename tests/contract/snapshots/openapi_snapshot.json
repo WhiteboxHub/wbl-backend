@@ -12454,7 +12454,7 @@
           "ATS Reporting"
         ],
         "summary": "Get Application Reports Today",
-        "description": "Return all ATS application reports submitted today (UTC date).",
+        "description": "Return all ATS application reports submitted today (UTC date).\n\nUses a UTC-aware window (midnight UTC \u2192 next midnight UTC) so records\nstored by MySQL's NOW() (UTC) are never missed due to timezone skew.",
         "operationId": "get_application_reports_today_api_reports_applications_today_get",
         "responses": {
           "200": {
@@ -22172,6 +22172,16 @@
             }
           },
           {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -22413,6 +22423,79 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LogUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/candidates/outreach": {
+      "get": {
+        "tags": [
+          "Outreach Orchestrator",
+          "Outreach Orchestrator"
+        ],
+        "summary": "Get Outreach Candidates",
+        "description": "Fetch eligible primary and backup candidates for daily outreach.",
+        "operationId": "get_outreach_candidates_api_orchestrator_candidates_outreach_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/candidates/{candidate_id}/metrics": {
+      "post": {
+        "tags": [
+          "Outreach Orchestrator",
+          "Outreach Orchestrator"
+        ],
+        "summary": "Update Candidate Metrics",
+        "description": "Update candidate fcount, total outreach count, and next date.",
+        "operationId": "update_candidate_metrics_api_orchestrator_candidates__candidate_id__metrics_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateMetricsUpdate"
               }
             }
           }
@@ -29242,6 +29325,19 @@
         },
         "type": "object",
         "title": "CandidateMarketingUpdate"
+      },
+      "CandidateMetricsUpdate": {
+        "properties": {
+          "sent_count": {
+            "type": "integer",
+            "title": "Sent Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sent_count"
+        ],
+        "title": "CandidateMetricsUpdate"
       },
       "CandidatePlacement": {
         "properties": {
