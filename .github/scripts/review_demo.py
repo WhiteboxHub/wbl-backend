@@ -46,7 +46,7 @@ def symbols_with_signature_changes(path: str, lines: Set[int]) -> Set[str]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             # Check if the definition line itself was changed
             sig_start = node.lineno
-            sig_end = node.body[0].lineno - 1 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.body else node.lineno
+            sig_end = max(node.lineno, node.body[0].lineno - 1) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.body else node.lineno
             if any(sig_start <= ln <= sig_end for ln in lines):
                 changed_signatures.add(node.name)
             # For classes, also check if __init__ signature changed
@@ -54,7 +54,7 @@ def symbols_with_signature_changes(path: str, lines: Set[int]) -> Set[str]:
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == "__init__":
                         init_start = item.lineno
-                        init_end = item.body[0].lineno - 1 if item.body else item.lineno
+                        init_end = max(item.lineno, item.body[0].lineno - 1) if item.body else item.lineno
                         if any(init_start <= ln <= init_end for ln in lines):
                             changed_signatures.add(node.name)
     return changed_signatures
