@@ -40,13 +40,16 @@ def test_enforce_permission_gates_across_all_routes(client):
         "/api/user-role",
         "/api/password",
         "/api/employee-tasks",
+        "/api/reports",
     ]
     
     checked_routes = 0
+    print("DEBUG: app.routes length =", len(app.routes))
     
     for route in app.routes:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", [])
+        print(f"DEBUG: route type={type(route)}, repr={repr(route)}, path={path}, methods={list(methods) if methods else None}")
         
         if not path or not methods:
             continue

@@ -1527,3 +1527,99 @@ def get_preparations_version(db: Session) -> Response:
     response.headers["X-Total-Count"] = cnt
     return response
 
+def get_candidates_for_outreach(db: Session = None) -> List[Dict[str, Any]]:
+    """Return primary candidates where `run_daily_workflow` is true and `outreach_date` is today or earlier.
+    If `db` is not provided, a new session is created and closed automatically.
+    """
+    close_session = False
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+    try:
+        today = date.today()
+        results = (
+            db.query(CandidateMarketingORM, CandidateORM)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .filter(
+                CandidateMarketingORM.run_daily_workflow == True,
+                CandidateMarketingORM.outreach_date != None,
+                CandidateMarketingORM.outreach_date <= today,
+                CandidateMarketingORM.status == "active",
+                CandidateMarketingORM.email != None,
+                CandidateMarketingORM.email != "",
+                or_(
+                    CandidateMarketingORM.password != None,
+                    CandidateMarketingORM.imap_password != None
+                )
+            )
+            .all()
+        )
+        candidates = []
+        for marketing, candidate in results:
+            candidates.append({
+                "id": candidate.id,
+                "full_name": candidate.full_name,
+                "email": candidate.email,
+                "run_daily_workflow": marketing.run_daily_workflow,
+                "outreach_date": marketing.outreach_date,
+                "daily_outreach_limit": marketing.daily_outreach_limit,
+                "max_outreach_limit": marketing.max_outreach_limit,
+                "total_outreach_count": marketing.total_outreach_count,
+                "fcount": marketing.fcount,
+            })
+        return candidates
+    finally:
+        if close_session:
+            db.close()
+
+def get_backup_candidates(exclude_ids: List[int] = None, db: Session = None) -> List[Dict[str, Any]]:
+    """Return up to 5 backup candidates for daily outreach.
+
+    Excludes any IDs in ``exclude_ids``. Candidates must have valid SMTP credentials.
+    Ordered by earlier start_date, then fcount, then total_outreach_count.
+    """
+    exclude_ids = exclude_ids or []
+    close_session = False
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+    try:
+        query = (
+            db.query(CandidateMarketingORM, CandidateORM)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .filter(
+                CandidateMarketingORM.status == "active",
+                CandidateMarketingORM.email != None,
+                CandidateMarketingORM.email != "",
+                or_(
+                    CandidateMarketingORM.password != None,
+                    CandidateMarketingORM.imap_password != None
+                )
+            )
+        )
+        if exclude_ids:
+            query = query.filter(~CandidateMarketingORM.candidate_id.in_(exclude_ids))
+        # Prioritize older candidates based on start_date, fcount, and total_outreach_count
+        query = query.order_by(
+            CandidateMarketingORM.start_date.asc(),
+            CandidateMarketingORM.fcount.asc(),
+            CandidateMarketingORM.total_outreach_count.asc()
+        )
+        results = query.limit(5).all()
+        backups = []
+        for marketing, candidate in results:
+            backups.append({
+                "id": candidate.id,
+                "full_name": candidate.full_name,
+                "email": candidate.email,
+                "run_daily_workflow": marketing.run_daily_workflow,
+                "outreach_date": marketing.outreach_date,
+                "daily_outreach_limit": marketing.daily_outreach_limit,
+                "max_outreach_limit": marketing.max_outreach_limit,
+                "total_outreach_count": marketing.total_outreach_count,
+                "fcount": marketing.fcount,
+            })
+        return backups
+    finally:
+        if close_session:
+            db.close()
