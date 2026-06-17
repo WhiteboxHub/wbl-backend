@@ -8,7 +8,13 @@ def get_all_routes_recursively(app_or_router, current_prefix=""):
     supporting both older flattened routes and newer lazy _IncludedRouter/Mount wrappers.
     """
     flat_routes = []
-    for route in getattr(app_or_router, "routes", []):
+    # If the object is an _IncludedRouter, its routes list is inside original_router
+    if type(app_or_router).__name__ == "_IncludedRouter" and hasattr(app_or_router, "original_router"):
+        routes_to_check = getattr(app_or_router.original_router, "routes", [])
+    else:
+        routes_to_check = getattr(app_or_router, "routes", [])
+
+    for route in routes_to_check:
         # 1. Handle FastAPI's lazy _IncludedRouter wrapper (FastAPI >= 0.111.0)
         if type(route).__name__ == "_IncludedRouter":
             prefix = ""
