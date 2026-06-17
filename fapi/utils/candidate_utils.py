@@ -4,6 +4,7 @@ from sqlalchemy import or_, func, distinct
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
 from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event
+import random
 
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM, CandidateMarketingORM, CandidateInterview, CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM, CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
 from fapi.utils.encryption_utils import decrypt_api_key
@@ -1605,9 +1606,10 @@ def get_backup_candidates(exclude_ids: List[int] = None, db: Session = None) -> 
             CandidateMarketingORM.fcount.asc(),
             CandidateMarketingORM.total_outreach_count.asc()
         )
-        results = query.limit(5).all()
+        candidates_pool = query.all()
+        sampled = random.sample(candidates_pool, k=min(5, len(candidates_pool)))
         backups = []
-        for marketing, candidate in results:
+        for marketing, candidate in sampled:
             backups.append({
                 "id": candidate.id,
                 "full_name": candidate.full_name,
