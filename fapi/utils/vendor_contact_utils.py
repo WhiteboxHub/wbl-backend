@@ -167,13 +167,20 @@ async def delete_vendor_contact(contact_id: int, db: Session) -> dict:
 async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate], db: Session) -> dict:
     invalidate_cache("vendor_contacts")
     invalidate_cache("metrics")
-    """Bulk insert vendor contacts with duplicate handling"""
+    """Bulk insert vendor contacts with duplicate handling.
+
+    Layer 4 dedup fix: when a duplicate email is detected via IntegrityError,
+    instead of silently discarding the contact we UPDATE its last_modified_datetime
+    and extraction_date to today so the email-sending workflow picks it up again
+    for any candidate whose outreach day falls on the extraction date.
+    """
     inserted = 0
     failed = 0
     duplicates = 0
+    touched = 0
     failed_contacts = []
     duplicate_contacts = []
-    
+
     try:
         for contact in contacts:
             try:
@@ -184,17 +191,44 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
                     db_contact.moved_to_vendor = False
                     db.add(db_contact)
                     db.flush()
-                
+
                 inserted += 1
-                
+
             except IntegrityError:
-                # Savepoint is automatically rolled back on IntegrityError
+                # Savepoint is automatically rolled back on IntegrityError.
+                # Layer 4 fix: bump last_modified_datetime + extraction_date on the
+                # existing row so the outreach workflow treats it as "seen today".
                 duplicates += 1
                 duplicate_contacts.append({
                     "full_name": contact.full_name,
                     "email": contact.email,
                     "reason": "Duplicate entry (Database constraint violated)"
                 })
+
+                if contact.email:
+                    try:
+                        email_lc = contact.email.strip().lower()
+                        existing = (
+                            db.query(VendorContactExtractsORM)
+                            .filter(VendorContactExtractsORM.email == email_lc)
+                            .first()
+                        )
+                        if existing:
+                            existing.last_modified_datetime = datetime.utcnow()
+                            existing.extraction_date = datetime.utcnow().date()
+                            db.flush()
+                            touched += 1
+                            logger.debug(
+                                "Touched last_modified_datetime for duplicate vendor email: %s",
+                                email_lc,
+                            )
+                    except Exception as touch_err:
+                        logger.warning(
+                            "Could not touch timestamp for duplicate %s: %s",
+                            contact.email,
+                            touch_err,
+                        )
+
             except Exception as e:
                 failed += 1
                 failed_contacts.append({
@@ -203,19 +237,20 @@ async def insert_vendor_contacts_bulk(contacts: List[VendorContactExtractCreate]
                     "reason": str(e)
                 })
                 logger.error(f"Failed to insert contact {contact.full_name}: {str(e)}")
-        
-        # Commit all successful inserts
+
+        # Commit all successful inserts + timestamp touches
         db.commit()
-        
+
         return {
             "inserted": inserted,
             "failed": failed,
             "duplicates": duplicates,
+            "touched": touched,
             "total": len(contacts),
             "failed_contacts": failed_contacts,
             "duplicate_contacts": duplicate_contacts
         }
-        
+
     except SQLAlchemyError as e:
         db.rollback()
         logger.error(f"Bulk insert error: {str(e)}")
@@ -372,3 +407,50 @@ async def move_contacts_to_vendor(contact_ids: List[int], db: Session) -> Dict:
 def get_vendor_contacts_version(db: Session) -> Response:
     return generate_version_for_model(db, VendorContactExtractsORM)
 
+
+async def touch_vendor_contact_timestamps(emails: List[str], db: Session) -> int:
+    """
+    Bulk-update last_modified_datetime and extraction_date to NOW/TODAY for every
+    vendor_contact_extracts row whose email matches one of the provided addresses.
+
+    Called by the extractor's Layer 2 dedup fix: when an email is detected as a
+    global duplicate (already in automation_contact_extracts) we still want the
+    vendor_contact_extracts record to show today as its latest seen date so that
+    the email-sending workflow will include it in today's outreach batch.
+
+    Returns the number of rows that were actually updated.
+    """
+    invalidate_cache("vendor_contacts")
+    if not emails:
+        return 0
+
+    try:
+        normalized = [e.strip().lower() for e in emails if e]
+        if not normalized:
+            return 0
+
+        now = datetime.utcnow()
+        today = now.date()
+
+        updated_count = (
+            db.query(VendorContactExtractsORM)
+            .filter(VendorContactExtractsORM.email.in_(normalized))
+            .update(
+                {
+                    VendorContactExtractsORM.last_modified_datetime: now,
+                    VendorContactExtractsORM.extraction_date: today,
+                },
+                synchronize_session=False,
+            )
+        )
+        db.commit()
+        logger.info(
+            "touch_vendor_contact_timestamps: updated %d rows for %d emails",
+            updated_count,
+            len(normalized),
+        )
+        return updated_count
+    except SQLAlchemyError as e:
+        db.rollback()
+        logger.error("touch_vendor_contact_timestamps failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Timestamp touch error: {str(e)}")

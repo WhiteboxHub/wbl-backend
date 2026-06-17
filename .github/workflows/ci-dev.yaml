@@ -28,7 +28,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest || echo "No tests yet"
+        PYTHONPATH=. pytest --ignore=tests/smoke tests/
 
     # Optional: Docker build check (no push)
     - name: Docker build check

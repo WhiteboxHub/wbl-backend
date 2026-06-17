@@ -1665,6 +1665,16 @@ class MoveToVendorRequest(BaseModel):
     contact_ids: List[int] = Field(..., description="List of contact IDs to move to vendor")
 
 
+class TouchTimestampsRequest(BaseModel):
+    """Request body for bumping last_modified_datetime on duplicate vendor contacts."""
+    emails: List[str] = Field(..., description="List of vendor emails whose timestamps should be refreshed to now")
+
+
+class TouchTimestampsResponse(BaseModel):
+    """Response from the touch-timestamps endpoint."""
+    touched: int = Field(..., description="Number of vendor_contact_extracts rows whose last_modified_datetime was updated")
+
+
 # -------------------- Vendor Schemas --------------------
 class VendorBase(BaseModel):
     full_name: Optional[str] = None
