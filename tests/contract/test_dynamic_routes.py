@@ -2,6 +2,29 @@
 import pytest
 from fapi.main import app
 import inspect
+def get_all_routes_recursively(app_or_router, current_prefix=""):
+    """
+    Recursively extracts all route objects and their compiled prefixes,
+    supporting both older flattened routes and newer lazy _IncludedRouter/Mount wrappers.
+    """
+    flat_routes = []
+    for route in getattr(app_or_router, "routes", []):
+        # 1. Handle FastAPI's lazy _IncludedRouter wrapper (FastAPI >= 0.111.0)
+        if type(route).__name__ == "_IncludedRouter":
+            prefix = ""
+            if hasattr(route, "include_context") and route.include_context:
+                prefix = getattr(route.include_context, "prefix", "") or ""
+            flat_routes.extend(get_all_routes_recursively(route, current_prefix + prefix))
+            
+        # 2. Handle Starlette Mount or other nested routers
+        elif hasattr(route, "routes") and hasattr(route, "path"):
+            flat_routes.extend(get_all_routes_recursively(route, current_prefix + route.path))
+            
+        # 3. Handle standard leaf APIRoute / Route objects
+        else:
+            flat_routes.append((route, current_prefix))
+            
+    return flat_routes
 
 def test_enforce_permission_gates_across_all_routes(client):
     """
@@ -44,20 +67,22 @@ def test_enforce_permission_gates_across_all_routes(client):
     ]
     
     checked_routes = 0
-    print("DEBUG: app.routes length =", len(app.routes))
+    all_routes = get_all_routes_recursively(app)
     
-    for route in app.routes:
+    for route, prefix in all_routes:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", [])
-        print(f"DEBUG: route type={type(route)}, repr={repr(route)}, path={path}, methods={list(methods) if methods else None}")
         
         if not path or not methods:
             continue
             
+        # Combine prefix and path, then normalize double slashes
+        full_path = f"{prefix}{path}".replace("//", "/")
+            
         # Skip endpoints we know are public
         is_public = False
         for public_path in public_endpoints:
-            if path == public_path or path.startswith(public_path + "/"):
+            if full_path == public_path or full_path.startswith(public_path + "/"):
                 is_public = True
                 break
                 
@@ -81,19 +106,13 @@ def test_enforce_permission_gates_across_all_routes(client):
             continue
             
         # Ensure we don't accidentally pass a required path parameter by using a dummy value
-        test_path = path.replace("{", "").replace("}", "")
+        test_path = full_path.replace("{", "").replace("}", "")
         
         # We purposely do NOT send an Authorization header
         response = client.request(test_method, test_path)
         
         # We verify the endpoint doesn't return 200 OK / 201 Created when unauthenticated.
-        # Expected responses:
-        #   401/403 — auth dependency blocked the request (enforce_access fired)
-        #   400     — public route requiring specific query params (e.g. /api/outreach-feedback)
-        #   404     — path param resolution failed (dummy value used)
-        #   405     — method not allowed on this path
-        #   422     — public route with required body fields; schema validation ran (NOT a bypass)
-        assert response.status_code in [400, 401, 403, 404, 405, 422], f"Security Bypass! {test_method} {path} returned {response.status_code}"
+        assert response.status_code in [400, 401, 403, 404, 405, 422], f"Security Bypass! {test_method} {full_path} returned {response.status_code}"
         checked_routes += 1
         
     assert checked_routes > 0, "No secure routes were checked. Something is wrong with dynamic route discovery."
@@ -112,7 +131,9 @@ def test_all_search_and_sort_endpoints_dynamically(client, admin_headers, db_ses
     db_session.commit()
 
     checked = 0
-    for route in app.routes:
+    all_routes = get_all_routes_recursively(app)
+    
+    for route, prefix in all_routes:
         if not hasattr(route, "endpoint"):
             continue
             
@@ -124,10 +145,12 @@ def test_all_search_and_sort_endpoints_dynamically(client, admin_headers, db_ses
         is_sort_route = "sort" in params
         
         if is_search_route or is_sort_route:
-            path = route.path
+            # Combine prefix and path, then normalize double slashes
+            path = getattr(route, "path", "")
+            full_path = f"{prefix}{path}".replace("//", "/")
             
             # Skip paths with path parameters (e.g., /{id}) or known broken route dependencies to avoid failures
-            if "{" in path or path == "/api/candidates/credentials":
+            if "{" in full_path or full_path == "/api/candidates/credentials":
                 continue
                 
             query_params = {}
@@ -137,11 +160,11 @@ def test_all_search_and_sort_endpoints_dynamically(client, admin_headers, db_ses
             if is_sort_route:
                 query_params["sort"] = "id:desc"
                 
-            response = client.get(path, params=query_params, headers=admin_headers)
+            response = client.get(full_path, params=query_params, headers=admin_headers)
             
             # Assert that the route successfully handles parameters without throwing a 500 error
             assert response.status_code in [200, 404, 422], (
-                f"Dynamic Route Failure: GET {path} with params {query_params} failed with status {response.status_code}\n"
+                f"Dynamic Route Failure: GET {full_path} with params {query_params} failed with status {response.status_code}\n"
                 f"Response: {response.text}"
             )
             checked += 1
