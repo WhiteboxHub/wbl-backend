@@ -300,17 +300,13 @@ def build_smart_context(repo_path: str) -> str:
     finally:
         os.chdir(original_dir)
 
-
 def run_review(context: str, mode_name: str, verbose: bool = True) -> dict:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("Warning: GEMINI_API_KEY environment variable not found. Skipping AI review gracefully.", file=sys.stderr)
+    keys_str = os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY")
+    if not keys_str:
+        print("Warning: GEMINI_API_KEYS or GEMINI_API_KEY environment variable not found. Skipping AI review gracefully.", file=sys.stderr)
         sys.exit(0)
     
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-    )
+    api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
     
     prompt = f"""You are a senior code reviewer analyzing a PR.
 
@@ -354,20 +350,41 @@ If no bugs found, return empty bugs array."""
     }
     
     start_time = time.time()
-    try:
-        response = client.chat.completions.create(
-            model="gemini-3.5-flash",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "bug_report",
-                    "schema": json_schema,
-                    "strict": True
-                }
-            }
+    response = None
+    last_error = None
+    
+    for idx, key in enumerate(api_keys):
+        client = OpenAI(
+            api_key=key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            max_retries=1, # reduce retries per key so it fails over faster
+            timeout=180.0
         )
-        
+        try:
+            print(f"Attempting AI Review using API Key {idx + 1} of {len(api_keys)}...", file=sys.stderr)
+            response = client.chat.completions.create(
+                model="gemini-3.5-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "bug_report",
+                        "schema": json_schema,
+                        "strict": True
+                    }
+                }
+            )
+            break # Success! Break out of the loop
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "429" in error_str or "503" in error_str or "Too Many Requests" in error_str:
+                print(f"[Warning] API Key {idx + 1} hit rate limit or server busy. Switching to next key...", file=sys.stderr)
+                continue
+            else:
+                print(f"[Error] Fatal API error with Key {idx + 1}: {error_str}", file=sys.stderr)
+                break
+                  
         elapsed_time = time.time() - start_time
         output_text = response.choices[0].message.content
         data = json.loads(output_text)
@@ -407,11 +424,12 @@ If no bugs found, return empty bugs array."""
                 print("##  AI Code Review\n\nNo significant risks or bugs found. LGTM! ✅")
         
         return result
-    except Exception as e:
-        print(f"Gemini API Error: {str(e)}", file=sys.stderr)
+    if not response:
+        print("Gemini API Error: Exhausted all available API keys or hit a fatal error.", file=sys.stderr)
         
-        fallback_markdown = "## ⚠️ AI Reviewer Unavailable\n\n"
-        fallback_markdown += f"**Error Details:** `{str(e)}`\n\n"
+        fallback_markdown = "##  AI Reviewer Unavailable\n\n"
+        if last_error:
+            fallback_markdown += f"**Error Details:** `{str(last_error)}`\n\n"
         fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and downstream impact analysis gathered by the engine:\n\n"
         
         # Extract findings from the context string that was built by the AST engine
