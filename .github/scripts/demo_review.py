@@ -7,6 +7,12 @@ import os
 import sys
 import json
 import time
+import io
+
+# Force UTF-8 encoding for standard output and error to prevent crashes on Windows with emojis
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import pathlib
 import subprocess
 import ast
@@ -20,11 +26,35 @@ load_dotenv()
 
 VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff']
 
+BUG_REPORT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "bugs": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "changed_file": {"type": "string"},
+                    "changed_lines": {"type": "string"},
+                    "bug_category": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "comment": {"type": "string"},
+                    "diff_fix_suggestion": {"type": "string"}
+                },
+                "required": ["changed_file", "changed_lines", "bug_category", "summary", "comment", "diff_fix_suggestion"],
+                "additionalProperties": False
+            }
+        }
+    },
+    "required": ["bugs"],
+    "additionalProperties": False
+}
+
 def build_diff_only_context(repo_path: str) -> str:
     target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
         ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"],
-        text=True
+        text=True, encoding="utf-8"
     )
     return f"# Code Review Context\n\n## Git Diff (What Changed)\n\n```diff\n{diff}\n```\n"
 
@@ -32,7 +62,7 @@ def build_all_code_context(repo_path: str) -> str:
     target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
         ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"],
-        text=True
+        text=True, encoding="utf-8"
     )
     repo = pathlib.Path(repo_path)
     py_files = list(repo.rglob("*.py"))
@@ -143,6 +173,62 @@ def run_static_analysis(f, lines, modified_public_apis):
         pass
     
     return critical, findings
+
+def determine_models(context: str) -> List[str]:
+    is_complex = False
+    if "Score: " in context and "Downstream Impact: HIGH" in context:
+        is_complex = True
+    elif "Architectural Violation" in context:
+        is_complex = True
+        
+    lines = len(context.splitlines())
+    
+    if is_complex:
+        return ["deepseek-reasoner", "gemini-2.5-pro", "gpt-4o", "gemini-2.5-flash"]
+    elif lines < 300:
+        return ["gemini-2.5-flash-lite", "gpt-4o-mini"]
+    else:
+        return ["gemini-2.5-flash", "gpt-4o-mini", "deepseek-chat"]
+
+def get_provider_config(model: str) -> Tuple[str, List[str]]:
+    if model.startswith("gemini"):
+        keys_str = os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY") or ""
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        return "https://generativelanguage.googleapis.com/v1beta/openai/", keys
+    elif model.startswith("deepseek"):
+        key = os.environ.get("DEEPSEEK_API_KEY") or ""
+        keys = [key.strip()] if key.strip() else []
+        return "https://api.deepseek.com", keys
+    elif model.startswith("gpt") or model.startswith("o1"):
+        key = os.environ.get("OPENAI_API_KEY") or ""
+        keys = [key.strip()] if key.strip() else []
+        return None, keys
+    return None, []
+
+def _format_ast_findings(findings, impact_analysis, modified_public_apis):
+    final_context = "# 1. AST Findings (Facts)\n"
+    if not findings:
+        final_context += "None.\n\n"
+    else:
+        for fnd in findings:
+            final_context += f"- [Severity: {fnd['severity']}] [Confidence: {fnd['confidence']}] [Type: {fnd['type']}]\n  Evidence: {fnd['evidence']}\n"
+        final_context += "\n"
+        
+    final_context += "# 2. Downstream Impact Analysis\n"
+    if not impact_analysis:
+        final_context += "No major downstream impacts detected.\n\n"
+    else:
+        final_context += "\n".join(impact_analysis) + "\n\n"
+        
+    final_context += "# 3. Modified Public APIs\n"
+    if not modified_public_apis:
+        final_context += "None.\n\n"
+    else:
+        for api in modified_public_apis:
+            final_context += f"- {api}\n"
+        final_context += "\n"
+    return final_context
+
 def build_smart_context(repo_path: str) -> str:
     from review_demo import (
         changed_lines,
@@ -175,7 +261,7 @@ def build_smart_context(repo_path: str) -> str:
         impact_files = set(one_hop_slice(changed_symbols, cg))
 
         target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
-        diff_text = subprocess.check_output(["git", "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"], text=True)
+        diff_text = subprocess.check_output(["git", "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"], text=True, encoding="utf-8")
 
         changed_snippets = []
         for f, lines in changes.items():
@@ -199,7 +285,7 @@ def build_smart_context(repo_path: str) -> str:
         target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
         
         # Identify newly added files so we don't flag them for "Signature Changes"
-        added_files_out = subprocess.check_output(["git", "diff", "--name-status", f"{target_branch}...HEAD"], text=True)
+        added_files_out = subprocess.check_output(["git", "diff", "--name-status", f"{target_branch}...HEAD"], text=True, encoding="utf-8")
         added_files = {line.split('\t')[1].strip() for line in added_files_out.splitlines() if line.startswith('A\t')}
 
         changed_signature_names = set()
@@ -262,7 +348,7 @@ def build_smart_context(repo_path: str) -> str:
             findings.extend(fnd)
 
         if critical:
-            print("❌ CRITICAL AST FINDINGS DETECTED - FAILING PR IMMEDIATELY", file=sys.stderr)
+            print("âŒ CRITICAL AST FINDINGS DETECTED - FAILING PR IMMEDIATELY", file=sys.stderr)
             critical_markdown = "##    CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
             for c in critical:
                 print(f" - {c}", file=sys.stderr)
@@ -270,27 +356,7 @@ def build_smart_context(repo_path: str) -> str:
             print(critical_markdown)
             sys.exit(1)
             
-        final_context = "# 1. AST Findings (Facts)\n"
-        if not findings:
-            final_context += "None.\n\n"
-        else:
-            for fnd in findings:
-                final_context += f"- [Severity: {fnd['severity']}] [Confidence: {fnd['confidence']}] [Type: {fnd['type']}]\n  Evidence: {fnd['evidence']}\n"
-            final_context += "\n"
-            
-        final_context += "# 2. Downstream Impact Analysis\n"
-        if not impact_analysis:
-            final_context += "No major downstream impacts detected.\n\n"
-        else:
-            final_context += "\n".join(impact_analysis) + "\n\n"
-            
-        final_context += "# 3. Modified Public APIs\n"
-        if not modified_public_apis:
-            final_context += "None.\n\n"
-        else:
-            for api in modified_public_apis:
-                final_context += f"- {api}\n"
-            final_context += "\n"
+        final_context = _format_ast_findings(findings, impact_analysis, modified_public_apis)
             
         final_context += "# 5. Code Context\n"
         final_context += format_context_as_markdown(changes, changed_snippets, impact_snippets, diff_text)
@@ -301,12 +367,8 @@ def build_smart_context(repo_path: str) -> str:
         os.chdir(original_dir)
 
 def run_review(context: str, mode_name: str, verbose: bool = True) -> dict:
-    keys_str = os.environ.get("GEMINI_API_KEYS") or os.environ.get("GEMINI_API_KEY")
-    if not keys_str:
-        print("Warning: GEMINI_API_KEYS or GEMINI_API_KEY environment variable not found. Skipping AI review gracefully.", file=sys.stderr)
-        sys.exit(0)
-    
-    api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    # We no longer hard-check GEMINI_API_KEYS here because the required keys 
+    # depend on the selected model in the loop below.
     
     prompt = f"""You are a senior code reviewer analyzing a PR.
 
@@ -325,45 +387,31 @@ When reviewing, pay special attention to functions with HIGH Downstream Impact o
 
 If no bugs found, return empty bugs array."""
     
-    json_schema = {
-        "type": "object",
-        "properties": {
-            "bugs": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "changed_file": {"type": "string"},
-                        "changed_lines": {"type": "string"},
-                        "bug_category": {"type": "string"},
-                        "summary": {"type": "string"},
-                        "comment": {"type": "string"},
-                        "diff_fix_suggestion": {"type": "string"}
-                    },
-                    "required": ["changed_file", "changed_lines", "bug_category", "summary", "comment", "diff_fix_suggestion"],
-                    "additionalProperties": False
-                }
-            }
-        },
-        "required": ["bugs"],
-        "additionalProperties": False
-    }
+    json_schema = BUG_REPORT_SCHEMA
+    
+    models_to_try = determine_models(context)
     
     start_time = time.time()
     response = None
     last_error = None
+    used_model = None
     
-    for idx, key in enumerate(api_keys):
-        client = OpenAI(
-            api_key=key,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-            max_retries=1, # reduce retries per key so it fails over faster
-            timeout=180.0
-        )
-        try:
-            print(f"Attempting AI Review using API Key {idx + 1} of {len(api_keys)}...", file=sys.stderr)
-            response = client.chat.completions.create(
-                model="gemini-3.5-flash",
+    for model in models_to_try:
+        base_url, keys = get_provider_config(model)
+        if not keys:
+            print(f"[Warning] Skipping model {model}: No API key configured for this provider.", file=sys.stderr)
+            continue
+            
+        for idx, key in enumerate(keys):
+            client_args = {"api_key": key, "max_retries": 1, "timeout": 180.0}
+            if base_url:
+                client_args["base_url"] = base_url
+            client = OpenAI(**client_args)
+            
+            try:
+                print(f"Attempting AI Review using model {model} and API Key {idx + 1} of {len(keys)}...", file=sys.stderr)
+                response = client.chat.completions.create(
+                    model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={
                     "type": "json_schema",
@@ -374,56 +422,22 @@ If no bugs found, return empty bugs array."""
                     }
                 }
             )
-            break # Success! Break out of the loop
-        except Exception as e:
-            last_error = e
-            error_str = str(e)
-            if "429" in error_str or "503" in error_str or "Too Many Requests" in error_str:
-                print(f"[Warning] API Key {idx + 1} hit rate limit or server busy. Switching to next key...", file=sys.stderr)
-                continue
-            else:
-                print(f"[Error] Fatal API error with Key {idx + 1}: {error_str}", file=sys.stderr)
-                break
+                used_model = model
+                break # Success! Break out of the keys loop
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
+                if "429" in error_str or "503" in error_str or "Too Many Requests" in error_str:
+                    print(f"[Warning] Model {model} with API Key {idx + 1} hit rate limit or server busy. Switching...", file=sys.stderr)
+                    continue
+                else:
+                    print(f"[Error] Fatal API error with Key {idx + 1}: {error_str}", file=sys.stderr)
+                    break
+        
+        if response:
+            break # Success! Break out of the models loop
                   
-        elapsed_time = time.time() - start_time
-        output_text = response.choices[0].message.content
-        data = json.loads(output_text)
-        
-        input_tokens = getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0
-        output_tokens = getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0
-        
-        result = {
-            "mode": mode_name,
-            "bugs": data.get("bugs", []),
-            "bug_found": len(data.get("bugs", [])) > 0,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "total_tokens": input_tokens + output_tokens,
-            "time_seconds": elapsed_time,
-            "context_preview": context[:500] + "..." if len(context) > 500 else context
-        }
-        
-        if verbose:
-            print(f"Time taken: {elapsed_time:.2f} seconds", file=sys.stderr)
-            print(f"Input tokens: {input_tokens}", file=sys.stderr)
-            print(f"Output tokens: {output_tokens}", file=sys.stderr)
-            print(f"Total tokens: {input_tokens + output_tokens}", file=sys.stderr)
-            
-            if data.get("bugs"):
-                markdown = "##  AI Code Review Findings\n\n"
-                for bug in data.get("bugs", []):
-                    cat = bug.get('bug_category', 'issue').upper()
-                    markdown += f"###    [{cat}] {bug.get('summary')}\n"
-                    markdown += f"**File:** `{bug.get('changed_file')}` (Lines: {bug.get('changed_lines')})\n\n"
-                    markdown += f"{bug.get('comment')}\n\n"
-                    if bug.get('diff_fix_suggestion'):
-                        markdown += f"**Suggested Fix:**\n```diff\n{bug.get('diff_fix_suggestion')}\n```\n\n"
-                    markdown += "---\n\n"
-                print(markdown)
-            else:
-                print("##  AI Code Review\n\nNo significant risks or bugs found. LGTM! ✅")
-        
-        return result
+
     if not response:
         print("Gemini API Error: Exhausted all available API keys or hit a fatal error.", file=sys.stderr)
         
@@ -434,7 +448,7 @@ If no bugs found, return empty bugs array."""
         
         # Extract findings from the context string that was built by the AST engine
         if "##    CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
-            fallback_markdown += "### 🔍 AST Engine Output\n\n"
+            fallback_markdown += "###  AST Engine Output\n\n"
             fallback_markdown += context.split("# 5. Code Context")[0].strip()
         else:
             fallback_markdown += "No structural violations detected by the AST engine."
@@ -451,6 +465,45 @@ If no bugs found, return empty bugs array."""
             "context_preview": ""
         }
 
+    elapsed_time = time.time() - start_time
+    output_text = response.choices[0].message.content
+    data = json.loads(output_text)
+    
+    input_tokens = getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0
+    output_tokens = getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0
+    
+    result = {
+        "mode": mode_name,
+        "bugs": data.get("bugs", []),
+        "bug_found": len(data.get("bugs", [])) > 0,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+        "time_seconds": elapsed_time,
+        "context_preview": context[:500] + "..." if len(context) > 500 else context
+    }
+    
+    if verbose:
+        print(f"Time taken: {elapsed_time:.2f} seconds", file=sys.stderr)
+        print(f"Input tokens: {input_tokens}", file=sys.stderr)
+        print(f"Output tokens: {output_tokens}", file=sys.stderr)
+        print(f"Total tokens: {input_tokens + output_tokens}", file=sys.stderr)
+        
+        if data.get("bugs"):
+            markdown = f"##  AI Code Review Findings (Model: `{used_model}`)\n\n"
+            for bug in data.get("bugs", []):
+                cat = bug.get('bug_category', 'issue').upper()
+                markdown += f"###    [{cat}] {bug.get('summary')}\n"
+                markdown += f"**File:** `{bug.get('changed_file')}` (Lines: {bug.get('changed_lines')})\n\n"
+                markdown += f"{bug.get('comment')}\n\n"
+                if bug.get('diff_fix_suggestion'):
+                    markdown += f"**Suggested Fix:**\n```diff\n{bug.get('diff_fix_suggestion')}\n```\n\n"
+                markdown += "---\n\n"
+            print(markdown)
+        else:
+            print("##  AI Code Review\n\nNo significant risks or bugs found. LGTM! ")
+    
+    return result
 
 def run_comparison(repo_path: str) -> None:
     print("\n" + "="*70)
@@ -519,7 +572,7 @@ def main():
         run_comparison(repo_path)
         return
     
-    print(f"Building review context ({args.mode} mode)…", file=sys.stderr)
+    print(f"Building review context ({args.mode} mode)¦", file=sys.stderr)
     if args.mode == "diff-only":
         context = build_diff_only_context(repo_path)
     elif args.mode == "all-code":
@@ -528,10 +581,11 @@ def main():
         context = build_smart_context(repo_path)
     
     print("\n" + "="*80, file=sys.stderr)
-    print("Calling the model…", file=sys.stderr)
+    print("Calling the model¦", file=sys.stderr)
     print("="*80 + "\n", file=sys.stderr)
     run_review(context, args.mode)
 
 
 if __name__ == "__main__":
     main()
+
