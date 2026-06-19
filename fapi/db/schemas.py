@@ -528,6 +528,7 @@ class Token(BaseModel):
     token_type: str
     team: Optional[str] = None
     login_count: Optional[int] = None
+    candidate_id: Optional[int] = None
 
 
 class TokenRequest(BaseModel):
