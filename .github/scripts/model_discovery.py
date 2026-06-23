@@ -198,6 +198,40 @@ def get_tier_score(tier):
     tier_scores = {"flagship": 8, "premium": 6, "standard": 4, "lite": 2}
     return tier_scores.get(tier, 4)
 
+def test_model_connection(model_name, provider):
+    if provider == "openai":
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key: return None
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
+        res = requests.post(url, headers=headers, json=payload, timeout=10)
+    elif provider == "google":
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key: return None
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        payload = {"contents": [{"parts": [{"text": "hi"}]}], "generationConfig": {"maxOutputTokens": 1}}
+        res = requests.post(url, json=payload, timeout=10)
+    elif provider == "deepseek":
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key: return None
+        url = "https://api.deepseek.com/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
+        res = requests.post(url, headers=headers, json=payload, timeout=10)
+    else:
+        return None
+
+    if res.status_code == 200:
+        return True
+    elif res.status_code in [400, 401, 403, 404]:
+        # Deterministic failure (paywall, invalid params, unauthorized)
+        return False
+    elif res.status_code == 429 or res.status_code >= 500:
+        # Transient failure (rate limit, server error)
+        return None
+    return None
+
 def sync_and_update_models():
     registry = load_live_registry()
     model_caps = registry.get("MODEL_CAPABILITIES", {})
@@ -249,6 +283,7 @@ def sync_and_update_models():
                 "tier": specs["tier"],
                 "caps": specs["caps"],
                 "verified": False,
+                "connection_ok": "pending",
                 "observations": 1,
                 "first_seen": now_iso,
                 "last_seen": now_iso,
@@ -261,19 +296,37 @@ def sync_and_update_models():
             meta = model_metadata[live_model]
             meta["last_seen"] = now_iso
             
+            # 3. Live API Connection Ping
+            if meta.get("connection_ok") is not True:
+                logger.info(f"Pinging {live_model} to test API access...")
+                ping_result = test_model_connection(live_model, provider)
+                if ping_result is True:
+                    meta["connection_ok"] = True
+                    logger.info(f"Ping successful! Model {live_model} is accessible.")
+                elif ping_result is False:
+                    meta["connection_ok"] = False
+                    logger.warning(f"Ping failed deterministically (403/404). {live_model} is inaccessible.")
+                else:
+                    logger.info(f"Ping hit a transient error (429/5xx). Will retry next sync.")
+            
+            # Stop tracking observations if connection is deterministically broken
+            if meta.get("connection_ok") is False:
+                model_metadata[live_model] = meta
+                continue
+
             if not meta.get("verified", False):
                 # Increment observations
                 obs = meta.get("observations", 0) + 1
                 meta["observations"] = obs
                 logger.info(f"Unverified model {live_model} observed {obs} times.")
                 
-                if obs >= 3:
+                if obs >= 3 and meta.get("connection_ok") is True:
                     # Promote to Verified!
                     meta["verified"] = True
-                    logger.info(f"Model {live_model} reached 3 observations! Promoting to Verified Production.")
+                    logger.info(f"Model {live_model} reached 3 observations and passed connection ping! Promoting to Verified Production.")
                     
             # If it is verified, ensure it is in the active routing dictionaries
-            if meta.get("verified", False):
+            if meta.get("verified", False) and meta.get("connection_ok") is True:
                 caps = meta.get("caps", ["balanced"])
                 if live_model not in model_caps:
                     model_caps[live_model] = caps

@@ -50,15 +50,16 @@ BUG_REPORT_SCHEMA = {
     "additionalProperties": False
 }
 
-def build_diff_only_context(repo_path: str) -> str:
+def build_diff_only_context(repo_path: str) -> Tuple[str, dict]:
     target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
         ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"],
         text=True, encoding="utf-8"
     )
-    return f"# Code Review Context\n\n## Git Diff (What Changed)\n\n```diff\n{diff}\n```\n"
+    metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
+    return f"# Code Review Context\n\n## Git Diff (What Changed)\n\n```diff\n{diff}\n```\n", metadata
 
-def build_all_code_context(repo_path: str) -> str:
+def build_all_code_context(repo_path: str) -> Tuple[str, dict]:
     target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     diff = subprocess.check_output(
         ["git", "-C", repo_path, "diff", "--unified=3", "--no-color", f"{target_branch}...HEAD"],
@@ -82,7 +83,8 @@ def build_all_code_context(repo_path: str) -> str:
             context_parts.append(f"### File: {rel_path}\n```python\n{content}\n```\n")
         except Exception:
             pass
-    return "".join(context_parts)
+    metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
+    return "".join(context_parts), metadata
 
 def compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis):
     impact_analysis = []
@@ -232,7 +234,7 @@ def determine_models(metadata: dict) -> List[str]:
         return tag_score + inherent_score
         
     sorted_models = sorted(MODEL_CAPABILITIES.keys(), key=score_model, reverse=True)
-    return sorted_models[:4]
+    return sorted_models
 
 def get_provider_config(model: str) -> Tuple[str, List[str]]:
     if model.startswith("gemini"):
