@@ -1,0 +1,105 @@
+{
+  "MODEL_CAPABILITIES": {
+    "deepseek-reasoner": ["reasoning", "coding"],
+    "gemini-3-deep-think": ["reasoning", "large_context"],
+    "gemini-2.5-pro": ["reasoning", "large_context"],
+    "gpt-4o": ["balanced"],
+    "deepseek-chat": ["balanced", "coding"],
+    "gemini-3.5-flash": ["fast", "large_context"],
+    "gpt-4o-mini": ["fast", "balanced"],
+    "gemini-3.1-flash-lite": ["fast", "cost_efficient"]
+  },
+  "MODEL_SCORES": {
+    "deepseek-reasoner": 10,
+    "gemini-3-deep-think": 10,
+    "gemini-2.5-pro": 9,
+    "gpt-4o": 8,
+    "deepseek-chat": 8,
+    "gemini-3.5-flash": 7,
+    "gpt-4o-mini": 6,
+    "gemini-3.1-flash-lite": 5
+  },
+  "TAG_WEIGHTS": {
+    "reasoning": 5,
+    "coding": 3,
+    "large_context": 2,
+    "balanced": 1,
+    "fast": 1,
+    "cost_efficient": 0
+  },
+  "MISSING_MODELS": {},
+  "MODEL_METADATA": {
+    "deepseek-reasoner": {
+      "provider": "deepseek",
+      "tier": "flagship",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "gemini-3-deep-think": {
+      "provider": "google",
+      "tier": "flagship",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "gemini-2.5-pro": {
+      "provider": "google",
+      "tier": "premium",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "gpt-4o": {
+      "provider": "openai",
+      "tier": "premium",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "deepseek-chat": {
+      "provider": "deepseek",
+      "tier": "premium",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "gemini-3.5-flash": {
+      "provider": "google",
+      "tier": "standard",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "gpt-4o-mini": {
+      "provider": "openai",
+      "tier": "standard",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    },
+    "gemini-3.1-flash-lite": {
+      "provider": "google",
+      "tier": "lite",
+      "verified": true,
+      "observations": 3,
+      "first_seen": "2026-06-23T00:00:00Z",
+      "last_seen": "2026-06-23T00:00:00Z",
+      "source": "seed"
+    }
+  }
+}

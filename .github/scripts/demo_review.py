@@ -174,21 +174,65 @@ def run_static_analysis(f, lines, modified_public_apis):
     
     return critical, findings
 
-def determine_models(context: str) -> List[str]:
-    is_complex = False
-    if "Score: " in context and "Downstream Impact: HIGH" in context:
-        is_complex = True
-    elif "Architectural Violation" in context:
-        is_complex = True
-        
-    lines = len(context.splitlines())
+import json
+import os
+
+def load_registry():
+    # If a remote URL is provided (e.g. raw github gist URL), fetch it dynamically
+    gist_url = os.environ.get("MODEL_REGISTRY_URL")
+    if gist_url:
+        try:
+            import requests
+            res = requests.get(gist_url, timeout=3)
+            return res.json()
+        except Exception:
+            pass
+            
+    # Fallback to local file
+    try:
+        registry_path = os.path.join(os.path.dirname(__file__), "model_registry.json")
+        with open(registry_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        # Ultimate fail-safe
+        return {
+            "MODEL_CAPABILITIES": {"gemini-3.5-flash": ["fast", "large_context"]},
+            "MODEL_SCORES": {"gemini-3.5-flash": 7},
+            "TAG_WEIGHTS": {"reasoning": 5, "coding": 3, "large_context": 2, "balanced": 1, "fast": 1, "cost_efficient": 0}
+        }
+
+REGISTRY = load_registry()
+MODEL_CAPABILITIES = {k: set(v) for k, v in REGISTRY.get("MODEL_CAPABILITIES", {}).items()}
+MODEL_SCORES = REGISTRY.get("MODEL_SCORES", {})
+TAG_WEIGHTS = REGISTRY.get("TAG_WEIGHTS", {})
+
+def determine_models(metadata: dict) -> List[str]:
+    required_tags = set()
     
-    if is_complex:
-        return ["deepseek-reasoner", "gemini-2.5-pro", "gpt-4o", "gemini-2.5-flash"]
-    elif lines < 300:
-        return ["gemini-2.5-flash-lite", "gpt-4o-mini"]
-    else:
-        return ["gemini-2.5-flash", "gpt-4o-mini", "deepseek-chat"]
+    if metadata.get("signature_changes", 0) > 0:
+        required_tags.add("reasoning")
+        
+    if metadata.get("impact_score") == "HIGH":
+        required_tags.add("reasoning")
+        
+    if metadata.get("architecture_violations", 0) > 0:
+        required_tags.add("coding")
+        
+    if metadata.get("lines_changed", 0) >= 300:
+        required_tags.add("large_context")
+        
+    if not required_tags:
+        required_tags.add("fast")
+        
+    def score_model(model_name: str) -> int:
+        model_tags = MODEL_CAPABILITIES[model_name]
+        matched_tags = required_tags.intersection(model_tags)
+        tag_score = sum(TAG_WEIGHTS.get(tag, 0) for tag in matched_tags)
+        inherent_score = MODEL_SCORES.get(model_name, 0)
+        return tag_score + inherent_score
+        
+    sorted_models = sorted(MODEL_CAPABILITIES.keys(), key=score_model, reverse=True)
+    return sorted_models[:4]
 
 def get_provider_config(model: str) -> Tuple[str, List[str]]:
     if model.startswith("gemini"):
@@ -229,7 +273,7 @@ def _format_ast_findings(findings, impact_analysis, modified_public_apis):
         final_context += "\n"
     return final_context
 
-def build_smart_context(repo_path: str) -> str:
+def build_smart_context(repo_path: str) -> Tuple[str, dict]:
     from review_demo import (
         changed_lines,
         symbols_containing_lines,
@@ -282,9 +326,6 @@ def build_smart_context(repo_path: str) -> str:
             if f.endswith(".py") and pathlib.Path(f).exists():
                 calls_from_changed.update(calls_in_lines(f, lines))
 
-        target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
-        
-        # Identify newly added files so we don't flag them for "Signature Changes"
         added_files_out = subprocess.check_output(["git", "diff", "--name-status", f"{target_branch}...HEAD"], text=True, encoding="utf-8")
         added_files = {line.split('\t')[1].strip() for line in added_files_out.splitlines() if line.startswith('A\t')}
 
@@ -299,8 +340,6 @@ def build_smart_context(repo_path: str) -> str:
             try:
                 src = pathlib.Path(f).read_text(encoding="utf-8")
                 tree = ast.parse(src)
-                
-                # Callees
                 for node in ast.walk(tree):
                     if isinstance(node, ast.ClassDef) and node.name in calls_from_changed:
                         init_line = node.lineno
@@ -316,7 +355,6 @@ def build_smart_context(repo_path: str) -> str:
                         if f in shown_lines and any(ln in shown_lines[f] for ln in snippet_range): continue
                         impact_snippets.append({"file": f, "symbol": node.name, "role": "callee", "text": snippet(f, node.lineno, pad=10)})
 
-                # Callers
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in changed_signature_names:
                         sym = node.func.id
@@ -329,7 +367,6 @@ def build_smart_context(repo_path: str) -> str:
             except Exception:
                 pass
 
-        # --- Stage 1: AST Rules Engine ---
         critical = []
         findings = []
         modified_public_apis = []
@@ -338,58 +375,81 @@ def build_smart_context(repo_path: str) -> str:
         impact_analysis, impact_findings = compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis)
         findings.extend(impact_findings)
         
-        # Standard Rules
         for f, lines in changes.items():
             if not f.endswith('.py') or not pathlib.Path(f).exists():
                 continue
-            
             c, fnd = run_static_analysis(f, lines, modified_public_apis)
             critical.extend(c)
             findings.extend(fnd)
 
         if critical:
-            print("âŒ CRITICAL AST FINDINGS DETECTED - FAILING PR IMMEDIATELY", file=sys.stderr)
             critical_markdown = "##    CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
             for c in critical:
-                print(f" - {c}", file=sys.stderr)
                 critical_markdown += f"- **{c}**\n"
             print(critical_markdown)
             sys.exit(1)
             
+        impact_score = "HIGH" if any(len(impact) > 0 for f, impact in caller_counts.items()) else "LOW"
+        signature_changes = len(changed_signature_names)
+        architecture_violations = 1 if len(critical) > 0 else 0
+        lines_changed = sum(len(lns) for lns in changes.values())
+        
+        metadata = {
+            "impact_score": impact_score,
+            "signature_changes": signature_changes,
+            "architecture_violations": architecture_violations,
+            "lines_changed": lines_changed
+        }
+        
         final_context = _format_ast_findings(findings, impact_analysis, modified_public_apis)
-            
         final_context += "# 5. Code Context\n"
         final_context += format_context_as_markdown(changes, changed_snippets, impact_snippets, diff_text)
             
-        return final_context
+        return final_context, metadata
     
     finally:
         os.chdir(original_dir)
 
-def run_review(context: str, mode_name: str, verbose: bool = True) -> dict:
-    # We no longer hard-check GEMINI_API_KEYS here because the required keys 
-    # depend on the selected model in the loop below.
-    
-    prompt = f"""You are a senior code reviewer analyzing a PR.
+def run_review(context: str, metadata: dict, mode_name: str, verbose: bool = True) -> dict:
+    prompt = f"""You are a senior staff engineer performing a rigorous code review.
 
 {context}
 
-INSTRUCTIONS:
-Do not verify AST findings. Assume AST findings are correct.
-Focus only on:
-- business impact
-- operational risk
-- regression risk
-- migration concerns
-- testing recommendations
+CRITICAL INSTRUCTIONS:
+1. DO NOT verify AST findings. Assume AST findings are 100% correct. Your AST layer is deterministic. Spend your reasoning budget on consequences, not detection.
+2. DO NOT provide generic testing advice (e.g., "comprehensive testing is essential").
+3. DO NOT provide generic operational risk or maintenance warnings.
+4. NEVER report a risk unless you can describe a specific execution path from changed code to failure.
 
-When reviewing, pay special attention to functions with HIGH Downstream Impact or Modified Public APIs.
+A finding is VALID ONLY IF:
+1. A specific changed symbol is involved.
+2. A concrete regression path exists.
+3. A user-visible failure mode can be explained.
+4. The impact is supported by AST findings.
 
-If no bugs found, return empty bugs array."""
+Reject findings that are:
+- Generic testing recommendations
+- Generic maintainability concerns
+- Generic operational concerns
+- Speculative risks without a concrete failure path
+
+If you cannot identify a concrete failure path, return no finding (empty array).
+
+When reporting a valid finding, you MUST force blast-radius reasoning. Your `comment` MUST follow this structure:
+Changed Symbol: [Symbol]
+Affected Caller: [Caller]
+Failure Mode: [Explanation of failure]
+User Impact: [Explanation of impact]
+
+Rank findings using this Severity Formula (map to bug_category):
+- critical: Signature change + downstream impact > 3
+- high: Architectural violation
+- medium: Core logic changed without tests
+- low: Concrete maintainability concerns (must have failure path)"""
     
     json_schema = BUG_REPORT_SCHEMA
     
-    models_to_try = determine_models(context)
+    models_to_try = determine_models(metadata)
     
     start_time = time.time()
     response = None
@@ -423,7 +483,7 @@ If no bugs found, return empty bugs array."""
                 }
             )
                 used_model = model
-                break # Success! Break out of the keys loop
+                break
             except Exception as e:
                 last_error = e
                 error_str = str(e)
@@ -435,7 +495,7 @@ If no bugs found, return empty bugs array."""
                     break
         
         if response:
-            break # Success! Break out of the models loop
+            break
                   
 
     if not response:
@@ -446,7 +506,6 @@ If no bugs found, return empty bugs array."""
             fallback_markdown += f"**Error Details:** `{str(last_error)}`\n\n"
         fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and downstream impact analysis gathered by the engine:\n\n"
         
-        # Extract findings from the context string that was built by the AST engine
         if "##    CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
             fallback_markdown += "###  AST Engine Output\n\n"
             fallback_markdown += context.split("# 5. Code Context")[0].strip()
@@ -520,9 +579,9 @@ def run_comparison(repo_path: str) -> None:
     
     for mode_name, build_fn in modes:
         print(f"\nBuilding context for {mode_name}...")
-        context = build_fn(repo_path)
+        context, metadata = build_fn(repo_path)
         print(f"Running review ({mode_name})...")
-        result = run_review(context, mode_name, verbose=False)
+        result = run_review(context, metadata, mode_name, verbose=False)
         results.append(result)
         print(f"  Done. Bugs found: {len(result['bugs'])}, Tokens: {result['input_tokens']:,}")
     
@@ -572,20 +631,17 @@ def main():
         run_comparison(repo_path)
         return
     
-    print(f"Building review context ({args.mode} mode)¦", file=sys.stderr)
+    print(f"Building review context ({args.mode} mode)…", file=sys.stderr)
     if args.mode == "diff-only":
-        context = build_diff_only_context(repo_path)
+        context, metadata = build_diff_only_context(repo_path)
     elif args.mode == "all-code":
-        context = build_all_code_context(repo_path)
+        context, metadata = build_all_code_context(repo_path)
     elif args.mode == "smart":
-        context = build_smart_context(repo_path)
-    
-    print("\n" + "="*80, file=sys.stderr)
-    print("Calling the model¦", file=sys.stderr)
-    print("="*80 + "\n", file=sys.stderr)
-    run_review(context, args.mode)
+        context, metadata = build_smart_context(repo_path)
+        
+    print(f"Running review ({args.mode} mode)…", file=sys.stderr)
+    run_review(context, metadata, args.mode)
 
 
 if __name__ == "__main__":
-    main()
 
