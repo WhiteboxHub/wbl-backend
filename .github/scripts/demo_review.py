@@ -351,7 +351,7 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
         added_files_out = subprocess.check_output(["git", "diff", "--name-status", f"{target_branch}...HEAD"], text=True, encoding="utf-8")
         added_files = {line.split('\t')[1].strip() for line in added_files_out.splitlines() if line.startswith('A\t')}
 
-        changed_signature_names = set()
+        changed_signature_names = {}
         for f, lines in changes.items():
             if f.endswith(".py") and pathlib.Path(f).exists() and f not in added_files:
                 changed_signature_names.update(symbols_with_signature_changes(f, lines))
