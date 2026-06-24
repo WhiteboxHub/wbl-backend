@@ -337,7 +337,8 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
         for item in changed_snippets:
             f = item["file"]
             if "-" in item["lines"]:
-                start, end = map(int, item["lines"].split("-"))
+                lines_str = item["lines"].split(" ")[0]
+                start, end = map(int, lines_str.split("-"))
                 shown_lines.setdefault(f, set()).update(range(start, end + 1))
 
         calls_from_changed = set()
