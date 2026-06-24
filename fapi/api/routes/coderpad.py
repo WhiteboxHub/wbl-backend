@@ -363,7 +363,7 @@ def execute_code(
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Execute code directly without saving. Optional test_cases runs stdin tests (assignments)."""
+    """Execute code directly without saving. Optional test_cases runs stdin tests (Questions)."""
     return coderpad_utils.execute_code_direct(db, current_user.id, request)
 
 
@@ -585,7 +585,7 @@ def get_shared_snippets(
     return coderpad_utils.get_shared_snippets(db, current_user.id)
 
 
-# ==================== Assignments (admin-authored questions) ====================
+# ==================== Questions (admin-authored questions) ====================
 
 @router.get("/questions", response_model=List[CoderpadQuestionOut])
 def list_coderpad_questions(
