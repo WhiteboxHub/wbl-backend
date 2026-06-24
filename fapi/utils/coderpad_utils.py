@@ -416,7 +416,7 @@ def get_shared_snippets(db: Session, user_id: int) -> List[CodeSnippetORM]:
     return sorted(result, key=lambda x: x.updated_at, reverse=True)
 
 
-# ==================== Admin questions (assignments) ====================
+# ==================== Admin questions (Questions) ====================
 
 def list_questions(
     db: Session,
@@ -436,8 +436,8 @@ def list_questions(
     if is_staff or current_user_id is None:
         return rows
 
-    # Candidate view: only include assignments explicitly assigned to them,
-    # plus global assignments where assigned_candidate_ids is empty/null.
+    # Candidate view: only include Questions explicitly assigned to them,
+    # plus global Questions where assigned_candidate_ids is empty/null.
     filtered: List[CoderpadQuestionORM] = []
     for row in rows:
         assigned = row.assigned_candidate_ids
