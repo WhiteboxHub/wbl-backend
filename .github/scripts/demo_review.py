@@ -430,7 +430,9 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
     finally:
         os.chdir(original_dir)
 
-def run_review(context: str, metadata: dict, mode_name: str, verbose: bool = True) -> dict:
+def run_review(context: str, mode_name: str, metadata: dict = None, verbose: bool = True) -> dict:
+    if metadata is None:
+        metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
     prompt = f"""You are a senior staff engineer performing a rigorous code review.
 
 {context}
@@ -601,7 +603,7 @@ def run_comparison(repo_path: str) -> None:
         print(f"\nBuilding context for {mode_name}...")
         context, metadata = build_fn(repo_path)
         print(f"Running review ({mode_name})...")
-        result = run_review(context, metadata, mode_name, verbose=False)
+        result = run_review(context, mode_name, metadata=metadata, verbose=False)
         results.append(result)
         print(f"  Done. Bugs found: {len(result['bugs'])}, Tokens: {result['input_tokens']:,}")
     
@@ -660,7 +662,7 @@ def main():
         context, metadata = build_smart_context(repo_path)
         
     print(f"Running review ({args.mode} mode)…", file=sys.stderr)
-    run_review(context, metadata, args.mode)
+    run_review(context, args.mode, metadata=metadata)
 
 
 if __name__ == "__main__":
