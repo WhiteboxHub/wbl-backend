@@ -504,8 +504,7 @@ Rank findings using this Severity Formula (map to bug_category):
                     "type": "json_schema",
                     "json_schema": {
                         "name": "bug_report",
-                        "schema": json_schema,
-                        "strict": True
+                        "schema": json_schema
                     }
                 }
             )

@@ -199,36 +199,40 @@ def get_tier_score(tier):
     return tier_scores.get(tier, 4)
 
 def test_model_connection(model_name, provider):
-    if provider == "openai":
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key: return None
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}"}
-        payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
-        res = requests.post(url, headers=headers, json=payload, timeout=10)
-    elif provider == "google":
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key: return None
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        payload = {"contents": [{"parts": [{"text": "hi"}]}], "generationConfig": {"maxOutputTokens": 1}}
-        res = requests.post(url, json=payload, timeout=10)
-    elif provider == "deepseek":
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
-        if not api_key: return None
-        url = "https://api.deepseek.com/chat/completions"
-        headers = {"Authorization": f"Bearer {api_key}"}
-        payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
-        res = requests.post(url, headers=headers, json=payload, timeout=10)
-    else:
-        return None
+    try:
+        if provider == "openai":
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key: return None
+            url = "https://api.openai.com/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}"}
+            payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+        elif provider == "google":
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key: return None
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            payload = {"contents": [{"parts": [{"text": "hi"}]}], "generationConfig": {"maxOutputTokens": 1}}
+            res = requests.post(url, json=payload, timeout=10)
+        elif provider == "deepseek":
+            api_key = os.environ.get("DEEPSEEK_API_KEY")
+            if not api_key: return None
+            url = "https://api.deepseek.com/chat/completions"
+            headers = {"Authorization": f"Bearer {api_key}"}
+            payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
+            res = requests.post(url, headers=headers, json=payload, timeout=10)
+        else:
+            return None
 
-    if res.status_code == 200:
-        return True
-    elif res.status_code in [400, 401, 403, 404]:
-        # Deterministic failure (paywall, invalid params, unauthorized)
-        return False
-    elif res.status_code == 429 or res.status_code >= 500:
-        # Transient failure (rate limit, server error)
+        if res.status_code == 200:
+            return True
+        elif res.status_code in [400, 401, 403, 404]:
+            # Deterministic failure (paywall, invalid params, unauthorized)
+            return False
+        elif res.status_code == 429 or res.status_code >= 500:
+            # Transient failure (rate limit, server error)
+            return None
+    except requests.RequestException as e:
+        logger.warning(f"Network error testing model {model_name} ({provider}): {e}")
         return None
     return None
 
