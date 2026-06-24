@@ -275,6 +275,13 @@ def _format_ast_findings(findings, impact_analysis, modified_public_apis):
         final_context += "\n"
     return final_context
 
+def extract_symbol_snippet(path: str, start: int, end: int) -> str:
+    try:
+        rows = pathlib.Path(path).read_text(encoding="utf-8").splitlines()
+        return "\n".join(rows[max(0, start-1):end])
+    except Exception:
+        return ""
+
 def build_smart_context(repo_path: str) -> Tuple[str, dict]:
     from review_demo import (
         changed_lines,
@@ -312,7 +319,17 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
         changed_snippets = []
         for f, lines in changes.items():
             if not lines: continue
-            for chunk in group_consecutive_lines(list(lines)):
+            covered_lines = set()
+            file_symbols = [sym for sym in changed_symbols if sym[0] == f]
+            for _, sym_name, start, end in file_symbols:
+                if end - start < 300:
+                    text = extract_symbol_snippet(f, start, end)
+                    if text:
+                        changed_snippets.append({"file": f, "lines": f"{start}-{end} ({sym_name})", "text": text})
+                        covered_lines.update(range(start, end + 1))
+                        
+            uncovered_lines = [l for l in lines if l not in covered_lines]
+            for chunk in group_consecutive_lines(uncovered_lines):
                 center = chunk[len(chunk) // 2]
                 changed_snippets.append({"file": f, "lines": f"{chunk[0]}-{chunk[-1]}", "text": snippet(f, center, pad=8)})
 
