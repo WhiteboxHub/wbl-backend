@@ -240,20 +240,32 @@ def sync_and_update_models():
     missing_models = registry.get("MISSING_MODELS", {})
     model_metadata = registry.get("MODEL_METADATA", {})
     
-    live_models = {}
-    for m in fetch_openai(): live_models[m] = "openai"
-    for m in fetch_google(): live_models[m] = "google"
-    for m in fetch_deepseek(): live_models[m] = "deepseek"
+    openai_models = fetch_openai()
+    google_models = fetch_google()
+    deepseek_models = fetch_deepseek()
     
-    if not live_models:
-        logger.warning("Could not contact APIs. Keeping existing registry intact.")
+    active_providers = set()
+    if openai_models: active_providers.add("openai")
+    if google_models: active_providers.add("google")
+    if deepseek_models: active_providers.add("deepseek")
+    
+    if not active_providers:
+        logger.warning("Could not contact any APIs. Keeping existing registry intact.")
         return
+        
+    live_models = {}
+    for m in openai_models: live_models[m] = "openai"
+    for m in google_models: live_models[m] = "google"
+    for m in deepseek_models: live_models[m] = "deepseek"
 
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # 1. Grace Period for Missing Models
     current_known_models = list(model_metadata.keys())
     for model in current_known_models:
+        provider = model_metadata[model].get("provider")
+        if provider not in active_providers:
+            continue
         if model not in live_models:
             missing_count = missing_models.get(model, 0) + 1
             missing_models[model] = missing_count
