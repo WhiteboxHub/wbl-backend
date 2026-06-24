@@ -37,26 +37,93 @@ def symbols_containing_lines(path: str, lines: Set[int]) -> List[Tuple[str,int,i
                 out.append((node.name, start, end))
     return out
 
-def symbols_with_signature_changes(path: str, lines: Set[int]) -> Set[str]:
-    """Find functions/classes whose SIGNATURES were changed (def line itself changed)."""
+def _get_annotation_str(node):
+    if not node: return ""
+    try:
+        return ast.unparse(node)
+    except Exception:
+        return ""
+
+def _is_breaking_signature_change(old_node, new_node) -> bool:
+    if type(old_node) != type(new_node):
+        return True
+    if isinstance(old_node, ast.ClassDef):
+        return False
+    
+    old_args = old_node.args
+    new_args = new_node.args
+    
+    old_pos = old_args.args + getattr(old_args, 'posonlyargs', [])
+    new_pos = new_args.args + getattr(new_args, 'posonlyargs', [])
+    if len(old_pos) > len(new_pos): return True
+    
+    for i in range(len(old_pos)):
+        old_ann = _get_annotation_str(old_pos[i].annotation)
+        new_ann = _get_annotation_str(new_pos[i].annotation)
+        if old_ann and new_ann and old_ann != new_ann: return True
+            
+    added_pos_count = len(new_pos) - len(old_pos)
+    if added_pos_count > 0:
+        if len(new_args.defaults) - len(old_args.defaults) < added_pos_count:
+            return True
+            
+    old_kw = old_args.kwonlyargs
+    new_kw = new_args.kwonlyargs
+    if len(old_kw) > len(new_kw): return True
+    for i in range(len(old_kw)):
+        old_ann = _get_annotation_str(old_kw[i].annotation)
+        new_ann = _get_annotation_str(new_kw[i].annotation)
+        if old_ann and new_ann and old_ann != new_ann: return True
+            
+    added_kw_count = len(new_kw) - len(old_kw)
+    if added_kw_count > 0:
+        old_kw_defaults_count = len([d for d in old_args.kw_defaults if d is not None])
+        new_kw_defaults_count = len([d for d in new_args.kw_defaults if d is not None])
+        if new_kw_defaults_count - old_kw_defaults_count < added_kw_count: return True
+
+    return False
+
+def symbols_with_signature_changes(path: str, lines: Set[int]) -> Dict[str, bool]:
+    """Find functions/classes whose SIGNATURES were changed, returning {name: is_breaking}."""
     src = pathlib.Path(path).read_text(encoding="utf-8")
     tree = ast.parse(src)
-    changed_signatures = set()
+    changed_signatures = {}
+    
+    target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
+    try:
+        old_src = subprocess.check_output(["git", "show", f"{target_branch}:{path}"], stderr=subprocess.DEVNULL).decode()
+        old_tree = ast.parse(old_src)
+        old_nodes = {n.name: n for n in ast.walk(old_tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+    except Exception:
+        old_nodes = {}
+
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            # Check if the definition line itself was changed
             sig_start = node.lineno
             sig_end = max(node.lineno, node.body[0].lineno - 1) if node.body else node.lineno
             if any(sig_start <= ln <= sig_end for ln in lines):
-                changed_signatures.add(node.name)
-            # For classes, also check if __init__ signature changed
+                if node.name in old_nodes:
+                    changed_signatures[node.name] = _is_breaking_signature_change(old_nodes[node.name], node)
+                else:
+                    changed_signatures[node.name] = False
+            
             if isinstance(node, ast.ClassDef):
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == "__init__":
                         init_start = item.lineno
                         init_end = max(item.lineno, item.body[0].lineno - 1) if item.body else item.lineno
                         if any(init_start <= ln <= init_end for ln in lines):
-                            changed_signatures.add(node.name)
+                            old_class = old_nodes.get(node.name)
+                            old_init = None
+                            if old_class:
+                                for old_item in getattr(old_class, 'body', []):
+                                    if getattr(old_item, 'name', '') == '__init__':
+                                        old_init = old_item
+                                        break
+                            if old_init:
+                                changed_signatures[node.name] = _is_breaking_signature_change(old_init, item)
+                            else:
+                                changed_signatures[node.name] = False
     return changed_signatures
 
 def calls_in_lines(path: str, lines: Set[int]) -> Set[str]:

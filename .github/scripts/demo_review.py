@@ -86,7 +86,7 @@ def build_all_code_context(repo_path: str) -> Tuple[str, dict]:
     metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
     return "".join(context_parts), metadata
 
-def compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis):
+def compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis, changed_signature_names):
     impact_analysis = []
     findings = []
     for sym, callers in caller_counts.items():
@@ -108,8 +108,10 @@ def compute_downstream_impact(caller_counts, changed_symbols, modified_public_ap
         
         if is_public_api: score *= 2
         det = 'HIGH' if score > 10 else ('MEDIUM' if score > 3 else 'LOW')
-        impact_analysis.append(f"- Symbol '{sym}' (Score: {score}, Downstream Impact: {det}, References: {len(callers)})")
-        findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Signature Change", "evidence": f"Signature of '{sym}' was changed. Downstream impact score: {score}."})
+        is_breaking = changed_signature_names.get(sym, True)
+        breaking_str = "Breaking" if is_breaking else "Non-Breaking"
+        impact_analysis.append(f"- Symbol '{sym}' (Score: {score}, Downstream Impact: {det}, References: {len(callers)}, {breaking_str} Signature)")
+        findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Signature Change", "evidence": f"Signature of '{sym}' was changed ({breaking_str}). Downstream impact score: {score}."})
     return impact_analysis, findings
 
 def run_static_analysis(f, lines, modified_public_apis):
@@ -392,7 +394,7 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
         modified_public_apis = []
         impact_analysis = []
         
-        impact_analysis, impact_findings = compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis)
+        impact_analysis, impact_findings = compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis, changed_signature_names)
         findings.extend(impact_findings)
         
         for f, lines in changes.items():
@@ -454,6 +456,9 @@ Reject findings that are:
 - Generic maintainability concerns
 - Generic operational concerns
 - Speculative risks without a concrete failure path
+- Signature Changes explicitly marked as (Non-Breaking)
+
+Optional parameters, default values, widened types, and backward-compatible overloads are NOT considered breaking signature changes. Only treat (Breaking) signature changes as a regression risk.
 
 If you cannot identify a concrete failure path, return no finding (empty array).
 
