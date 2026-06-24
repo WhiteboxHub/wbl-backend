@@ -66,6 +66,8 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
     if added_pos_count > 0:
         if len(new_args.defaults) - len(old_args.defaults) < added_pos_count:
             return True
+    elif len(new_args.defaults) < len(old_args.defaults):
+        return True
             
     old_kw = old_args.kwonlyargs
     new_kw = new_args.kwonlyargs
@@ -76,10 +78,13 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
         if old_ann and new_ann and old_ann != new_ann: return True
             
     added_kw_count = len(new_kw) - len(old_kw)
+    old_kw_defaults_count = len([d for d in old_args.kw_defaults if d is not None])
+    new_kw_defaults_count = len([d for d in new_args.kw_defaults if d is not None])
+    
     if added_kw_count > 0:
-        old_kw_defaults_count = len([d for d in old_args.kw_defaults if d is not None])
-        new_kw_defaults_count = len([d for d in new_args.kw_defaults if d is not None])
         if new_kw_defaults_count - old_kw_defaults_count < added_kw_count: return True
+    elif new_kw_defaults_count < old_kw_defaults_count:
+        return True
 
     return False
 
