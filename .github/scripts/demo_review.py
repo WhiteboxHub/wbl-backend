@@ -247,7 +247,7 @@ def get_provider_config(model: str) -> Tuple[str, List[str]]:
         key = os.environ.get("DEEPSEEK_API_KEY") or ""
         keys = [key.strip()] if key.strip() else []
         return "https://api.deepseek.com", keys
-    elif model.startswith("gpt") or model.startswith("o1"):
+    elif model.startswith("gpt") or model.startswith("o1") or model.startswith("o3"):
         key = os.environ.get("OPENAI_API_KEY") or ""
         keys = [key.strip()] if key.strip() else []
         return None, keys

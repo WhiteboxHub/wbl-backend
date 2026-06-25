@@ -150,7 +150,10 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     if not candidates:
         raise Exception("No candidates returned.")
         
-    text = candidates[0].get("content", {}).get("parts", [])[0].get("text", "")
+    parts = candidates[0].get("content", {}).get("parts", [])
+    if not parts:
+        raise Exception("No parts returned in candidate content.")
+    text = parts[0].get("text", "")
     
     text_clean = text.strip().replace("```json", "").replace("```", "").strip()
     result = json.loads(text_clean)

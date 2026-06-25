@@ -44,6 +44,15 @@ def _get_annotation_str(node):
     except Exception:
         return ""
 
+import re
+def _is_compatible_type(old_type: str, new_type: str) -> bool:
+    # e.g. "int" -> "Union[int, str]" is safe.
+    # "int" -> "List[int]" is unsafe. "int" in "List[int]" is True but not safe.
+    # We can split on non-word characters and see if old_type's words are in new_type's words.
+    old_words = set(re.findall(r'\w+', old_type))
+    new_words = set(re.findall(r'\w+', new_type))
+    return old_words.issubset(new_words)
+
 def _is_breaking_signature_change(old_node, new_node) -> bool:
     if type(old_node) != type(new_node):
         return True
@@ -60,7 +69,7 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
     for i in range(len(old_pos)):
         old_ann = _get_annotation_str(old_pos[i].annotation)
         new_ann = _get_annotation_str(new_pos[i].annotation)
-        if old_ann and new_ann and old_ann != new_ann and old_ann not in new_ann: return True
+        if old_ann and new_ann and old_ann != new_ann and not _is_compatible_type(old_ann, new_ann): return True
             
     added_pos_count = len(new_pos) - len(old_pos)
     if added_pos_count > 0:
@@ -77,7 +86,7 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
         if name not in new_kw_dict: return True
         old_ann = _get_annotation_str(old_arg.annotation)
         new_ann = _get_annotation_str(new_kw_dict[name].annotation)
-        if old_ann and new_ann and old_ann != new_ann and old_ann not in new_ann: return True
+        if old_ann and new_ann and old_ann != new_ann and not _is_compatible_type(old_ann, new_ann): return True
             
     added_kw_count = len(new_kw) - len(old_kw)
     old_kw_defaults_count = len([d for d in old_args.kw_defaults if d is not None])
