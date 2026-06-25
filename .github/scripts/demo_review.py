@@ -501,17 +501,22 @@ Rank findings using this Severity Formula (map to bug_category):
             
             try:
                 print(f"Attempting AI Review using model {model} and API Key {idx + 1} of {len(keys)}...", file=sys.stderr)
-                response = client.chat.completions.create(
-                    model=model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={
+                response_format = {
                     "type": "json_schema",
                     "json_schema": {
                         "name": "bug_report",
                         "schema": json_schema
                     }
                 }
-            )
+                
+                if model.startswith("deepseek"):
+                    response_format = {"type": "json_object"}
+                    
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format=response_format
+                )
                 used_model = model
                 break
             except Exception as e:
