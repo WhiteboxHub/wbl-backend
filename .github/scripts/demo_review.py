@@ -200,8 +200,24 @@ def load_registry():
     except Exception:
         # Ultimate fail-safe
         return {
-            "MODEL_CAPABILITIES": {"gemini-3.5-flash": ["fast", "large_context"]},
-            "MODEL_SCORES": {"gemini-3.5-flash": 7},
+            "MODEL_CAPABILITIES": {
+                "deepseek-reasoner": ["reasoning", "coding"],
+                "gemini-2.5-pro": ["reasoning", "large_context"],
+                "gpt-4o": ["reasoning", "coding", "large_context"],
+                "deepseek-chat": ["balanced", "coding"],
+                "gemini-3.5-flash": ["fast", "large_context"],
+                "gpt-4o-mini": ["fast", "balanced"],
+                "gemini-3.1-flash-lite": ["fast", "cost_efficient"]
+            },
+            "MODEL_SCORES": {
+                "deepseek-reasoner": 10,
+                "gemini-2.5-pro": 9,
+                "gpt-4o": 8,
+                "deepseek-chat": 8,
+                "gemini-3.5-flash": 7,
+                "gpt-4o-mini": 6,
+                "gemini-3.1-flash-lite": 5
+            },
             "TAG_WEIGHTS": {"reasoning": 5, "coding": 3, "large_context": 2, "balanced": 1, "fast": 1, "cost_efficient": 0}
         }
 
@@ -497,17 +513,24 @@ Rank findings using this Severity Formula (map to bug_category):
             
             try:
                 print(f"Attempting AI Review using model {model} and API Key {idx + 1} of {len(keys)}...", file=sys.stderr)
-                response = client.chat.completions.create(
-                    model=model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={
+                response_format = {
                     "type": "json_schema",
                     "json_schema": {
                         "name": "bug_report",
                         "schema": json_schema
                     }
                 }
-            )
+                
+                final_prompt = prompt
+                if model.startswith("deepseek"):
+                    response_format = {"type": "json_object"}
+                    final_prompt += f"\n\nYou MUST return your response as a JSON object matching this exact schema:\n{json.dumps(json_schema)}"
+                    
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": final_prompt}],
+                    response_format=response_format
+                )
                 used_model = model
                 break
             except Exception as e:
