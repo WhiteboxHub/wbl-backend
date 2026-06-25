@@ -201,11 +201,23 @@ def load_registry():
         # Ultimate fail-safe
         return {
             "MODEL_CAPABILITIES": {
+                "deepseek-reasoner": ["reasoning", "coding"],
+                "gemini-2.5-pro": ["reasoning", "large_context"],
+                "gpt-4o": ["reasoning", "coding", "large_context"],
+                "deepseek-chat": ["balanced", "coding"],
                 "gemini-3.5-flash": ["fast", "large_context"],
-                "deepseek-chat": ["reasoning", "coding", "fast"],
-                "gpt-4o": ["reasoning", "coding", "large_context"]
+                "gpt-4o-mini": ["fast", "balanced"],
+                "gemini-3.1-flash-lite": ["fast", "cost_efficient"]
             },
-            "MODEL_SCORES": {"gemini-3.5-flash": 7, "deepseek-chat": 8, "gpt-4o": 9},
+            "MODEL_SCORES": {
+                "deepseek-reasoner": 10,
+                "gemini-2.5-pro": 9,
+                "gpt-4o": 8,
+                "deepseek-chat": 8,
+                "gemini-3.5-flash": 7,
+                "gpt-4o-mini": 6,
+                "gemini-3.1-flash-lite": 5
+            },
             "TAG_WEIGHTS": {"reasoning": 5, "coding": 3, "large_context": 2, "balanced": 1, "fast": 1, "cost_efficient": 0}
         }
 
