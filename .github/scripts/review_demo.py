@@ -60,7 +60,7 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
     for i in range(len(old_pos)):
         old_ann = _get_annotation_str(old_pos[i].annotation)
         new_ann = _get_annotation_str(new_pos[i].annotation)
-        if old_ann and new_ann and old_ann != new_ann: return True
+        if old_ann and new_ann and old_ann != new_ann and old_ann not in new_ann: return True
             
     added_pos_count = len(new_pos) - len(old_pos)
     if added_pos_count > 0:
@@ -75,7 +75,7 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
     for i in range(len(old_kw)):
         old_ann = _get_annotation_str(old_kw[i].annotation)
         new_ann = _get_annotation_str(new_kw[i].annotation)
-        if old_ann and new_ann and old_ann != new_ann: return True
+        if old_ann and new_ann and old_ann != new_ann and old_ann not in new_ann: return True
             
     added_kw_count = len(new_kw) - len(old_kw)
     old_kw_defaults_count = len([d for d in old_args.kw_defaults if d is not None])

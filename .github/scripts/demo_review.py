@@ -518,7 +518,7 @@ Rank findings using this Severity Formula (map to bug_category):
                     continue
                 else:
                     print(f"[Error] Fatal API error with Key {idx + 1}: {error_str}", file=sys.stderr)
-                    break
+                    continue
         
         if response:
             break
