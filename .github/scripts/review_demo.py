@@ -71,10 +71,12 @@ def _is_breaking_signature_change(old_node, new_node) -> bool:
             
     old_kw = old_args.kwonlyargs
     new_kw = new_args.kwonlyargs
-    if len(old_kw) > len(new_kw): return True
-    for i in range(len(old_kw)):
-        old_ann = _get_annotation_str(old_kw[i].annotation)
-        new_ann = _get_annotation_str(new_kw[i].annotation)
+    old_kw_dict = {arg.arg: arg for arg in old_kw}
+    new_kw_dict = {arg.arg: arg for arg in new_kw}
+    for name, old_arg in old_kw_dict.items():
+        if name not in new_kw_dict: return True
+        old_ann = _get_annotation_str(old_arg.annotation)
+        new_ann = _get_annotation_str(new_kw_dict[name].annotation)
         if old_ann and new_ann and old_ann != new_ann and old_ann not in new_ann: return True
             
     added_kw_count = len(new_kw) - len(old_kw)
@@ -96,6 +98,10 @@ def symbols_with_signature_changes(path: str, lines: Set[int]) -> Dict[str, bool
     
     target_branch = f"origin/{os.environ.get('GITHUB_BASE_REF')}" if os.environ.get('GITHUB_BASE_REF') else 'HEAD~1'
     try:
+        try:
+            subprocess.run(["git", "fetch", "--unshallow"], stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        except Exception:
+            pass
         old_src = subprocess.check_output(["git", "show", f"{target_branch}:{path}"], stderr=subprocess.DEVNULL).decode()
         old_tree = ast.parse(old_src)
         old_nodes = {n.name: n for n in ast.walk(old_tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
