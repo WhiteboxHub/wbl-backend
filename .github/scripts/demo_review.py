@@ -521,12 +521,14 @@ Rank findings using this Severity Formula (map to bug_category):
                     }
                 }
                 
+                final_prompt = prompt
                 if model.startswith("deepseek"):
                     response_format = {"type": "json_object"}
+                    final_prompt += f"\n\nYou MUST return your response as a JSON object matching this exact schema:\n{json.dumps(json_schema)}"
                     
                 response = client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": final_prompt}],
                     response_format=response_format
                 )
                 used_model = model
