@@ -331,6 +331,10 @@ def sync_and_update_models():
             # Stop tracking observations if connection is deterministically broken
             if meta.get("connection_ok") is False:
                 model_metadata[live_model] = meta
+                if live_model in model_caps:
+                    del model_caps[live_model]
+                if live_model in model_scores:
+                    del model_scores[live_model]
                 continue
 
             if not meta.get("verified", False):
