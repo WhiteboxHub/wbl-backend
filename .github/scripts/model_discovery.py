@@ -138,7 +138,7 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "tools": [{"googleSearch": {}}]
+        "tools": [{"googleSearchRetrieval": {}}]
     }
     
     res = requests.post(url, json=payload, timeout=15)

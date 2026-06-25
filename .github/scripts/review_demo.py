@@ -134,7 +134,8 @@ def symbols_with_signature_changes(path: str, lines: Set[int]) -> Dict[str, bool
                             if old_init:
                                 changed_signatures[node.name] = _is_breaking_signature_change(old_init, item)
                             else:
-                                changed_signatures[node.name] = False
+                                # If the new __init__ has required args other than self, it is breaking
+                                changed_signatures[node.name] = len(item.args.args) > 1 and len(item.args.defaults) < (len(item.args.args) - 1)
     return changed_signatures
 
 def calls_in_lines(path: str, lines: Set[int]) -> Set[str]:
