@@ -200,8 +200,12 @@ def load_registry():
     except Exception:
         # Ultimate fail-safe
         return {
-            "MODEL_CAPABILITIES": {"gemini-3.5-flash": ["fast", "large_context"]},
-            "MODEL_SCORES": {"gemini-3.5-flash": 7},
+            "MODEL_CAPABILITIES": {
+                "gemini-3.5-flash": ["fast", "large_context"],
+                "deepseek-chat": ["reasoning", "coding", "fast"],
+                "gpt-4o": ["reasoning", "coding", "large_context"]
+            },
+            "MODEL_SCORES": {"gemini-3.5-flash": 7, "deepseek-chat": 8, "gpt-4o": 9},
             "TAG_WEIGHTS": {"reasoning": 5, "coding": 3, "large_context": 2, "balanced": 1, "fast": 1, "cost_efficient": 0}
         }
 
