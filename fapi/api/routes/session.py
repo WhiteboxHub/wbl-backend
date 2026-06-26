@@ -7,11 +7,18 @@ from fapi.db.database import get_db
 router = APIRouter()
 
 
+# @router.get("/session", response_model=list[schemas.SessionOut])
+# def read_sessions(
+    # search_title: str = None,
+    # page: int = Query(default=1, ge=1),         
+    # size: int = Query(default=100, le=2000),      
+    # db: Session = Depends(get_db)
+# ):
 @router.get("/session", response_model=list[schemas.SessionOut])
 def read_sessions(
     search_title: str = None,
-    page: int = Query(default=1, ge=1),         
-    size: int = Query(default=100, le=2000),      
+    page: int = Query(default=1, ge=1),
+    size: int | None = Query(default=None),
     db: Session = Depends(get_db)
 ):
     return session_utils.get_sessions(
