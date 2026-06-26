@@ -8,6 +8,7 @@ import os
 import sys
 import time
 import json
+import textwrap
 from typing import Optional, Dict, Any, Tuple
 from pathlib import Path
 import logging
@@ -43,6 +44,115 @@ class CodeExecutor:
     }
 
     MAX_TIMEOUT = 30  # Server-side hard cap in seconds
+
+    @staticmethod
+    def execute_for_test_case(
+        code: str,
+        language: str,
+        input_data: Optional[str],
+        timeout: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Run one assignment test case: prefer calling a user-defined function with stdin
+        as the argument and printing the return value; fall back to plain stdin execution.
+        """
+        language = language.lower().strip()
+        if language in ("python", "python3"):
+            harness_result = CodeExecutor._execute_python_test_harness(
+                code, input_data, timeout
+            )
+            out = harness_result.get("output")
+            if out is not None and str(out).strip() != "":
+                return harness_result
+            if harness_result.get("status") == "error" and harness_result.get("error"):
+                return harness_result
+        return CodeExecutor.execute(code, language, input_data, timeout)
+
+    @staticmethod
+    def _build_python_test_harness_script(user_code: str) -> str:
+        encoded = json.dumps(user_code)
+        return textwrap.dedent(
+            f"""
+            import sys
+            import inspect
+            import json as _json
+            import io
+            import contextlib
+
+            _USER_CODE = {encoded}
+            _namespace = {{"__name__": "__wbl_test__"}}
+            with contextlib.redirect_stdout(io.StringIO()):
+                exec(_USER_CODE, _namespace)
+
+            def _parse_stdin(s):
+                s = (s or "").strip()
+                if not s:
+                    return None
+                try:
+                    return _json.loads(s)
+                except Exception:
+                    pass
+                try:
+                    return eval(s, {{"__builtins__": {{}}}})
+                except Exception:
+                    return s
+
+            def _format_out(val):
+                if val is None:
+                    return ""
+                if isinstance(val, bool):
+                    return "true" if val else "false"
+                if isinstance(val, float) and val == int(val):
+                    return str(int(val))
+                return str(val)
+
+            def _pick_func(ns):
+                funcs = [
+                    (n, o)
+                    for n, o in ns.items()
+                    if inspect.isfunction(o) and not n.startswith("_")
+                ]
+                for prefer in ("solution", "classify_temperature", "solve", "main"):
+                    for n, o in funcs:
+                        if n == prefer:
+                            return o
+                if len(funcs) == 1:
+                    return funcs[0][1]
+                if funcs:
+                    return funcs[-1][1]
+                return None
+
+            def _call_with_stdin(func, arg):
+                sig = inspect.signature(func)
+                n = len(sig.parameters)
+                if n == 0:
+                    return func()
+                if n == 1:
+                    return func(arg)
+                if isinstance(arg, dict):
+                    return func(**arg)
+                if isinstance(arg, (list, tuple)):
+                    return func(*arg)
+                raise TypeError(
+                    f"Function expects {{n}} arguments but stdin provided {{type(arg).__name__}}"
+                )
+
+            _fn = _pick_func(_namespace)
+            if _fn is None:
+                sys.exit(0)
+            _arg = _parse_stdin(sys.stdin.read())
+            _out = _format_out(_call_with_stdin(_fn, _arg))
+            if _out:
+                print(_out, end="")
+            """
+        ).lstrip()
+
+    @staticmethod
+    def _execute_python_test_harness(
+        code: str, input_data: Optional[str], timeout: int
+    ) -> Dict[str, Any]:
+        script = CodeExecutor._build_python_test_harness_script(code)
+        return CodeExecutor._execute_python(script, input_data, timeout)
 
     @staticmethod
     def execute(

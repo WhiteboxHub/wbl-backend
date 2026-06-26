@@ -21,6 +21,8 @@ ALLOWED_GET_PREFIXES = {
     "/api/positions",
     "/api/weekly-workflow/eligible-candidates",
     "/api/automation-workflow",
+    "/api/candidates/track-clicks-batch",
+    "/api/github-classroom-repos",
 }
 
 ALLOWED_POST_PREFIXES = {

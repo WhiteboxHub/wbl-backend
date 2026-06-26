@@ -1,18 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Security
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fapi.db.database import get_db
+from fapi.db.models import AuthUserORM
 from fapi.db.schemas import (
     JobListingCreate, 
     JobListingUpdate, 
     JobListingOut,
     JobListingBulkCreate,
     JobListingBulkResponse,
-    PaginatedJobListingResponse
+    PaginatedJobListingResponse,
+    CliWindowResponse,
 )
 from fapi.utils import job_listing_utils
 from fapi.utils.job_listing_utils import get_positions_version
+from fapi.utils.auth_dependencies import get_current_user
 
 router = APIRouter(prefix="/positions", tags=["Positions"], redirect_slashes=False)
 
@@ -32,16 +35,19 @@ def read_positions(skip: int = 0, limit: Optional[int] = None, db: Session = Dep
 
 @router.get("/paginated", response_model=PaginatedJobListingResponse)
 def read_positions_paginated(
-    page: int = 1, 
-    page_size: int = 5000, 
-    db: Session = Depends(get_db)
+    page: int = 1,
+    page_size: int = 100,
+    search: Optional[str] = Query(None, description="Filter by title, company, or location (ILIKE)"),
+    require_apply_link: bool = Query(False, description="If true, only return jobs with an apply URL (candidate dashboard mode)"),
+    db: Session = Depends(get_db),
 ):
     """Get job listings with page-based pagination"""
-    page_size = min(max(1, page_size), 10000)
+    page_size = min(max(1, page_size), 1500)
+
     page = max(1, page)
     skip = (page - 1) * page_size
-    total_records = job_listing_utils.count_positions(db)
-    data = job_listing_utils.get_positions(db, skip=skip, limit=page_size)
+    total_records = job_listing_utils.count_positions(db, search=search, require_apply_link=require_apply_link)
+    data = job_listing_utils.get_positions(db, skip=skip, limit=page_size, search=search, require_apply_link=require_apply_link)
     total_pages = (total_records + page_size - 1) // page_size  
     
     return {
@@ -63,6 +69,41 @@ def count_positions(db: Session = Depends(get_db)):
 @router.get("/search", response_model=List[JobListingOut])
 def search_positions(term: str, db: Session = Depends(get_db)):
     return job_listing_utils.search_positions(db, term=term)
+
+
+@router.get("/cli_window", response_model=CliWindowResponse)
+def read_positions_cli_window(
+    days: int = Query(
+        0,
+        ge=0,
+        le=3650,
+        description="0 = no time filter (all listings with job_url); >0 = last N UTC days",
+    ),
+    page_size: int = Query(5000, ge=1, le=10000),
+    offset: int = Query(0, ge=0, le=10_000_000),
+    status: Optional[str] = Query("open", description="Use 'all' to disable status filter"),
+    db: Session = Depends(get_db),
+    current_user: AuthUserORM = Depends(get_current_user),
+):
+    """JobCLI: canonical listings (optional time window), oldest first (not cached)."""
+    data, total_in_window = job_listing_utils.query_cli_window_listings(
+        db,
+        days=days,
+        page_size=page_size,
+        status=status,
+        authuser_id=getattr(current_user, "id", None),
+        offset=offset,
+    )
+    return {
+        "days": days,
+        "page_size": page_size,
+        "offset": offset,
+        "total_in_window": total_in_window,
+        "returned_count": len(data),
+        "sort": "created_at_asc",
+        "data": data,
+    }
+
 
 @router.get("/{position_id}", response_model=JobListingOut)
 def read_position(position_id: int, db: Session = Depends(get_db)):

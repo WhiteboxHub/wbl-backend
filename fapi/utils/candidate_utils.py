@@ -1,15 +1,14 @@
 # wbl-backend/fapi/utils/candidate_utils.py
 from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
-from sqlalchemy import or_,func
+from sqlalchemy import or_, func, distinct
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
 from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event
+import random
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM,CandidateMarketingORM,CandidateInterview,CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM, CandidateMarketingORM, CandidateInterview, CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM, CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
 from fapi.utils.encryption_utils import decrypt_api_key
-from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate,CandidateBase,BatchOut,CandidatePlacementUpdate,CandidateMarketingUpdate,CandidateInterviewUpdate,CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
-
-from fapi.db.models import JobListingORM
+from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateBase, BatchOut, CandidatePlacementUpdate, CandidateMarketingUpdate, CandidateInterviewUpdate, CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 from fapi.db.schemas import PositionStatusEnum, PositionTypeEnum, EmploymentModeEnum
 from fastapi import HTTPException, APIRouter, Depends, Response
 import hashlib
@@ -134,16 +133,6 @@ def create_candidate(candidate_data: dict) -> int:
         db.commit()
         db.refresh(new_candidate)
 
-        # Create Google Drive folder
-        try:
-            from fapi.utils.google_drive_utils import ensure_candidate_folder
-            folder = ensure_candidate_folder(new_candidate.id, new_candidate.full_name)
-            if folder:
-                new_candidate.candidate_folder = folder.get('webViewLink')
-                db.commit()
-                logger.info(f"Created Google Drive folder for candidate {new_candidate.id}")
-        except Exception as drive_err:
-            logger.error(f"Failed to create Google Drive folder for candidate {new_candidate.id}: {drive_err}")
 
         return new_candidate.id
     except Exception as e:
@@ -177,18 +166,6 @@ def update_candidate(candidate_id: int, candidate_data: dict):
 
         db.flush()
 
-        # Update Google Drive folder if name changed
-        if "full_name" in candidate_data and candidate.candidate_folder:
-            try:
-                from fapi.utils.google_drive_utils import ensure_candidate_folder
-                # Extract folder ID from URL
-                folder_id = candidate.candidate_folder.split('/')[-1]
-                if '?' in folder_id:
-                    folder_id = folder_id.split('?')[0]
-                
-                ensure_candidate_folder(candidate.id, candidate.full_name, existing_folder_id=folder_id)
-            except Exception as drive_err:
-                logger.error(f"Failed to update Google Drive folder name for candidate {candidate.id}: {drive_err}")
 
         if getattr(candidate, "move_to_prep", False):
             active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
@@ -679,6 +656,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
             "notes": db_obj.notes,
             "interviewer_emails": db_obj.interviewer_emails,
             "feedback": db_obj.feedback,
+            "duration_minutes": db_obj.duration_minutes,
         }
         event_id = create_calendar_event(sync_data, candidate_name)
         if event_id:
@@ -784,6 +762,12 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
         update_data["interviewer_emails"] = ",".join(
             [email.strip().lower() for email in update_data["interviewer_emails"].split(",")]
         )
+    if "position_title" in update_data:
+        title = update_data.pop("position_title")
+        if db_obj.position_id and db_obj.position:
+            db_obj.position.title = title
+        elif hasattr(db_obj, "position_title"):
+            db_obj.position_title = title
 
     for key, value in update_data.items():
         setattr(db_obj, key, value)
@@ -803,6 +787,7 @@ def update_candidate_interview(db: Session, interview_id: int, updates: Candidat
             "notes": db_obj.notes,
             "interviewer_emails": db_obj.interviewer_emails,
             "feedback": db_obj.feedback,
+            "duration_minutes": db_obj.duration_minutes,
         }
         if not db_obj.gcal_event_id:
             event_id = create_calendar_event(sync_data, candidate_name)
@@ -857,17 +842,6 @@ def get_active_marketing_candidates(db: Session):
 def get_active_dropdown_candidates(db: Session) -> list:
     results = (
         db.query(CandidateORM.id, CandidateORM.full_name)
-        .outerjoin(CandidateMarketingORM, CandidateORM.id == 
-    CandidateMarketingORM.candidate_id)
-        .outerjoin(CandidatePlacementORM, CandidateORM.id ==
-    CandidatePlacementORM.candidate_id)
-        .filter(
-            or_(
-                CandidateMarketingORM.status == "active",
-                CandidatePlacementORM.status == "Active",
-            )
-        )
-        .distinct()
         .order_by(CandidateORM.full_name.asc())
         .all()
     )
@@ -1070,6 +1044,20 @@ def get_candidate_details(candidate_id: int, db: Session):
         if candidate.email:
             authuser = db.query(AuthUserORM).filter(AuthUserORM.uname.ilike(candidate.email)).first()
 
+        cli_tracking_summary = None
+        cli_tracking_logs = []
+        if authuser and authuser.uname:
+            try:
+                from fapi.utils import cli_analytics_utils
+                user_summary = cli_analytics_utils.get_user_summary(db, authuser.uname)
+                cli_tracking_summary = user_summary.dict() if hasattr(user_summary, "dict") else user_summary.model_dump()
+                
+                paginated_events = cli_analytics_utils.get_paginated_events(db, page=1, page_size=10, user_id=authuser.uname)
+                for ev in paginated_events.events:
+                    cli_tracking_logs.append(ev.dict() if hasattr(ev, "dict") else ev.model_dump())
+            except Exception as e:
+                logger.error(f"Error fetching cli_tracking for {authuser.uname}: {e}")
+
         return {
             "candidate_id": candidate.id,
             "basic_info": {
@@ -1086,7 +1074,6 @@ def get_candidate_details(candidate_id: int, db: Session):
                 "ssn": f"-*-{str(candidate.ssn)[-4:]}" if candidate.ssn and len(str(candidate.ssn)) >= 4 else "Not Provided",
                 "dob": candidate.dob.isoformat() if candidate.dob else None,
                 "address": candidate.address,
-                "agreement": candidate.agreement,
                 "enrolled_date": candidate.enrolled_date.isoformat() if candidate.enrolled_date else None,
                 "batch_name": batch_name,
                 "candidate_folder": candidate.candidate_folder,
@@ -1168,6 +1155,58 @@ def get_candidate_details(candidate_id: int, db: Session):
                     .all() if authuser else []
                 )
             ],
+            "coderpad_tracking": {
+                "summary": {
+                    "questions_solved": (
+                        db.query(func.count(distinct(CodeExecutionLogORM.code_snippet_id)))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "success", CodeExecutionLogORM.code_snippet_id.isnot(None))
+                        .scalar() if authuser else 0
+                    ),
+                    "total_attempts": (
+                        db.query(func.count(CodeExecutionLogORM.id))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id)
+                        .scalar() if authuser else 0
+                    ),
+                    "passed": (
+                        db.query(func.count(CodeExecutionLogORM.id))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "success")
+                        .scalar() if authuser else 0
+                    ),
+                    "failed": (
+                        db.query(func.count(CodeExecutionLogORM.id))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "error")
+                        .scalar() if authuser else 0
+                    ),
+                    "success_rate": (
+                        round(
+                            (db.query(func.count(CodeExecutionLogORM.id)).filter(CodeExecutionLogORM.authuser_id == authuser.id, CodeExecutionLogORM.status == "success").scalar() or 0) /
+                            (db.query(func.count(CodeExecutionLogORM.id)).filter(CodeExecutionLogORM.authuser_id == authuser.id).scalar() or 1) * 100, 
+                            2
+                        ) if authuser and db.query(func.count(CodeExecutionLogORM.id)).filter(CodeExecutionLogORM.authuser_id == authuser.id).scalar() else 0
+                    )
+                },
+                "logs": [
+                    {
+                        "language": log.language,
+                        "status": log.status,
+                        "execution_time": f"{log.execution_time_ms}ms",
+                        "created_at": log.created_at.isoformat() if log.created_at else None,
+                        "snippet_title": log.snippet.title if log.snippet else "Direct Execution"
+                    }
+                    for log in (
+                        db.query(CodeExecutionLogORM)
+                        .options(joinedload(CodeExecutionLogORM.snippet))
+                        .filter(CodeExecutionLogORM.authuser_id == authuser.id)
+                        .order_by(CodeExecutionLogORM.created_at.desc())
+                        .limit(10)
+                        .all() if authuser else []
+                    )
+                ]
+            },
+            "cli_tracking": {
+                "summary": cli_tracking_summary,
+                "logs": cli_tracking_logs,
+            } if cli_tracking_summary else None,
             "placement_records": [
                 {
                     "position": p.position,
@@ -1489,3 +1528,100 @@ def get_preparations_version(db: Session) -> Response:
     response.headers["X-Total-Count"] = cnt
     return response
 
+def get_candidates_for_outreach(db: Session = None) -> List[Dict[str, Any]]:
+    """Return primary candidates where `run_daily_workflow` is true and `outreach_date` is today or earlier.
+    If `db` is not provided, a new session is created and closed automatically.
+    """
+    close_session = False
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+    try:
+        today = date.today()
+        results = (
+            db.query(CandidateMarketingORM, CandidateORM)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .filter(
+                CandidateMarketingORM.run_daily_workflow == True,
+                CandidateMarketingORM.outreach_date != None,
+                CandidateMarketingORM.outreach_date <= today,
+                CandidateMarketingORM.status == "active",
+                CandidateMarketingORM.email != None,
+                CandidateMarketingORM.email != "",
+                or_(
+                    CandidateMarketingORM.password != None,
+                    CandidateMarketingORM.imap_password != None
+                )
+            )
+            .all()
+        )
+        candidates = []
+        for marketing, candidate in results:
+            candidates.append({
+                "id": candidate.id,
+                "full_name": candidate.full_name,
+                "email": candidate.email,
+                "run_daily_workflow": marketing.run_daily_workflow,
+                "outreach_date": marketing.outreach_date,
+                "daily_outreach_limit": marketing.daily_outreach_limit,
+                "max_outreach_limit": marketing.max_outreach_limit,
+                "total_outreach_count": marketing.total_outreach_count,
+                "fcount": marketing.fcount,
+            })
+        return candidates
+    finally:
+        if close_session:
+            db.close()
+
+def get_backup_candidates(exclude_ids: List[int] = None, db: Session = None) -> List[Dict[str, Any]]:
+    """Return up to 5 backup candidates for daily outreach.
+
+    Excludes any IDs in ``exclude_ids``. Candidates must have valid SMTP credentials.
+    Ordered by earlier start_date, then fcount, then total_outreach_count.
+    """
+    exclude_ids = exclude_ids or []
+    close_session = False
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+    try:
+        query = (
+            db.query(CandidateMarketingORM, CandidateORM)
+            .join(CandidateORM, CandidateMarketingORM.candidate_id == CandidateORM.id)
+            .filter(
+                CandidateMarketingORM.status == "active",
+                CandidateMarketingORM.email != None,
+                CandidateMarketingORM.email != "",
+                or_(
+                    CandidateMarketingORM.password != None,
+                    CandidateMarketingORM.imap_password != None
+                )
+            )
+        )
+        if exclude_ids:
+            query = query.filter(~CandidateMarketingORM.candidate_id.in_(exclude_ids))
+        # Prioritize older candidates based on start_date, fcount, and total_outreach_count
+        query = query.order_by(
+            CandidateMarketingORM.start_date.asc(),
+            CandidateMarketingORM.fcount.asc(),
+            CandidateMarketingORM.total_outreach_count.asc()
+        )
+        candidates_pool = query.all()
+        sampled = random.sample(candidates_pool, k=min(5, len(candidates_pool)))
+        backups = []
+        for marketing, candidate in sampled:
+            backups.append({
+                "id": candidate.id,
+                "full_name": candidate.full_name,
+                "email": candidate.email,
+                "run_daily_workflow": marketing.run_daily_workflow,
+                "outreach_date": marketing.outreach_date,
+                "daily_outreach_limit": marketing.daily_outreach_limit,
+                "max_outreach_limit": marketing.max_outreach_limit,
+                "total_outreach_count": marketing.total_outreach_count,
+                "fcount": marketing.fcount,
+            })
+        return backups
+    finally:
+        if close_session:
+            db.close()

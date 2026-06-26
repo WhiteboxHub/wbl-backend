@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -67,6 +68,7 @@ def trigger_run(db: Session = Depends(get_db)) -> Dict[str, Any]:
     schedule = db.query(AutomationWorkflowScheduleORM).filter(AutomationWorkflowScheduleORM.id == SCHEDULE_ID).first()
     if schedule:
         schedule.last_run_at = datetime.now(timezone.utc)
+
         schedule.next_run_at = _compute_next_run(schedule)
     
     # Reset candidate workflow so it doesn't loop

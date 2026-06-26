@@ -292,6 +292,31 @@ class PaginatedJobListingResponse(BaseModel):
     has_prev: bool
 
 
+class CliWindowJobItem(BaseModel):
+    """Single job row for JobCLI discovery (subset of JobListingOut)."""
+
+    id: int
+    job_url: str
+    title: str
+    company_name: str
+    created_at: datetime
+    status: str
+    source: str
+    already_applied: bool = False
+
+
+class CliWindowResponse(BaseModel):
+    """Response for JobCLI ``GET /positions/cli_window`` (optional time window)."""
+
+    days: int
+    page_size: int
+    offset: int = 0
+    total_in_window: int
+    returned_count: int
+    sort: str = "created_at_asc"
+    data: List[CliWindowJobItem]
+
+
 
 
 class EmailPositionBase(BaseModel):
@@ -503,6 +528,7 @@ class Token(BaseModel):
     token_type: str
     team: Optional[str] = None
     login_count: Optional[int] = None
+    candidate_id: Optional[int] = None
 
 
 class TokenRequest(BaseModel):
@@ -842,14 +868,6 @@ class CandidateUpdate(BaseModel):
         "populate_by_name": True
     }
 
-    @field_validator("agreement", mode="before")
-    def normalize_agreement(cls, v):
-        if v is True:
-            return "Y"
-        if v is False:
-            return "N"
-        return v
-
 
 class CandidateDelete(CandidateBase):
     id: int
@@ -888,11 +906,17 @@ class CandidateMarketingBase(BaseModel):
     move_to_placement: Optional[bool] = False
     candidate_intro: Optional[str] = None
     run_daily_workflow: bool = False
+    outreach_date: Optional[date] = None
     run_weekly_workflow: bool = False
     run_email_extraction: bool = False
     run_raw_positions_workflow: bool = False
+    run_outreach_emails: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
+    total_outreach_count: Optional[int] = 0
+    daily_outreach_limit: Optional[int] = 250
+    max_outreach_limit: Optional[int] = 500
+    fcount: Optional[int] = 0
     candidate: Optional["CandidateBase"] = None
     marketing_manager_obj: Optional["EmployeeBase"] = None
 
@@ -948,11 +972,17 @@ class CandidateMarketingUpdate(BaseModel):
     move_to_placement: Optional[bool] = None
     candidate_intro: Optional[str] = None
     run_daily_workflow: Optional[bool] = None
+    outreach_date: Optional[date] = None
     run_weekly_workflow: Optional[bool] = None
     run_email_extraction: Optional[bool] = None
     run_raw_positions_workflow: Optional[bool] = None
+    run_outreach_emails: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
+    total_outreach_count: Optional[int] = None
+    daily_outreach_limit: Optional[int] = None
+    max_outreach_limit: Optional[int] = None
+    fcount: Optional[int] = None
 
     @field_validator("candidate_json", mode="before")
     @classmethod
@@ -1226,6 +1256,10 @@ class CandidateInterviewBase(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
+    position_title: Optional[str] = None
+    gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 
 # --- Create Schema ---
@@ -1251,6 +1285,9 @@ class CandidateInterviewCreate(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
+    gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = 60
 
 
 
@@ -1262,6 +1299,8 @@ model_config = {
 
 # --- Update Schema ---
 class CandidateInterviewUpdate(BaseModel):
+    model_config = {"extra": "ignore"}
+    position_title: Optional[str] = None
     candidate_id: Optional[int] = None
     company: Optional[str] = None
     company_type: Optional[CompanyTypeEnum] = None
@@ -1283,6 +1322,10 @@ class CandidateInterviewUpdate(BaseModel):
     q_a: Optional[str] = None
     email_text: Optional[str] = None
     feedback_text: Optional[str] = None
+    job_description: Optional[str] = None
+    gcal_event_id: Optional[str] = None
+    duration_minutes: Optional[int] = None
+
 
 
 # --- Output Schema ---
@@ -1295,6 +1338,7 @@ class CandidateInterviewOut(CandidateInterviewBase):
     position_title: Optional[str] = None
     position_company: Optional[str] = None
     gcal_event_id: Optional[str] = None  # Google Calendar event ID
+    duration_minutes: Optional[int] = 60
     last_mod_datetime: Optional[datetime] = None
 
     class Config:
@@ -1624,6 +1668,16 @@ class VendorContactBulkResponse(BaseModel):
 
 class MoveToVendorRequest(BaseModel):
     contact_ids: List[int] = Field(..., description="List of contact IDs to move to vendor")
+
+
+class TouchTimestampsRequest(BaseModel):
+    """Request body for bumping last_modified_datetime on duplicate vendor contacts."""
+    emails: List[str] = Field(..., description="List of vendor emails whose timestamps should be refreshed to now")
+
+
+class TouchTimestampsResponse(BaseModel):
+    """Response from the touch-timestamps endpoint."""
+    touched: int = Field(..., description="Number of vendor_contact_extracts rows whose last_modified_datetime was updated")
 
 
 # -------------------- Vendor Schemas --------------------
@@ -3593,6 +3647,93 @@ class AutomationWorkflowLog(AutomationWorkflowLogBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# -------------------- Campaign Emails --------------------
+class CampaignEmailBase(BaseModel):
+    workflow_id: int
+    candidate_id: int
+    vendor_email: str
+    scheduler_id: Optional[int] = None
+    status: Literal["pending", "processing", "sent", "failed", "bounced"] = "pending"
+    bounce_type: Literal["none", "soft", "hard", "invalid"] = "none"
+    retry_count: int = 0
+    last_attempt_at: Optional[datetime] = None
+    run_log_id: Optional[int] = None
+    credential_id: Optional[int] = None
+    message_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @field_validator('vendor_email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "pending"
+                    elif k == 'bounce_type':
+                        processed[k] = "none"
+                    elif k in ('retry_count',):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('status', 'bounce_type') and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class CampaignEmailCreate(CampaignEmailBase):
+    pass
+
+class CampaignEmailUpdate(BaseModel):
+    scheduler_id: Optional[int] = None
+    status: Optional[Literal["pending", "processing", "sent", "failed", "bounced"]] = None
+    bounce_type: Optional[Literal["none", "soft", "hard", "invalid"]] = None
+    retry_count: Optional[int] = None
+    last_attempt_at: Optional[datetime] = None
+    run_log_id: Optional[int] = None
+    credential_id: Optional[int] = None
+    message_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "pending"
+                    elif k == 'bounce_type':
+                        processed[k] = "none"
+                    elif k in ('retry_count',):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('status', 'bounce_type') and isinstance(v, str):
+                    processed[k] = v.lower().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class CampaignEmailOut(CampaignEmailBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 # -------------------- Outreach Contacts --------------------
 class OutreachContactBase(BaseModel):
     email: str
@@ -3878,6 +4019,13 @@ class EmailSMTPCredentialsBase(BaseModel):
     daily_limit: int
     note: Optional[str] = None
     is_active: bool = True
+    current_day_sent: int = 0
+    last_reset_date: Optional[date] = None
+    is_warming_up: bool = False
+    warmup_started_at: Optional[datetime] = None
+    warmup_daily_limit: int = 5
+    last_used_at: Optional[datetime] = None
+    is_healthy: bool = True
 
     @model_validator(mode='before')
     @classmethod
@@ -3886,23 +4034,45 @@ class EmailSMTPCredentialsBase(BaseModel):
             processed = {}
             for k, v in data.items():
                 if v == "":
-                    if k == 'is_active':
+                    if k in ('is_active', 'is_healthy'):
                         processed[k] = True
+                    elif k == 'is_warming_up':
+                        processed[k] = False
                     else:
                         processed[k] = None
-                elif k == 'is_active' and isinstance(v, str):
+                elif k in ('is_active', 'is_healthy', 'is_warming_up') and isinstance(v, str):
                     if v.lower() == 'true':
                         processed[k] = True
                     elif v.lower() == 'false':
                         processed[k] = False
                     else:
                         processed[k] = v
-                elif k == 'daily_limit' and isinstance(v, str) and v.isdigit():
+                elif k in ('daily_limit', 'current_day_sent', 'warmup_daily_limit') and isinstance(v, str) and v.isdigit():
                      processed[k] = int(v)
                 else:
                     processed[k] = v
             return processed
         return data
+
+    @field_validator('is_healthy', 'is_active', mode='before')
+    @classmethod
+    def default_true(cls, v):
+        return True if v is None else v
+
+    @field_validator('is_warming_up', mode='before')
+    @classmethod
+    def default_false(cls, v):
+        return False if v is None else v
+
+    @field_validator('current_day_sent', mode='before')
+    @classmethod
+    def default_zero(cls, v):
+        return 0 if v is None else v
+
+    @field_validator('warmup_daily_limit', mode='before')
+    @classmethod
+    def default_five(cls, v):
+        return 5 if v is None else v
 
     @field_validator('daily_limit')
     @classmethod
@@ -3923,6 +4093,13 @@ class EmailSMTPCredentialsUpdate(BaseModel):
     daily_limit: Optional[int] = None
     note: Optional[str] = None
     is_active: Optional[bool] = None
+    current_day_sent: Optional[int] = None
+    last_reset_date: Optional[date] = None
+    is_warming_up: Optional[bool] = None
+    warmup_started_at: Optional[datetime] = None
+    warmup_daily_limit: Optional[int] = None
+    last_used_at: Optional[datetime] = None
+    is_healthy: Optional[bool] = None
 
     @model_validator(mode='before')
     @classmethod
@@ -3932,9 +4109,9 @@ class EmailSMTPCredentialsUpdate(BaseModel):
             for k, v in data.items():
                 if v == "":
                     processed[k] = None
-                elif k == 'is_active' and isinstance(v, str):
+                elif k in ('is_active', 'is_healthy', 'is_warming_up') and isinstance(v, str):
                     processed[k] = v.lower() == 'true'
-                elif k == 'daily_limit' and isinstance(v, str) and v.isdigit():
+                elif k in ('daily_limit', 'current_day_sent', 'warmup_daily_limit') and isinstance(v, str) and v.isdigit():
                      processed[k] = int(v)
                 else:
                     processed[k] = v
@@ -4155,7 +4332,7 @@ class CodeExecutionWithTestsResponse(BaseModel):
 
 
 class CoderpadLlmValidateRequest(BaseModel):
-    """Optional X-OpenAI-Api-Key header; else server uses CODERPAD_OPENAI_API_KEY / OPENAI_API_KEY."""
+    """Uses X-OpenAI-Api-Key when sent; else candidate_llm_api_keys (OpenAI), then env keys."""
 
     problem_statement: str
     code: str
@@ -4188,6 +4365,87 @@ class CoderpadLlmGenerateResponse(BaseModel):
     error: Optional[str] = None
 
 
+class CoderpadMyOpenaiKeyStatusOut(BaseModel):
+    """``configured``: LLM can run (DB or env). ``stored_in_db``: row in ``candidate_llm_api_keys``."""
+
+    configured: bool
+    stored_in_db: bool
+
+
+class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
+    """OpenAI row in ``candidate_llm_api_keys`` for this user’s ``candidate.id`` (masked only)."""
+
+    has_stored_key: bool
+    masked_preview: Optional[str] = None
+    key_id: Optional[int] = None
+
+
+class CoderpadMyOpenaiKeyRevealOut(BaseModel):
+    """Full stored OpenAI key (owner only; use only after explicit user action to reveal)."""
+
+    api_key: str
+
+
+class CoderpadSaveOpenaiKeyRequest(BaseModel):
+    api_key: str
+    model_name: Optional[str] = "gpt-4o-mini"
+    voice_enabled: bool = False
+
+
+class CoderpadSaveLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+class CoderpadUpdateLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+class CandidateLlmKeyListItemOut(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[datetime] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+
+
+class CoderpadLlmKeyVoiceEnabledIn(BaseModel):
+    voice_enabled: bool
+
+
+class CoderpadLlmKeyIsDefaultIn(BaseModel):
+    is_default: bool
+
+
+class CoderpadLlmKeyValidateItemIn(BaseModel):
+    id: int
+    provider_name: str
+    source: str = "wbl"
+
+
+class CoderpadLlmKeyValidateBatchIn(BaseModel):
+    session_id: Optional[str] = None
+    keys: List[CoderpadLlmKeyValidateItemIn]
+
+
+class CoderpadLlmKeyValidateResultOut(BaseModel):
+    id: int
+    source: str = "wbl"
+    status: str
+    message: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchOut(BaseModel):
+    results: List[CoderpadLlmKeyValidateResultOut]
+
+
 class CodeExecutionLogOut(BaseModel):
     id: int
     code_snippet_id: Optional[int] = None  # None for direct executions (no saved snippet)
@@ -4203,6 +4461,24 @@ class CodeExecutionLogOut(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class CoderpadTrackingLogOut(BaseModel):
+    id: int
+    candidate_email: str
+    candidate_name: str
+    question_title: str
+    language: str
+    status: str
+    execution_time_ms: int = 0
+    created_at: datetime
+    test_passed: int = 0
+    test_total: int = 0
+    security_events_count: int = 0
+
+
+class CoderpadTrackingLogsResponse(BaseModel):
+    data: List[CoderpadTrackingLogOut]
 #--------------------------------------extension keys--------------------------------------
 
 class ExtensionKeyBase(BaseModel):
@@ -4270,6 +4546,140 @@ class DownloadPayload(BaseModel):
     field_answers: List[FieldAnswerInput]
     locators: List[LocatorInput]
 
+
+class CliUsageEventIn(BaseModel):
+    user_id: str
+    event_name: str
+    event_ts: Optional[datetime] = None
+    command: Optional[str] = None
+    result: Optional[str] = None
+    duration_ms: Optional[int] = None
+    jobs_attempted_count: Optional[int] = None
+    jobs_submitted_count: Optional[int] = None
+    jobs_failed_count: Optional[int] = None
+    metadata: Optional[dict] = None
+
+
+class CliUsageEventBulkCreate(BaseModel):
+    events: List[CliUsageEventIn]
+
+
+class CliUsageEventBulkResponse(BaseModel):
+    status: str = "success"
+    ingested: int
+    failed: int = 0
+    total: int
+    failed_events: List[dict] = []
+
+
+class CliUsageAnalyticsSummary(BaseModel):
+    total_events: int
+    total_users: int
+    active_users_7d: int
+    total_jobs_attempted: int
+    total_jobs_submitted: int
+    total_jobs_failed: int
+    command_counts: dict = {}
+
+
+class CliUsageUserSummary(BaseModel):
+    user_id: str
+    events: int
+    jobs_attempted: int
+    jobs_submitted: int
+    jobs_failed: int
+    last_event_at: Optional[datetime] = None
+
+
+class CliUsageUserRow(BaseModel):
+    """One row per WBL user for the admin dashboard."""
+
+    user_id: str
+    jobs_attempted: int
+    jobs_submitted: int
+    jobs_failed: int = 0
+    last_event_at: Optional[datetime] = None
+    result: Optional[str] = None
+    apply_run_log: Optional[dict] = None
+    apply_run_log_preview: Optional[str] = None
+    apply_log_history: List[dict] = []
+
+
+class CliUsageUserMetricsUpdate(BaseModel):
+    """Staff adjustment of aggregated per-user job counters."""
+
+    jobs_attempted: int = Field(ge=0)
+    jobs_submitted: int = Field(ge=0)
+    jobs_failed: int = Field(ge=0)
+
+
+class CliUsageUserMutationResponse(BaseModel):
+    user_id: str
+    deleted_events: int = 0
+    jobs_attempted: Optional[int] = None
+    jobs_submitted: Optional[int] = None
+    jobs_failed: Optional[int] = None
+
+
+class PaginatedCliUsageUsers(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    users: List[CliUsageUserRow]
+
+
+class CliUsageEventOut(BaseModel):
+    id: int
+    user_id: str
+    event_name: str
+    command: Optional[str] = None
+    result: Optional[str] = None
+    event_ts: datetime
+    duration_ms: Optional[int] = None
+    jobs_attempted_count: Optional[int] = None
+    jobs_submitted_count: Optional[int] = None
+    jobs_failed_count: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedCliUsageEvents(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    events: List[CliUsageEventOut]
+
+
+class CliApplyRunBackfillResponse(BaseModel):
+    updated: int
+    scanned: int
+
+
+class CliApplyRunJobOut(BaseModel):
+    """One job from the latest apply_run_log (matches CLI apply table)."""
+
+    job_id: Optional[int] = None
+    title: Optional[str] = None
+    company: Optional[str] = None
+    url: Optional[str] = None
+    status: Optional[str] = None
+    applied_at: Optional[str] = None
+    application_log_line_count: int = 0
+
+
+class CliApplyRunLatestOut(BaseModel):
+    """Latest apply run for a user (from cli_usage_events event_metadata)."""
+
+    user_id: str
+    run_started_at: Optional[str] = None
+    run_ended_at: Optional[str] = None
+    result: Optional[str] = None
+    summary: dict = {}
+    jobs: List[CliApplyRunJobOut] = []
+    apply_run_log: Optional[dict] = None
+
+
 class CoderpadSecurityEventCreate(BaseModel):
     question_id: Optional[int] = None
     type: str
@@ -4286,3 +4696,99 @@ class CoderpadTrackingCandidateStats(BaseModel):
 
 class CoderpadTrackingResponse(BaseModel):
     candidates: List[CoderpadTrackingCandidateStats]
+
+
+# -------------------- Outreach Emails --------------------
+class OutreachEmailBase(BaseModel):
+    email: str
+    status: Literal['ACTIVE', 'PAUSED', 'SUPPRESSED', 'UNSUBSCRIBED', 'INVALID', 'BOUNCED', 'COMPLAINED'] = 'ACTIVE'
+    validation_status: Literal['VALID', 'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'UNKNOWN'] = 'VALID'
+    bounce_type: Optional[Literal['HARD', 'SOFT', 'TRANSIENT', 'BLOCKED', 'POLICY', 'SPAM', 'UNKNOWN']] = None
+    failure_type: Optional[Literal['EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'DNS_FAILURE', 'SMTP_REJECTED', 'SPAM_BLOCKED', 'RATE_LIMITED', 'TIMEOUT', 'PROVIDER_ERROR', 'TEMPLATE_ERROR', 'SUPPRESSION_LIST', 'UNKNOWN']] = None
+    suppression_source: Optional[str] = None
+    send_attempt_count: int = 0
+    provider_name: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    last_email_sent_at: Optional[datetime] = None
+    last_attempted_at: Optional[datetime] = None
+    unsubscribed_at: Optional[datetime] = None
+    bounced_at: Optional[datetime] = None
+    complained_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    if k == 'status':
+                        processed[k] = "ACTIVE"
+                    elif k == 'validation_status':
+                        processed[k] = "VALID"
+                    elif k in ('send_attempt_count',):
+                        processed[k] = 0
+                    else:
+                        processed[k] = None
+                elif k in ('status', 'validation_status', 'bounce_type', 'failure_type') and isinstance(v, str):
+                    processed[k] = v.upper().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class OutreachEmailCreate(OutreachEmailBase):
+    pass
+
+class OutreachEmailUpdate(BaseModel):
+    email: Optional[str] = None
+    status: Optional[Literal['ACTIVE', 'PAUSED', 'SUPPRESSED', 'UNSUBSCRIBED', 'INVALID', 'BOUNCED', 'COMPLAINED']] = None
+    validation_status: Optional[Literal['VALID', 'EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'UNKNOWN']] = None
+    bounce_type: Optional[Literal['HARD', 'SOFT', 'TRANSIENT', 'BLOCKED', 'POLICY', 'SPAM', 'UNKNOWN']] = None
+    failure_type: Optional[Literal['EMAIL_INVALID', 'DOMAIN_INVALID', 'MAILBOX_INVALID', 'DNS_FAILURE', 'SMTP_REJECTED', 'SPAM_BLOCKED', 'RATE_LIMITED', 'TIMEOUT', 'PROVIDER_ERROR', 'TEMPLATE_ERROR', 'SUPPRESSION_LIST', 'UNKNOWN']] = None
+    suppression_source: Optional[str] = None
+    send_attempt_count: Optional[int] = None
+    provider_name: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    last_email_sent_at: Optional[datetime] = None
+    last_attempted_at: Optional[datetime] = None
+    unsubscribed_at: Optional[datetime] = None
+    bounced_at: Optional[datetime] = None
+    complained_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+
+    @field_validator('email')
+    @classmethod
+    def normalize_email(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            return v.lower().strip()
+        return v
+
+    @model_validator(mode='before')
+    @classmethod
+    def preprocess_data(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            processed = {}
+            for k, v in data.items():
+                if v == "":
+                    processed[k] = None
+                elif k in ('status', 'validation_status', 'bounce_type', 'failure_type') and isinstance(v, str):
+                    processed[k] = v.upper().strip()
+                else:
+                    processed[k] = v
+            return processed
+        return data
+
+class OutreachEmailOut(OutreachEmailBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)

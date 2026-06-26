@@ -21,6 +21,8 @@ from fapi.db.models import (
     CandidateORM,
     DeliveryEngineORM,
     EmailTemplateORM,
+    OutreachEmailORM,
+    CampaignEmailORM,
 )
 
 logger = logging.getLogger(__name__)
@@ -331,13 +333,21 @@ def get_candidate_credentials(db: Session, candidate_id: int) -> Dict[str, Any]:
             status_code=404, detail="Active marketing record not found"
         )
 
+    # Normalize linkedin_url — prepend https:// when the slug
+    # starts with www. or is already a partial URL without a scheme.
+    raw_linkedin = res.linkedin_id or ""
+    if raw_linkedin and not raw_linkedin.startswith(("http://", "https://")):
+        linkedin_url = "https://" + raw_linkedin
+    else:
+        linkedin_url = raw_linkedin or None
+
     return {
         "email": res.email,
         "password": res.password,
         "imap_password": res.imap_password,
         "start_date": str(res.start_date) if res.start_date else None,
         "candidate_name": res.full_name,
-        "linkedin_url": res.linkedin_id,
+        "linkedin_url": linkedin_url,
     }
 
 
@@ -390,8 +400,17 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     """
     Calculate the next run time based on the schedule's frequency.
     Ensures the next run is always in the future.
+    Always operates with timezone-aware UTC datetimes to prevent
+    naive/aware comparison errors.
     """
-    anchor = schedule.next_run_at or datetime.now(timezone.utc)
+    anchor = schedule.next_run_at
+    # Normalize: if anchor is naive, treat it as UTC
+    if anchor and anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=timezone.utc)
+    # If no anchor at all, use now
+    if not anchor:
+        anchor = datetime.now(timezone.utc)
+
     now = datetime.now(timezone.utc)
 
     if schedule.frequency == "weekly":
@@ -422,6 +441,7 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     elif schedule.frequency == "custom" and schedule.cron_expression:
         try:
             cron = croniter(schedule.cron_expression, now)
+            # croniter returns naive datetimes — re-attach UTC so comparisons stay consistent
             return cron.get_next(datetime).replace(tzinfo=timezone.utc)
         except Exception as e:
             logger.error(f"Error parsing cron {schedule.cron_expression}: {e}")
@@ -462,37 +482,54 @@ def create_log(db: Session, log_data: Dict[str, Any]) -> AutomationWorkflowLogOR
                 schedule.is_running = True
             elif status in ["success", "failed", "completed"]:
                 schedule.is_running = False
-                schedule.last_run_at = now
-                
-                if schedule.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
-                    # Marketing Report specific logic (Update next_run_at and set back to idle)
-                    # This ensures it runs exactly once per day and is ready for tomorrow
-                    if schedule.next_run_at:
-                        schedule.next_run_at = schedule.next_run_at + timedelta(days=1)
-                    schedule.state = 'idle'
+                schedule.last_run_at = now  # now is already timezone-aware UTC
+
+                if schedule.workflow and schedule.workflow.workflow_key in ['daily_marketing_report', 'weekly_marketing_report'] and status == 'success':
+                    # Marketing Report specific logic — advance by 1 day and reset to idle
+                    existing = schedule.next_run_at
+                    if existing:
+                        # Normalize to UTC-aware if stored as naive
+                        if existing.tzinfo is None:
+                            existing = existing.replace(tzinfo=timezone.utc)
+                        schedule.next_run_at = existing + timedelta(days=1)
                     logger.info(f"Marketing report {schedule_id} successfully finished. Rescheduled to {schedule.next_run_at}")
                 else:
-                    # Update state for all other workflows as normal
-                    schedule.state = status
-                    
-                    # Reschedule only on success or if we want to retry on failure
-                    # For now, we reschedule on both success and failure to prevent loops
+                    # Reschedule (on both success and failure to prevent stuck schedules)
                     next_run = _calculate_next_run(schedule)
                     schedule.next_run_at = next_run
-                    
+
                     if schedule.frequency == "once":
                         schedule.enabled = False
-                    
+
                     logger.info(f"Schedule {schedule_id} finished with {status}. Next run: {next_run}")
 
     db.commit()
     db.refresh(new_log)
+    
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("automation_workflow_logs")
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {e}")
+        
     return new_log
 
 
 def update_log(
     db: Session, log_id: int, updates: Dict[str, Any]
 ) -> AutomationWorkflowLogORM:
+    """
+    Update a workflow log entry.
+
+    When the status transitions to a terminal state
+    (success / failed / completed), this also:
+      - unlocks the associated schedule (is_running = False)
+      - advances next_run_at via _calculate_next_run()
+      - records last_run_at
+
+    Without this, the schedule would stay locked (is_running=1) forever, so
+    /schedules/due would never return it again and outreach would stop permanently.
+    """
     db_log = (
         db.query(AutomationWorkflowLogORM)
         .filter(AutomationWorkflowLogORM.id == log_id)
@@ -505,5 +542,134 @@ def update_log(
         if hasattr(db_log, k):
             setattr(db_log, k, v)
 
+    # --- Unlock + reschedule when status becomes terminal ---
+    new_status = updates.get("status")
+    if new_status in ("success", "failed", "completed"):
+        schedule_id = db_log.schedule_id
+        if schedule_id:
+            schedule = (
+                db.query(AutomationWorkflowScheduleORM)
+                .filter(AutomationWorkflowScheduleORM.id == schedule_id)
+                .first()
+            )
+            if schedule:
+                now = datetime.now(timezone.utc)
+                schedule.is_running = False
+                schedule.last_run_at = now
+
+                if (
+                    schedule.workflow
+                    and schedule.workflow.workflow_key
+                    in ("daily_marketing_report", "weekly_marketing_report")
+                    and new_status == "success"
+                ):
+                    # Marketing report: advance by 1 day
+                    existing = schedule.next_run_at
+                    if existing:
+                        if existing.tzinfo is None:
+                            existing = existing.replace(tzinfo=timezone.utc)
+                        schedule.next_run_at = existing + timedelta(days=1)
+                    logger.info(
+                        "update_log: marketing report schedule %s rescheduled to %s",
+                        schedule_id,
+                        schedule.next_run_at,
+                     )
+                else:
+                    next_run = _calculate_next_run(schedule)
+                    schedule.next_run_at = next_run
+
+                    if schedule.frequency == "once":
+                        schedule.enabled = False
+
+                    logger.info(
+                        "update_log: schedule %s unlocked after %s. Next run: %s",
+                        schedule_id,
+                        new_status,
+                        next_run,
+                    )
+
     db.commit()
+    db.refresh(db_log)
+    
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("automation_workflow_logs")
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {e}")
+        
     return db_log
+
+
+# ---------------------------------------------------------------------------
+# Candidate Outreach Emails
+# ---------------------------------------------------------------------------
+
+def get_eligible_outreach_emails_for_candidate(db: Session, candidate_id: int) -> List[Dict[str, Any]]:
+    """
+    Return eligible outreach email recipients for a specific candidate.
+
+    Uses the outreach_emails table (the live table, same as the
+    GET /orchestrator/candidates/{id}/outreach-emails route). 
+    Filters out:
+      - rows the candidate has already been sent to (via campaign_emails)
+      - recipients whose validation_status is not 'VALID'
+      - recipients whose status is not 'ACTIVE'
+    """
+    from fapi.db.models import OutreachEmailORM
+
+    # Subquery: emails already sent to this candidate
+    sent_emails = (
+        db.query(CampaignEmailORM.vendor_email)
+        .filter(CampaignEmailORM.candidate_id == candidate_id)
+        .subquery()
+    )
+
+    recipients = (
+        db.query(OutreachEmailORM)
+        .filter(
+            OutreachEmailORM.status == "ACTIVE",
+            OutreachEmailORM.validation_status == "VALID",
+            ~OutreachEmailORM.email.in_(sent_emails),
+        )
+        .all()
+    )
+
+    return [{"id": r.id, "vendor_email": r.email} for r in recipients]
+
+
+def get_outreach_candidates(db: Session) -> List[Dict[str, Any]]:
+    """Fetch primary and backup candidates using existing backend logic."""
+    from fapi.utils.candidate_utils import get_candidates_for_outreach, get_backup_candidates
+    primary_candidates = get_candidates_for_outreach(db)
+    primary_ids = [c["id"] for c in primary_candidates]
+    backups = get_backup_candidates(exclude_ids=primary_ids, db=db)
+    return primary_candidates + backups
+
+
+def update_candidate_metrics(db: Session, candidate_id: int, sent_count: int) -> bool:
+    """Increment fcount, add sent_count to outreach count, and advance date to tomorrow."""
+    from datetime import date, timedelta
+    marketing = (
+        db.query(CandidateMarketingORM)
+        .filter(
+            CandidateMarketingORM.candidate_id == candidate_id,
+            CandidateMarketingORM.status == "active",
+        )
+        .first()
+    )
+    if not marketing:
+        return False
+
+    marketing.fcount += 1
+    marketing.total_outreach_count += sent_count
+    marketing.outreach_date = date.today() + timedelta(days=1)
+
+    if marketing.total_outreach_count >= marketing.max_outreach_limit:
+        marketing.run_daily_workflow = False
+        logger.info(
+            f"Candidate {candidate_id} reached max outreach limit ({marketing.max_outreach_limit}). Disabled daily program."
+        )
+
+    db.commit()
+    return True
+

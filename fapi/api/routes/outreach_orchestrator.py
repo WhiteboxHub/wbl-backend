@@ -77,6 +77,7 @@ def get_schedule(schedule_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.patch("/schedules/{schedule_id}")
 @router.put("/schedules/{schedule_id}")
 def update_schedule(
     schedule_id: int,
@@ -154,6 +155,33 @@ def get_candidate_credentials(candidate_id: int, db: Session = Depends(get_db)):
     """Return sender email/password/IMAP credentials for an active candidate marketing record."""
     return orc_utils.get_candidate_credentials(db, candidate_id)
 
+
+@router.get("/candidates/{candidate_id}/outreach-emails")
+def get_candidate_outreach_emails(
+    candidate_id: int,
+    skip: int = 0,
+    limit: int = 1000,
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch all active, valid outreach email recipients.
+    Deduplication and queue tracking are handled locally by the DuckDB engine.
+    """
+    from sqlalchemy import text
+    try:
+        sql = text("""
+            SELECT id, email AS vendor_email
+            FROM outreach_emails
+            WHERE status = 'ACTIVE'
+              AND validation_status = 'VALID'
+            LIMIT :limit OFFSET :skip
+        """)
+        result = db.execute(sql, {"limit": limit, "skip": skip}).mappings().all()
+        return [dict(r) for r in result]
+    except Exception as e:
+        logger.error("Error fetching outreach emails for candidate %s: %s", candidate_id, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Delivery engine & email template
 
 @router.get("/delivery-engine/{engine_id}")
@@ -199,4 +227,38 @@ def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error("Error updating log %s: %s", log_id, e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class CandidateMetricsUpdate(BaseModel):
+    sent_count: int
+
+
+@router.get("/candidates/outreach")
+def get_outreach_candidates(db: Session = Depends(get_db)):
+    """Fetch eligible primary and backup candidates for daily outreach."""
+    try:
+        return orc_utils.get_outreach_candidates(db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error fetching outreach candidates: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/candidates/{candidate_id}/metrics")
+def update_candidate_metrics(
+    candidate_id: int,
+    req: CandidateMetricsUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update candidate fcount, total outreach count, and next date."""
+    try:
+        success = orc_utils.update_candidate_metrics(db, candidate_id, req.sent_count)
+        return {"success": success}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating candidate metrics: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 

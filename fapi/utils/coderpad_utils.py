@@ -146,7 +146,7 @@ def run_test_cases_against_code(
     test_results: List[TestCaseExecutionResult] = []
     for idx, test_case_data in enumerate(test_cases_data):
         test_case = TestCase(**test_case_data)
-        test_result = CodeExecutor.execute(
+        test_result = CodeExecutor.execute_for_test_case(
             code=code,
             language=language,
             input_data=test_case.input,
@@ -286,6 +286,69 @@ def get_execution_logs(
     return query.order_by(CodeExecutionLogORM.created_at.desc()).limit(limit).all()
 
 
+def get_tracking_execution_logs(
+    db: Session,
+    limit: int = 1000,
+) -> List[Dict[str, Any]]:
+    """Staff view: execution logs joined to candidates via authuser.uname = candidate.email."""
+    rows = (
+        db.query(
+            CodeExecutionLogORM,
+            AuthUserORM.uname,
+            CandidateORM.full_name,
+            CodeSnippetORM.title,
+        )
+        .join(AuthUserORM, CodeExecutionLogORM.authuser_id == AuthUserORM.id)
+        .outerjoin(
+            CandidateORM,
+            sa_func.lower(CandidateORM.email) == sa_func.lower(AuthUserORM.uname),
+        )
+        .outerjoin(
+            CodeSnippetORM,
+            CodeExecutionLogORM.code_snippet_id == CodeSnippetORM.id,
+        )
+        .order_by(CodeExecutionLogORM.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    security_counts: Dict[int, int] = {}
+    try:
+        from fapi.db.models import CoderpadSecurityEventORM
+
+        for uid, cnt in (
+            db.query(
+                CoderpadSecurityEventORM.authuser_id,
+                sa_func.count(CoderpadSecurityEventORM.id),
+            )
+            .group_by(CoderpadSecurityEventORM.authuser_id)
+            .all()
+        ):
+            security_counts[uid] = int(cnt)
+    except Exception:
+        pass
+
+    out: List[Dict[str, Any]] = []
+    for log, uname, full_name, snippet_title in rows:
+        passed = 1 if log.status == "success" else 0
+        out.append(
+            {
+                "id": log.id,
+                "candidate_email": (uname or "").strip(),
+                "candidate_name": (full_name or uname or "Unknown").strip(),
+                "question_title": (snippet_title or "Code execution").strip(),
+                "language": log.language,
+                "status": log.status,
+                "execution_time_ms": log.execution_time_ms or 0,
+                "created_at": log.created_at,
+                "test_passed": passed,
+                "test_total": 1,
+                "security_events_count": security_counts.get(log.authuser_id, 0),
+            }
+        )
+    return out
+
+
 # ==================== Code Sharing ====================
 
 def share_snippet(
@@ -353,7 +416,7 @@ def get_shared_snippets(db: Session, user_id: int) -> List[CodeSnippetORM]:
     return sorted(result, key=lambda x: x.updated_at, reverse=True)
 
 
-# ==================== Admin questions (assignments) ====================
+# ==================== Admin questions (Questions) ====================
 
 def list_questions(
     db: Session,
@@ -373,8 +436,8 @@ def list_questions(
     if is_staff or current_user_id is None:
         return rows
 
-    # Candidate view: only include assignments explicitly assigned to them,
-    # plus global assignments where assigned_candidate_ids is empty/null.
+    # Candidate view: only include Questions explicitly assigned to them,
+    # plus global Questions where assigned_candidate_ids is empty/null.
     filtered: List[CoderpadQuestionORM] = []
     for row in rows:
         assigned = row.assigned_candidate_ids

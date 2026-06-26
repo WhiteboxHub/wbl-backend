@@ -83,7 +83,14 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
     occurrence in the FUTURE to prevent "catch-up loops" (sending multiple 
     reports in a row).
     """
-    anchor = schedule.next_run_at or datetime.now(timezone.utc)
+    anchor = schedule.next_run_at
+    # Normalize: if anchor is naive, treat it as UTC
+    if anchor and anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=timezone.utc)
+    # If no anchor at all, use now
+    if not anchor:
+        anchor = datetime.now(timezone.utc)
+
     now = datetime.now(timezone.utc)
 
     if schedule.frequency == "weekly":
@@ -116,6 +123,7 @@ def _calculate_next_run(schedule: AutomationWorkflowScheduleORM) -> Optional[dat
         return next_run
     elif schedule.frequency == "custom" and schedule.cron_expression:
         cron = croniter(schedule.cron_expression, now)
+        # croniter returns naive datetimes — re-attach UTC so comparisons stay consistent
         return cron.get_next(datetime).replace(tzinfo=timezone.utc)
     elif schedule.frequency == "once":
         return None
@@ -147,7 +155,7 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
 
     try:
         schedule.is_running = True
-        schedule.last_run_at = execution_start
+        schedule.last_run_at = execution_start  # timezone-aware UTC
 
         next_run = _calculate_next_run(schedule)
         schedule.next_run_at = next_run
@@ -209,10 +217,11 @@ def check_and_execute_due_workflows(db: Session) -> list:
         now = datetime.now(timezone.utc)
         
         # Step 1: Identify candidate IDs that are due (non-locking first pass)
-        candidates = db.query(AutomationWorkflowScheduleORM.id).filter(
+        candidates = db.query(AutomationWorkflowScheduleORM.id).join(AutomationWorkflowORM).filter(
             AutomationWorkflowScheduleORM.enabled == True,
             AutomationWorkflowScheduleORM.is_running == False,
-            AutomationWorkflowScheduleORM.next_run_at <= now
+            AutomationWorkflowScheduleORM.next_run_at <= now,
+            AutomationWorkflowORM.workflow_key != "weekly_marketing_report"
         ).all()
 
         if candidates:

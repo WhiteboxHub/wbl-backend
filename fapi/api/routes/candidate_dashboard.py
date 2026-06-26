@@ -37,7 +37,7 @@ from fapi.utils.candidate_dashboard_utils import (
     update_candidate_phase_status,
     update_interview_feedback,
 )
-from fapi.utils.email_utils import send_onboarding_documents_email
+
 from fapi.utils.google_drive_utils import create_drive_folder, upload_to_drive
 from fapi.utils.email_utils import send_consolidated_onboarding_email
 
@@ -121,6 +121,13 @@ async def upload_onboarding_documents(
         candidate.candidate_folder = drive_link
         candidate.agreement = "P"
         db.commit()
+
+        # Invalidate cache so the dashboard overview sees the new agreement status
+        try:
+            from fapi.core.cache import invalidate_cache
+            invalidate_cache("candidates")
+        except ImportError:
+            pass
 
         # Send consolidated onboarding email to recruiters
         try:

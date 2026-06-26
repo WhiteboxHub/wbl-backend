@@ -92,13 +92,15 @@ def _compute_next_run(schedule: AutomationWorkflowScheduleORM, anchor: Optional[
     """
     if anchor is None:
         anchor = schedule.next_run_at or datetime.now(timezone.utc)
+    if anchor.tzinfo is not None:
+        anchor = anchor.replace(tzinfo=None)
 
     # cron_expression support (optional dependency)
     if schedule.cron_expression:
         try:
             from croniter import croniter  # type: ignore
 
-            return croniter(schedule.cron_expression, anchor).get_next(datetime).replace(tzinfo=timezone.utc)
+            return croniter(schedule.cron_expression, anchor).get_next(datetime).replace(tzinfo=None)
         except Exception:
             # fall back to frequency-based compute
             pass
@@ -184,7 +186,7 @@ def run_weekly_marketing_report_from_schedule(
     if not sched.enabled:
         raise HTTPException(status_code=409, detail="Schedule is disabled")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if sched.next_run_at is None or sched.next_run_at > now:
         raise HTTPException(status_code=409, detail="Schedule is not due yet")
 
@@ -209,9 +211,9 @@ def run_weekly_marketing_report_from_schedule(
     db.refresh(log)
 
     try:
-        result = run_weekly_marketing_report_workflow(db, dry_run=dry_run)
+        result = run_weekly_marketing_report_workflow(db)
 
-        finished = datetime.now(timezone.utc)
+        finished = datetime.now(timezone.utc).replace(tzinfo=None)
         # Update schedule timing + unlock
         sched.last_run_at = finished
         sched.next_run_at = _compute_next_run(sched, anchor=sched.next_run_at)
@@ -220,13 +222,13 @@ def run_weekly_marketing_report_from_schedule(
         # Update log
         log.status = "success" if not dry_run else "success"
         log.finished_at = finished
-        log.records_processed = len(result.metrics)
+        log.records_processed = result.get('records_processed', 0)
         log.records_failed = 0
         log.execution_metadata = {
             **(log.execution_metadata or {}),
-            "recipients": result.recipients,
-            "subject": result.subject,
-            "date_range": result.date_range,
+            "recipients": result.get('recipients',""),
+            "subject": result.get('subject',""),
+            "date_range": result.get('date_range',""),
         }
         db.commit()
 
@@ -236,14 +238,14 @@ def run_weekly_marketing_report_from_schedule(
             "schedule_id": int(sched.id),
             "dry_run": dry_run,
             "status": "success",
-            "candidates_processed": len(result.metrics),
-            "recipients_resolved": result.recipients,
-            "subject": result.subject,
-            "date_range": result.date_range,
+            "candidates_processed": result.get('records_processed', 0),
+            "recipients_resolved": result.get('recipients', ""),
+            "subject": result.get('subject', ""),
+            "date_range": result.get('date_range', ""),
             "next_run_at": sched.next_run_at,
         }
     except Exception as e:
-        finished = datetime.now(timezone.utc)
+        finished = datetime.now(timezone.utc).replace(tzinfo=None)
         # Best-effort unlock schedule
         sched.is_running = False
         # Keep next_run_at as-is on failure (so it stays due and can retry) unless user changes it.

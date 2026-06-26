@@ -3,6 +3,7 @@ import traceback
 import jwt
 import os
 import anyio
+import httpx
 from typing import List, Optional
 from fastapi import (
     APIRouter,
@@ -137,7 +138,7 @@ async def get_sessions(
 
 
 @router.get("/materials")
-@limiter.limit("15/minute")
+@limiter.limit("60/minute")
 async def get_materials(
     request: Request, 
     course: str = Query(..., description="Course name: QA, UI, or ML"),
@@ -152,6 +153,54 @@ async def get_materials(
 
     data = fetch_keyword_presentation(search, course)
     return JSONResponse(content=data)
+
+@router.get("/github-classroom-repos")
+@limiter.limit("60/minute")
+async def get_github_classroom_repos(
+    request: Request,
+    course: str = Query("ML", description="Course name: ML"),
+):
+    # 1. Fetch manually added Git materials from the DB
+    def _fetch_manual_git():
+        try:
+            return fetch_keyword_presentation("Git Repo's", course)
+        except Exception as e:
+            logging.error(f"Error fetching manual Git repos: {e}")
+            return []
+
+    manual_repos = await anyio.to_thread.run_sync(_fetch_manual_git)
+
+    # 2. Fetch dynamic repos from GitHub
+    url = "https://api.github.com/search/repositories?q=classroom+org:WhiteboxHub&sort=updated&per_page=100"
+    headers = {
+        "Accept": "application/vnd.github.v3+json"
+    }
+    formatted_repos = []
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, headers=headers, timeout=10.0)
+            response.raise_for_status()
+            data = response.json()
+            
+            items = data.get("items", [])
+            for i, repo in enumerate(items):
+                formatted_repos.append({
+                    "id": f"gh-{repo.get('id')}",
+                    "name": repo.get("name"),
+                    "link": repo.get("html_url"),
+                    "description": repo.get("description", ""),
+                    "type": "G",
+                    "sortorder": 9999 + i
+                })
+        except Exception as e:
+            logging.error(f"Error fetching GitHub repos: {str(e)}")
+            # We don't raise an exception here so that manual repos can still load if GitHub fails
+            pass
+            
+    # Combine manual repos (from DB) and dynamic repos (from GitHub API)
+    combined = manual_repos + formatted_repos
+    return JSONResponse(content=combined)
+
 
 
 @router.head("/batches")

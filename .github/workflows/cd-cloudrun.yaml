@@ -11,6 +11,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          PYTHONPATH=. pytest --ignore=tests/smoke tests/
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -28,4 +41,21 @@ jobs:
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
-            --port 8080
+            --port 8080 \
+            --no-traffic \
+            --tag=smoke
+
+      - name: Retrieve Smoke Revision URL
+        run: |
+          SMOKE_URL=$(gcloud run services describe fastapi-backend --platform managed --region us-central1 --format=json | jq -r '.status.traffic[] | select(.tag=="smoke") | .url')
+          echo "SMOKE_URL=$SMOKE_URL" >> $GITHUB_ENV
+
+      - name: Run Smoke Tests
+        run: |
+          PROD_URL=${{ env.SMOKE_URL }} PYTHONPATH=. pytest tests/smoke/test_production_smoke.py
+
+      - name: Promote Traffic to Latest Revision
+        run: |
+          gcloud run services update-traffic fastapi-backend \
+            --region us-central1 \
+            --to-latest
