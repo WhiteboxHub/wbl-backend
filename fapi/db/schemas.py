@@ -774,6 +774,8 @@ class CandidateBase(BaseModel):
     batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None
     move_to_prep: Optional[bool] = False
+    placement_percentage: Optional[int] = 13
+    enrollment_status: Optional[str] = "not completed"
     is_in_prep: Optional[str] = "No"
     is_in_marketing: Optional[str] = "No"
 
@@ -832,6 +834,8 @@ class CandidateUpdate(BaseModel):
     candidate_folder: Optional[str] = None
     github_link: Optional[str] = None
     move_to_prep: Optional[bool] = None
+    placement_percentage: Optional[int] = None
+    enrollment_status: Optional[str] = None
 
     model_config = {
         "from_attributes": True,

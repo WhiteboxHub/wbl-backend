@@ -27,15 +27,19 @@ def get_drive_service():
     Returns a Google Drive service object.
     Prioritizes OAuth2 (User Quota) over Service Account.
     """
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    refresh_token = os.getenv('GOOGLE_REFRESH_TOKEN')
+
     # 1. Try OAuth2 (Production Recommended)
-    if CLIENT_ID and CLIENT_SECRET and REFRESH_TOKEN:
+    if client_id and client_secret and refresh_token:
         try:
             creds = Credentials(
                 None,
-                refresh_token=REFRESH_TOKEN,
+                refresh_token=refresh_token,
                 token_uri="https://oauth2.googleapis.com/token",
-                client_id=CLIENT_ID,
-                client_secret=CLIENT_SECRET,
+                client_id=client_id,
+                client_secret=client_secret,
                 scopes=['https://www.googleapis.com/auth/drive']
             )
             
@@ -48,7 +52,7 @@ def get_drive_service():
             logger.error(f"OAuth2 Authentication failed: {oauth_err}")
             # Fall through to service account
             
-    # 2. Try Service Account (Fallback)
+    # 2. Try Service Account (Fallback to file)
     if os.path.exists(SERVICE_ACCOUNT_FILE):
         try:
             scopes = ['https://www.googleapis.com/auth/drive']
@@ -57,6 +61,22 @@ def get_drive_service():
             return build('drive', 'v3', credentials=creds)
         except Exception as sa_err:
             logger.error(f"Service Account Authentication failed: {sa_err}")
+            
+    # 3. Try Service Account (Fallback to environment variable JSON)
+    google_creds_json = os.getenv('GOOGLE_DRIVE_CREDENTIALS_JSON') or os.getenv('GOOGLE_CREDENTIALS_JSON')
+    if google_creds_json:
+        import json
+        try:
+            scopes = ['https://www.googleapis.com/auth/drive']
+            clean = google_creds_json.strip()
+            if clean.startswith("'") and clean.endswith("'"):
+                clean = clean[1:-1]
+            info = json.loads(clean)
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=scopes)
+            return build('drive', 'v3', credentials=creds)
+        except Exception as sa_env_err:
+            logger.error(f"Service Account (Env) Authentication failed: {sa_env_err}")
             
     logger.error("No valid Google Drive credentials found (OAuth2 or Service Account)")
     return None
@@ -68,7 +88,7 @@ def create_drive_folder(folder_name: str, parent_id: str = None):
         return None
 
     # Use provided parent_id or fall back to PARENT_FOLDER_ID from env
-    actual_parent_id = parent_id or PARENT_FOLDER_ID
+    actual_parent_id = parent_id or os.getenv('GOOGLE_DRIVE_PARENT_FOLDER_ID')
 
     # Check if folder already exists
     query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
