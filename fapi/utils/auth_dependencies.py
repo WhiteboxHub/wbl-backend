@@ -76,6 +76,7 @@ def get_current_user(
                 pass
 
     return user
+User = AuthUserORM
 
 
 def admin_required(current_user=Depends(get_current_user)):
