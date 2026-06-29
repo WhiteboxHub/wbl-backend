@@ -54,15 +54,13 @@ jobs:
           python-version: '3.12'
 
       - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt openai python-dotenv
 
       - name: Run Smart AI Code Review
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEY_1 }},${{ secrets.GEMINI_API_KEY_2 }},${{ secrets.GEMINI_API_KEY_3 }},${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEPSEEK_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MODEL_REGISTRY_URL: ${{ secrets.MODEL_REGISTRY_URL }}
         run: |
