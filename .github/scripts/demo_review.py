@@ -150,8 +150,15 @@ def run_static_analysis(f, lines, modified_public_apis):
                             findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Architectural Violation", "evidence": f"FastAPI endpoint '{node.name}' at line {start} is missing a valid auth dependency (e.g. Depends(get_current_user))."})
                             
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'execute':
-                if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                    critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
+                is_sql_target = False
+                if isinstance(node.func.value, ast.Name) and node.func.value.id in ('cursor', 'db', 'session', 'conn'):
+                    is_sql_target = True
+                elif isinstance(node.func.value, ast.Attribute) and node.func.value.attr in ('cursor', 'db', 'session', 'conn'):
+                    is_sql_target = True
+                
+                if is_sql_target:
+                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                        critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
                     
             if isinstance(node, ast.Assign):
                 for target in node.targets:
