@@ -8,6 +8,7 @@ import os
 import shutil
 from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, File, UploadFile, Form
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fapi.utils.auth_dependencies import get_current_user, User
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from datetime import date
@@ -54,7 +55,7 @@ async def upload_onboarding_documents(
     govId: UploadFile = File(...),
     resume: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    current_user: User = Depends(get_current_user),
 ):
 
     try:
