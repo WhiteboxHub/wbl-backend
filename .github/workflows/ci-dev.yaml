@@ -64,7 +64,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MODEL_REGISTRY_URL: ${{ secrets.MODEL_REGISTRY_URL }}
         run: |
-          python .github/scripts/demo_review.py -r . -m smart > review_output.txt 2>&1
+          python .github/scripts/demo_review.py -r . -m smart > review_output.txt 2>&1 || (cat review_output.txt && exit 1)
 
       - name: Post PR Comment
         if: always()
