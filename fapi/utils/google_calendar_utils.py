@@ -21,6 +21,8 @@ DEFAULT_CREDENTIALS_PATH = "fapi/google_calendar_credentials.json"
 
 def _execute(req):
     """Helper to bypass naive AST linters that incorrectly flag Google API .execute() as SQL execution."""
+    if not hasattr(req, "execute") or not callable(getattr(req, "execute")):
+        raise TypeError(f"Expected a Google API request object with an 'execute' method, got {type(req)}")
     return getattr(req, "execute")()
 
 

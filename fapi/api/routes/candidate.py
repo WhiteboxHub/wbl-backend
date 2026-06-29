@@ -1,7 +1,7 @@
 import logging
 import re
 from typing import Dict, Any, List
-from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, Response
+from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, Response, BackgroundTasks
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -300,11 +300,12 @@ def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
 @router.post("/interviews/{interview_id}/generate-meet")
 def generate_meet_for_interview(
     interview_id: int, 
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: AuthUserORM = Depends(get_current_user)
 ):
     try:
-        result = candidate_utils.generate_interview_meet(db, interview_id)
+        result = candidate_utils.generate_interview_meet(db, interview_id, background_tasks)
         return result
     except Exception as e:
         logger.error(f"Failed to generate meet link for interview {interview_id}: {str(e)}")

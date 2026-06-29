@@ -668,7 +668,7 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
     return db_obj
 
 
-def generate_interview_meet(db: Session, interview_id: int) -> dict:
+def generate_interview_meet(db: Session, interview_id: int, background_tasks=None) -> dict:
     """Generates a Google Meet link for an existing interview by calling create_meet_event"""
     from fastapi import HTTPException
     interview = get_candidate_interview_with_instructors(db, interview_id)
@@ -706,46 +706,52 @@ def generate_interview_meet(db: Session, interview_id: int) -> dict:
     result = create_meet_event(sync_data, candidate_name, attendees=attendees)
     
     if attendees and result and result.get("meet_link"):
-        try:
-            from fapi.utils.email_utils import get_email_config, send_html_email
-            import smtplib
-            
-            config = get_email_config()
-            date_str = str(interview.interview_date)
-            time_str = str(interview.interview_time) if interview.interview_time else "TBD"
-            
-            subject = f"Interview Invitation: {candidate_name} @ {interview.company}"
-            html_content = f"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                <h2 style="color: #333;">Invitation</h2>
-                <p>Hello,</p>
-                <p>You have been invited for <strong>{candidate_name}</strong> at <strong>{interview.company}</strong>.</p>
-                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                    <p style="margin: 5px 0;"><strong>Date:</strong> {date_str}</p>
-                    <p style="margin: 5px 0;"><strong>Time:</strong> {time_str}</p>
-                    <p style="margin: 5px 0;"><strong>Type:</strong> {interview.type_of_interview or 'N/A'}</p>
-                    <p style="margin: 5px 0;"><strong>Mode:</strong> {interview.mode_of_interview or 'N/A'}</p>
+        def send_invites_task(interview_data, result_data, attendees_list, cand_name):
+            try:
+                from fapi.utils.email_utils import get_email_config, send_html_email
+                import smtplib
+                
+                config = get_email_config()
+                date_str = str(interview_data.interview_date)
+                time_str = str(interview_data.interview_time) if interview_data.interview_time else "TBD"
+                
+                subject = f"Interview Invitation: {cand_name} @ {interview_data.company}"
+                html_content = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <h2 style="color: #333;">Invitation</h2>
+                    <p>Hello,</p>
+                    <p>You have been invited for <strong>{cand_name}</strong> at <strong>{interview_data.company}</strong>.</p>
+                    <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <p style="margin: 5px 0;"><strong>Date:</strong> {date_str}</p>
+                        <p style="margin: 5px 0;"><strong>Time:</strong> {time_str}</p>
+                        <p style="margin: 5px 0;"><strong>Type:</strong> {interview_data.type_of_interview or 'N/A'}</p>
+                        <p style="margin: 5px 0;"><strong>Mode:</strong> {interview_data.mode_of_interview or 'N/A'}</p>
+                    </div>
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="{result_data.get('meet_link')}" style="background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Join Google Meet</a>
+                    </div>
+                    <p style="margin-top: 30px; font-size: 12px; color: #777;">If the button above does not work, use this link:<br>{result_data.get('meet_link')}</p>
                 </div>
-                <div style="text-align: center; margin-top: 30px;">
-                    <a href="{result.get('meet_link')}" style="background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Join Google Meet</a>
-                </div>
-                <p style="margin-top: 30px; font-size: 12px; color: #777;">If the button above does not work, use this link:<br>{result.get('meet_link')}</p>
-            </div>
-            """
-            
-            with smtplib.SMTP(config['smtp_server'], int(config['smtp_port'])) as server:
-                server.starttls()
-                server.login(config['from_email'], config['password'])
-                send_html_email(
-                    server=server,
-                    from_email=config['from_email'],
-                    to_emails=attendees,
-                    subject=subject,
-                    html_content=html_content
-                )
-            logger.info(f"Custom email invites sent to: {attendees}")
-        except Exception as e:
-            logger.error(f"Failed to send custom email invites: {e}")
+                """
+                
+                with smtplib.SMTP(config['smtp_server'], int(config['smtp_port']), timeout=10) as server:
+                    server.starttls()
+                    server.login(config['from_email'], config['password'])
+                    send_html_email(
+                        server=server,
+                        from_email=config['from_email'],
+                        to_emails=attendees_list,
+                        subject=subject,
+                        html_content=html_content
+                    )
+                logger.info(f"Custom email invites sent to: {attendees_list}")
+            except Exception as e:
+                logger.error(f"Failed to send custom email invites: {e}")
+
+        if background_tasks:
+            background_tasks.add_task(send_invites_task, interview, result, attendees, candidate_name)
+        else:
+            send_invites_task(interview, result, attendees, candidate_name)
 
     return result
 
