@@ -259,6 +259,8 @@ class CandidateORM(Base):
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
+    placement_percentage = Column(Integer, default=13, nullable=True)
+    enrollment_status = Column(String(50), default="not completed", nullable=True)
 
 
     interviews = relationship(

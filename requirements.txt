@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 mysql-connector-python
 python-dotenv
+openai
 passlib
 python-jose
 # pydantic

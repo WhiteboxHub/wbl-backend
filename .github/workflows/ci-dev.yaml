@@ -54,7 +54,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Dependencies
-        run: pip install openai python-dotenv
+        run: pip install -r requirements.txt openai python-dotenv
 
       - name: Run Smart AI Code Review
         env:
@@ -64,7 +64,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MODEL_REGISTRY_URL: ${{ secrets.MODEL_REGISTRY_URL }}
         run: |
-          python .github/scripts/demo_review.py -r . -m smart > review_output.txt
+          python .github/scripts/demo_review.py -r . -m smart > review_output.txt 2>&1
 
       - name: Post PR Comment
         if: always()

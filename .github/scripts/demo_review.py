@@ -24,6 +24,40 @@ from openai import OpenAI
 load_dotenv()
 
 
+
+import fnmatch
+
+def get_exclude_patterns(repo_path: str):
+    yaml_path = os.path.join(repo_path, ".ai-review.yaml")
+    patterns = []
+    if os.path.exists(yaml_path):
+        try:
+            with open(yaml_path, "r", encoding="utf-8") as f:
+                in_excludes = False
+                for line in f:
+                    line = line.strip()
+                    if line == "exclude_patterns:":
+                        in_excludes = True
+                    elif in_excludes and line.startswith("-"):
+                        pat = line[1:].strip().strip('"').strip("'")
+                        patterns.append(pat)
+                    elif in_excludes and not line.startswith("-") and line != "" and not line.startswith("#"):
+                        in_excludes = False
+        except Exception:
+            pass
+    return patterns
+
+def is_excluded_file(filepath: str, repo_path: str, patterns):
+    filepath = filepath.replace("\\", "/")
+    for p in patterns:
+        p_norm = p.replace("\\", "/")
+        if p_norm.startswith("**/"):
+            if fnmatch.fnmatch(filepath, p_norm) or fnmatch.fnmatch(filepath, p_norm[3:]):
+                return True
+        elif fnmatch.fnmatch(filepath, p_norm) or fnmatch.fnmatch(filepath, f"*/{p_norm}"):
+            return True
+    return False
+
 VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff']
 
 BUG_REPORT_SCHEMA = {
@@ -150,8 +184,15 @@ def run_static_analysis(f, lines, modified_public_apis):
                             findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Architectural Violation", "evidence": f"FastAPI endpoint '{node.name}' at line {start} is missing a valid auth dependency (e.g. Depends(get_current_user))."})
                             
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'execute':
-                if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                    critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
+                is_sql_target = False
+                if isinstance(node.func.value, ast.Name) and node.func.value.id in ('cursor', 'db', 'session', 'conn'):
+                    is_sql_target = True
+                elif isinstance(node.func.value, ast.Attribute) and node.func.value.attr in ('cursor', 'db', 'session', 'conn'):
+                    is_sql_target = True
+                
+                if is_sql_target:
+                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                        critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
                     
             if isinstance(node, ast.Assign):
                 for target in node.targets:
@@ -318,6 +359,8 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
     
     try:
         changes = changed_lines()
+        exclude_patterns = get_exclude_patterns(repo_path)
+        changes = {f: lines for f, lines in changes.items() if not is_excluded_file(f, repo_path, exclude_patterns)}
         changed_symbols = []
         for f, lines in changes.items():
             if f.endswith(".py") and pathlib.Path(f).exists():
@@ -694,3 +737,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
