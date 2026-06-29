@@ -9,7 +9,6 @@ def test_enforce_permission_gates_across_all_routes(client):
     For any route that requires `enforce_access` (which we determine by it not being in the skip lists),
     we test that an unauthenticated request is properly blocked.
     """
-    
     # These routes are known to be public or don't require authentication
     public_endpoints = [
         "/api/login",
@@ -45,7 +44,14 @@ def test_enforce_permission_gates_across_all_routes(client):
     
     checked_routes = 0
     
+    flat_routes = []
     for route in app.routes:
+        if type(route).__name__ == '_IncludedRouter':
+            flat_routes.extend(route.original_router.routes)
+        else:
+            flat_routes.append(route)
+            
+    for route in flat_routes:
         path = getattr(route, "path", None)
         methods = getattr(route, "methods", [])
         
@@ -110,7 +116,14 @@ def test_all_search_and_sort_endpoints_dynamically(client, admin_headers, db_ses
     db_session.commit()
 
     checked = 0
+    flat_routes = []
     for route in app.routes:
+        if type(route).__name__ == '_IncludedRouter':
+            flat_routes.extend(route.original_router.routes)
+        else:
+            flat_routes.append(route)
+            
+    for route in flat_routes:
         if not hasattr(route, "endpoint"):
             continue
             
