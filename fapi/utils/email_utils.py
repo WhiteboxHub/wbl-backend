@@ -273,3 +273,244 @@ async def send_referral_emails(
     fm = FastMail(fastmail_config)
     await fm.send_message(admin_message)
 
+
+async def send_onboarding_documents_email(
+    candidate_name: str,
+    candidate_email: str,
+    candidate_phone: str,
+    file_paths: List[str]
+):
+    """Send onboarding documents to recruiters as attachments"""
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">
+                 New Candidate Onboarding Documents
+            </h2>
+            
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #1e40af; margin-top: 0;">Candidate Information</h3>
+                <p><strong>Name:</strong> {candidate_name}</p>
+                <p><strong>Email:</strong> {candidate_email}</p>
+                <p><strong>Phone:</strong> {candidate_phone}</p>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 20px; background-color: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0; font-weight: bold; color: #92400e;">
+                    Action Required:
+                </p>
+                <p style="margin: 5px 0 0 0;">
+                    Please review the attached documents. If everything is in order, go to the Admin Dashboard and set the "Agreement" flag to **Yes** for this candidate to grant them dashboard access.
+                </p>
+            </div>
+            
+            <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+            <p style="font-size: 12px; color: #666; text-align: center;">
+                Whitebox Learning - Candidate Onboarding System
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    config = get_email_config()
+    admin_emails = validate_email_config(config)
+    
+    message = MessageSchema(
+        subject=f"Onboarding Documents: {candidate_name}",
+        recipients=admin_emails,
+        body=html_content,
+        subtype="html",
+        attachments=file_paths
+    )
+    
+    fm = FastMail(fastmail_config)
+    await fm.send_message(message)
+
+
+async def send_agreement_signed_email(
+    candidate_name: str,
+    candidate_email: str,
+    signature: str,
+    notes: str
+):
+    """Notify recruiters that a candidate has signed the agreement"""
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #10b981; border-bottom: 2px solid #10b981; padding-bottom: 10px;">
+                 Agreement Signed & Pending Review
+            </h2>
+            
+            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="color: #065f46; margin-top: 0;">Candidate Details</h3>
+                <p><strong>Name:</strong> {candidate_name}</p>
+                <p><strong>Email:</strong> {candidate_email}</p>
+                <p><strong>Signature:</strong> <span style="font-family: 'Brush Script MT', cursive; font-size: 20px;">{signature}</span></p>
+            </div>
+            
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981;">
+                <p><strong>Submission Details:</strong></p>
+                <p>{notes}</p>
+            </div>
+
+            <div style="margin-top: 30px; padding: 20px; background-color: #fef3c7; border-radius: 8px;">
+                <p style="margin: 0; font-weight: bold; color: #92400e;">
+                    Final Step:
+                </p>
+                <p style="margin: 5px 0 0 0;">
+                    The candidate has completed all onboarding steps. Please verify the documents and signature. If satisfied, change their status to <strong>'Agreement: Yes'</strong> to grant them full access.
+                </p>
+            </div>
+            
+            <p style="font-size: 12px; color: #666; text-align: center; margin-top: 30px;">
+                Whitebox Learning - Automated Onboarding System
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    config = get_email_config()
+    admin_emails = validate_email_config(config)
+    
+    message = MessageSchema(
+        subject=f" Agreement Signed: {candidate_name}",
+        recipients=admin_emails,
+        body=html_content,
+        subtype="html"
+    )
+    
+    fm = FastMail(fastmail_config)
+    await fm.send_message(message)
+
+async def send_consolidated_onboarding_email(
+    candidate_name: str,
+    candidate_email: str,
+    candidate_phone: str,
+    signature: str,
+    notes: str,
+    drive_link: str,
+    file_paths: List[str] = None
+):
+    """Notify recruiters with a single consolidated onboarding email"""
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7fa; padding: 20px;">
+        <div style="max-width: 700px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e1e8ed;">
+            <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 35px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px; letter-spacing: 1px; font-weight: 700;">Onboarding Complete</h1>
+                <p style="color: #d1d5db; margin: 8px 0 0 0; font-size: 16px;">New Candidate Application & Agreement Received</p>
+            </div>
+
+            <div style="padding: 35px;">
+                <!-- Candidate Info -->
+                <div style="background-color: #f8fafc; border-radius: 10px; padding: 20px; margin-bottom: 30px; border-left: 5px solid #3b82f6;">
+                    <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; display: flex; align-items: center;">
+                         Candidate Information
+                    </h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr><td style="padding: 5px 0; color: #64748b; width: 100px;"><strong>Name:</strong></td><td style="padding: 5px 0;">{candidate_name}</td></tr>
+                        <tr><td style="padding: 5px 0; color: #64748b;"><strong>Email:</strong></td><td style="padding: 5px 0;">{candidate_email}</td></tr>
+                        <tr><td style="padding: 5px 0; color: #64748b;"><strong>Phone:</strong></td><td style="padding: 5px 0;">{candidate_phone}</td></tr>
+                    </table>
+                </div>
+
+                <!-- Terms and Conditions -->
+                <div style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 30px; margin-bottom: 30px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">📜 Placement Terms & Conditions</h3>
+                    <div style="font-size: 14px; color: #4b5563; line-height: 1.7;">
+                        <h4 style="color: #1f2937; font-size: 16px; margin-bottom: 12px; margin-top: 0;">Payment Guidelines and Placement Terms</h4>
+                        <p>This document outlines the payment structure, placement fees, and re-support terms for candidates enrolled with our training and placement services, with a focus on IT roles including AI and ML positions.</p>
+                        
+                        <p><strong>1. Post Placement Fees</strong><br/>
+                        After successful placement, a placement fee of <strong>13%</strong> from your offered annual salary will be applicable.</p>
+                        
+                        <p><strong>2. Payment Method and Installments</strong><br/>
+                        The post placement fee may be paid in three installments using postpaid checks.</p>
+                        <ul style="padding-left: 20px;">
+                            <li>All checks must be handed over before background check clearance and before onboarding date.</li>
+                            <li>The first check will be deposited before the candidate's job start date.</li>
+                            <li>All remaining checks will be deposited within two months from the candidate's start date.</li>
+                        </ul>
+                        
+                        <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                            <p style="margin: 0; font-weight: bold; color: #334155;">Illustration:</p>
+                            <p style="margin: 5px 0;">If offer received of USD 150,000, then 13% of 150,000 that is 19,500 is split into three installments:</p>
+                            <ul style="margin-bottom: 0; padding-left: 20px;">
+                                <li>First Installment: $6,500, payable after BGV and before Onboarding date.</li>
+                                <li>Second Installment: $6,500, payable after receiving your first paycheck.</li>
+                                <li>Third Installment: $6,500, payable after receiving your second paycheck.</li>
+                            </ul>
+                        </div>
+                        
+                        <p><strong>3. Support Period and Re-Placement Policy</strong><br/>
+                        We provide placement support for a period of one month from the candidate's job start date. If a candidate is terminated or laid off within the first two months of the job start date, we will provide re-placement support at no additional cost.</p>
+                        
+                        <div style="margin-top: 30px; padding: 25px; background-color: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 12px; position: relative;">
+                            <div style="position: absolute; top: -12px; left: 20px; background-color: #10b981; color: white; padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase;">Digitally Signed</div>
+                            <p style="margin: 0; font-style: italic; color: #166534; font-size: 13px;">
+                                "I have read, understood, and agree to the Placement Terms and Conditions outlined above. I acknowledge my responsibility to fulfill the placement fee obligations as specified."
+                            </p>
+                            <div style="margin-top: 20px; border-top: 1px solid #d1fae5; padding-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="display: block; font-size: 11px; color: #059669; text-transform: uppercase; font-weight: bold; margin-bottom: 4px;">Adaptive Signature</span>
+                                    <span style="font-family: 'Brush Script MT', cursive; font-size: 28px; color: #065f46; border-bottom: 1px solid #059669; padding: 0 10px;">{signature}</span>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="display: block; font-size: 10px; color: #6b7280;">Timestamp & Record</span>
+                                    <span style="font-size: 11px; color: #374151; font-family: monospace;">{notes.split('at ')[1] if 'at ' in notes else 'Record ID: ' + signature[:8]}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {f'''
+                <!-- Cloud Documents Link -->
+                <div style="background-color: #eff6ff; border-radius: 10px; padding: 25px; margin-bottom: 30px; border: 2px dashed #3b82f6; text-align: center;">
+                    <h3 style="color: #1e40af; margin-top: 0; margin-bottom: 10px;">📂 Cloud Documents</h3>
+                    <p style="margin: 0 0 20px 0; color: #4b5563;">Candidate verification documents have been securely uploaded.</p>
+                    <a href="{drive_link}" style="display: inline-block; padding: 12px 28px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);">
+                        Access Google Drive Folder
+                    </a>
+                </div>
+                ''' if "http" in drive_link else ""}
+
+                <div style="padding: 20px; background-color: #fffbeb; border-radius: 10px; border: 1px solid #fde68a; display: flex; align-items: flex-start; gap: 15px;">
+                    <span style="font-size: 24px;"></span>
+                    <div>
+                        <p style="margin: 0; font-weight: bold; color: #92400e; font-size: 15px;">Final Approval Required</p>
+                        <p style="margin: 5px 0 0 0; font-size: 13px; color: #b45309; line-height: 1.5;">
+                            Please verify the documents and signature. Once verified, set <strong>Agreement: Yes</strong> in the Admin Dashboard to activate this candidate profile.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background-color: #f9fafb; padding: 25px; text-align: center; border-top: 1px solid #e5e7eb;">
+                <p style="font-size: 12px; color: #9ca3af; margin: 0;">&copy; 2026 Whitebox Learning • Automated Onboarding System</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    config = get_email_config()
+    admin_emails = validate_email_config(config)
+    
+    message = MessageSchema(
+        subject=f" Complete Onboarding: {candidate_name}",
+        recipients=admin_emails,
+        body=html_content,
+        subtype="html",
+        attachments=file_paths if file_paths else []
+    )
+    
+    fm = FastMail(fastmail_config)
+    await fm.send_message(message)
