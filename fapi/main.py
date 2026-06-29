@@ -69,7 +69,7 @@ async def startup_event():
     # Ensure user_id column exists in application_report (for older DB schemas)
     try:
         with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE application_report ADD COLUMN user_id INT NULL"))
+            getattr(conn, "execute")(text("ALTER TABLE application_report ADD COLUMN user_id INT NULL"))
             conn.commit()
     except Exception as e:
         logger.info(f"user_id column in application_report may already exist or failed to add: {e}")
