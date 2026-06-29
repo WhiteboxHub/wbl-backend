@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.utils import candidate_utils
+from fapi.utils.auth_dependencies import get_current_user
 from fapi.db.schemas import (
     CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,
     CandidateMarketing, CandidatePlacementCreate, CandidateMarketingCreate,
@@ -300,7 +301,7 @@ def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
 def generate_meet_for_interview(
     interview_id: int, 
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    current_user: AuthUserORM = Depends(get_current_user)
 ):
     try:
         result = candidate_utils.generate_interview_meet(db, interview_id)
