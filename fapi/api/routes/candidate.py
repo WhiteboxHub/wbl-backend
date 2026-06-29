@@ -296,6 +296,19 @@ def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Interview not found")
     return candidate_utils.serialize_interview(db_obj)
 
+@router.post("/interviews/{interview_id}/generate-meet")
+def generate_meet_for_interview(
+    interview_id: int, 
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+    try:
+        result = candidate_utils.generate_interview_meet(db, interview_id)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to generate meet link for interview {interview_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/interviews", response_model=List[CandidateInterviewOut])
 def list_interviews(db: Session = Depends(get_db)):

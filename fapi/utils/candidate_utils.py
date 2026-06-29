@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload,contains_eager
 from sqlalchemy import or_, func, distinct
 from fapi.db.database import SessionLocal,get_db
 from fapi.core.cache import cache_result, invalidate_cache
-from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event
+from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event, create_meet_event
 import random
 
 from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM, CandidateMarketingORM, CandidateInterview, CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM, CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
@@ -667,6 +667,87 @@ def create_candidate_interview(db: Session, interview: CandidateInterviewCreate)
 
     return db_obj
 
+
+def generate_interview_meet(db: Session, interview_id: int) -> dict:
+    """Generates a Google Meet link for an existing interview by calling create_meet_event"""
+    from fastapi import HTTPException
+    interview = get_candidate_interview_with_instructors(db, interview_id)
+    if not interview:
+        raise HTTPException(status_code=404, detail="Interview not found")
+
+    candidate_name = interview.candidate.full_name if interview.candidate else "Candidate"
+
+    attendees = []
+    # Removed candidate email from the invite list as requested by the user
+    # if interview.candidate and getattr(interview.candidate, "email", None):
+    #     attendees.append(interview.candidate.email)
+    
+    for prep in interview.candidate.preparations:
+        if prep:
+            if getattr(prep, "instructor1", None) and getattr(prep.instructor1, "email", None):
+                attendees.append(prep.instructor1.email)
+            if getattr(prep, "instructor2", None) and getattr(prep.instructor2, "email", None):
+                attendees.append(prep.instructor2.email)
+            if getattr(prep, "instructor3", None) and getattr(prep.instructor3, "email", None):
+                attendees.append(prep.instructor3.email)
+
+    sync_data = {
+        "interview_date": interview.interview_date,
+        "interview_time": interview.interview_time,
+        "company": interview.company,
+        "type_of_interview": interview.type_of_interview,
+        "mode_of_interview": interview.mode_of_interview,
+        "notes": interview.notes,
+        "interviewer_emails": interview.interviewer_emails,
+        "feedback": interview.feedback,
+        "duration_minutes": interview.duration_minutes,
+    }
+
+    result = create_meet_event(sync_data, candidate_name, attendees=attendees)
+    
+    if attendees and result and result.get("meet_link"):
+        try:
+            from fapi.utils.email_utils import get_email_config, send_html_email
+            import smtplib
+            
+            config = get_email_config()
+            date_str = str(interview.interview_date)
+            time_str = str(interview.interview_time) if interview.interview_time else "TBD"
+            
+            subject = f"Interview Invitation: {candidate_name} @ {interview.company}"
+            html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #333;">Invitation</h2>
+                <p>Hello,</p>
+                <p>You have been invited for <strong>{candidate_name}</strong> at <strong>{interview.company}</strong>.</p>
+                <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Date:</strong> {date_str}</p>
+                    <p style="margin: 5px 0;"><strong>Time:</strong> {time_str}</p>
+                    <p style="margin: 5px 0;"><strong>Type:</strong> {interview.type_of_interview or 'N/A'}</p>
+                    <p style="margin: 5px 0;"><strong>Mode:</strong> {interview.mode_of_interview or 'N/A'}</p>
+                </div>
+                <div style="text-align: center; margin-top: 30px;">
+                    <a href="{result.get('meet_link')}" style="background-color: #4285f4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Join Google Meet</a>
+                </div>
+                <p style="margin-top: 30px; font-size: 12px; color: #777;">If the button above does not work, use this link:<br>{result.get('meet_link')}</p>
+            </div>
+            """
+            
+            with smtplib.SMTP(config['smtp_server'], int(config['smtp_port'])) as server:
+                server.starttls()
+                server.login(config['from_email'], config['password'])
+                send_html_email(
+                    server=server,
+                    from_email=config['from_email'],
+                    to_emails=attendees,
+                    subject=subject,
+                    html_content=html_content
+                )
+            logger.info(f"Custom email invites sent to: {attendees}")
+        except Exception as e:
+            logger.error(f"Failed to send custom email invites: {e}")
+
+    return result
 
 def get_candidate_interview_with_instructors(db: Session, interview_id: int):
     return (
