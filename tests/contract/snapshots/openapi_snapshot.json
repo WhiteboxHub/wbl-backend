@@ -1548,6 +1548,51 @@
         }
       }
     },
+    "/api/interviews/{interview_id}/generate-meet": {
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Generate Meet For Interview",
+        "operationId": "generate_meet_for_interview_api_interviews__interview_id__generate_meet_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "interview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Interview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/candidate_preparation": {
       "post": {
         "tags": [
