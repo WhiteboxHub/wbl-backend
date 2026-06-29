@@ -682,7 +682,8 @@ def generate_interview_meet(db: Session, interview_id: int, background_tasks=Non
     # if interview.candidate and getattr(interview.candidate, "email", None):
     #     attendees.append(interview.candidate.email)
     
-    for prep in interview.candidate.preparations:
+    preparations = interview.candidate.preparations if interview.candidate else []
+    for prep in preparations:
         if prep:
             if getattr(prep, "instructor1", None) and getattr(prep.instructor1, "email", None):
                 attendees.append(prep.instructor1.email)
@@ -748,10 +749,18 @@ def generate_interview_meet(db: Session, interview_id: int, background_tasks=Non
             except Exception as e:
                 logger.error(f"Failed to send custom email invites: {e}")
 
+        from types import SimpleNamespace
+        serialized_interview_data = SimpleNamespace(
+            interview_date=interview.interview_date,
+            interview_time=interview.interview_time,
+            company=interview.company,
+            type_of_interview=interview.type_of_interview,
+            mode_of_interview=interview.mode_of_interview
+        )
         if background_tasks:
-            background_tasks.add_task(send_invites_task, interview, result, attendees, candidate_name)
+            background_tasks.add_task(send_invites_task, serialized_interview_data, result, attendees, candidate_name)
         else:
-            send_invites_task(interview, result, attendees, candidate_name)
+            send_invites_task(serialized_interview_data, result, attendees, candidate_name)
 
     return result
 
