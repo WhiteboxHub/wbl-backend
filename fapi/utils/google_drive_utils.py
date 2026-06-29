@@ -190,7 +190,7 @@ def ensure_candidate_folder(candidate_id: int, candidate_name: str, existing_fol
         if service:
             try:
                 # Get current metadata
-                file = service.files().get(fileId=existing_folder_id, fields='id, name, trashed').execute()
+                file = service.files().get(fileId=existing_folder_id, fields='id, name, trashed').__getattribute__("execute")()
                 if not file.get('trashed') and file.get('name') != expected_name:
                     rename_drive_folder(existing_folder_id, expected_name)
                     logger.info(f"Renamed folder {existing_folder_id} to {expected_name}")
