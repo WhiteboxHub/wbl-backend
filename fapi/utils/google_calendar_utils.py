@@ -103,7 +103,9 @@ def _build_event_body(interview_data: dict, candidate_name: str, generate_meet: 
     interviewer_emails = interview_data.get("interviewer_emails", "")
     feedback = interview_data.get("feedback", "Pending")
 
-    title = f"[{interview_type}] {candidate_name} @ {company}"
+    interview_id = interview_data.get("id", "")
+    date_str = str(interview_date) if interview_date else ""
+    title = f"{interview_id}_{candidate_name}_{interview_type}_{company}_{date_str}_{mode}"
     description_parts = [
         f"Candidate: {candidate_name}",
         f"Company: {company}",
@@ -208,7 +210,7 @@ def create_meet_event(interview_data: dict, candidate_name: str, attendees: list
             calendarId=calendar_id, 
             body=event_body,
             conferenceDataVersion=1,
-            sendUpdates="all"
+            sendUpdates="none"
         )
         event = _execute(request)
         
