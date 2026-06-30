@@ -509,6 +509,7 @@ A finding is VALID ONLY IF:
 2. A concrete regression path exists.
 3. A user-visible failure mode can be explained.
 4. The impact is supported by AST findings.
+5. For NameErrors/undefined variables, you MUST verify it is actually undefined by reading the 'Changed Code' snippets, not just the Git Diff.
 
 Reject findings that are:
 - Generic testing recommendations
