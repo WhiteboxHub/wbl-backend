@@ -9,3 +9,7 @@ myvenv/
 node_modules
 backend-env.yaml
 temp_candidates.json
+
+# Google OAuth Secrets & Scripts
+client_secret.json
+get_refresh_token.py

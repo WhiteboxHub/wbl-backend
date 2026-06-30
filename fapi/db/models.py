@@ -259,6 +259,8 @@ class CandidateORM(Base):
     github_link = Column(String(500), nullable=True)
     candidate_folder = Column(String(500), nullable=True)
     move_to_prep = Column(Boolean, default=False)
+    placement_percentage = Column(Integer, default=13, nullable=True)
+    enrollment_status = Column(String(50), default="not completed", nullable=True)
 
 
     interviews = relationship(
@@ -1831,6 +1833,7 @@ class ApplicationReportORM(Base):
     __tablename__ = "application_report"
 
     id              = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id         = Column(Integer, ForeignKey("authuser.id"), index=True, nullable=True)
     candidate_name  = Column(String(150), index=True)
     company_name    = Column(String(200))
     ats_platform    = Column(String(100))

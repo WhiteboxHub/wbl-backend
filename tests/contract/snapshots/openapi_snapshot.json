@@ -1548,6 +1548,51 @@
         }
       }
     },
+    "/api/interviews/{interview_id}/generate-meet": {
+      "post": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Generate Meet For Interview",
+        "operationId": "generate_meet_for_interview_api_interviews__interview_id__generate_meet_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "interview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Interview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/candidate_preparation": {
       "post": {
         "tags": [
@@ -2240,6 +2285,53 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/vendor_contact/touch-timestamps": {
+      "patch": {
+        "tags": [
+          "Vendor Contact Extracts"
+        ],
+        "summary": "Touch Vendor Contact Timestamps Handler",
+        "description": "Refresh last_modified_datetime and extraction_date to NOW for a list of duplicate emails.\n\nCalled by the email extractor after Layer 2 global dedup: emails that already\nexist in the DB are not re-inserted, but their timestamps are bumped so the\nemail-sending workflow treats them as 'seen today' and includes them in the\ncurrent candidate's outreach batch.",
+        "operationId": "touch_vendor_contact_timestamps_handler_api_vendor_contact_touch_timestamps_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TouchTimestampsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TouchTimestampsResponse"
+                }
               }
             }
           },
@@ -8473,6 +8565,64 @@
         }
       }
     },
+    "/api/candidates/{candidate_id}/onboarding/upload": {
+      "post": {
+        "tags": [
+          "Candidate Dashboard",
+          "Candidate Dashboard"
+        ],
+        "summary": "Upload Onboarding Documents",
+        "operationId": "upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID",
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/candidates/{candidate_id}/dashboard/overview": {
       "get": {
         "tags": [
@@ -12407,7 +12557,7 @@
           "ATS Reporting"
         ],
         "summary": "Get Application Reports Today",
-        "description": "Return all ATS application reports submitted today (UTC date).\n\nUses a UTC-aware window (midnight UTC \u2192 next midnight UTC) so records\nstored by MySQL's NOW() (UTC) are never missed due to timezone skew.",
+        "description": "Return all ATS application reports submitted today (UTC date).",
         "operationId": "get_application_reports_today_api_reports_applications_today_get",
         "responses": {
           "200": {
@@ -12424,7 +12574,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/reports/applications/bulk": {
@@ -12434,22 +12589,360 @@
           "ATS Reporting"
         ],
         "summary": "Save Application Reports Bulk",
-        "description": "Persist a batch of ATS application field-ownership reports.",
+        "description": "Persist a batch of ATS application field-ownership reports.\n\nIf X-API-Key or Bearer token matches a registered user key, maps reports to user_id.",
         "operationId": "save_application_reports_bulk_api_reports_applications_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Candidate-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Candidate-Email"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
+                "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/ApplicationReportIn"
                 },
-                "type": "array",
                 "title": "Reports"
               }
             }
-          },
-          "required": true
+          }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/applications/patch-human": {
+      "patch": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Patch Human Fields",
+        "description": "Update human_fields and recalculate automation_rate on the most recent\nApplicationReport record matching this candidate within the last 30 minutes.",
+        "operationId": "patch_human_fields_api_reports_applications_patch_human_patch",
+        "parameters": [
+          {
+            "name": "X-Candidate-Email",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Candidate-Email"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HumanPatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/analytics/summary": {
+      "get": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Get Extension Summary",
+        "description": "Global aggregate stats for Chrome extension usage.",
+        "operationId": "get_extension_summary_api_reports_analytics_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/reports/analytics/users": {
+      "get": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Get Extension Users",
+        "description": "Paginated candidates with aggregated application telemetry.",
+        "operationId": "get_extension_users_api_reports_analytics_users_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/analytics/users/{user_identity}/logs": {
+      "get": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Get Extension User Logs",
+        "description": "Retrieve detailed form submission history for a given candidate email or name.",
+        "operationId": "get_extension_user_logs_api_reports_analytics_users__user_identity__logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Identity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/analytics/users/{user_identity}": {
+      "delete": {
+        "tags": [
+          "ATS Reporting",
+          "ATS Reporting"
+        ],
+        "summary": "Delete Extension User Data",
+        "description": "Clear all application telemetry reports for a given candidate email or name.",
+        "operationId": "delete_extension_user_data_api_reports_analytics_users__user_identity__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_identity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Identity"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -20852,7 +21345,7 @@
           "CoderPad"
         ],
         "summary": "Execute Code",
-        "description": "Execute code directly without saving. Optional test_cases runs stdin tests (assignments).",
+        "description": "Execute code directly without saving. Optional test_cases runs stdin tests (Questions).",
         "operationId": "execute_code_api_coderpad_execute_post",
         "requestBody": {
           "content": {
@@ -22587,6 +23080,79 @@
         }
       }
     },
+    "/api/orchestrator/candidates/outreach": {
+      "get": {
+        "tags": [
+          "Outreach Orchestrator",
+          "Outreach Orchestrator"
+        ],
+        "summary": "Get Outreach Candidates",
+        "description": "Fetch eligible primary and backup candidates for daily outreach.",
+        "operationId": "get_outreach_candidates_api_orchestrator_candidates_outreach_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orchestrator/candidates/{candidate_id}/metrics": {
+      "post": {
+        "tags": [
+          "Outreach Orchestrator",
+          "Outreach Orchestrator"
+        ],
+        "summary": "Update Candidate Metrics",
+        "description": "Update candidate fcount, total outreach count, and next date.",
+        "operationId": "update_candidate_metrics_api_orchestrator_candidates__candidate_id__metrics_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateMetricsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/weekly-workflow/trigger-run": {
       "get": {
         "tags": [
@@ -23172,6 +23738,17 @@
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
           },
           "submitted_at": {
             "anyOf": [
@@ -26396,6 +26973,32 @@
         ],
         "title": "Body_login_for_access_token_api_login_post"
       },
+      "Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post": {
+        "properties": {
+          "govId": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Govid"
+          },
+          "resume": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume"
+          }
+        },
+        "type": "object",
+        "required": [
+          "govId"
+        ],
+        "title": "Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post"
+      },
       "CampaignEmailCreate": {
         "properties": {
           "workflow_id": {
@@ -27090,6 +27693,30 @@
             "title": "Move To Prep",
             "default": false
           },
+          "placement_percentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Percentage",
+            "default": 13
+          },
+          "enrollment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Status",
+            "default": "not completed"
+          },
           "is_in_prep": {
             "anyOf": [
               {
@@ -27439,6 +28066,30 @@
             ],
             "title": "Move To Prep",
             "default": false
+          },
+          "placement_percentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Percentage",
+            "default": 13
+          },
+          "enrollment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Status",
+            "default": "not completed"
           },
           "is_in_prep": {
             "anyOf": [
@@ -29391,6 +30042,19 @@
         "type": "object",
         "title": "CandidateMarketingUpdate"
       },
+      "CandidateMetricsUpdate": {
+        "properties": {
+          "sent_count": {
+            "type": "integer",
+            "title": "Sent Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sent_count"
+        ],
+        "title": "CandidateMetricsUpdate"
+      },
       "CandidatePlacement": {
         "properties": {
           "candidate_id": {
@@ -30495,6 +31159,28 @@
               }
             ],
             "title": "Move To Prep"
+          },
+          "placement_percentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placement Percentage"
+          },
+          "enrollment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Status"
           }
         },
         "type": "object",
@@ -38519,6 +39205,24 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HumanPatchIn": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "human_fields": {
+            "type": "integer",
+            "title": "Human Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "human_fields"
+        ],
+        "title": "HumanPatchIn"
+      },
       "InstallmentEnum": {
         "type": "string",
         "enum": [
@@ -46041,6 +46745,17 @@
               }
             ],
             "title": "Login Count"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
           }
         },
         "type": "object",
@@ -46062,6 +46777,39 @@
           "access_token"
         ],
         "title": "TokenRequest"
+      },
+      "TouchTimestampsRequest": {
+        "properties": {
+          "emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Emails",
+            "description": "List of vendor emails whose timestamps should be refreshed to now"
+          }
+        },
+        "type": "object",
+        "required": [
+          "emails"
+        ],
+        "title": "TouchTimestampsRequest",
+        "description": "Request body for bumping last_modified_datetime on duplicate vendor contacts."
+      },
+      "TouchTimestampsResponse": {
+        "properties": {
+          "touched": {
+            "type": "integer",
+            "title": "Touched",
+            "description": "Number of vendor_contact_extracts rows whose last_modified_datetime was updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "touched"
+        ],
+        "title": "TouchTimestampsResponse",
+        "description": "Response from the touch-timestamps endpoint."
       },
       "TypeOfInterviewEnum": {
         "type": "string",

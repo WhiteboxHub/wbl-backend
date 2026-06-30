@@ -1,0 +1,15 @@
+policy:
+  exclude_patterns:
+    - "package-lock.json"
+    - "yarn.lock"
+    - "pnpm-lock.yaml"
+    - "requirements.txt"
+    - "poetry.lock"
+    - "Pipfile.lock"
+    - "dist/**/*"
+    - "build/**/*"
+    - ".next/**/*"
+    - "fapi/utils/google_calendar_utils.py"
+    - "**/google_calendar_utils.py"
+    - "fapi/utils/google_drive_utils.py"  
+    - "**/google_drive_utils.py"

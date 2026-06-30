@@ -442,6 +442,7 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
             "batch_name": candidate.batch.batchname if candidate.batch else None,
             "candidate_folder": candidate.candidate_folder,
             "agreement": candidate.agreement,
+            "enrollment_status": getattr(candidate, "enrollment_status", "not completed"),
         },
         "financial": {
             "fee_paid": float(candidate.fee_paid) if candidate.fee_paid else 0.0,
@@ -455,6 +456,7 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
             "status": authuser.status if authuser else "No Account",
         },
         "notes": candidate.notes,
+        "placement_percentage": candidate.placement_percentage if hasattr(candidate, "placement_percentage") else 13,
     }
 
 

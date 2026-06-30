@@ -528,6 +528,7 @@ class Token(BaseModel):
     token_type: str
     team: Optional[str] = None
     login_count: Optional[int] = None
+    candidate_id: Optional[int] = None
 
 
 class TokenRequest(BaseModel):
@@ -799,6 +800,8 @@ class CandidateBase(BaseModel):
     batch: Optional[BatchOut] = None
     candidate_folder: Optional[str] = None
     move_to_prep: Optional[bool] = False
+    placement_percentage: Optional[int] = 13
+    enrollment_status: Optional[str] = "not completed"
     is_in_prep: Optional[str] = "No"
     is_in_marketing: Optional[str] = "No"
 
@@ -857,6 +860,8 @@ class CandidateUpdate(BaseModel):
     candidate_folder: Optional[str] = None
     github_link: Optional[str] = None
     move_to_prep: Optional[bool] = None
+    placement_percentage: Optional[int] = None
+    enrollment_status: Optional[str] = None
 
     model_config = {
         "from_attributes": True,
@@ -1663,6 +1668,16 @@ class VendorContactBulkResponse(BaseModel):
 
 class MoveToVendorRequest(BaseModel):
     contact_ids: List[int] = Field(..., description="List of contact IDs to move to vendor")
+
+
+class TouchTimestampsRequest(BaseModel):
+    """Request body for bumping last_modified_datetime on duplicate vendor contacts."""
+    emails: List[str] = Field(..., description="List of vendor emails whose timestamps should be refreshed to now")
+
+
+class TouchTimestampsResponse(BaseModel):
+    """Response from the touch-timestamps endpoint."""
+    touched: int = Field(..., description="Number of vendor_contact_extracts rows whose last_modified_datetime was updated")
 
 
 # -------------------- Vendor Schemas --------------------

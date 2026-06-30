@@ -11,36 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: "pip"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-mock
 
-      - name: Run Pytest Suite (Pre-Deploy Check)
-        env:
-          SECRET_KEY: "mock_test_secret_key_12345"  # pragma: allowlist secret
-          ALGORITHM: "HS256"
-          UPSTASH_REDIS_REST_URL: "https://mock-redis.upstash.io"
-          UPSTASH_REDIS_REST_TOKEN: "mock_token"
-          DB_PASSWORD: "mock_password"  # pragma: allowlist secret
-          DB_HOST: "localhost"
-          DB_NAME: "wbl_test" 
-          ENV: "test"
-          MAIL_PORT: "587"
-          MAIL_USERNAME: "mock_username"
-          MAIL_PASSWORD: "mock_password"  # pragma: allowlist secret
-          MAIL_SERVER: "smtp.mock.com"
-          MAIL_FROM: "mock@mock.com"
+      - name: Run tests
         run: |
-          # Ensure deployment fails if unit/integration tests fail
-          pytest --ignore=tests/smoke -v
+          PYTHONPATH=. pytest --ignore=tests/smoke tests/
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -52,7 +34,7 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Deploy to Cloud Run (No public traffic)
+      - name: Deploy to Cloud Run
         run: |
           gcloud run deploy fastapi-backend \
             --source . \
@@ -63,20 +45,16 @@ jobs:
             --no-traffic \
             --tag=smoke
 
-      - name: Get smoke test URL
+      - name: Retrieve Smoke Revision URL
         run: |
-          SMOKE_URL=$(gcloud run services describe fastapi-backend --region us-central1 --format=json | jq -r '.status.traffic[] | select(.tag=="smoke") | .url')
+          SMOKE_URL=$(gcloud run services describe fastapi-backend --platform managed --region us-central1 --format=json | jq -r '.status.traffic[] | select(.tag=="smoke") | .url')
           echo "SMOKE_URL=$SMOKE_URL" >> $GITHUB_ENV
-          echo "Smoke test URL: $SMOKE_URL"
 
-      - name: Run Live Smoke Tests
-        env:
-          PROD_URL: ${{ env.SMOKE_URL }}
+      - name: Run Smoke Tests
         run: |
-          pytest tests/smoke/test_production_smoke.py -v
+          PROD_URL=${{ env.SMOKE_URL }} PYTHONPATH=. pytest tests/smoke/test_production_smoke.py
 
-      - name: Promote new revision to 100% traffic
-        if: success()
+      - name: Promote Traffic to Latest Revision
         run: |
           gcloud run services update-traffic fastapi-backend \
             --region us-central1 \

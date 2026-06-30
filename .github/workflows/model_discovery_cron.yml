@@ -1,0 +1,40 @@
+name: Model Discovery Scout
+
+on:
+  schedule:
+    # Run at midnight every Sunday
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    # Allows you to run the scout manually from the GitHub Actions tab
+
+jobs:
+  run-scout:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+          
+      - name: Run Discovery Scout
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_1: ${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GIST_ID: ${{ secrets.MODEL_REGISTRY_GIST_ID }}
+          GITHUB_TOKEN: ${{ secrets.GIST_PAT }}
+          MODEL_REGISTRY_URL: ${{ secrets.MODEL_REGISTRY_URL }}
+        run: |
+          python .github/scripts/model_discovery.py

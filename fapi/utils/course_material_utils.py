@@ -15,7 +15,7 @@ COURSE_MATERIAL_TYPE_MAPPING = {
     "B": "Books",
     "N": "Newsletters",
     "M": "Materials",
-    "A": "Assignments",
+    "A": "Questions",
     "G": "Git Repo's"
 }
 

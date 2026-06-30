@@ -11,6 +11,8 @@ from fapi.db.schemas import (
     VendorContactBulkCreate,
     VendorContactBulkResponse,
     MoveToVendorRequest,
+    TouchTimestampsRequest,
+    TouchTimestampsResponse,
 )
 from fapi.utils.vendor_contact_utils import (
     get_all_vendor_contacts,
@@ -21,7 +23,8 @@ from fapi.utils.vendor_contact_utils import (
     delete_vendor_contact,
     delete_vendor_contacts_bulk,
     move_contacts_to_vendor,
-    get_vendor_contacts_version
+    get_vendor_contacts_version,
+    touch_vendor_contact_timestamps,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +107,28 @@ async def move_contacts_to_vendor_handler(
         raise
     except Exception as e:
         logger.error(f"Error moving contacts to vendor: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.patch("/vendor_contact/touch-timestamps", response_model=TouchTimestampsResponse)
+async def touch_vendor_contact_timestamps_handler(
+    request: TouchTimestampsRequest,
+    db: Session = Depends(get_db),
+):
+    """Refresh last_modified_datetime and extraction_date to NOW for a list of duplicate emails.
+
+    Called by the email extractor after Layer 2 global dedup: emails that already
+    exist in the DB are not re-inserted, but their timestamps are bumped so the
+    email-sending workflow treats them as 'seen today' and includes them in the
+    current candidate's outreach batch.
+    """
+    try:
+        touched = await touch_vendor_contact_timestamps(request.emails, db)
+        return TouchTimestampsResponse(touched=touched)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error touching vendor contact timestamps: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.put("/vendor_contact/{contact_id}", response_model=VendorContactExtract)

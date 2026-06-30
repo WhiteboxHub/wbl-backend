@@ -1,12 +1,13 @@
 import logging
 import re
 from typing import Dict, Any, List
-from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, Response
+from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, Response, BackgroundTasks
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.utils import candidate_utils
+from fapi.utils.auth_dependencies import get_current_user
 from fapi.db.schemas import (
     CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,
     CandidateMarketing, CandidatePlacementCreate, CandidateMarketingCreate,
@@ -295,6 +296,20 @@ def read_candidate_interview(interview_id: int, db: Session = Depends(get_db)):
     if not db_obj:
         raise HTTPException(status_code=404, detail="Interview not found")
     return candidate_utils.serialize_interview(db_obj)
+
+@router.post("/interviews/{interview_id}/generate-meet")
+def generate_meet_for_interview(
+    interview_id: int, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: AuthUserORM = Depends(get_current_user)
+):
+    try:
+        result = candidate_utils.generate_interview_meet(db, interview_id, background_tasks)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to generate meet link for interview {interview_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/interviews", response_model=List[CandidateInterviewOut])
