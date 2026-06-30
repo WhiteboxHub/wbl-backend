@@ -703,6 +703,7 @@ def generate_interview_meet(db: Session, interview_id: int, background_tasks=Non
         logger.error(f"Failed to fetch active instructors for attendees: {e}")
 
     sync_data = {
+        "id": interview.id,
         "interview_date": interview.interview_date,
         "interview_time": interview.interview_time,
         "company": interview.company,
