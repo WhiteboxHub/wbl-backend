@@ -692,6 +692,16 @@ def generate_interview_meet(db: Session, interview_id: int, background_tasks=Non
             if getattr(prep, "instructor3", None) and getattr(prep.instructor3, "email", None):
                 attendees.append(prep.instructor3.email)
 
+    # Add all active instructors from the employee table to the attendees list
+    from fapi.utils.employee_utils import get_active_instructors
+    try:
+        active_instructors = get_active_instructors()
+        for inst in active_instructors:
+            if inst.get("email") and inst["email"] not in attendees:
+                attendees.append(inst["email"])
+    except Exception as e:
+        logger.error(f"Failed to fetch active instructors for attendees: {e}")
+
     sync_data = {
         "interview_date": interview.interview_date,
         "interview_time": interview.interview_time,
