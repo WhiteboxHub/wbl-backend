@@ -208,7 +208,7 @@ def create_meet_event(interview_data: dict, candidate_name: str, attendees: list
             calendarId=calendar_id, 
             body=event_body,
             conferenceDataVersion=1,
-            sendUpdates="all"
+            sendUpdates="none"
         )
         event = _execute(request)
         
