@@ -52,25 +52,30 @@ def get_user_id_from_headers(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
-) -> Optional[int]:
+) -> int:
     """Retrieve user_id from candidate email header, fallback to extension API key."""
+    user_id = None
     if x_candidate_email:
         user = db.query(AuthUserORM).filter(AuthUserORM.uname == x_candidate_email.strip()).first()
         if user:
-            return user.id
+            user_id = user.id
 
-    api_key = x_api_key
-    if not api_key and authorization and authorization.startswith("Bearer "):
-        api_key = authorization.split(" ")[1]
+    if not user_id:
+        api_key = x_api_key
+        if not api_key and authorization and authorization.startswith("Bearer "):
+            api_key = authorization.split(" ")[1]
 
-    if api_key:
-        key_row = db.query(ExtensionKeyORM).filter(
-            ExtensionKeyORM.api_key == api_key,
-            ExtensionKeyORM.is_active == True
-        ).first()
-        if key_row:
-            return key_row.user_id
-    return None
+        if api_key:
+            key_row = db.query(ExtensionKeyORM).filter(
+                ExtensionKeyORM.api_key == api_key,
+                ExtensionKeyORM.is_active == True
+            ).first()
+            if key_row:
+                user_id = key_row.user_id
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or missing authentication credentials")
+    return user_id
 
 
 # ---- Endpoints --------------------------------------------------------------
@@ -78,8 +83,11 @@ def get_user_id_from_headers(
 @router.get("/applications/today", response_model=List[ApplicationReportOut])
 async def get_application_reports_today(
     db: Session = Depends(get_db),
+    current_user=Depends(staff_or_admin_required),
 ):
     """Return all ATS application reports submitted today (UTC date)."""
+    if not current_user or current_user.role not in ["staff", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     now_utc = datetime.now(timezone.utc)
     today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow_start = today_start + timedelta(days=1)
@@ -98,7 +106,7 @@ async def get_application_reports_today(
 async def save_application_reports_bulk(
     reports: List[ApplicationReportIn],
     db: Session = Depends(get_db),
-    user_id: Optional[int] = Depends(get_user_id_from_headers),
+    user_id: int = Depends(get_user_id_from_headers),
 ):
     """Persist a batch of ATS application field-ownership reports.
     
@@ -120,7 +128,7 @@ async def save_application_reports_bulk(
 async def patch_human_fields(
     payload: HumanPatchIn,
     db: Session = Depends(get_db),
-    user_id: Optional[int] = Depends(get_user_id_from_headers),
+    user_id: int = Depends(get_user_id_from_headers),
 ):
     """Update human_fields and recalculate automation_rate on the most recent
     ApplicationReport record matching this candidate within the last 30 minutes.
@@ -166,7 +174,8 @@ def get_extension_summary(
     current_user=Depends(staff_or_admin_required),
 ):
     """Global aggregate stats for Chrome extension usage."""
-    _ = current_user
+    if not current_user or current_user.role not in ["staff", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     return extension_analytics_utils.get_extension_global_summary(db)
 
 
@@ -179,7 +188,8 @@ def get_extension_users(
     current_user=Depends(staff_or_admin_required),
 ):
     """Paginated candidates with aggregated application telemetry."""
-    _ = current_user
+    if not current_user or current_user.role not in ["staff", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     return extension_analytics_utils.get_paginated_extension_users(
         db, page=page, page_size=page_size, search_query=search
     )
@@ -192,10 +202,9 @@ def get_extension_user_logs(
     current_user=Depends(staff_or_admin_required),
 ):
     """Retrieve detailed form submission history for a given candidate email or name."""
-    _ = current_user
+    if not current_user or current_user.role not in ["staff", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     return extension_analytics_utils.get_user_extension_logs(db, user_identity)
-
-
 
 
 @router.delete("/analytics/users/{user_identity:path}")
@@ -205,76 +214,9 @@ def delete_extension_user_data(
     current_user=Depends(admin_required),
 ):
     """Clear all application telemetry reports for a given candidate email or name."""
-    _ = current_user
+    if not current_user or current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin permissions required to delete telemetry")
     deleted_count = extension_analytics_utils.delete_user_extension_reports(db, user_identity)
     return {"status": "success", "user_identity": user_identity, "deleted_count": deleted_count}
 
-
-# ---- Post-fill Human Field Patch Endpoint ------------------------------------
-
-class HumanPatchIn(BaseModel):
-    """Payload to update human_fields on the most recent report for this session."""
-    url: str
-    human_fields: int
-
-
-@router.patch("/applications/patch-human")
-async def patch_human_fields(
-    payload: HumanPatchIn,
-    db: Session = Depends(get_db),
-    user_id: Optional[int] = Depends(get_user_id_from_headers),
-):
-    """Update human_fields (and recalculate automation_rate) on the most recent
-    ApplicationReport record matching this candidate within the last 30 minutes.
-
-    Called by the Chrome extension when the user edits form fields after autofill
-    has already sent the initial telemetry report.
-    """
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
-
-    query = db.query(ApplicationReportORM).filter(
-        ApplicationReportORM.submitted_at >= cutoff
-    )
-
-    # Prefer matching by user_id (most reliable), fall back to ATS platform from URL
-    if user_id:
-        query = query.filter(ApplicationReportORM.user_id == user_id)
-    else:
-        # Best-effort: derive the ATS platform token from the URL domain
-        try:
-            from urllib.parse import urlparse
-            domain = urlparse(payload.url).hostname or ""
-            # Strip leading 'www.' and take the second-level domain token
-            parts = domain.replace("www.", "").split(".")
-            ats_token = parts[0] if parts else ""
-        except Exception:
-            ats_token = ""
-
-        if ats_token:
-            query = query.filter(
-                ApplicationReportORM.ats_platform.ilike(f"%{ats_token}%")
-            )
-
-    record = query.order_by(ApplicationReportORM.submitted_at.desc()).first()
-
-    if not record:
-        return {"status": "not_found"}
-
-    # Update human_fields and recalculate automation_rate
-    record.human_fields = payload.human_fields
-    filled_total = (record.autofill_fields or 0) + payload.human_fields
-    record.automation_rate = round(
-        (record.autofill_fields / filled_total * 100) if filled_total > 0 else 0.0,
-        2
-    )
-
-    db.commit()
-    db.refresh(record)
-
-    return {
-        "status": "updated",
-        "id": record.id,
-        "human_fields": record.human_fields,
-        "automation_rate": float(record.automation_rate)
-    }
 
