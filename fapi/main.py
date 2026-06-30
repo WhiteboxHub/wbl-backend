@@ -20,6 +20,7 @@ from fapi.api.routes import (
     email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli, cli_analytics,
     campaign_email, outreach_email, tracking
 )
+from fapi.api.routes import aiprep_analytics
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
@@ -181,6 +182,7 @@ app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], depend
 app.include_router(sync_cli.router, prefix="/api", tags=["JobCLI Sync"])
 app.include_router(cli_analytics.router, prefix="/api", tags=["WboxCLI Analytics"])
 app.include_router(tracking.router, prefix="/api", tags=["ATS Reporting"])
+app.include_router(aiprep_analytics.router, prefix="/api")
 
 
 # Job and Outreach Routers
