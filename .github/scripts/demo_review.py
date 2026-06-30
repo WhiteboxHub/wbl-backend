@@ -491,10 +491,8 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
     finally:
         os.chdir(original_dir)
 
-def run_review(context: str, mode_name: str, metadata: dict = None, verbose: bool = True) -> dict:
-    if metadata is None:
-        metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
-    prompt = f"""You are a senior staff engineer performing a rigorous code review.
+def _get_review_prompt(context: str) -> str:
+    return f"""You are a senior staff engineer performing a rigorous code review.
 
 {context}
 
@@ -543,6 +541,11 @@ Rank findings using this Severity Formula (map to bug_category):
 - high: Architectural violation
 - medium: Core logic changed without tests
 - low: Concrete maintainability concerns (must have failure path)"""
+
+def run_review(context: str, mode_name: str, metadata: dict = None, verbose: bool = True) -> dict:
+    if metadata is None:
+        metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
+    prompt = _get_review_prompt(context)
     
     json_schema = BUG_REPORT_SCHEMA
     
