@@ -226,20 +226,20 @@ def format_context_as_markdown(changes, changed_snippets, impact_snippets, diff_
     """Format the review context as structured markdown with XML-style tags."""
     lines = ["# Code Review Context\n"]
 
-    # Section 1: Git Diff
-    lines.append("## 1. Git Diff (What Changed)\n")
-    lines.append("<diff>")
-    lines.append(diff_text)
-    lines.append("</diff>\n")
-
-    # Section 2: Changed Code Snippets
-    lines.append("## 2. Changed Code (Modified Files with Context)\n")
+    # Section 1: Changed Code Snippets
+    lines.append("## 1. Changed Code (Modified Files with Context)\n")
     for item in changed_snippets:
         lines.append(f'<file name="{item["file"]}" lines="{item["lines"]}" type="changed">')
         lines.append("```python")
         lines.append(item["text"])
         lines.append("```")
         lines.append("</file>\n")
+
+    # Section 2: Git Diff
+    lines.append("## 2. Git Diff (What Changed)\n")
+    lines.append("<diff>")
+    lines.append(diff_text)
+    lines.append("</diff>\n")
 
     # Section 3: Impact Code (both directions)
     lines.append("## 3. Impact Code (Contracts & Call Sites)\n")
