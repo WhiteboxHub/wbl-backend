@@ -182,55 +182,55 @@ def get_candidates(
                 COALESCE(c.extraction_status, 'pending') AS extraction_status,
 
                 -- Resume
-                (SELECT COUNT(*) FROM aiprep_tool_resumes r WHERE r.user_id = c.user_id) AS has_resume,
-                (SELECT r.resume_json FROM aiprep_tool_resumes r WHERE r.user_id = c.user_id) AS resume_json,
+                (SELECT COUNT(*) FROM aiprep_tool_resumes r WHERE r.user_id = c.user_id OR r.user_id = cand.id) AS has_resume,
+                (SELECT r.resume_json FROM aiprep_tool_resumes r WHERE r.user_id = c.user_id OR r.user_id = cand.id) AS resume_json,
 
                 -- Project
-                (SELECT COUNT(*) FROM aiprep_tool_project_context p WHERE p.user_id = c.user_id) AS has_project,
+                (SELECT COUNT(*) FROM aiprep_tool_project_context p WHERE p.user_id = c.user_id OR p.user_id = cand.id) AS has_project,
 
                 -- Intro attempts
                 (SELECT COUNT(*) FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'intro') AS intro_attempts,
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro') AS intro_attempts,
 
                 -- Best intro score
                 (SELECT MAX(e.score) FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'intro') AS best_intro_score,
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro') AS best_intro_score,
 
                 -- Intro passed (any attempt)
                 (SELECT MAX(CASE WHEN e.passed THEN 1 ELSE 0 END)
                  FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'intro') AS intro_passed,
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro') AS intro_passed,
 
                 -- Latest intro score
                 (SELECT e.score FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'intro'
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro'
                  ORDER BY e.created_at DESC LIMIT 1) AS latest_intro_score,
 
                 -- Latest video URL
                 (SELECT e.video_url FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'intro' AND e.video_url IS NOT NULL
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro' AND e.video_url IS NOT NULL
                  ORDER BY e.created_at DESC LIMIT 1) AS latest_video_url,
 
                 -- Interview questions answered
                 (SELECT COUNT(*) FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'interview_answer') AS questions_answered,
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'interview_answer') AS questions_answered,
 
                 -- Avg interview score (stored as 0-10, * 10 to make /100)
                 (SELECT ROUND(AVG(e.score) * 10, 1) FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'interview_answer') AS avg_interview_score,
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'interview_answer') AS avg_interview_score,
 
                 -- Total interview attempts (sessions)
                 (SELECT COUNT(*) FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id AND e.type = 'interview_complete') AS interview_sessions,
+                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'interview_complete') AS interview_sessions,
 
                 -- Interview completed
                 (SELECT MAX(CASE WHEN e.type = 'interview_complete' THEN 1 ELSE 0 END)
                  FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id) AS interview_completed,
+                 WHERE e.user_id = c.user_id OR e.user_id = cand.id) AS interview_completed,
 
                 -- Case studies
                 (SELECT COUNT(*) FROM aiprep_tool_case_studies cs
-                 WHERE cs.user_id = c.user_id) AS case_studies_generated,
+                 WHERE cs.user_id = c.user_id OR cs.user_id = cand.id) AS case_studies_generated,
 
                 -- Real-time CoderPad stats from WBL tables
                 (SELECT COUNT(DISTINCT cel.code_snippet_id) 
@@ -465,7 +465,8 @@ def get_candidate_detail(
             SELECT 
                 c.*,
                 cand.full_name AS joined_name,
-                cand.email AS joined_email
+                cand.email AS joined_email,
+                cand.id AS cand_id
             FROM aiprep_tool_candidates c
             LEFT JOIN candidate cand ON cand.email = c.wbl_email OR cand.email = c.email
             WHERE c.user_id = :user_id
@@ -474,33 +475,38 @@ def get_candidate_detail(
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
 
+        cand_id = str(candidate.get("cand_id")) if candidate.get("cand_id") is not None else None
+
         # Get resume JSON if any to extract details
-        resume_res = db.execute(text("SELECT resume_json FROM aiprep_tool_resumes WHERE user_id = :user_id"), {"user_id": user_id}).mappings().first()
+        resume_res = db.execute(text("""
+            SELECT resume_json FROM aiprep_tool_resumes 
+            WHERE user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)
+        """), {"user_id": user_id, "cand_id": cand_id}).mappings().first()
         resume_json = resume_res["resume_json"] if resume_res else None
 
         # All intro evaluations (timeline)
         intro_history = db.execute(text("""
             SELECT score, passed, feedback, created_at
             FROM aiprep_tool_evaluations
-            WHERE user_id = :user_id AND type = 'intro'
+            WHERE (user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)) AND type = 'intro'
             ORDER BY created_at ASC
-        """), {"user_id": user_id}).mappings().all()
+        """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
 
         # All interview answer evaluations
         interview_history = db.execute(text("""
             SELECT score, feedback, raw_response, created_at
             FROM aiprep_tool_evaluations
-            WHERE user_id = :user_id AND type = 'interview_answer'
+            WHERE (user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)) AND type = 'interview_answer'
             ORDER BY created_at ASC
-        """), {"user_id": user_id}).mappings().all()
+        """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
 
         # Case studies
         case_studies = db.execute(text("""
             SELECT topic, created_at
             FROM aiprep_tool_case_studies
-            WHERE user_id = :user_id
+            WHERE user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)
             ORDER BY created_at DESC
-        """), {"user_id": user_id}).mappings().all()
+        """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
 
         # CoderPad stats directly from live WBL execution logs
         wbl_email = candidate.get("wbl_email")

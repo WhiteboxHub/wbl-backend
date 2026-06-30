@@ -7,9 +7,30 @@ from fapi.main import app
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "snapshots")
 SNAPSHOT_PATH = os.path.join(SNAPSHOT_DIR, "openapi_snapshot.json")
 
+class ResolvedRoute:
+    def __init__(self, original_route, resolved_path):
+        self.path = resolved_path
+        self.methods = getattr(original_route, "methods", [])
+        if hasattr(original_route, "endpoint"):
+            self.endpoint = original_route.endpoint
+
+def get_all_routes(app_or_router, prefix=""):
+    routes = []
+    for route in app_or_router.routes:
+        route_class = type(route).__name__
+        if route_class == "_IncludedRouter":
+            inc_prefix = getattr(route.include_context, "prefix", "")
+            routes.extend(get_all_routes(route.include_context.included_router, prefix=prefix + inc_prefix))
+        elif hasattr(route, "routes"):
+            mount_prefix = getattr(route, "path", "")
+            routes.extend(get_all_routes(route, prefix=prefix + mount_prefix))
+        else:
+            routes.append(ResolvedRoute(route, (prefix + getattr(route, "path", "")).replace("//", "/")))
+    return routes
+
 def get_route_source_location(path: str):
     """Finds the Python function handling a path and returns its file and line number."""
-    for route in app.routes:
+    for route in get_all_routes(app):
         if getattr(route, "path", None) == path:
             endpoint = getattr(route, "endpoint", None)
             if endpoint:
