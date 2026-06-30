@@ -549,7 +549,9 @@ Rank findings using this Severity Formula (map to bug_category):
             continue
             
         for idx, key in enumerate(keys):
-            client_args = {"api_key": key, "max_retries": 1, "timeout": 180.0}
+            # max_retries=0 is CRITICAL so the client doesn't internally sleep on 429s.
+            # We want it to instantly throw so our loop can switch to the next API key.
+            client_args = {"api_key": key, "max_retries": 0, "timeout": 120.0}
             if base_url:
                 client_args["base_url"] = base_url
             client = OpenAI(**client_args)
