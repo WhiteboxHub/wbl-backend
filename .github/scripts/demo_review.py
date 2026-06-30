@@ -504,12 +504,22 @@ CRITICAL INSTRUCTIONS:
 3. DO NOT provide generic operational risk or maintenance warnings.
 4. NEVER report a risk unless you can describe a specific execution path from changed code to failure.
 
-A finding is VALID ONLY IF:
-1. A specific changed symbol is involved.
-2. A concrete regression path exists.
-3. A user-visible failure mode can be explained.
-4. The impact is supported by AST findings.
-5. For NameErrors/undefined variables, you MUST verify it is actually undefined by reading the 'Changed Code' snippets, not just the Git Diff.
+You are reviewing ONLY the changes introduced by this PR.
+Do NOT report:
+- Existing technical debt
+- Existing architectural issues
+- Existing code smells
+- Existing bugs unless this PR introduces or worsens them.
+
+When the Git Diff and Changed Code snippets appear to differ in available context, treat the Changed Code snippets as the source of truth because they contain the complete AST symbol.
+
+Before reporting a finding, verify ALL of the following:
+✓ The changed code introduces the condition.
+✓ The execution path reaches the condition.
+✓ The failure is user-visible or CI-visible.
+✓ The failure did not already exist before this PR.
+
+If any check fails, return no finding (empty array).
 
 Reject findings that are:
 - Generic testing recommendations
@@ -518,9 +528,9 @@ Reject findings that are:
 - Speculative risks without a concrete failure path
 - Signature Changes explicitly marked as (Non-Breaking)
 
-Optional parameters, default values, widened types, and backward-compatible overloads are NOT considered breaking signature changes. Only treat (Breaking) signature changes as a regression risk.
+Never report missing variables, unresolved symbols, or unreachable code unless the complete Changed Code snippet proves they are missing.
 
-If you cannot identify a concrete failure path, return no finding (empty array).
+Optional parameters, default values, widened types, and backward-compatible overloads are NOT considered breaking signature changes. Only treat (Breaking) signature changes as a regression risk.
 
 When reporting a valid finding, you MUST force blast-radius reasoning. Your `comment` MUST follow this structure:
 Changed Symbol: [Symbol]
