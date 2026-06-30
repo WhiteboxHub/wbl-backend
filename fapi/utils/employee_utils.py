@@ -27,6 +27,17 @@ def get_all_employees() -> list[dict]:
         )
         return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
 
+@cache_result(ttl=300, prefix="employees_active_instructors")
+def get_active_instructors() -> list[dict]:
+    with SessionLocal() as session:
+        employees = (
+            session.query(EmployeeORM)
+            .filter(EmployeeORM.status == 1, EmployeeORM.instructor == 1)
+            .order_by(EmployeeORM.name.asc())
+            .all()
+        )
+        return [clean_invalid_values(emp.__dict__.copy()) for emp in employees]
+
 @cache_result(ttl=300, prefix="employees")
 def get_employee_by_email(email: str):
     with SessionLocal() as session:
