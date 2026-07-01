@@ -5067,9 +5067,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 2000,
-              "default": 100,
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Size"
             }
           }
