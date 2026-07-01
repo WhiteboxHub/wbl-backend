@@ -5022,9 +5022,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "maximum": 2000,
-              "default": 100,
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Size"
             }
           }
@@ -45989,6 +45994,17 @@
               }
             ],
             "title": "Login Count"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
           }
         },
         "type": "object",
