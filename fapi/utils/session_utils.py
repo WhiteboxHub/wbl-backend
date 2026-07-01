@@ -5,7 +5,8 @@ from fapi.core.cache import cache_result, invalidate_cache
 
 
 @cache_result(ttl=300, prefix="sessions")
-def get_sessions(db: Session, search_title: str = None, page: int = 1, size: int = 200):
+# def get_sessions(db: Session, search_title: str = None, page: int = 1, size: int = 200):
+def get_sessions(db: Session, search_title: str = None, page: int = 1, size: int | None = None):
     query = db.query(models.Session)
 
     if search_title:
@@ -16,9 +17,12 @@ def get_sessions(db: Session, search_title: str = None, page: int = 1, size: int
 
     # pagination FIX
     query = query.order_by(models.Session.sessionid.desc())
-    query = query.offset((page - 1) * size).limit(size)
+    if size is not None:
+        query = query.offset((page - 1) * size).limit(size)
+    # query = query.offset((page - 1) * size).limit(size)
 
     return query.all()
+    
 
 
 # =========================
