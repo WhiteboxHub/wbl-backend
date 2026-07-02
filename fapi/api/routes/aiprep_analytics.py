@@ -124,17 +124,6 @@ def get_summary(
         interview_completed = interview_res["completed"] if interview_res else 0
         interview_completion_rate = round(interview_completed / total_candidates * 100, 1) if total_candidates else 0
 
-        # CoderPad adoption (candidates with execution logs)
-        cp_res = db.execute(text("""
-            SELECT COUNT(DISTINCT cel.authuser_id) AS cp_users 
-            FROM code_execution_log cel
-            JOIN authuser au ON cel.authuser_id = au.id
-            JOIN aiprep_tool_candidates c ON au.uname = c.wbl_email OR au.uname = c.email
-            WHERE cel.status = 'success' AND cel.code_snippet_id IS NOT NULL
-        """)).mappings().first()
-        cp_users = cp_res["cp_users"] if cp_res else 0
-        cp_adoption_rate = round(cp_users / total_candidates * 100, 1) if total_candidates else 0
-
         # Case studies generated
         cs_res = db.execute(text("SELECT COUNT(*) AS cs_total FROM aiprep_tool_case_studies")).mappings().first()
         case_studies = cs_res["cs_total"] if cs_res else 0
@@ -144,11 +133,9 @@ def get_summary(
             "active_this_week": active_week,
             "intro_pass_rate": intro_pass_rate,
             "interview_completion_rate": interview_completion_rate,
-            "coderpad_adoption_rate": cp_adoption_rate,
             "total_case_studies": case_studies,
             "intro_passed_count": intro_passed_users,
             "interview_completed_count": interview_completed,
-            "coderpad_active_count": cp_users,
         }
     except Exception as e:
         logger.error(f"Error in summary: {e}")
@@ -164,7 +151,6 @@ def get_candidates(
     search: Optional[str] = Query(None),
     filter_intro_passed: Optional[bool] = Query(None),
     filter_interview_done: Optional[bool] = Query(None),
-    filter_has_coderpad: Optional[bool] = Query(None),
     filter_active_week: Optional[bool] = Query(None),
 ):
     _ = current_user
@@ -230,39 +216,7 @@ def get_candidates(
 
                 -- Case studies
                 (SELECT COUNT(*) FROM aiprep_tool_case_studies cs
-                 WHERE cs.user_id = c.user_id OR cs.user_id = cand.id) AS case_studies_generated,
-
-                -- Real-time CoderPad stats from WBL tables
-                (SELECT COUNT(DISTINCT cel.code_snippet_id) 
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1) 
-                   AND cel.status = 'success' AND cel.code_snippet_id IS NOT NULL) AS questions_solved,
-
-                (SELECT COUNT(cel.id) 
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1)) AS cp_total_submissions,
-
-                (SELECT ROUND(COALESCE(SUM(CASE WHEN cel.status = 'success' THEN 1 ELSE 0 END) / NULLIF(COUNT(cel.id), 0) * 100, 0), 2)
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1)) AS cp_pass_rate,
-
-                (SELECT COUNT(cel.id) 
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1)
-                   AND cel.status = 'success') AS coderpad_passed,
-
-                (SELECT COUNT(cel.id) 
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1)
-                   AND cel.status = 'error') AS coderpad_failed,
-
-                (SELECT COALESCE(CONCAT('[', GROUP_CONCAT(DISTINCT CONCAT('"', cel.language, '"')), ']'), '[]')
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1)) AS cp_languages,
-
-                (SELECT MAX(cel.created_at) 
-                 FROM code_execution_log cel 
-                 WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = cm.email OR au.uname = cand.email LIMIT 1)) AS cp_last_synced
+                 WHERE cs.user_id = c.user_id OR cs.user_id = cand.id) AS case_studies_generated
 
             FROM candidate_marketing cm
             JOIN candidate cand ON cand.id = cm.candidate_id
@@ -335,14 +289,6 @@ def get_candidates(
                 "interview_completed": bool(row.get("interview_completed")),
                 # Case studies
                 "case_studies_generated": row.get("case_studies_generated") or 0,
-                # CoderPad
-                "coderpad_questions_solved": row.get("questions_solved") or 0,
-                "coderpad_total_submissions": row.get("cp_total_submissions") or 0,
-                "coderpad_pass_rate": float(row.get("cp_pass_rate") or 0),
-                "coderpad_passed": int(row.get("coderpad_passed") or 0),
-                "coderpad_failed": int(row.get("coderpad_failed") or 0),
-                "coderpad_languages": langs,
-                "coderpad_last_synced": dtstr(row.get("cp_last_synced")),
                 # Overall
                 "prep_completion_pct": pct,
                 "prep_status_label": label,
@@ -366,11 +312,6 @@ def get_candidates(
             results = [r for r in results if r["interview_completed"]]
         elif filter_interview_done is False:
             results = [r for r in results if not r["interview_completed"]]
-
-        if filter_has_coderpad is True:
-            results = [r for r in results if r["coderpad_questions_solved"] > 0]
-        elif filter_has_coderpad is False:
-            results = [r for r in results if r["coderpad_questions_solved"] == 0]
 
         if filter_active_week is True:
             week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
@@ -410,40 +351,6 @@ def get_candidate_detail(
             if not candidate:
                 raise HTTPException(status_code=404, detail="Candidate not found")
             
-            # Since they haven't logged in, they have no AI Prep history. Get CoderPad stats directly:
-            wbl_email = candidate.get("wbl_email")
-            email = candidate.get("joined_email")
-            cp_data = None
-            if wbl_email or email:
-                cp_sql = """
-                    SELECT 
-                        COUNT(DISTINCT CASE WHEN cel.status = 'success' THEN cel.code_snippet_id END) AS questions_solved,
-                        COUNT(cel.id) AS total_submissions,
-                        ROUND(COALESCE(SUM(CASE WHEN cel.status = 'success' THEN 1 ELSE 0 END) / NULLIF(COUNT(cel.id), 0) * 100, 0), 2) AS pass_rate,
-                        COALESCE(CONCAT('[', GROUP_CONCAT(DISTINCT CONCAT('"', cel.language, '"')), ']'), '[]') AS languages_used,
-                        MAX(cel.created_at) AS last_synced
-                    FROM code_execution_log cel
-                    WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = :wbl_email OR au.uname = :email LIMIT 1)
-                """
-                cp_data = db.execute(text(cp_sql), {"wbl_email": wbl_email, "email": email}).mappings().first()
-            
-            def dtstr(v):
-                return v.isoformat() if v else None
-            
-            cp_out = {}
-            if cp_data:
-                try:
-                    langs = json.loads(cp_data.get("languages_used")) if isinstance(cp_data.get("languages_used"), str) else cp_data.get("languages_used")
-                except Exception:
-                    langs = []
-                cp_out = {
-                    "questions_solved": cp_data.get("questions_solved") or 0,
-                    "total_submissions": cp_data.get("total_submissions") or 0,
-                    "pass_rate": float(cp_data.get("pass_rate") or 0),
-                    "languages_used": langs,
-                    "last_synced": dtstr(cp_data.get("last_synced")),
-                }
-
             return {
                 "candidate": {
                     "user_id": user_id,
@@ -457,7 +364,7 @@ def get_candidate_detail(
                 "intro_history": [],
                 "interview_history": [],
                 "case_studies": [],
-                "coderpad": cp_out,
+                "coderpad": {},
             }
 
         # Otherwise, candidate exists in aiprep_tool_candidates
@@ -508,22 +415,7 @@ def get_candidate_detail(
             ORDER BY created_at DESC
         """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
 
-        # CoderPad stats directly from live WBL execution logs
-        wbl_email = candidate.get("wbl_email")
-        email = candidate.get("email") or candidate.get("joined_email")
-        cp_data = None
-        if wbl_email or email:
-            cp_sql = """
-                SELECT 
-                    COUNT(DISTINCT CASE WHEN cel.status = 'success' THEN cel.code_snippet_id END) AS questions_solved,
-                    COUNT(cel.id) AS total_submissions,
-                    ROUND(COALESCE(SUM(CASE WHEN cel.status = 'success' THEN 1 ELSE 0 END) / NULLIF(COUNT(cel.id), 0) * 100, 0), 2) AS pass_rate,
-                    COALESCE(CONCAT('[', GROUP_CONCAT(DISTINCT CONCAT('"', cel.language, '"')), ']'), '[]') AS languages_used,
-                    MAX(cel.created_at) AS last_synced
-                FROM code_execution_log cel
-                WHERE cel.authuser_id = (SELECT id FROM authuser au WHERE au.uname = :wbl_email OR au.uname = :email LIMIT 1)
-            """
-            cp_data = db.execute(text(cp_sql), {"wbl_email": wbl_email, "email": email}).mappings().first()
+        # CoderPad stats directly from live WBL execution logs removed
 
         def dtstr(v):
             return v.isoformat() if v else None
@@ -558,14 +450,6 @@ def get_candidate_detail(
             })
 
         cp_out = {}
-        if cp_data:
-            cp_out = {
-                "questions_solved": cp_data.get("questions_solved") or 0,
-                "total_submissions": cp_data.get("total_submissions") or 0,
-                "pass_rate": float(cp_data.get("pass_rate") or 0),
-                "languages_used": parse_json_field(cp_data.get("languages_used")),
-                "last_synced": dtstr(cp_data.get("last_synced")),
-            }
 
         resume_name, resume_email = _extract_from_resume(resume_json)
         disp_name = candidate.get("joined_name")

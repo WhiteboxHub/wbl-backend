@@ -13051,22 +13051,6 @@
             }
           },
           {
-            "name": "filter_has_coderpad",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Filter Has Coderpad"
-            }
-          },
-          {
             "name": "filter_active_week",
             "in": "query",
             "required": false,
