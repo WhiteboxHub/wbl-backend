@@ -11,14 +11,15 @@ from fapi.db.models import AuthUserORM
 logger = logging.getLogger("wbl")
 security = HTTPBearer(auto_error=False)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+from fapi.core.config import SECRET_KEY, ALGORITHM as CONFIG_ALGORITHM
+ALGORITHM = os.getenv("JWT_ALGORITHM" , "HS256") or CONFIG_ALGORITHM
 
 
 def decode_token(token: str):
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT Decode error: {e} | Token: {token[:15]}... | SECRET_KEY set: {bool(SECRET_KEY)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -49,6 +50,7 @@ def get_current_user(
                 is_admin = True
                 is_employee = True
             return DummyInternalUser()
+        logger.error("No authentication token found in Request headers")
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     payload = decode_token(token)
