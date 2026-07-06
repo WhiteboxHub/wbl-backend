@@ -1843,3 +1843,90 @@ class ApplicationReportORM(Base):
     human_fields    = Column(Integer)
     automation_rate = Column(DECIMAL(5, 2))
     submitted_at    = Column(DateTime, server_default=func.now(), index=True)
+
+
+# -------------------- AI Prep Tool Models --------------------
+
+class AIPrepToolCandidateORM(Base):
+    __tablename__ = "aiprep_tool_candidates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), unique=True, nullable=False, index=True)
+    wbl_email = Column(String(255), unique=True, nullable=True)
+    name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    role = Column(String(255), nullable=True)
+    api_key_encrypted = Column(Text, nullable=True)
+    login_count = Column(Integer, default=1)
+    last_login = Column(TIMESTAMP, nullable=True)
+    extraction_status = Column(String(50), default="pending")
+    created_at = Column(TIMESTAMP, nullable=True)
+
+
+class AIPrepToolResumeORM(Base):
+    __tablename__ = "aiprep_tool_resumes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), unique=True, nullable=False, index=True)
+    resume_json = Column(JSON, nullable=True)
+    resume_pdf_url = Column(String(1024), nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+
+class AIPrepToolProjectContextORM(Base):
+    __tablename__ = "aiprep_tool_project_context"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), unique=True, nullable=False, index=True)
+    product = Column(Text, nullable=True)
+    architecture = Column(Text, nullable=True)
+    business_value = Column(Text, nullable=True)
+    role = Column(Text, nullable=True)
+    impact = Column(Text, nullable=True)
+    business_problem = Column(Text, nullable=True)
+    previous_system = Column(Text, nullable=True)
+    key_objectives = Column(Text, nullable=True)
+    users_scale = Column(Text, nullable=True)
+    agents_components = Column(Text, nullable=True)
+    key_workflows = Column(Text, nullable=True)
+    tools_integrations = Column(Text, nullable=True)
+    tech_stack = Column(Text, nullable=True)
+    ai_techniques = Column(Text, nullable=True)
+    evaluation_approach = Column(Text, nullable=True)
+    challenges_learnings = Column(Text, nullable=True)
+    safety_guardrails = Column(Text, nullable=True)
+    future_roadmap = Column(Text, nullable=True)
+    company_name = Column(Text, nullable=True)
+    key_problems = Column(Text, nullable=True)
+    agent_usage = Column(String(50), nullable=True)
+    learnings = Column(Text, nullable=True)
+    domain = Column(String(255), nullable=True)
+    background = Column(Text, nullable=True)
+    skills = Column(JSON, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
+
+
+class AIPrepToolEvaluationORM(Base):
+    __tablename__ = "aiprep_tool_evaluations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    type = Column(String(50), nullable=True, index=True)
+    score = Column(Integer, nullable=True)
+    passed = Column(Boolean, nullable=True)
+    feedback = Column(JSON, nullable=True)
+    raw_response = Column(JSON, nullable=True)
+    video_url = Column(String(1024), nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+
+
+class AIPrepToolCaseStudyORM(Base):
+    __tablename__ = "aiprep_tool_case_studies"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    content = Column(Text, nullable=True)
+    topic = Column(String(255), nullable=True)
+    created_at = Column(TIMESTAMP, nullable=True)
+

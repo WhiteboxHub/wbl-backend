@@ -8,11 +8,20 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import text
+from sqlalchemy import text, func, or_, and_, case
 from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import staff_or_admin_required
+from fapi.db.models import (
+    CandidateMarketingORM,
+    CandidateORM,
+    AIPrepToolCandidateORM,
+    AIPrepToolResumeORM,
+    AIPrepToolProjectContextORM,
+    AIPrepToolEvaluationORM,
+    AIPrepToolCaseStudyORM
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,43 +99,58 @@ def get_summary(
     _ = current_user
     try:
         # Total candidates (active in marketing)
-        total_res = db.execute(text("SELECT COUNT(*) AS total FROM candidate_marketing WHERE status = 'active'")).mappings().first()
-        total_candidates = total_res["total"] if total_res else 0
+        total_candidates = db.query(CandidateMarketingORM).filter(
+            CandidateMarketingORM.status == 'active'
+        ).count()
 
         # Active this week (logged in to AI Prep tool)
-        active_res = db.execute(text("""
-            SELECT COUNT(DISTINCT c.user_id) AS active
-            FROM aiprep_tool_candidates c
-            JOIN candidate_marketing cm ON c.wbl_email = cm.email OR c.email = cm.email
-            WHERE cm.status = 'active' AND c.last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        """)).mappings().first()
-        active_week = active_res["active"] if active_res else 0
+        week_ago = datetime.now() - timedelta(days=7)
+        active_week = db.query(func.count(func.distinct(AIPrepToolCandidateORM.user_id))).join(
+            CandidateMarketingORM,
+            or_(
+                AIPrepToolCandidateORM.wbl_email == CandidateMarketingORM.email,
+                AIPrepToolCandidateORM.email == CandidateMarketingORM.email
+            )
+        ).filter(
+            CandidateMarketingORM.status == 'active',
+            AIPrepToolCandidateORM.last_login >= week_ago
+        ).scalar() or 0
 
         # Intro pass rate
-        intro_res = db.execute(text("""
-            SELECT COUNT(DISTINCT c.user_id) AS passed_users
-            FROM aiprep_tool_evaluations e
-            JOIN aiprep_tool_candidates c ON e.user_id = c.user_id
-            JOIN candidate_marketing cm ON c.wbl_email = cm.email OR c.email = cm.email
-            WHERE cm.status = 'active' AND e.type = 'intro' AND e.passed = 1
-        """)).mappings().first()
-        intro_passed_users = intro_res["passed_users"] if intro_res else 0
+        intro_passed_users = db.query(func.count(func.distinct(AIPrepToolCandidateORM.user_id))).join(
+            AIPrepToolEvaluationORM,
+            AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id
+        ).join(
+            CandidateMarketingORM,
+            or_(
+                AIPrepToolCandidateORM.wbl_email == CandidateMarketingORM.email,
+                AIPrepToolCandidateORM.email == CandidateMarketingORM.email
+            )
+        ).filter(
+            CandidateMarketingORM.status == 'active',
+            AIPrepToolEvaluationORM.type == 'intro',
+            AIPrepToolEvaluationORM.passed == True
+        ).scalar() or 0
         intro_pass_rate = round(intro_passed_users / total_candidates * 100, 1) if total_candidates else 0
 
         # Interview completion rate
-        interview_res = db.execute(text("""
-            SELECT COUNT(DISTINCT c.user_id) AS completed
-            FROM aiprep_tool_evaluations e
-            JOIN aiprep_tool_candidates c ON e.user_id = c.user_id
-            JOIN candidate_marketing cm ON c.wbl_email = cm.email OR c.email = cm.email
-            WHERE cm.status = 'active' AND e.type = 'interview_complete'
-        """)).mappings().first()
-        interview_completed = interview_res["completed"] if interview_res else 0
+        interview_completed = db.query(func.count(func.distinct(AIPrepToolCandidateORM.user_id))).join(
+            AIPrepToolEvaluationORM,
+            AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id
+        ).join(
+            CandidateMarketingORM,
+            or_(
+                AIPrepToolCandidateORM.wbl_email == CandidateMarketingORM.email,
+                AIPrepToolCandidateORM.email == CandidateMarketingORM.email
+            )
+        ).filter(
+            CandidateMarketingORM.status == 'active',
+            AIPrepToolEvaluationORM.type == 'interview_complete'
+        ).scalar() or 0
         interview_completion_rate = round(interview_completed / total_candidates * 100, 1) if total_candidates else 0
 
         # Case studies generated
-        cs_res = db.execute(text("SELECT COUNT(*) AS cs_total FROM aiprep_tool_case_studies")).mappings().first()
-        case_studies = cs_res["cs_total"] if cs_res else 0
+        case_studies = db.query(AIPrepToolCaseStudyORM).count()
 
         return {
             "total_candidates": total_candidates,
@@ -155,76 +179,148 @@ def get_candidates(
 ):
     _ = current_user
     try:
-        sql = """
-            SELECT
-                cm.id AS id,
-                COALESCE(c.user_id, CONCAT('marketing_', cm.id)) AS user_id,
-                cand.full_name AS name,
-                cand.email AS email,
-                COALESCE(c.wbl_email, cm.email, cand.email) AS wbl_email,
-                COALESCE(c.login_count, 0) AS login_count,
-                c.created_at,
-                c.last_login,
-                COALESCE(c.extraction_status, 'pending') AS extraction_status,
+        # Define the scalar subqueries
+        has_resume_sub = db.query(func.count(AIPrepToolResumeORM.id)).filter(
+            or_(
+                AIPrepToolResumeORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolResumeORM.user_id == CandidateORM.id
+            )
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Resume
-                (SELECT COUNT(*) FROM aiprep_tool_resumes r WHERE r.user_id = c.user_id OR r.user_id = cand.id) AS has_resume,
-                (SELECT r.resume_json FROM aiprep_tool_resumes r WHERE r.user_id = c.user_id OR r.user_id = cand.id) AS resume_json,
+        resume_json_sub = db.query(AIPrepToolResumeORM.resume_json).filter(
+            or_(
+                AIPrepToolResumeORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolResumeORM.user_id == CandidateORM.id
+            )
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).limit(1).as_scalar()
 
-                -- Project
-                (SELECT COUNT(*) FROM aiprep_tool_project_context p WHERE p.user_id = c.user_id OR p.user_id = cand.id) AS has_project,
+        has_project_sub = db.query(func.count(AIPrepToolProjectContextORM.id)).filter(
+            or_(
+                AIPrepToolProjectContextORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolProjectContextORM.user_id == CandidateORM.id
+            )
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Intro attempts
-                (SELECT COUNT(*) FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro') AS intro_attempts,
+        intro_attempts_sub = db.query(func.count(AIPrepToolEvaluationORM.id)).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'intro'
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Best intro score
-                (SELECT MAX(e.score) FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro') AS best_intro_score,
+        best_intro_score_sub = db.query(func.max(AIPrepToolEvaluationORM.score)).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'intro'
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Intro passed (any attempt)
-                (SELECT MAX(CASE WHEN e.passed THEN 1 ELSE 0 END)
-                 FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro') AS intro_passed,
+        intro_passed_sub = db.query(func.max(case((AIPrepToolEvaluationORM.passed == True, 1), else_=0))).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'intro'
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Latest intro score
-                (SELECT e.score FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro'
-                 ORDER BY e.created_at DESC LIMIT 1) AS latest_intro_score,
+        latest_intro_score_sub = db.query(AIPrepToolEvaluationORM.score).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'intro'
+        ).order_by(AIPrepToolEvaluationORM.created_at.desc()).limit(1).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Latest video URL
-                (SELECT e.video_url FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'intro' AND e.video_url IS NOT NULL
-                 ORDER BY e.created_at DESC LIMIT 1) AS latest_video_url,
+        latest_video_url_sub = db.query(AIPrepToolEvaluationORM.video_url).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'intro',
+            AIPrepToolEvaluationORM.video_url.isnot(None)
+        ).order_by(AIPrepToolEvaluationORM.created_at.desc()).limit(1).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Interview questions answered
-                (SELECT COUNT(*) FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'interview_answer') AS questions_answered,
+        questions_answered_sub = db.query(func.count(AIPrepToolEvaluationORM.id)).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'interview_answer'
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Avg interview score (stored as 0-10, * 10 to make /100)
-                (SELECT ROUND(AVG(e.score) * 10, 1) FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'interview_answer') AS avg_interview_score,
+        avg_interview_score_sub = db.query(func.round(func.avg(AIPrepToolEvaluationORM.score) * 10, 1)).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'interview_answer'
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Total interview attempts (sessions)
-                (SELECT COUNT(*) FROM aiprep_tool_evaluations e
-                 WHERE (e.user_id = c.user_id OR e.user_id = cand.id) AND e.type = 'interview_complete') AS interview_sessions,
+        interview_sessions_sub = db.query(func.count(AIPrepToolEvaluationORM.id)).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            ),
+            AIPrepToolEvaluationORM.type == 'interview_complete'
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Interview completed
-                (SELECT MAX(CASE WHEN e.type = 'interview_complete' THEN 1 ELSE 0 END)
-                 FROM aiprep_tool_evaluations e
-                 WHERE e.user_id = c.user_id OR e.user_id = cand.id) AS interview_completed,
+        interview_completed_sub = db.query(func.max(case((AIPrepToolEvaluationORM.type == 'interview_complete', 1), else_=0))).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolEvaluationORM.user_id == CandidateORM.id
+            )
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-                -- Case studies
-                (SELECT COUNT(*) FROM aiprep_tool_case_studies cs
-                 WHERE cs.user_id = c.user_id OR cs.user_id = cand.id) AS case_studies_generated
+        case_studies_generated_sub = db.query(func.count(AIPrepToolCaseStudyORM.id)).filter(
+            or_(
+                AIPrepToolCaseStudyORM.user_id == AIPrepToolCandidateORM.user_id,
+                AIPrepToolCaseStudyORM.user_id == CandidateORM.id
+            )
+        ).correlate(AIPrepToolCandidateORM, CandidateORM).as_scalar()
 
-            FROM candidate_marketing cm
-            JOIN candidate cand ON cand.id = cm.candidate_id
-            LEFT JOIN aiprep_tool_candidates c ON c.wbl_email = cm.email OR c.email = cand.email OR c.wbl_email = cand.email
-            WHERE cm.status = 'active'
-            ORDER BY c.last_login DESC
-        """
-        rows = db.execute(text(sql)).mappings().all()
+        # Build main query
+        db_rows = db.query(
+            CandidateMarketingORM.id.label("id"),
+            func.coalesce(AIPrepToolCandidateORM.user_id, func.concat('marketing_', CandidateMarketingORM.id)).label("user_id"),
+            CandidateORM.full_name.label("name"),
+            CandidateORM.email.label("email"),
+            func.coalesce(AIPrepToolCandidateORM.wbl_email, CandidateMarketingORM.email, CandidateORM.email).label("wbl_email"),
+            func.coalesce(AIPrepToolCandidateORM.login_count, 0).label("login_count"),
+            AIPrepToolCandidateORM.created_at.label("created_at"),
+            AIPrepToolCandidateORM.last_login.label("last_login"),
+            func.coalesce(AIPrepToolCandidateORM.extraction_status, 'pending').label("extraction_status"),
+            
+            has_resume_sub.label("has_resume"),
+            resume_json_sub.label("resume_json"),
+            has_project_sub.label("has_project"),
+            intro_attempts_sub.label("intro_attempts"),
+            best_intro_score_sub.label("best_intro_score"),
+            intro_passed_sub.label("intro_passed"),
+            latest_intro_score_sub.label("latest_intro_score"),
+            latest_video_url_sub.label("latest_video_url"),
+            questions_answered_sub.label("questions_answered"),
+            avg_interview_score_sub.label("avg_interview_score"),
+            interview_sessions_sub.label("interview_sessions"),
+            interview_completed_sub.label("interview_completed"),
+            case_studies_generated_sub.label("case_studies_generated")
+        ).join(
+            CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id
+        ).outerjoin(
+            AIPrepToolCandidateORM,
+            or_(
+                AIPrepToolCandidateORM.wbl_email == CandidateMarketingORM.email,
+                AIPrepToolCandidateORM.email == CandidateORM.email,
+                AIPrepToolCandidateORM.wbl_email == CandidateORM.email
+            )
+        ).filter(
+            CandidateMarketingORM.status == 'active'
+        ).order_by(
+            AIPrepToolCandidateORM.last_login.desc()
+        ).all()
+
+        rows = [r._mapping for r in db_rows]
 
         # Parse JSON fields + compute derived fields
         results = []
@@ -337,26 +433,28 @@ def get_candidate_detail(
         # Handle fallback marketing user_id
         if user_id.startswith("marketing_"):
             marketing_id = int(user_id.replace("marketing_", ""))
-            candidate_sql = """
-                SELECT 
-                    cm.id AS marketing_id,
-                    cand.full_name AS joined_name,
-                    cand.email AS joined_email,
-                    cm.email AS wbl_email
-                FROM candidate_marketing cm
-                JOIN candidate cand ON cand.id = cm.candidate_id
-                WHERE cm.id = :marketing_id
-            """
-            candidate = db.execute(text(candidate_sql), {"marketing_id": marketing_id}).mappings().first()
+            candidate = db.query(
+                CandidateMarketingORM.id.label("marketing_id"),
+                CandidateORM.full_name.label("joined_name"),
+                CandidateORM.email.label("joined_email"),
+                CandidateMarketingORM.email.label("wbl_email")
+            ).join(
+                CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id
+            ).filter(
+                CandidateMarketingORM.id == marketing_id
+            ).first()
+
             if not candidate:
                 raise HTTPException(status_code=404, detail="Candidate not found")
             
+            candidate_map = candidate._mapping
+
             return {
                 "candidate": {
                     "user_id": user_id,
-                    "name": candidate.get("joined_name"),
-                    "email": candidate.get("joined_email"),
-                    "wbl_email": candidate.get("wbl_email") or "—",
+                    "name": candidate_map.get("joined_name"),
+                    "email": candidate_map.get("joined_email"),
+                    "wbl_email": candidate_map.get("wbl_email") or "—",
                     "login_count": 0,
                     "created_at": None,
                     "last_login": None,
@@ -368,52 +466,89 @@ def get_candidate_detail(
             }
 
         # Otherwise, candidate exists in aiprep_tool_candidates
-        candidate_sql = """
-            SELECT 
-                c.*,
-                cand.full_name AS joined_name,
-                cand.email AS joined_email,
-                cand.id AS cand_id
-            FROM aiprep_tool_candidates c
-            LEFT JOIN candidate cand ON cand.email = c.wbl_email OR cand.email = c.email
-            WHERE c.user_id = :user_id
-        """
-        candidate = db.execute(text(candidate_sql), {"user_id": user_id}).mappings().first()
+        candidate = db.query(
+            AIPrepToolCandidateORM.id,
+            AIPrepToolCandidateORM.user_id,
+            AIPrepToolCandidateORM.wbl_email,
+            AIPrepToolCandidateORM.email,
+            AIPrepToolCandidateORM.role,
+            AIPrepToolCandidateORM.api_key_encrypted,
+            AIPrepToolCandidateORM.login_count,
+            AIPrepToolCandidateORM.last_login,
+            AIPrepToolCandidateORM.extraction_status,
+            AIPrepToolCandidateORM.created_at,
+            CandidateORM.full_name.label("joined_name"),
+            CandidateORM.email.label("joined_email"),
+            CandidateORM.id.label("cand_id")
+        ).outerjoin(
+            CandidateORM,
+            or_(
+                CandidateORM.email == AIPrepToolCandidateORM.wbl_email,
+                CandidateORM.email == AIPrepToolCandidateORM.email
+            )
+        ).filter(
+            AIPrepToolCandidateORM.user_id == user_id
+        ).first()
+
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
 
-        cand_id = str(candidate.get("cand_id")) if candidate.get("cand_id") is not None else None
+        candidate_map = candidate._mapping
+        cand_id = str(candidate_map.get("cand_id")) if candidate_map.get("cand_id") is not None else None
 
         # Get resume JSON if any to extract details
-        resume_res = db.execute(text("""
-            SELECT resume_json FROM aiprep_tool_resumes 
-            WHERE user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)
-        """), {"user_id": user_id, "cand_id": cand_id}).mappings().first()
-        resume_json = resume_res["resume_json"] if resume_res else None
+        resume_res = db.query(AIPrepToolResumeORM.resume_json).filter(
+            or_(
+                AIPrepToolResumeORM.user_id == user_id,
+                and_(cand_id is not None, AIPrepToolResumeORM.user_id == cand_id)
+            )
+        ).first()
+        resume_json = resume_res.resume_json if resume_res else None
 
         # All intro evaluations (timeline)
-        intro_history = db.execute(text("""
-            SELECT score, passed, feedback, created_at
-            FROM aiprep_tool_evaluations
-            WHERE (user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)) AND type = 'intro'
-            ORDER BY created_at ASC
-        """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
+        intro_history_rows = db.query(
+            AIPrepToolEvaluationORM.score,
+            AIPrepToolEvaluationORM.passed,
+            AIPrepToolEvaluationORM.feedback,
+            AIPrepToolEvaluationORM.created_at
+        ).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == user_id,
+                and_(cand_id is not None, AIPrepToolEvaluationORM.user_id == cand_id)
+            ),
+            AIPrepToolEvaluationORM.type == 'intro'
+        ).order_by(AIPrepToolEvaluationORM.created_at.asc()).all()
+
+        intro_history = [e._mapping for e in intro_history_rows]
 
         # All interview answer evaluations
-        interview_history = db.execute(text("""
-            SELECT score, feedback, raw_response, created_at
-            FROM aiprep_tool_evaluations
-            WHERE (user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)) AND type = 'interview_answer'
-            ORDER BY created_at ASC
-        """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
+        interview_history_rows = db.query(
+            AIPrepToolEvaluationORM.score,
+            AIPrepToolEvaluationORM.feedback,
+            AIPrepToolEvaluationORM.raw_response,
+            AIPrepToolEvaluationORM.created_at
+        ).filter(
+            or_(
+                AIPrepToolEvaluationORM.user_id == user_id,
+                and_(cand_id is not None, AIPrepToolEvaluationORM.user_id == cand_id)
+            ),
+            AIPrepToolEvaluationORM.type == 'interview_answer'
+        ).order_by(AIPrepToolEvaluationORM.created_at.asc()).all()
+
+        interview_history = [e._mapping for e in interview_history_rows]
 
         # Case studies
-        case_studies = db.execute(text("""
-            SELECT topic, created_at
-            FROM aiprep_tool_case_studies
-            WHERE user_id = :user_id OR (:cand_id IS NOT NULL AND user_id = :cand_id)
-            ORDER BY created_at DESC
-        """), {"user_id": user_id, "cand_id": cand_id}).mappings().all()
+        case_studies_rows = db.query(
+            AIPrepToolCaseStudyORM.topic,
+            AIPrepToolCaseStudyORM.created_at
+        ).filter(
+            or_(
+                AIPrepToolCaseStudyORM.user_id == user_id,
+                and_(cand_id is not None, AIPrepToolCaseStudyORM.user_id == cand_id)
+            )
+        ).order_by(AIPrepToolCaseStudyORM.created_at.desc()).all()
+
+        case_studies = [cs._mapping for cs in case_studies_rows]
 
         # CoderPad stats directly from live WBL execution logs removed
 
@@ -452,27 +587,27 @@ def get_candidate_detail(
         cp_out = {}
 
         resume_name, resume_email = _extract_from_resume(resume_json)
-        disp_name = candidate.get("joined_name")
+        disp_name = candidate_map.get("joined_name")
         if (not disp_name or disp_name == "Candidate" or disp_name == "—") and resume_name:
             disp_name = resume_name
         if not disp_name:
             disp_name = "—"
 
-        disp_email = candidate.get("joined_email")
+        disp_email = candidate_map.get("joined_email")
         if (not disp_email or disp_email == "—") and resume_email:
             disp_email = resume_email
         if not disp_email or disp_email == "—":
-            disp_email = candidate.get("wbl_email") or "—"
+            disp_email = candidate_map.get("wbl_email") or "—"
 
         return {
             "candidate": {
-                "user_id": candidate.get("user_id"),
+                "user_id": candidate_map.get("user_id"),
                 "name": disp_name,
                 "email": disp_email,
-                "wbl_email": candidate.get("wbl_email") or "—",
-                "login_count": candidate.get("login_count") or 0,
-                "created_at": dtstr(candidate.get("created_at")),
-                "last_login": dtstr(candidate.get("last_login")),
+                "wbl_email": candidate_map.get("wbl_email") or "—",
+                "login_count": candidate_map.get("login_count") or 0,
+                "created_at": dtstr(candidate_map.get("created_at")),
+                "last_login": dtstr(candidate_map.get("last_login")),
             },
             "intro_history": intro_list,
             "interview_history": interview_list,
