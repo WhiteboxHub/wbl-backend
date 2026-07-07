@@ -112,6 +112,7 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_stats": interview_stats,
         "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
+        "candidate_stats": get_candidate_statistics(db, candidate_id),
     }
 
 
@@ -1215,6 +1216,51 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
 
     interview_stats = _calculate_interview_stats(candidate.interviews)
     stats["interview_success_rate"] = interview_stats["success_rate"]
+
+    # 1. Get authuser to fetch user-level click
+    authuser = db.query(AuthUserORM).filter(
+        func.lower(AuthUserORM.uname) == candidate.email.lower()
+    ).first() if candidate.email else None
+    
+    # 2. Click counter
+    job_listings_clicked = 0
+    if authuser:
+        from fapi.db.models import JobLinkClicksORM
+        job_listings_clicked = db.query(func.sum(JobLinkClicksORM.click_count)).filter(
+            JobLinkClicksORM.authuser_id == authuser.id
+        ).scalar() or 0
+
+    # 3. Outreach counter
+    from fapi.db.models import CampaignEmailORM, CandidateMarketingORM
+    campaign_emails_sent = db.query(func.count(CampaignEmailORM.id)).filter(
+        CampaignEmailORM.candidate_id == candidate_id,
+        CampaignEmailORM.status == 'sent'
+    ).scalar() or 0
+    
+    marketing_outreach_count = db.query(func.sum(CandidateMarketingORM.total_outreach_count)).filter(
+        CandidateMarketingORM.candidate_id == candidate_id
+    ).scalar() or 0
+    
+    outreach_counter = max(campaign_emails_sent, marketing_outreach_count)
+
+    # 4. Easy apply counter
+    easy_apply_counter = 0
+    if authuser:
+        from fapi.db.models import ApplicationReportORM, WboxcliApplyAnalyticsORM
+        autofill_count = db.query(func.count(ApplicationReportORM.id)).filter(
+            ApplicationReportORM.user_id == authuser.id
+        ).scalar() or 0
+        
+        cli_analytics = db.query(WboxcliApplyAnalyticsORM).filter(
+            WboxcliApplyAnalyticsORM.user_id == authuser.uname
+        ).first()
+        cli_count = cli_analytics.jobs_submitted if cli_analytics else 0
+        
+        easy_apply_counter = autofill_count + cli_count
+
+    stats["job_listings_clicked"] = int(job_listings_clicked)
+    stats["outreach_counter"] = int(outreach_counter)
+    stats["easy_apply_counter"] = int(easy_apply_counter)
 
     return stats
 
