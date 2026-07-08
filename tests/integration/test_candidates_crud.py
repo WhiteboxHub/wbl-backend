@@ -177,6 +177,39 @@ class TestCandidateUpdate:
         )
         assert response.status_code in [200, 204], response.text
 
+    def test_update_candidate_agreement_transitions(self, client, admin_headers, mocker):
+        mock_send_email = mocker.patch("fapi.utils.email_utils.send_document_approval_email")
+        
+        # Create candidate with agreement="N"
+        email = _unique_email()
+        payload = {**CANDIDATE_PAYLOAD, "email": email, "agreement": "N", "full_name": "Test Transition Cand"}
+        r = client.post("/api/candidates", json=payload, headers=admin_headers)
+        assert r.status_code in [200, 201]
+        cid = r.json() if isinstance(r.json(), int) else r.json().get("id")
+        
+        # 1. Update phone number (no agreement change) -> shouldn't send email
+        r_phone = client.put(f"/api/candidates/{cid}", json={"phone": "555-0002"}, headers=admin_headers)
+        assert r_phone.status_code in [200, 204]
+        mock_send_email.assert_not_called()
+        
+        # 2. Update agreement to "P" -> shouldn't send email
+        r_p = client.put(f"/api/candidates/{cid}", json={"agreement": "P"}, headers=admin_headers)
+        assert r_p.status_code in [200, 204]
+        mock_send_email.assert_not_called()
+        
+        # 3. Update agreement to "Y" -> should send email
+        r_y = client.put(f"/api/candidates/{cid}", json={"agreement": "Y"}, headers=admin_headers)
+        assert r_y.status_code in [200, 204]
+        mock_send_email.assert_called_once_with(email, "Test Transition Cand")
+        
+        # Reset mock
+        mock_send_email.reset_mock()
+        
+        # 4. Update agreement to "Y" again -> shouldn't send email (already "Y")
+        r_y2 = client.put(f"/api/candidates/{cid}", json={"agreement": "Y"}, headers=admin_headers)
+        assert r_y2.status_code in [200, 204]
+        mock_send_email.assert_not_called()
+
 
 class TestCandidateDelete:
     def test_delete_candidate_succeeds(self, client, admin_headers):

@@ -133,10 +133,32 @@ def create_candidate(candidate: CandidateCreate):
 
 @router.put("/candidates/{candidate_id}")
 async def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdate, db: Session = Depends(get_db)):
+    # Retrieve the candidate from the database to check the old agreement status
+    db_candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    if not db_candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+        
+    old_agreement = db_candidate.agreement
+    candidate_email = db_candidate.email
+    candidate_name = db_candidate.full_name
+
     # 1. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
     candidate_utils.update_candidate(candidate_id, candidate_dict)
     
+    # Check if agreement has transitioned to "Y"
+    new_agreement = candidate_dict.get("agreement")
+    if new_agreement == "Y" and old_agreement != "Y":
+        if candidate_email:
+            try:
+                from fapi.utils.email_utils import send_document_approval_email
+                await send_document_approval_email(candidate_email, candidate_name or "Candidate")
+                logger.info(f"Sent document approval email to candidate {candidate_id} at {candidate_email}")
+            except Exception as e:
+                logger.error(f"Failed to send document approval email to candidate {candidate_id}: {str(e)}")
+        else:
+            logger.warning(f"Candidate {candidate_id} has no email address configured, skipping approval email")
+
     # 2. Invalidate dashboard cache
     try:
         from fapi.core.cache import invalidate_cache

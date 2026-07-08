@@ -514,3 +514,64 @@ async def send_consolidated_onboarding_email(
     
     fm = FastMail(fastmail_config)
     await fm.send_message(message)
+
+
+async def send_document_approval_email(candidate_email: str, candidate_name: str):
+    """Notify the candidate that their onboarding/agreement documents have been approved"""
+    html_content = f"""
+    <html>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f7fa; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e1e8ed;">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 35px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 26px; letter-spacing: 1px; font-weight: 700;">Documents Approved!</h1>
+                <p style="color: #d1fae5; margin: 8px 0 0 0; font-size: 16px;">Welcome to the Whitebox Learning Dashboard</p>
+            </div>
+
+            <div style="padding: 35px;">
+                <h2 style="color: #065f46; margin-top: 0; font-size: 20px;">Hello {candidate_name},</h2>
+                <p style="font-size: 16px; color: #4b5563;">
+                    Great news! Our team has completed the review of your onboarding documents and signed agreement. We are pleased to inform you that your documents have been <strong>approved</strong>.
+                </p>
+                <p style="font-size: 16px; color: #4b5563;">
+                    Your candidate profile is now fully active, and you have been granted access to your personalized candidate dashboard.
+                </p>
+
+                <div style="background-color: #f0fdf4; border-radius: 10px; padding: 20px; margin: 30px 0; border-left: 5px solid #10b981;">
+                    <h3 style="color: #065f46; margin-top: 0; margin-bottom: 10px; font-size: 16px;">🚀 Next Steps</h3>
+                    <ul style="margin: 0; padding-left: 20px; color: #374151; font-size: 15px; line-height: 1.7;">
+                        <li>Log in to your Whitebox Learning candidate account.</li>
+                        <li>Navigate to your dashboard to view your schedule and materials.</li>
+                        <li>Stay tuned for updates from our recruiting team.</li>
+                    </ul>
+                </div>
+
+                <div style="text-align: center; margin: 35px 0;">
+                    <a href="http://localhost:3000/auth/signin" style="display: inline-block; padding: 12px 30px; background-color: #10b981; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);">
+                        Go to Candidate Dashboard
+                    </a>
+                </div>
+
+                <p style="font-size: 15px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                    If you have any questions or require immediate support, please contact the Recruiting Team at <strong>recruiting@whitebox-learning.com</strong> or call us at <strong>+1 925-557-1053</strong>.
+                </p>
+            </div>
+
+            <div style="background-color: #f9fafb; padding: 25px; text-align: center; border-top: 1px solid #e5e7eb;">
+                <p style="font-size: 12px; color: #9ca3af; margin: 0;">&copy; 2026 Whitebox Learning • Candidate Placement System</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Send directly to the candidate's email
+    message = MessageSchema(
+        subject="Your Onboarding Documents have been Approved!",
+        recipients=[candidate_email],
+        body=html_content,
+        subtype="html"
+    )
+    
+    fm = FastMail(fastmail_config)
+    await fm.send_message(message)
+
