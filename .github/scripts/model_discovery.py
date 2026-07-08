@@ -389,19 +389,39 @@ def sync_and_update_models():
                     del model_scores[live_model]
                 continue
 
-            if not meta.get("verified", False):
-                # Increment observations
+            # Increment observations only if classification is completed and connection is good
+            is_classification_good = (meta.get("classification_status") == "completed")
+            is_connection_good = (meta.get("connection_ok") is True)
+            
+            if is_classification_good and is_connection_good:
                 obs = meta.get("observations", 0) + 1
                 meta["observations"] = obs
-                logger.info(f"Unverified model {live_model} observed {obs} times.")
-                
-                if obs >= 3 and meta.get("connection_ok") is True:
-                    # Promote to Verified!
-                    meta["verified"] = True
-                    logger.info(f"Model {live_model} reached 3 observations and passed connection ping! Promoting to Verified Production.")
-                    
+                if not meta.get("verified", False):
+                    logger.info(f"Unverified model {live_model} observed {obs} times.")
+            else:
+                obs = meta.get("observations", 0)
+
+            # Enforce the Strict Invariant for verification
+            has_caps = len(meta.get("caps", [])) > 0
+            
+            should_be_verified = (
+                is_classification_good 
+                and is_connection_good 
+                and obs >= 3 
+                and has_caps
+            )
+
+            was_verified = meta.get("verified", False)
+
+            if should_be_verified and not was_verified:
+                meta["verified"] = True
+                logger.info(f"Model {live_model} reached 3 observations, passed connection ping, and has caps! Promoting to Verified Production.")
+            elif not should_be_verified and was_verified:
+                meta["verified"] = False
+                logger.info(f"Model {live_model} no longer meets the invariant. Demoting to unverified staging.")
+            
             # If it is verified, ensure it is in the active routing dictionaries
-            if meta.get("verified", False) and meta.get("connection_ok") is True and meta.get("classification_status") != "pending":
+            if meta.get("verified", False):
                 caps = meta.get("caps", [])
                 if live_model not in model_caps:
                     model_caps[live_model] = caps
@@ -411,6 +431,12 @@ def sync_and_update_models():
                 tag_score = sum(tag_weights.get(tag, 0) for tag in caps)
                 total_score = min(10, tier_base + tag_score)
                 model_scores[live_model] = total_score
+            else:
+                # Remove unverified models from production routing
+                if live_model in model_caps:
+                    del model_caps[live_model]
+                if live_model in model_scores:
+                    del model_scores[live_model]
                 
             model_metadata[live_model] = meta
 
