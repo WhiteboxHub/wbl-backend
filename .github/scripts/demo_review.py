@@ -58,7 +58,7 @@ def is_excluded_file(filepath: str, repo_path: str, patterns):
             return True
     return False
 
-VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff']
+VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff', 'staff_or_admin_required']
 
 BUG_REPORT_SCHEMA = {
     "type": "object",
@@ -73,9 +73,13 @@ BUG_REPORT_SCHEMA = {
                     "bug_category": {"type": "string"},
                     "summary": {"type": "string"},
                     "comment": {"type": "string"},
-                    "diff_fix_suggestion": {"type": "string"}
+                    "diff_fix_suggestion": {"type": "string"},
+                    "confidence": {"type": "number"},
+                    "owasp_category": {"type": "string"},
+                    "concrete_exploit_path": {"type": "string"},
+                    "ast_primitive_id": {"type": "string"}
                 },
-                "required": ["changed_file", "changed_lines", "bug_category", "summary", "comment", "diff_fix_suggestion"],
+                "required": ["changed_file", "changed_lines", "bug_category", "summary", "comment", "diff_fix_suggestion", "confidence", "owasp_category", "concrete_exploit_path", "ast_primitive_id"],
                 "additionalProperties": False
             }
         }
@@ -151,9 +155,17 @@ def compute_downstream_impact(caller_counts, changed_symbols, modified_public_ap
 def run_static_analysis(f, lines, modified_public_apis):
     findings = []
     critical = []
+    security_primitives = []
+    import hashlib
     f_norm = f.replace("\\", "/")
     if 'api/' in f_norm or 'services/' in f_norm or 'routers/' in f_norm:
         if f_norm not in modified_public_apis: modified_public_apis.append(f_norm)
+        
+    def add_primitive(node_lineno, prim_type, desc):
+        raw_id = f"{f_norm}:{node_lineno}:{prim_type}"
+        short_hash = hashlib.md5(raw_id.encode()).hexdigest()[:6].upper()
+        sec_id = f"SEC-{short_hash}"
+        security_primitives.append({"id": sec_id, "file": f_norm, "line": node_lineno, "primitive": prim_type, "description": desc})
     
     try:
         src = pathlib.Path(f).read_text(encoding="utf-8")
@@ -192,7 +204,33 @@ def run_static_analysis(f, lines, modified_public_apis):
                 
                 if is_sql_target:
                     if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                        critical.append(f"[{f}] Direct SQL execution (.execute()) detected at line {node.lineno}.")
+                        add_primitive(node.lineno, "sql_execution", "Direct SQL execution (.execute()) detected")
+                        
+            # Shell execution sinks
+            if isinstance(node, ast.Call):
+                is_shell = False
+                desc = ""
+                # os.system
+                if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == 'os' and node.func.attr == 'system':
+                    is_shell, desc = True, "os.system() call detected"
+                # subprocess.run/Popen with shell=True
+                elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == 'subprocess' and node.func.attr in ('run', 'Popen', 'check_output', 'call'):
+                    for kw in node.keywords:
+                        if kw.arg == 'shell' and isinstance(kw.value, ast.Constant) and kw.value.value is True:
+                            is_shell, desc = True, f"subprocess.{node.func.attr}(shell=True) detected"
+                
+                if is_shell and hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                    add_primitive(node.lineno, "shell_execution", desc)
+
+                # Dynamic execution sinks
+                if isinstance(node.func, ast.Name) and node.func.id in ('eval', 'exec'):
+                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                        add_primitive(node.lineno, "dynamic_code_execution", f"{node.func.id}() call detected")
+                        
+                # Template injection sinks
+                if isinstance(node.func, ast.Name) and node.func.id == 'render_template_string':
+                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                        add_primitive(node.lineno, "html_rendering", "render_template_string() call detected")
                     
             if isinstance(node, ast.Assign):
                 for target in node.targets:
@@ -217,7 +255,7 @@ def run_static_analysis(f, lines, modified_public_apis):
     except Exception:
         pass
     
-    return critical, findings
+    return critical, findings, security_primitives
 
 import json
 import os
@@ -456,12 +494,14 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
         impact_analysis, impact_findings = compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis, changed_signature_names)
         findings.extend(impact_findings)
         
+        all_security_primitives = []
         for f, lines in changes.items():
             if not f.endswith('.py') or not pathlib.Path(f).exists():
                 continue
-            c, fnd = run_static_analysis(f, lines, modified_public_apis)
+            c, fnd, prims = run_static_analysis(f, lines, modified_public_apis)
             critical.extend(c)
             findings.extend(fnd)
+            all_security_primitives.extend(prims)
 
         if critical:
             critical_markdown = "##    CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
@@ -479,10 +519,19 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
             "impact_score": impact_score,
             "signature_changes": signature_changes,
             "architecture_violations": architecture_violations,
-            "lines_changed": lines_changed
+            "lines_changed": lines_changed,
+            "security_primitives": all_security_primitives
         }
         
         final_context = _format_ast_findings(findings, impact_analysis, modified_public_apis)
+        
+        # Inject AST Security Primitives into the context string
+        if all_security_primitives:
+            prim_markdown = "\n## AST Security Primitives Detected\n\n"
+            for p in all_security_primitives:
+                prim_markdown += f"- [{p['id']}] {p['primitive']} at {p['file']}:{p['line']} ({p['description']})\n"
+            final_context += prim_markdown
+            
         final_context += "# 5. Code Context\n"
         final_context += format_context_as_markdown(changes, changed_snippets, impact_snippets, diff_text)
             
@@ -535,6 +584,13 @@ Changed Symbol: [Symbol]
 Affected Caller: [Caller]
 Failure Mode: [Explanation of failure]
 User Impact: [Explanation of impact]
+
+If the bug_category is 'security', you MUST also provide:
+- owasp_category: The specific OWASP Top 10 category (e.g., 'A01:2021-Broken Access Control')
+- concrete_exploit_path: A step-by-step path an attacker would take from source to sink.
+- confidence: A float between 0.0 and 1.0 indicating your certainty. Only use >= 0.95 if the exploit is mathematically proven in the changed code.
+- ast_primitive_id: The ID of the AST security primitive (e.g. SEC-0A1B2C) if it matches one from the context. If it does not match an AST primitive, leave this empty.
+(For non-security bugs, leave owasp_category, concrete_exploit_path, and ast_primitive_id empty, and set confidence to 1.0)
 
 Rank findings using this Severity Formula (map to bug_category):
 - critical: Signature change + downstream impact > 3
@@ -658,15 +714,50 @@ def run_review(context: str, mode_name: str, metadata: dict = None, verbose: boo
         
         if data.get("bugs"):
             markdown = f"##  AI Code Review Findings (Model: `{used_model}`)\n\n"
+            has_critical_security = False
             for bug in data.get("bugs", []):
                 cat = bug.get('bug_category', 'issue').upper()
                 markdown += f"###    [{cat}] {bug.get('summary')}\n"
-                markdown += f"**File:** `{bug.get('changed_file')}` (Lines: {bug.get('changed_lines')})\n\n"
-                markdown += f"{bug.get('comment')}\n\n"
+                markdown += f"**File:** `{bug.get('changed_file')}` (Lines: {bug.get('changed_lines')})\n"
+                if bug.get('confidence'):
+                    markdown += f"**Confidence:** {bug.get('confidence')}\n"
+                if cat == 'SECURITY' and bug.get('owasp_category'):
+                    markdown += f"**OWASP:** {bug.get('owasp_category')}\n"
+                markdown += f"\n{bug.get('comment')}\n\n"
+                
+                if cat == 'SECURITY' and bug.get('concrete_exploit_path'):
+                    markdown += f"**Exploit Path:**\n{bug.get('concrete_exploit_path')}\n\n"
+                    
+                if cat == 'SECURITY' and bug.get('ast_primitive_id'):
+                    markdown += f"**AST Primitive Match:** `{bug.get('ast_primitive_id')}`\n\n"
+                    
                 if bug.get('diff_fix_suggestion'):
                     markdown += f"**Suggested Fix:**\n```diff\n{bug.get('diff_fix_suggestion')}\n```\n\n"
                 markdown += "---\n\n"
+                
+                # High-confidence OWASP Gate with AST Agreement
+                ast_id = bug.get("ast_primitive_id")
+                is_ast_verified = False
+                if ast_id:
+                    # Deterministically check if the ID the LLM provided actually exists
+                    valid_primitives = metadata.get("security_primitives", [])
+                    if any(p.get("id") == ast_id for p in valid_primitives):
+                        is_ast_verified = True
+                
+                if (
+                    cat == "SECURITY"
+                    and bug.get("confidence", 0) >= 0.95
+                    and bug.get("owasp_category")
+                    and bug.get("concrete_exploit_path")
+                    and is_ast_verified
+                ):
+                    has_critical_security = True
+                    
             print(markdown)
+            
+            if has_critical_security:
+                print("\n[!] FATAL: AI Reviewer detected a high-confidence OWASP violation that perfectly matches a deterministic AST sink. Blocking merge.", file=sys.stderr)
+                sys.exit(1)
         else:
             print("##  AI Code Review\n\nNo significant risks or bugs found. LGTM! ")
     

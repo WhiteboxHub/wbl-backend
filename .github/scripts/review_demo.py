@@ -422,6 +422,9 @@ def run_llm(review_context: str):
         "Report the specific line number in the CHANGED file where the bug occurs.\n\n"
         "Focus on real bugs, not style. If nothing critical is found, return an empty bugs array. "
         "For diff_fix_suggestion, provide a unified diff format if you have a concrete fix, or empty string if not.\n\n"
+        "If the bug is a security vulnerability, you MUST provide 'owasp_category' (e.g. A01:2021) and a 'concrete_exploit_path'. "
+        "Also provide a 'confidence' float (0.0 to 1.0). Only use >= 0.95 if it's a proven exploit. "
+        "Also provide 'ast_primitive_id' if it matches one from the AST primitives list. For non-security bugs, set confidence to 1.0 and leave the other fields empty.\n\n"
         "Review the following context:\n\n" + review_context
     )
 
@@ -458,10 +461,26 @@ def run_llm(review_context: str):
                         },
                         "diff_fix_suggestion": {
                             "type": "string",
-                            "description": "Unified diff format showing the fix (e.g., '--- a/file.py\\n+++ b/file.py\\n@@ -55,1 +55,1 @@\\n-old line\\n+new line'). Use empty string if no concrete fix available."
+                            "description": "A unified diff format string suggesting a fix, or empty string if no fix is suggested"
+                        },
+                        "confidence": {
+                            "type": "number",
+                            "description": "Float between 0 and 1 indicating certainty"
+                        },
+                        "owasp_category": {
+                            "type": "string",
+                            "description": "OWASP category if bug is security. Empty otherwise."
+                        },
+                        "concrete_exploit_path": {
+                            "type": "string",
+                            "description": "Step-by-step exploit path if security bug. Empty otherwise."
+                        },
+                        "ast_primitive_id": {
+                            "type": "string",
+                            "description": "The ID of the AST security primitive (e.g. SEC-0A1B2C) if it matches one from the context. If it does not match an AST primitive, leave this empty."
                         }
                     },
-                    "required": ["changed_file", "changed_lines", "bug_category", "summary", "comment", "diff_fix_suggestion"],
+                    "required": ["changed_file", "changed_lines", "bug_category", "summary", "comment", "diff_fix_suggestion", "confidence", "owasp_category", "concrete_exploit_path", "ast_primitive_id"],
                     "additionalProperties": False
                 }
             }
