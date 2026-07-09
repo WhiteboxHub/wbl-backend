@@ -9,7 +9,7 @@ policy:
     - "dist/**/*"
     - "build/**/*"
     - ".next/**/*"
-    -"fapi/utils/google_calendar_utils.py"
+    - "fapi/utils/google_calendar_utils.py"
     - "**/google_calendar_utils.py"
     - "fapi/utils/google_drive_utils.py"  
     - "**/google_drive_utils.py"

@@ -1808,6 +1808,7 @@ class ApplicationReportORM(Base):
     __tablename__ = "application_report"
 
     id              = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id         = Column(Integer, ForeignKey("authuser.id"), index=True, nullable=True)
     candidate_name  = Column(String(150), index=True)
     company_name    = Column(String(200))
     ats_platform    = Column(String(100))

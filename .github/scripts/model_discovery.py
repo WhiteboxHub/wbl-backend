@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import requests
+import re
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
@@ -55,32 +56,56 @@ def save_registry(registry):
         except Exception as e:
             logger.error(f"Network error pushing to Gist: {e}")
 
+def is_valid_model(model_id):
+    blacklist = ['preview', 'tts', 'image', 'transcribe', 'audio', 'realtime', 'embedding', 'vision', 'robotics', 'search', 'instruct']
+    model_id_lower = model_id.lower()
+    if any(b in model_id_lower for b in blacklist):
+        return False
+    # Filter out specific historical dates like 2024-05-13
+    if re.search(r'-\d{4}-\d{2}-\d{2}', model_id_lower):
+        return False
+    return True
+
+def get_gemini_api_keys():
+    keys = []
+    for key_name in ["GEMINI_API_KEY", "GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3"]:
+        k = os.environ.get(key_name, "").strip()
+        if k and k not in keys:
+            keys.append(k)
+    return keys
+
 def fetch_openai():
     try:
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key: return []
         res = requests.get("https://api.openai.com/v1/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-        return [m["id"] for m in res.json().get("data", []) if "gpt" in m["id"] or "o1" in m["id"] or "o3" in m["id"]]
+        models = [m["id"] for m in res.json().get("data", []) if "gpt" in m["id"] or "o1" in m["id"] or "o3" in m["id"]]
+        return [m for m in models if is_valid_model(m)]
     except Exception as e:
         logger.error(f"OpenAI fetch failed: {e}")
         return []
 
 def fetch_google():
-    try:
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-        if not api_key: return []
-        res = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=10)
-        return [m["name"].split('/')[-1] for m in res.json().get("models", []) if "gemini" in m.get("name", "")]
-    except Exception as e:
-        logger.error(f"Google fetch failed: {e}")
-        return []
+    keys = get_gemini_api_keys()
+    if not keys: return []
+    for api_key in keys:
+        try:
+            res = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=10)
+            if res.status_code == 200:
+                models = [m["name"].split('/')[-1] for m in res.json().get("models", []) if "gemini" in m.get("name", "")]
+                return [m for m in models if is_valid_model(m)]
+        except Exception as e:
+            logger.debug(f"Google fetch failed for a key: {e}")
+    logger.error("All Google API keys failed for fetch.")
+    return []
 
 def fetch_deepseek():
     try:
         api_key = os.environ.get("DEEPSEEK_API_KEY", "")
         if not api_key: return []
         res = requests.get("https://api.deepseek.com/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10)
-        return [m["id"] for m in res.json().get("data", [])] if res.status_code == 200 else []
+        models = [m["id"] for m in res.json().get("data", [])] if res.status_code == 200 else []
+        return [m for m in models if is_valid_model(m)]
     except Exception as e:
         logger.error(f"DeepSeek fetch failed: {e}")
         return []
@@ -164,10 +189,8 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     # Strict JSON validation
     caps = result.get("caps", [])
     if not isinstance(caps, list):
-        caps = ["balanced"]
+        caps = []
     caps = [t for t in caps if t in valid_tags]
-    if not caps:
-        caps = ["balanced"]
         
     tier = result.get("tier", "standard")
     if tier not in valid_tiers:
@@ -177,25 +200,27 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
 
 def extract_new_model_specs(new_model_name, provider):
     scout_candidates = ["gemini-flash", "gemini-pro"]
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    gemini_keys = get_gemini_api_keys()
     
-    if not gemini_key:
-        logger.warning("No GEMINI_API_KEY, cannot perform search classification.")
-        return {"caps": ["balanced"], "tier": "standard", "scout": "none"}
+    if not gemini_keys:
+        logger.warning("No Gemini API keys found, cannot perform search classification.")
+        return {"caps": [], "tier": "standard", "scout": "none", "classification_status": "pending"}
         
     for scout_model in scout_candidates:
-        try:
-            logger.info(f"Attempting classification of {new_model_name} using scout model: {scout_model}")
-            result = run_search_classification(new_model_name, scout_model, provider, gemini_key)
-            result["scout"] = scout_model
-            logger.info(f"Classification successful with {scout_model}: {result}")
-            return result
-        except Exception as e:
-            logger.debug(f"Scout model {scout_model} failed: {e}")
-            continue
+        for gemini_key in gemini_keys:
+            try:
+                logger.info(f"Attempting classification of {new_model_name} using scout model: {scout_model}")
+                result = run_search_classification(new_model_name, scout_model, provider, gemini_key)
+                result["scout"] = scout_model
+                result["classification_status"] = "completed"
+                logger.info(f"Classification successful with {scout_model}: {result}")
+                return result
+            except Exception as e:
+                logger.debug(f"Scout model {scout_model} failed with a key: {e}")
+                continue
             
-    logger.warning(f"All scout models failed for {new_model_name}. Defaulting to balanced.")
-    return {"caps": ["balanced"], "tier": "standard", "scout": "failed"}
+    logger.warning(f"All scout models and keys failed for {new_model_name}. Defaulting to pending.")
+    return {"caps": [], "tier": "standard", "scout": "failed", "classification_status": "pending"}
 
 def get_tier_score(tier):
     tier_scores = {"flagship": 8, "premium": 6, "standard": 4, "lite": 2}
@@ -211,11 +236,23 @@ def test_model_connection(model_name, provider):
             payload = {"model": model_name, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
             res = requests.post(url, headers=headers, json=payload, timeout=10)
         elif provider == "google":
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key: return None
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            api_keys = get_gemini_api_keys()
+            if not api_keys: return None
             payload = {"contents": [{"parts": [{"text": "hi"}]}], "generationConfig": {"maxOutputTokens": 1}}
-            res = requests.post(url, json=payload, timeout=10)
+            
+            for api_key in api_keys:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+                    res = requests.post(url, json=payload, timeout=10)
+                    if res.status_code == 200:
+                        return True
+                    elif res.status_code in [400, 404]:
+                        return False
+                    elif res.status_code in [401, 403, 429]:
+                        continue
+                except requests.RequestException:
+                    continue
+            return None
         elif provider == "deepseek":
             api_key = os.environ.get("DEEPSEEK_API_KEY")
             if not api_key: return None
@@ -301,6 +338,7 @@ def sync_and_update_models():
                 "provider": provider,
                 "tier": specs["tier"],
                 "caps": specs["caps"],
+                "classification_status": specs.get("classification_status", "completed"),
                 "verified": False,
                 "connection_ok": "pending",
                 "observations": 1,
@@ -313,6 +351,20 @@ def sync_and_update_models():
         else:
             # Model already exists in metadata
             meta = model_metadata[live_model]
+            
+            # Check for expiration if pending connection
+            if meta.get("connection_ok") == "pending" or meta.get("classification_status") == "pending":
+                first_seen_str = meta.get("first_seen")
+                if first_seen_str:
+                    first_seen_date = datetime.fromisoformat(first_seen_str)
+                    if (datetime.now(timezone.utc) - first_seen_date).days > 7:
+                        meta["classification_status"] = "archived"
+                        logger.info(f"Model {live_model} pending > 7 days. Archiving.")
+            
+            if meta.get("classification_status") == "archived":
+                model_metadata[live_model] = meta
+                continue
+
             meta["last_seen"] = now_iso
             
             # 3. Live API Connection Ping
@@ -337,20 +389,40 @@ def sync_and_update_models():
                     del model_scores[live_model]
                 continue
 
-            if not meta.get("verified", False):
-                # Increment observations
+            # Increment observations only if classification is completed and connection is good
+            is_classification_good = (meta.get("classification_status") == "completed")
+            is_connection_good = (meta.get("connection_ok") is True)
+            
+            if is_classification_good and is_connection_good:
                 obs = meta.get("observations", 0) + 1
                 meta["observations"] = obs
-                logger.info(f"Unverified model {live_model} observed {obs} times.")
-                
-                if obs >= 3 and meta.get("connection_ok") is True:
-                    # Promote to Verified!
-                    meta["verified"] = True
-                    logger.info(f"Model {live_model} reached 3 observations and passed connection ping! Promoting to Verified Production.")
-                    
+                if not meta.get("verified", False):
+                    logger.info(f"Unverified model {live_model} observed {obs} times.")
+            else:
+                obs = meta.get("observations", 0)
+
+            # Enforce the Strict Invariant for verification
+            has_caps = len(meta.get("caps", [])) > 0
+            
+            should_be_verified = (
+                is_classification_good 
+                and is_connection_good 
+                and obs >= 3 
+                and has_caps
+            )
+
+            was_verified = meta.get("verified", False)
+
+            if should_be_verified and not was_verified:
+                meta["verified"] = True
+                logger.info(f"Model {live_model} reached 3 observations, passed connection ping, and has caps! Promoting to Verified Production.")
+            elif not should_be_verified and was_verified:
+                meta["verified"] = False
+                logger.info(f"Model {live_model} no longer meets the invariant. Demoting to unverified staging.")
+            
             # If it is verified, ensure it is in the active routing dictionaries
-            if meta.get("verified", False) and meta.get("connection_ok") is True:
-                caps = meta.get("caps", ["balanced"])
+            if meta.get("verified", False):
+                caps = meta.get("caps", [])
                 if live_model not in model_caps:
                     model_caps[live_model] = caps
                 
@@ -359,6 +431,12 @@ def sync_and_update_models():
                 tag_score = sum(tag_weights.get(tag, 0) for tag in caps)
                 total_score = min(10, tier_base + tag_score)
                 model_scores[live_model] = total_score
+            else:
+                # Remove unverified models from production routing
+                if live_model in model_caps:
+                    del model_caps[live_model]
+                if live_model in model_scores:
+                    del model_scores[live_model]
                 
             model_metadata[live_model] = meta
 
