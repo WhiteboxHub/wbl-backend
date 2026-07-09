@@ -149,7 +149,8 @@ async def upload_onboarding_documents(
                 signature=signature,
                 notes=notes,
                 drive_link=drive_link,
-                file_paths=[] # Exclusive use of Drive link for production
+                file_paths=[],
+                placement_percentage=candidate.placement_percentage if candidate.placement_percentage else 13
             )
             logger.info(f"Consolidated onboarding email sent for candidate {candidate_id}")
         except Exception as email_err:
