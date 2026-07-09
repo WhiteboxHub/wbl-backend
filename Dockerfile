@@ -1,6 +1,5 @@
 # //wbl-backend\Dockerfile
 
-
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -18,4 +17,3 @@ EXPOSE 8080
 
 # Run FastAPI
 CMD uvicorn fapi.main:app --host 0.0.0.0 --port $PORT
-#CMD ["sh", "-c", "uvicorn fapi.main:app --host 0.0.0.0 --port ${PORT}"]
