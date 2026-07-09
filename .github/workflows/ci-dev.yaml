@@ -35,15 +35,6 @@ jobs:
       run: |
         docker build -t fastapi-test .
 
-    # Clean Next.js cache and build frontend to ensure latest UI
-    - name: Clean Next.js build and build frontend
-      run: |
-        # Navigate to frontend directory (assumes sibling folder)
-        cd ../wbl-frontend
-        rm -rf .next
-        npm ci
-        npm run build
-
   ai-review:
     name: AI Code Review
     if: github.event_name == 'pull_request' || github.event_name == 'push'
