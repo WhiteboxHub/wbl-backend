@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from fapi.db.models import AuthUserORM, CandidateLlmApiKeyORM
 from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
-from fapi.utils.encryption_utils import decrypt_api_key
+from fapi.utils.encryption_utils import decrypt_api_key, encrypt_api_key
 
 CODERPAD_MISSING_OPENAI_KEY_MSG = (
     "No OpenAI API key available. Add an OpenAI key under My LLM keys and set it as "
@@ -463,10 +463,11 @@ def create_candidate_llm_key_to_db(
     candidate_id = _candidate_id_for_user(db, current_user)
     m = (model_name or _default_model_for_provider(provider)).strip()
     ve = bool(voice_enabled)
+    encrypted_key = encrypt_api_key(key)
     row_kwargs: Dict[str, Any] = {
         "candidate_id": candidate_id,
         "provider_name": provider,
-        "api_key": key,
+        "api_key": encrypted_key,
         "model_name": m,
     }
     if _llm_has_column(db, "voice_enabled"):
@@ -509,7 +510,7 @@ def update_candidate_llm_key_to_db(
         raise LookupError("Key not found")
     key = (api_key or "").strip()
     if key:
-        r.api_key = key
+        r.api_key = encrypt_api_key(key)
     elif not _row_secret(r):
         raise ValueError("API key is required")
     r.provider_name = provider
