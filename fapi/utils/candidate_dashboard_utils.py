@@ -1332,3 +1332,71 @@ def update_interview_feedback(db: Session, interview_id: int, feedback: str):
     db.commit()
     db.refresh(interview)
     return {"id": interview_id, "feedback": interview.feedback}
+
+async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFile) -> Dict[str, Any]:
+    # Validate file extension
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in [".pdf", ".doc", ".docx"]:
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX formats are accepted.")
+    
+    try:
+        # Get active marketing record
+        marketing_record = db.query(CandidateMarketingORM).filter(
+            CandidateMarketingORM.candidate_id == candidate_id,
+            CandidateMarketingORM.status == "active"
+        ).first()
+        
+        if not marketing_record:
+            # Check if any marketing record exists
+            marketing_record = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.candidate_id == candidate_id
+            ).first()
+            
+        if not marketing_record:
+            # Check if candidate exists
+            candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+            if not candidate:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            # Create a default active marketing record
+            marketing_record = CandidateMarketingORM(
+                candidate_id=candidate_id,
+                start_date=date.today(),
+                status="active"
+            )
+            db.add(marketing_record)
+            db.flush()
+            
+        content = await file.read()
+        marketing_record.My_Resume = content
+        marketing_record.my_resume_filename = filename
+        db.commit()
+
+        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
+        session_id = str(marketing_record.id)
+        
+        try:
+            files_payload = {"file": (filename, content, file.content_type)}
+            data_payload = {"session_id": session_id}
+            
+            res = requests.post(f"{ai_backend_url}/parse-binary-resume", files=files_payload, data=data_payload, timeout=60)
+            if not res.ok:
+                logger.error(f"Failed to parse PDF resume in ai-prep-backend: {res.text}")
+                try:
+                    err_json = res.json()
+                    detail = err_json.get("detail", "AI parsing failed.")
+                except Exception:
+                    detail = res.text or "AI parsing failed."
+                raise HTTPException(status_code=400, detail=f"Resume saved, but AI parsing failed: {detail}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error calling ai-prep-backend parsing: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Resume saved, but communication with AI parsing service failed: {str(e)}")
+        
+        return {"message": "Resume uploaded and parsed successfully", "filename": filename}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading resume for candidate {candidate_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload resume: {str(e)}")
