@@ -256,6 +256,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
 
     record_dict = record.__dict__.copy()
     record_dict.pop("_sa_instance_state", None)
+    record_dict.pop("My_Resume", None)
 
     candidate = record.candidate
     record_dict["candidate"] = candidate.__dict__.copy() if candidate else None

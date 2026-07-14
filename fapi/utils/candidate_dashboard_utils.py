@@ -625,6 +625,8 @@ def get_marketing_phase_details(
             "interview_stats": interview_stats,
             "interview_breakdown": _calculate_interview_breakdown(interviews) if interviews else {},
             "top_companies": _get_top_companies_for_candidate(db, candidate_id) if interviews else [],
+            "my_resume_filename": None,
+            "has_uploaded_resume": False,
         }
 
     current_marketing = marketing_records[0]
@@ -658,6 +660,8 @@ def get_marketing_phase_details(
         "interview_breakdown": interview_breakdown,
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
+        "my_resume_filename": getattr(current_marketing, "my_resume_filename", None),
+        "has_uploaded_resume": getattr(current_marketing, "My_Resume", None) is not None,
     }
 
     # Add historical records if requested
