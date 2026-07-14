@@ -1368,13 +1368,11 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
             db.flush()
             
         content = await file.read()
-        marketing_record.My_Resume = content
-        marketing_record.my_resume_filename = filename
-        db.commit()
-
-        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
-        session_id = str(marketing_record.id)
         
+        # We need the marketing_record ID for the session_id
+        session_id = str(marketing_record.id)
+        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
+
         try:
             files_payload = {"file": (filename, content, file.content_type)}
             data_payload = {"session_id": session_id}
@@ -1387,12 +1385,21 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
                     detail = err_json.get("detail", "AI parsing failed.")
                 except Exception:
                     detail = res.text or "AI parsing failed."
-                raise HTTPException(status_code=400, detail=f"Resume saved, but AI parsing failed: {detail}")
+                
+                # Rollback any DB changes since parsing/validation failed
+                db.rollback()
+                raise HTTPException(status_code=400, detail=detail)
         except HTTPException:
             raise
         except Exception as e:
+            db.rollback()
             logger.error(f"Error calling ai-prep-backend parsing: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Resume saved, but communication with AI parsing service failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Communication with AI parsing service failed: {str(e)}")
+
+        # Validation passed, AI parsing successful. Now save the binary resume to the database.
+        marketing_record.My_Resume = content
+        marketing_record.my_resume_filename = filename
+        db.commit()
         
         return {"message": "Resume uploaded and parsed successfully", "filename": filename}
     except HTTPException:
