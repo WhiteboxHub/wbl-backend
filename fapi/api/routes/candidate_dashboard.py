@@ -306,7 +306,7 @@ async def upload_candidate_marketing_resume(
 
         import requests
         ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
-        session_id = str(marketing_record.id)
+        session_id = str(candidate_id)
         
         try:
             files = {"file": (filename, content, file.content_type)}
