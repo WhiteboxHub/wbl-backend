@@ -327,12 +327,126 @@ async def upload_candidate_marketing_resume(
             logger.error(f"Error calling ai-prep-backend parsing: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Resume saved, but communication with AI parsing service failed: {str(e)}")
         
-        return {"message": "Resume uploaded and parsed successfully", "filename": filename}
+        return {
+            "message": "Resume uploaded and parsed successfully",
+            "filename": filename,
+            "has_binary_resume": True,
+            "binary_resume_filename": filename,
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error uploading resume for candidate {candidate_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to upload resume: {str(e)}")
+
+
+# ==================== RESUME JSON (PARSED DATA) ====================
+
+@router.get("/{candidate_id}/marketing/resume-json")
+def get_candidate_resume_json(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    """
+    Return the AI-parsed resume JSON stored in candidate_json on the
+    active CandidateMarketingORM record.
+    """
+    from fapi.db.models import CandidateMarketingORM
+
+    try:
+        # Try active record first, then fall back to any record
+        record = (
+            db.query(CandidateMarketingORM)
+            .filter(
+                CandidateMarketingORM.candidate_id == candidate_id,
+                CandidateMarketingORM.status == "active",
+            )
+            .first()
+        )
+        if not record:
+            record = (
+                db.query(CandidateMarketingORM)
+                .filter(CandidateMarketingORM.candidate_id == candidate_id)
+                .order_by(CandidateMarketingORM.id.desc())
+                .first()
+            )
+
+        if not record:
+            raise HTTPException(status_code=404, detail="No marketing record found for this candidate.")
+
+        resume_json = record.candidate_json
+        if not resume_json:
+            return {
+                "resume_json": None,
+                "has_binary_resume": record.My_Resume is not None,
+                "binary_resume_filename": record.my_resume_filename,
+            }
+
+        return {
+            "resume_json": resume_json,
+            "has_binary_resume": record.My_Resume is not None,
+            "binary_resume_filename": record.my_resume_filename,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching resume JSON for candidate {candidate_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch resume JSON: {str(e)}")
+
+
+@router.put("/{candidate_id}/marketing/resume-json")
+def update_candidate_resume_json(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    payload: Optional[Dict[str, Any]] = None,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    """
+    Persist an edited resume JSON back to candidate_json on the
+    active (or latest) CandidateMarketingORM record.
+
+    Request body: { "resume_json": { ... } }
+    """
+    from fapi.db.models import CandidateMarketingORM
+
+    if payload is None:
+        raise HTTPException(status_code=422, detail="Request body is required.")
+
+    resume_json = payload.get("resume_json")
+    if resume_json is None:
+        raise HTTPException(status_code=422, detail="'resume_json' field is required.")
+
+    try:
+        record = (
+            db.query(CandidateMarketingORM)
+            .filter(
+                CandidateMarketingORM.candidate_id == candidate_id,
+                CandidateMarketingORM.status == "active",
+            )
+            .first()
+        )
+        if not record:
+            record = (
+                db.query(CandidateMarketingORM)
+                .filter(CandidateMarketingORM.candidate_id == candidate_id)
+                .order_by(CandidateMarketingORM.id.desc())
+                .first()
+            )
+
+        if not record:
+            raise HTTPException(status_code=404, detail="No marketing record found for this candidate.")
+
+        record.candidate_json = resume_json
+        db.commit()
+        logger.info(f"Resume JSON updated for candidate {candidate_id}")
+        return {"message": "Resume JSON updated successfully."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating resume JSON for candidate {candidate_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update resume JSON: {str(e)}")
 
 
 
