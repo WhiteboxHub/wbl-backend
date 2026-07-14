@@ -255,6 +255,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         return None
 
     record_dict = record.__dict__.copy()
+    record_dict["has_uploaded_resume"] = record.My_Resume is not None
     record_dict.pop("_sa_instance_state", None)
     record_dict.pop("My_Resume", None)
 

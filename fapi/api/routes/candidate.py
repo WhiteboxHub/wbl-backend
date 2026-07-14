@@ -174,6 +174,31 @@ def check_version_marketing(
 def read_marketing_record(record_id: int = Path(...)):
     return candidate_utils.get_marketing_by_id(record_id)
 
+
+@router.get("/candidate/marketing/{record_id}/download-resume", summary="Download binary resume PDF/Word file")
+def download_marketing_resume(
+    record_id: int = Path(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    from fapi.db.models import CandidateMarketingORM
+    record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
+    if not record or not record.My_Resume:
+        raise HTTPException(status_code=404, detail="No binary resume file found for this marketing record.")
+    
+    filename = getattr(record, "my_resume_filename", None) or "resume.pdf"
+    content_type = "application/pdf"
+    if filename.endswith(".docx"):
+        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif filename.endswith(".doc"):
+        content_type = "application/msword"
+
+    return Response(
+        content=record.My_Resume,
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 @router.post("/candidate/marketing", response_model=CandidateMarketing)
 def create_marketing_record(record: CandidateMarketingCreate):
     return candidate_utils.create_marketing(record)
