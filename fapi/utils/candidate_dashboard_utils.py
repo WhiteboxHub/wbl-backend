@@ -11,6 +11,12 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fapi.core.cache import cache_result, invalidate_cache
+import os
+import requests
+import logging
+from fastapi import UploadFile
+
+logger = logging.getLogger(__name__)
 
 from fapi.db.models import (
     CandidateORM,

@@ -181,23 +181,7 @@ def download_marketing_resume(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
-    from fapi.db.models import CandidateMarketingORM
-    record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
-    if not record or not record.My_Resume:
-        raise HTTPException(status_code=404, detail="No binary resume file found for this marketing record.")
-    
-    filename = getattr(record, "my_resume_filename", None) or "resume.pdf"
-    content_type = "application/pdf"
-    if filename.endswith(".docx"):
-        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    elif filename.endswith(".doc"):
-        content_type = "application/msword"
-
-    return Response(
-        content=record.My_Resume,
-        media_type=content_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    return candidate_utils.download_candidate_resume(db, record_id)
 
 @router.post("/candidate/marketing", response_model=CandidateMarketing)
 def create_marketing_record(record: CandidateMarketingCreate):
