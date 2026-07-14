@@ -258,6 +258,18 @@ def get_candidate_marketing_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to fetch marketing details: {str(e)}")
 
 
+@router.post("/{candidate_id}/marketing/upload-resume")
+async def upload_candidate_marketing_resume(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    from fapi.utils import candidate_dashboard_utils
+    return await candidate_dashboard_utils.upload_candidate_resume(db, candidate_id, file)
+
+
+
 # ==================== PLACEMENT PHASE ====================
 
 @router.get("/{candidate_id}/placement", response_model=Dict[str, Any])

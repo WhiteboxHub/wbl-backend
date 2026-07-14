@@ -174,6 +174,15 @@ def check_version_marketing(
 def read_marketing_record(record_id: int = Path(...)):
     return candidate_utils.get_marketing_by_id(record_id)
 
+
+@router.get("/candidate/marketing/{record_id}/download-resume", summary="Download binary resume PDF/Word file")
+def download_marketing_resume(
+    record_id: int = Path(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    return candidate_utils.download_candidate_resume(db, record_id)
+
 @router.post("/candidate/marketing", response_model=CandidateMarketing)
 def create_marketing_record(record: CandidateMarketingCreate):
     return candidate_utils.create_marketing(record)
