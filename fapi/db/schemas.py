@@ -1064,24 +1064,6 @@ class CandidatePlacementUpdate(BaseModel):
 
 # ---------------- Candidate Setup Wizard Schemas ----------------
 
-class CandidateResumeBase(BaseModel):
-    resume_json: Dict[str, Any]
-    file_name: Optional[str] = None
-
-class CandidateResumeCreate(CandidateResumeBase):
-    pass
-
-class CandidateResumeUpdate(CandidateResumeBase):
-    pass
-
-class CandidateResumeOut(CandidateResumeBase):
-    id: int
-    candidate_id: int
-    created_at: datetime
-    updated_at: datetime
-    class Config:
-        from_attributes = True
-
 class CandidateAPIKeyBase(BaseModel):
     provider_name: str
     model_name: Optional[str] = None
