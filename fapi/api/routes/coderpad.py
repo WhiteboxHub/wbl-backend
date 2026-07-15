@@ -52,6 +52,7 @@ from fapi.utils.coderpad_openai_key import (
     update_candidate_llm_key_voice_enabled,
     update_candidate_llm_key_is_default,
     validate_llm_key_batch_for_user,
+    finish_setup_for_user,
 )
 import logging
 
@@ -282,6 +283,15 @@ def validate_my_llm_keys_batch(
     return CoderpadLlmKeyValidateBatchOut(
         results=[CoderpadLlmKeyValidateResultOut(**r) for r in raw]
     )
+
+
+@router.post("/me/finish-setup")
+def finish_setup(
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Validate default key and return setup_complete status."""
+    return finish_setup_for_user(db, current_user)
 
 
 # ==================== Code Snippet CRUD ====================

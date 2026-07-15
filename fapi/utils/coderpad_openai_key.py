@@ -795,3 +795,27 @@ def validate_llm_key_batch_for_user(
             }
         )
     return results
+
+
+def finish_setup_for_user(
+    db: Session,
+    current_user: AuthUserORM,
+) -> Dict[str, Any]:
+    from fapi.utils.llm_key_validation_utils import validate_provider_key
+    candidate_id = _candidate_id_for_user(db, current_user)
+    ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
+    default_row = _default_llm_key_row(db, candidate_id)
+    
+    if not default_row:
+        return {"setup_complete": False, "error": "No LLM API keys found. Please add a key first."}
+    
+    secret = _row_secret(default_row)
+    if not secret:
+        return {"setup_complete": False, "error": "The default LLM API key has an invalid format or is empty."}
+        
+    status, message = validate_provider_key(default_row.provider_name or "", secret)
+    
+    if status == "active":
+        return {"setup_complete": True}
+    else:
+        return {"setup_complete": False, "error": f"Default API key validation failed: {message}"}

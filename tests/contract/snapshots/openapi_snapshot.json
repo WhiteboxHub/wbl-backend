@@ -21027,6 +21027,32 @@
         ]
       }
     },
+    "/api/coderpad/me/finish-setup": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Finish Setup",
+        "description": "Validate default key and return setup_complete status.",
+        "operationId": "finish_setup_api_coderpad_me_finish_setup_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/coderpad/snippets": {
       "get": {
         "tags": [
