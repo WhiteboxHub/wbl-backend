@@ -1148,13 +1148,14 @@ def update_candidate_phase_status(
             db.query(CandidatePlacementORM)
             .filter(
                 CandidatePlacementORM.candidate_id == candidate_id,
-                CandidatePlacementORM.status == "Active"
+                CandidatePlacementORM.status == "Active",
+                (CandidatePlacementORM.company == None) | (CandidatePlacementORM.company == "")
             )
             .first()
         )
 
         if existing:
-            raise HTTPException(status_code=400, detail="Candidate already has an active placement record")
+            raise HTTPException(status_code=400, detail="Candidate already has an active pending placement record (no company name assigned yet)")
 
         new_placement = CandidatePlacementORM(
             candidate_id=candidate_id,

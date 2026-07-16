@@ -390,11 +390,16 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
                 setattr(record, key, value)
 
         if getattr(record, "move_to_placement", False):
+            record.status = "inactive"
             candidate = db.query(CandidateORM).filter(CandidateORM.id == record.candidate_id).first()
             if candidate:
                 placement_exists = (
                     db.query(CandidatePlacementORM)
-                    .filter_by(candidate_id=candidate.id, status="Active")
+                    .filter(
+                        CandidatePlacementORM.candidate_id == candidate.id,
+                        CandidatePlacementORM.status == "Active",
+                        (CandidatePlacementORM.company == None) | (CandidatePlacementORM.company == "")
+                    )
                     .first()
                 )
                 if not placement_exists:
