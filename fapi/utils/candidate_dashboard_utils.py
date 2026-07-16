@@ -1371,30 +1371,22 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
         
         # We need the marketing_record ID for the session_id
         session_id = str(marketing_record.id)
-        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
-
         try:
-            files_payload = {"file": (filename, content, file.content_type)}
-            data_payload = {"session_id": session_id}
+            from fapi.utils.aiprep_setup_utils import process_resume_parsing
+            parsed_json = process_resume_parsing(
+                content=content, 
+                filename=filename, 
+                candidate_id=candidate_id, 
+                marketing_id=marketing_record.id, 
+                db=db
+            )
             
-            res = requests.post(f"{ai_backend_url}/parse-binary-resume", files=files_payload, data=data_payload, timeout=60)
-            if not res.ok:
-                logger.error(f"Failed to parse PDF resume in ai-prep-backend: {res.text}")
-                try:
-                    err_json = res.json()
-                    detail = err_json.get("detail", "AI parsing failed.")
-                except Exception:
-                    detail = res.text or "AI parsing failed."
-                
-                # Rollback any DB changes since parsing/validation failed
-                db.rollback()
-                raise HTTPException(status_code=400, detail=detail)
-        except HTTPException:
-            raise
+            # Save the JSON back to the database
+            marketing_record.candidate_json = parsed_json
         except Exception as e:
             db.rollback()
-            logger.error(f"Error calling ai-prep-backend parsing: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Communication with AI parsing service failed: {str(e)}")
+            logger.error(f"Error parsing resume via LLM: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"AI parsing failed: {str(e)}")
 
         # Validation passed, AI parsing successful. Now save the binary resume to the database.
         marketing_record.My_Resume = content

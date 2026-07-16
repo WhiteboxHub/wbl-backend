@@ -18,7 +18,7 @@ from fapi.api.routes import (
 
 
     email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli, cli_analytics,
-    campaign_email, outreach_email, tracking
+    campaign_email, outreach_email, tracking, aiprep_setup
 )
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
@@ -212,3 +212,4 @@ app.include_router(coderpad.router, prefix="/api", tags=["CoderPad"], dependenci
 app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach Orchestrator"])
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
+app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setup"], dependencies=[Depends(enforce_access)])
