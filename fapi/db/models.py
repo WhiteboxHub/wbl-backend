@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional, List, Literal, Dict, Any
 from datetime import time, date, datetime, timedelta
-from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed
+from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed, LargeBinary
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
@@ -329,6 +329,8 @@ class CandidateMarketingORM(Base):
     run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
+    My_Resume = Column(LargeBinary, nullable=True)
+    my_resume_filename = Column(String(255), nullable=True)
     
     # Outreach Metrics
     total_outreach_count = Column(Integer, nullable=False, default=0, server_default="0")

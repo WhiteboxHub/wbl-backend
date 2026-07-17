@@ -933,6 +933,51 @@
         }
       }
     },
+    "/api/candidate/marketing/{record_id}/download-resume": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Download binary resume PDF/Word file",
+        "operationId": "download_marketing_resume_api_candidate_marketing__record_id__download_resume_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/candidate/placements": {
       "get": {
         "tags": [
@@ -8891,6 +8936,64 @@
                   "additionalProperties": true,
                   "title": "Response Get Candidate Marketing Endpoint Api Candidates  Candidate Id  Marketing Get"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/candidates/{candidate_id}/marketing/upload-resume": {
+      "post": {
+        "tags": [
+          "Candidate Dashboard",
+          "Candidate Dashboard"
+        ],
+        "summary": "Upload Candidate Marketing Resume",
+        "operationId": "upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID",
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -21093,6 +21196,32 @@
         ]
       }
     },
+    "/api/coderpad/me/finish-setup": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Finish Setup",
+        "description": "Validate default key and return setup_complete status.",
+        "operationId": "finish_setup_api_coderpad_me_finish_setup_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/coderpad/snippets": {
       "get": {
         "tags": [
@@ -26957,6 +27086,20 @@
         ],
         "title": "Body_login_for_access_token_api_login_post"
       },
+      "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post"
+      },
       "Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post": {
         "properties": {
           "govId": {
@@ -29309,6 +29452,29 @@
             ],
             "title": "Candidate Json"
           },
+          "My_Resume": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Resume"
+          },
+          "my_resume_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Resume Filename"
+          },
           "total_outreach_count": {
             "anyOf": [
               {
@@ -29624,6 +29790,29 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "My_Resume": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Resume"
+          },
+          "my_resume_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Resume Filename"
           },
           "total_outreach_count": {
             "anyOf": [
@@ -29977,6 +30166,29 @@
               }
             ],
             "title": "Candidate Json"
+          },
+          "My_Resume": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Resume"
+          },
+          "my_resume_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Resume Filename"
           },
           "total_outreach_count": {
             "anyOf": [

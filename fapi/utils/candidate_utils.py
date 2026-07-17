@@ -216,6 +216,24 @@ def delete_candidate(candidate_id: int):
 
 
 
+def download_candidate_resume(db: Session, record_id: int) -> Response:
+    record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
+    if not record or not record.My_Resume:
+        raise HTTPException(status_code=404, detail="No binary resume file found for this marketing record.")
+    
+    filename = getattr(record, "my_resume_filename", None) or "resume.pdf"
+    content_type = "application/pdf"
+    if filename.endswith(".docx"):
+        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif filename.endswith(".doc"):
+        content_type = "application/msword"
+
+    return Response(
+        content=record.My_Resume,
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 # # -----------------------------------------------Marketing----------------------------
 
@@ -260,7 +278,9 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         return None
 
     record_dict = record.__dict__.copy()
+    record_dict["has_uploaded_resume"] = record.My_Resume is not None
     record_dict.pop("_sa_instance_state", None)
+    record_dict.pop("My_Resume", None)
 
     candidate = record.candidate
     record_dict["candidate"] = candidate.__dict__.copy() if candidate else None
