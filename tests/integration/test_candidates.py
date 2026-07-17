@@ -203,3 +203,62 @@ def test_get_interview_by_id_success(client, admin_headers, db_session):
     data = response.json()
     assert data["company"] == "TechCorp Seeded"
     assert data["id"] == 802
+
+
+def test_candidate_phase_deactivation_sync(client, admin_headers, db_session):
+    from fapi.db.models import CandidateORM, CandidatePreparation, CandidateMarketingORM
+
+    # Seed candidate
+    candidate = CandidateORM(
+        id=805,
+        full_name="Phase Sync Test",
+        email="phase.sync@testcandidates.com",
+        status="active",
+        batchid=1,
+        move_to_prep=True
+    )
+    db_session.add(candidate)
+    db_session.flush()
+
+    # Seed preparation (active)
+    prep = CandidatePreparation(
+        candidate_id=candidate.id,
+        start_date=date.today(),
+        status="active",
+        move_to_mrkt=True
+    )
+    db_session.add(prep)
+    db_session.flush()
+
+    # Seed marketing (active)
+    marketing = CandidateMarketingORM(
+        candidate_id=candidate.id,
+        start_date=date.today(),
+        status="active"
+    )
+    db_session.add(marketing)
+    db_session.commit()
+
+    # Verify initial state
+    assert candidate.move_to_prep is True
+    assert prep.move_to_mrkt is True
+
+    # 1. Update candidate preparation to set move_to_mrkt = False
+    response = client.put(f"/api/candidate_preparation/{prep.id}", json={"move_to_mrkt": False}, headers=admin_headers)
+    assert response.status_code == 200
+    
+    # Check that marketing record is now inactive and move_to_mrkt flag is False
+    db_session.refresh(prep)
+    db_session.refresh(marketing)
+    assert marketing.status == "inactive"
+    assert prep.move_to_mrkt is False
+
+    # 2. Update candidate to set move_to_prep = False
+    response = client.put(f"/api/candidates/{candidate.id}", json={"move_to_prep": False}, headers=admin_headers)
+    assert response.status_code == 200
+
+    # Check that preparation record is now inactive and move_to_prep flag is False
+    db_session.refresh(candidate)
+    db_session.refresh(prep)
+    assert prep.status == "inactive"
+    assert candidate.move_to_prep is False

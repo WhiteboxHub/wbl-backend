@@ -176,7 +176,12 @@ def update_candidate(candidate_id: int, candidate_data: dict):
                     status="active"
                 )
                 db.add(new_prep)
+        elif "move_to_prep" in candidate_data:
+            active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
+            if active_prep:
+                active_prep.status = 'inactive'
         
+        db.flush()
         # Keep the flag in sync with the actual active preparation status
         final_active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
         candidate.move_to_prep = True if final_active_prep else False
@@ -1058,7 +1063,16 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
                 status="active"
             )
             db.add(new_marketing)
+    elif candidate and "move_to_mrkt" in update_data:
+        active_marketing = (
+            db.query(CandidateMarketingORM)
+            .filter_by(candidate_id=candidate.id, status="active")
+            .first()
+        )
+        if active_marketing:
+            active_marketing.status = "inactive"
 
+    db.flush()
     # Keep flag in sync with actual active marketing status
     final_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()
     db_prep.move_to_mrkt = True if final_marketing else False
