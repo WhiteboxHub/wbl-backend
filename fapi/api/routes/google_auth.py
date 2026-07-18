@@ -73,20 +73,24 @@ async def login_google_user(user: GoogleUserCreate, db: Session = Depends(get_db
                 detail="Candidate account is inactive. Please contact Recruiting at +1 925-557-1053."
             )
         # Set candidate role
+        user_role = getattr(existing_user, "role", "candidate")
+        user_role = user_role.lower() if user_role else "candidate"
         token_data = {
             "sub": existing_user.uname,
             "team": getattr(existing_user, "team", "default_team"),
-            "role": "candidate"
+            "role": user_role
         }
     else:
         # Check if this is an employee
         employee = get_employee_by_email(user.email)
         if employee and employee['status'] == 1:
             # This is an active employee
+            user_role = getattr(existing_user, "role", "employee")
+            user_role = user_role.lower() if user_role else "employee"
             token_data = {
                 "sub": existing_user.uname,
                 "team": getattr(existing_user, "team", "default_team"),
-                "role": "admin",
+                "role": user_role,
                 "is_employee": True
             }
         else:

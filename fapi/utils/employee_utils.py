@@ -2,7 +2,7 @@
 
 from datetime import date
 from fapi.db.database import SessionLocal
-from fapi.db.models import EmployeeORM
+from fapi.db.models import EmployeeORM, AuthUserORM
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
 from sqlalchemy.orm import Session
@@ -77,6 +77,11 @@ def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:
         for key, value in fields.items():
             if hasattr(employee, key):
                 setattr(employee, key, value)
+
+        if "status" in fields:
+            auth_user = session.query(AuthUserORM).filter(AuthUserORM.uname == employee.email).first()
+            if auth_user:
+                auth_user.status = "active" if int(fields["status"]) == 1 else "inactive"
 
         session.commit()
         session.refresh(employee)
