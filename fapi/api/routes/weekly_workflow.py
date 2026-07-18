@@ -127,12 +127,9 @@ def update_run_parameters(
 ):
     """Saves the completely built run_parameters JSON back to the DB so it appears in the UI."""
     
-    # 1. Update Candidate DB Record
+    # 1. Update Candidate DB Record (Only run_parameters, DO NOT overwrite candidate_json)
     candidate = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate_id).first()
     if candidate:
-        # Some tables use candidate_json, some use run_parameters
-        if hasattr(candidate, 'candidate_json'):
-            candidate.candidate_json = payload
         if hasattr(candidate, 'run_parameters'):
             candidate.run_parameters = payload
 

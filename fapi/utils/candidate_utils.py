@@ -155,6 +155,8 @@ def update_candidate(candidate_id: int, candidate_data: dict):
             raise HTTPException(status_code=404, detail="Candidate not found")
 
         for key, value in candidate_data.items():
+            if key == "candidate_json":
+                continue
             # If batchid is explicitly null/None, default it to current batch
             if key == "batchid" and value is None:
                 from fapi.utils.batch_utils import get_current_batch
@@ -180,6 +182,15 @@ def update_candidate(candidate_id: int, candidate_data: dict):
         # Keep the flag in sync with the actual active preparation status
         final_active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
         candidate.move_to_prep = True if final_active_prep else False
+
+        # Update candidate_json in CandidateMarketingORM if provided
+        if "candidate_json" in candidate_data and candidate_data["candidate_json"] is not None:
+            marketing_record = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.candidate_id == candidate_id,
+                CandidateMarketingORM.status == "active"
+            ).order_by(CandidateMarketingORM.id.desc()).first()
+            if marketing_record:
+                marketing_record.candidate_json = candidate_data["candidate_json"]
 
         db.commit()
         db.refresh(candidate)
@@ -212,22 +223,7 @@ def delete_candidate(candidate_id: int):
 
 
 def download_candidate_resume(db: Session, record_id: int) -> Response:
-    record = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == record_id).first()
-    if not record or not record.My_Resume:
-        raise HTTPException(status_code=404, detail="No binary resume file found for this marketing record.")
-    
-    filename = getattr(record, "my_resume_filename", None) or "resume.pdf"
-    content_type = "application/pdf"
-    if filename.endswith(".docx"):
-        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    elif filename.endswith(".doc"):
-        content_type = "application/msword"
-
-    return Response(
-        content=record.My_Resume,
-        media_type=content_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    raise HTTPException(status_code=404, detail="Binary resumes are no longer supported. Please use the parsed JSON format.")
 
 
 # # -----------------------------------------------Marketing----------------------------
@@ -273,9 +269,8 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         return None
 
     record_dict = record.__dict__.copy()
-    record_dict["has_uploaded_resume"] = record.My_Resume is not None
+    record_dict["has_uploaded_resume"] = record.candidate_json is not None
     record_dict.pop("_sa_instance_state", None)
-    record_dict.pop("My_Resume", None)
 
     candidate = record.candidate
     record_dict["candidate"] = candidate.__dict__.copy() if candidate else None

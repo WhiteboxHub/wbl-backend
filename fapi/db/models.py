@@ -329,9 +329,6 @@ class CandidateMarketingORM(Base):
     run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
-    My_Resume = Column(LargeBinary, nullable=True)
-    my_resume_filename = Column(String(255), nullable=True)
-    
     # Outreach Metrics
     total_outreach_count = Column(Integer, nullable=False, default=0, server_default="0")
     daily_outreach_limit = Column(Integer, nullable=False, default=250, server_default="250")

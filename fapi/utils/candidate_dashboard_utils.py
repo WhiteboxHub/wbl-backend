@@ -632,7 +632,6 @@ def get_marketing_phase_details(
             "interview_stats": interview_stats,
             "interview_breakdown": _calculate_interview_breakdown(interviews) if interviews else {},
             "top_companies": _get_top_companies_for_candidate(db, candidate_id) if interviews else [],
-            "my_resume_filename": None,
             "has_uploaded_resume": False,
         }
 
@@ -669,8 +668,7 @@ def get_marketing_phase_details(
         "interview_breakdown": interview_breakdown,
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
-        "my_resume_filename": getattr(current_marketing, "my_resume_filename", None),
-        "has_uploaded_resume": getattr(current_marketing, "My_Resume", None) is not None,
+        "has_uploaded_resume": getattr(current_marketing, "candidate_json", None) is not None,
     }
 
     # Add historical records if requested
@@ -1388,12 +1386,10 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
             logger.error(f"Error parsing resume via LLM: {str(e)}")
             raise HTTPException(status_code=400, detail=f"AI parsing failed: {str(e)}")
 
-        # Validation passed, AI parsing successful. Now save the binary resume to the database.
-        marketing_record.My_Resume = content
-        marketing_record.my_resume_filename = filename
+        # Validation passed, AI parsing successful. We intentionally do not save the binary resume to the database.
         db.commit()
         
-        return {"message": "Resume uploaded and parsed successfully", "filename": filename}
+        return {"message": "Resume uploaded and parsed successfully", "filename": filename, "candidate_json": parsed_json}
     except HTTPException:
         raise
     except Exception as e:

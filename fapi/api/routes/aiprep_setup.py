@@ -108,7 +108,7 @@ def get_resume_summary(session_id: str, db: Session = Depends(get_db)):
 
         cand_row = db.execute(
             text("""
-            SELECT c.full_name AS name, cm.email, cm.candidate_id, (cm.My_Resume IS NOT NULL) AS has_binary_resume, cm.my_resume_filename
+            SELECT c.full_name AS name, cm.email, cm.candidate_id, (cm.candidate_json IS NOT NULL) AS has_binary_resume
             FROM candidate_marketing cm
             JOIN candidate c ON c.id = cm.candidate_id
             WHERE cm.id = :mid
@@ -123,7 +123,6 @@ def get_resume_summary(session_id: str, db: Session = Depends(get_db)):
         candidate_email = cand_row["email"] if cand_row and cand_row.get("email") else ""
         cid = cand_row["candidate_id"] if cand_row else None
         has_binary_resume = bool(cand_row["has_binary_resume"]) if cand_row and "has_binary_resume" in cand_row else False
-        binary_resume_filename = cand_row["my_resume_filename"] if cand_row and cand_row.get("my_resume_filename") else None
 
         raw_resume = fetch_resume_raw(db, session_id)
         has_resume = raw_resume is not None
@@ -156,7 +155,6 @@ def get_resume_summary(session_id: str, db: Session = Depends(get_db)):
             "resume_filename": resume_filename,
             "llm_keys": llm_keys,
             "has_binary_resume": has_binary_resume,
-            "binary_resume_filename": binary_resume_filename,
         }
     except Exception as e:
         logger.error("ERROR in get_resume_summary: " + str(e))
