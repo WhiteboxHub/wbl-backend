@@ -48,13 +48,27 @@ def _is_admin(user) -> bool:
         or uname == "admin"
     )
 
+def _is_employee(user) -> bool:
+    return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
+
 def enforce_access(request: Request, current_user=Depends(get_current_user)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
+    
     if _is_admin(current_user):
         return current_user
 
-    # Authenticated learners/employees may use CoderPad (snippets, run, assignments).
+    if _is_employee(current_user):
+        forbidden_prefixes = ["/api/employees", "/api/user", "/api/users"]
+        if method in ["POST", "PUT", "DELETE", "PATCH"]:
+            if any(path == prefix or path.startswith(prefix + "/") for prefix in forbidden_prefixes):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Employees do not have permission to modify this resource."
+                )
+        return current_user
+
+    # Authenticated learners may use CoderPad (snippets, run, assignments).
     if path == "/api/coderpad" or path.startswith("/api/coderpad/"):
         return current_user
 
