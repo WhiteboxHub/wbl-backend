@@ -264,7 +264,7 @@ class CandidateORM(Base):
 
     joined_recordings = relationship(
         "Recording",
-        secondary="candidate_recording",
+        secondary="candidate_classes",
         back_populates="joined_candidates"
     )
     joined_sessions = relationship(
@@ -763,8 +763,8 @@ class Batch(Base):
 
     candidates = relationship("CandidateORM", back_populates="batch")
 
-class CandidateRecording(Base):
-    __tablename__ = "candidate_recording"
+class CandidateClass(Base):
+    __tablename__ = "candidate_classes"
     candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"),primary_key=True)
     recording_id = Column(Integer, ForeignKey("recording.id", ondelete="CASCADE"), primary_key=True)
 
@@ -794,7 +794,7 @@ class Recording(Base):
     
     joined_candidates = relationship(
         "CandidateORM",
-        secondary = "candidate_recording",
+        secondary = "candidate_classes",
         back_populates="joined_recordings",
     )
 

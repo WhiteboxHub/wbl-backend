@@ -8,7 +8,7 @@ from sqlalchemy import func, case, and_, or_, desc, distinct
 from fastapi import HTTPException
 from fapi.db import models
 from fapi.db.models import CandidateInterview
-from fapi.db.models import CandidateRecording, CandidateSession
+from fapi.db.models import CandidateClass, CandidateSession
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -1271,7 +1271,7 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
         
         easy_apply_counter = autofill_count + cli_count
 
-    classes_joined = db.query(func.count(CandidateRecording.recording_id)).filter(CandidateRecording.candidate_id == candidate_id).scalar() or 0
+    classes_joined = db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate_id).scalar() or 0
 
     sessions_joined = db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate_id).scalar() or 0
 
