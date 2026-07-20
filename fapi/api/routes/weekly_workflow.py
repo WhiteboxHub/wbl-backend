@@ -12,6 +12,7 @@ except ImportError:
 from fapi.db.database import get_db
 from fapi.db.models import CandidateMarketingORM, AutomationWorkflowScheduleORM
 from fapi.utils.permission_gate import enforce_access
+from fapi.utils.auth_dependencies import get_current_user
 
 router = APIRouter()
 
@@ -123,6 +124,7 @@ def reset_candidate_workflow(candidate_id: int, db: Session = Depends(get_db)):
 def update_run_parameters(
     candidate_id: int, 
     payload: dict, 
+    _auth=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Saves the completely built run_parameters JSON back to the DB so it appears in the UI."""

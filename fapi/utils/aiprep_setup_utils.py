@@ -4,6 +4,90 @@ from pathlib import Path
 from typing import Any, Optional, List
 import logging
 
+RESUME_PARSER_SYSTEM_PROMPT = """You are an expert resume parsing assistant.
+Your task is to analyze the candidate's raw resume text and extract all details into a clean, structured JSON format matching the standard JSON Resume schema EXACTLY:
+{
+  "basics": {
+    "name": "Candidate Full Name",
+    "label": "Primary Job Title or Role",
+    "image": "",
+    "email": "Email Address (REQUIRED - must be present)",
+    "url": "Personal website or portfolio URL",
+    "summary": "A 2-3 sentence professional summary extracted or inferred from the resume",
+    "location": {
+      "address": "Street Address",
+      "postalCode": "Postal/Zip Code",
+      "city": "City",
+      "countryCode": "Country Code (e.g. US)",
+      "region": "State/Region"
+    },
+    "profiles": [
+      {
+        "network": "LinkedIN",
+        "username": "LinkedIn Username",
+        "url": "Full LinkedIn URL (REQUIRED)"
+      },
+      {
+        "network": "Github",
+        "username": "Github Username",
+        "url": "Full Github URL"
+      }
+    ]
+  },
+  "work": [
+    {
+      "name": "Company Name",
+      "position": "Job Title / Role",
+      "url": "Company URL if available",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD or 'Present' if current",
+      "summary": "Brief summary of role",
+      "highlights": [
+        "Extract EVERY SINGLE bullet point, achievement, and responsibility listed under this role exactly as they appear",
+        "Do not summarize or truncate the bullet points. Include all of them."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "University/School Name",
+      "url": "Institution URL if available",
+      "area": "Field of Study / Major",
+      "studyType": "Degree Type (e.g. Masters, Bachelors)",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD",
+      "score": "GPA if available",
+      "courses": []
+    }
+  ],
+  "skills": [
+    {
+      "name": "Skill Category (e.g. Programming Languages, Frameworks)",
+      "keywords": [
+        "Skill 1",
+        "Skill 2",
+        "Skill 3"
+      ]
+    }
+  ],
+  "custom_fields": {
+    "eeo": {
+      "gender": "decline"
+    },
+    "legal": {
+      "work_auth_us": true
+    },
+    "technical_screening": {
+      "years_python": 0
+    },
+    "application_logistics": {
+      "willing_to_relocate": "yes/no/null",
+      "willing_to_travel": "yes/no/null"
+    }
+  }
+}
+"""
+
 from fapi.db.database import get_db
 from fapi.utils.llm_service import call_llm_with_context
 
@@ -168,44 +252,23 @@ def extract_latest_company_bg(user_id: str, resume_json: dict, api_key: str, pro
             try:
                 with engine.connect() as conn:
                     marketing_id = int(user_id)
-                    conn.execute(
-                        text("""
-                        INSERT INTO aiprep_tool_project_context (
-                            user_id, company_name, domain, product, business_problem, previous_system,
-                            key_problems, ai_techniques, agent_usage, impact, evaluation_approach,
-                            challenges_learnings, learnings, future_roadmap,
-                            background, skills, architecture, business_value, role
-                        )
-                        VALUES (:u, :c, :d, :p, :bp, :ps, :kp, :at, :au, :im, :ea, :cl, :l, :fr, :bg, :sk, :ar, :bv, :r)
-                        ON DUPLICATE KEY UPDATE
-                            company_name = VALUES(company_name),
-                            domain = VALUES(domain),
-                            product = VALUES(product),
-                            business_problem = VALUES(business_problem),
-                            previous_system = VALUES(previous_system),
-                            key_problems = VALUES(key_problems),
-                            ai_techniques = VALUES(ai_techniques),
-                            agent_usage = VALUES(agent_usage),
-                            impact = VALUES(impact),
-                            evaluation_approach = VALUES(evaluation_approach),
-                            challenges_learnings = VALUES(challenges_learnings),
-                            learnings = VALUES(learnings),
-                            future_roadmap = VALUES(future_roadmap),
-                            background = VALUES(background),
-                            skills = VALUES(skills),
-                            architecture = VALUES(architecture),
-                            business_value = VALUES(business_value),
-                            role = VALUES(role)
-                        """),
-                        {
-                            "u": marketing_id, "c": company_name, "d": domain, "p": product,
-                            "bp": business_problem, "ps": previous_system, "kp": key_problems,
-                            "at": ai_techniques, "au": agent_usage, "im": impact, "ea": evaluation_approach,
-                            "cl": challenges_learnings, "l": learnings, "fr": future_roadmap,
-                            "bg": background, "sk": json.dumps(skills), "ar": architecture,
-                            "bv": business_value, "r": role
-                        }
-                    )
+                    marketing_id_str = str(marketing_id)
+                    existing = conn.query(AiPrepToolProjectContextORM).filter(AiPrepToolProjectContextORM.user_id == marketing_id_str).first()
+                    fields = {
+                        "company_name": company_name, "domain": domain, "product": product,
+                        "business_problem": business_problem, "previous_system": previous_system,
+                        "key_problems": key_problems, "ai_techniques": ai_techniques,
+                        "agent_usage": agent_usage, "impact": impact,
+                        "evaluation_approach": evaluation_approach, "challenges_learnings": challenges_learnings,
+                        "learnings": learnings, "future_roadmap": future_roadmap,
+                        "background": background, "skills": json.dumps(skills),
+                        "architecture": architecture, "business_value": business_value, "role": role
+                    }
+                    if existing:
+                        for k, v in fields.items(): setattr(existing, k, v)
+                    else:
+                        new_ctx = AiPrepToolProjectContextORM(user_id=marketing_id_str, **fields)
+                        conn.add(new_ctx)
                     conn.commit()
             except Exception as e:
                 logger.error(f"Failed to update project context DB: {e}")
@@ -241,89 +304,7 @@ def process_resume_parsing(content: bytes, filename: str, candidate_id: int, mar
     if not keys:
         raise ValueError("No active LLM API key configured. Please set up your LLM key in 'My LLM Setup' first.")
 
-    system_prompt = """You are an expert resume parsing assistant.
-Your task is to analyze the candidate's raw resume text and extract all details into a clean, structured JSON format matching the standard JSON Resume schema EXACTLY:
-{
-  "basics": {
-    "name": "Candidate Full Name",
-    "label": "Primary Job Title or Role",
-    "image": "",
-    "email": "Email Address (REQUIRED - must be present)",
-    "url": "Personal website or portfolio URL",
-    "summary": "A 2-3 sentence professional summary extracted or inferred from the resume",
-    "location": {
-      "address": "Street Address",
-      "postalCode": "Postal/Zip Code",
-      "city": "City",
-      "countryCode": "Country Code (e.g. US)",
-      "region": "State/Region"
-    },
-    "profiles": [
-      {
-        "network": "LinkedIN",
-        "username": "LinkedIn Username",
-        "url": "Full LinkedIn URL (REQUIRED)"
-      },
-      {
-        "network": "Github",
-        "username": "Github Username",
-        "url": "Full Github URL"
-      }
-    ]
-  },
-  "work": [
-    {
-      "name": "Company Name",
-      "position": "Job Title / Role",
-      "url": "Company URL if available",
-      "startDate": "YYYY-MM-DD",
-      "endDate": "YYYY-MM-DD or 'Present' if current",
-      "summary": "Brief summary of role",
-      "highlights": [
-        "Extract EVERY SINGLE bullet point, achievement, and responsibility listed under this role exactly as they appear",
-        "Do not summarize or truncate the bullet points. Include all of them."
-      ]
-    }
-  ],
-  "education": [
-    {
-      "institution": "University/School Name",
-      "url": "Institution URL if available",
-      "area": "Field of Study / Major",
-      "studyType": "Degree Type (e.g. Masters, Bachelors)",
-      "startDate": "YYYY-MM-DD",
-      "endDate": "YYYY-MM-DD",
-      "score": "GPA if available",
-      "courses": []
-    }
-  ],
-  "skills": [
-    {
-      "name": "Skill Category (e.g. Programming Languages, Frameworks)",
-      "keywords": [
-        "Skill 1",
-        "Skill 2",
-        "Skill 3"
-      ]
-    }
-  ],
-  "custom_fields": {
-    "eeo": {
-      "gender": "decline"
-    },
-    "legal": {
-      "work_auth_us": true
-    },
-    "technical_screening": {
-      "years_python": 0
-    },
-    "application_logistics": {
-      "willing_to_relocate": "yes/no/null",
-      "willing_to_travel": "yes/no/null"
-    }
-  }
-}
-"""
+    system_prompt = RESUME_PARSER_SYSTEM_PROMPT
     used_provider = None
     used_api_key = None
     use_fallback = True
@@ -399,15 +380,8 @@ Your task is to analyze the candidate's raw resume text and extract all details 
 
 def _get_candidate_id(db, user_email: str) -> int:
     from sqlalchemy import text
-    row = db.execute(
-        text("""
-        SELECT c.id 
-        FROM candidate c 
-        JOIN authuser a ON c.email = a.uname 
-        WHERE a.uname = :email
-        """),
-        {"email": user_email}
-    ).fetchone()
+    from fapi.db.models import CandidateORM, AuthUserORM
+    row = db.query(CandidateORM.id).join(AuthUserORM, CandidateORM.email == AuthUserORM.uname).filter(AuthUserORM.uname == user_email).first()
     
     if not row:
         row = db.execute(text("SELECT id FROM candidate WHERE email = :email"), {"email": user_email}).fetchone()
@@ -469,14 +443,9 @@ def save_resume_for_session(db, session_id: str, resume_data: dict) -> None:
     from sqlalchemy import text
     resume_json_str = json.dumps(resume_data)
     marketing_id = int(session_id)
-    db.execute(
-        text("""
-        UPDATE candidate_marketing
-        SET candidate_json = :r
-        WHERE id = :mid
-        """),
-        {"r": resume_json_str, "mid": marketing_id}
-    )
+    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == marketing_id).first()
+    if cm:
+        cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
     db.commit()
 
 from fastapi import HTTPException
@@ -628,10 +597,7 @@ async def sync_from_wbl_logic(data: SyncFromWblRequest, db):
     email = ""
     try:
         candidate_id = int(session_id)
-        result = db.execute(
-            text("SELECT id FROM aiprep_tool_project_context WHERE user_id = :uid"),
-            {"uid": candidate_id}
-        ).fetchone()
+        result = db.query(AiPrepToolProjectContextORM.id).filter(AiPrepToolProjectContextORM.user_id == str(candidate_id)).first()
         needs_extraction = not result
         row = db.execute(
             text("SELECT full_name AS name, email FROM candidate c JOIN candidate_marketing cm ON c.id = cm.candidate_id WHERE cm.id = :mid"),
@@ -653,7 +619,7 @@ async def sync_from_wbl_logic(data: SyncFromWblRequest, db):
 def get_current_user_logic(user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        row = db.execute(text("SELECT full_name FROM candidate WHERE id = :cid"), {"cid": candidate_id}).fetchone()
+        row = db.query(CandidateORM.full_name).filter(CandidateORM.id == candidate_id).first()
         name = row[0] if row and row[0] else "Candidate"
         return {
             "session_id": str(candidate_id),
@@ -667,14 +633,8 @@ def get_current_user_logic(user_email: str, db):
 def get_setup_status_logic(user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        resume_exists = db.execute(
-            text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid AND candidate_json IS NOT NULL"), 
-            {"cid": candidate_id}
-        ).fetchone() is not None
-        keys_exist = db.execute(
-            text("SELECT id FROM candidate_llm_api_keys WHERE candidate_id = :cid LIMIT 1"),
-            {"cid": candidate_id}
-        ).fetchone() is not None
+        resume_exists = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id, CandidateMarketingORM.candidate_json.isnot(None)).first() is not None
+        keys_exist = db.query(CandidateLlmApiKeyORM.id).filter(CandidateLlmApiKeyORM.candidate_id == candidate_id).first() is not None
         return {
             "resume_uploaded": resume_exists,
             "api_keys_configured": keys_exist,
@@ -688,11 +648,14 @@ async def upload_resume_file_logic(file, resume_json, user_email: str, db):
     import json
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing_id_row = db.execute(text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"), {"cid": candidate_id}).fetchone()
-        if not marketing_id_row:
-            db.execute(text("INSERT INTO candidate_marketing (candidate_id, status) VALUES (:cid, 'active')"), {"cid": candidate_id})
+        from datetime import datetime
+        marketing = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+        if not marketing:
+            marketing = CandidateMarketingORM(candidate_id=candidate_id, status='active', start_date=datetime.utcnow().date())
+            db.add(marketing)
             db.commit()
-            marketing_id_row = db.execute(text("SELECT LAST_INSERT_ID()")).fetchone()
+            db.refresh(marketing)
+        marketing_id_row = [marketing.id]
         marketing_id = marketing_id_row[0]
         updated_resume = None
         file_name = file.filename if file else "resume.json"
@@ -717,7 +680,8 @@ async def upload_resume_file_logic(file, resume_json, user_email: str, db):
 def get_resume_logic(user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing_id_row = db.execute(text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"), {"cid": candidate_id}).fetchone()
+        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+        marketing_id_row = [marketing[0]] if marketing else None
         if not marketing_id_row:
             raise HTTPException(status_code=404, detail="Resume not found")
         raw = fetch_resume_raw(db, str(marketing_id_row[0]))
@@ -733,7 +697,8 @@ def get_resume_logic(user_email: str, db):
 def update_resume_logic(body: ResumeCreate, user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing_id_row = db.execute(text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"), {"cid": candidate_id}).fetchone()
+        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+        marketing_id_row = [marketing[0]] if marketing else None
         if not marketing_id_row:
             raise HTTPException(status_code=404, detail="Candidate marketing not found")
         save_resume_for_session(db, str(marketing_id_row[0]), body.resume_json)
@@ -750,22 +715,27 @@ def add_api_key_logic(body: APIKeyCreate, user_email: str, db):
     encrypted_key = encrypt_api_key(body.api_key)
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        dup = db.execute(
-            text("SELECT id FROM candidate_llm_api_keys WHERE candidate_id = :cid AND provider_name = :p AND model_name = :m AND api_key = :k"),
-            {"cid": candidate_id, "p": body.provider_name, "m": body.model_name or "", "k": encrypted_key}
-        ).fetchone()
+        dup = db.query(CandidateLlmApiKeyORM).filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.provider_name == body.provider_name,
+            CandidateLlmApiKeyORM.model_name == (body.model_name or ""),
+            CandidateLlmApiKeyORM.api_key == encrypted_key
+        ).first()
         if dup:
-            db.execute(text("UPDATE candidate_llm_api_keys SET voice_enabled = :v WHERE id = :id"), {"v": int(body.voice_enabled), "id": dup[0]})
+            dup.voice_enabled = body.voice_enabled
             db.commit()
-            row = db.execute(text("SELECT id, provider_name, model_name, voice_enabled, api_key FROM candidate_llm_api_keys WHERE id = :id"), {"id": dup[0]}).mappings().fetchone()
+            db.refresh(dup)
+            row = {"id": dup.id, "provider_name": dup.provider_name, "model_name": dup.model_name, "voice_enabled": dup.voice_enabled, "api_key": dup.api_key}
         else:
-            db.execute(
-                text("INSERT INTO candidate_llm_api_keys (candidate_id, provider_name, api_key, model_name, voice_enabled) VALUES (:cid, :p, :k, :m, :v)"),
-                {"cid": candidate_id, "p": body.provider_name, "k": encrypted_key, "m": body.model_name or "", "v": int(body.voice_enabled)}
+            new_key = CandidateLlmApiKeyORM(
+                candidate_id=candidate_id, provider_name=body.provider_name,
+                api_key=encrypted_key, model_name=body.model_name or "",
+                voice_enabled=body.voice_enabled
             )
+            db.add(new_key)
             db.commit()
-            last_id = db.execute(text("SELECT LAST_INSERT_ID()")).fetchone()[0]
-            row = db.execute(text("SELECT id, provider_name, model_name, voice_enabled, api_key FROM candidate_llm_api_keys WHERE id = :id"), {"id": last_id}).mappings().fetchone()
+            db.refresh(new_key)
+            row = {"id": new_key.id, "provider_name": new_key.provider_name, "model_name": new_key.model_name, "voice_enabled": new_key.voice_enabled, "api_key": new_key.api_key}
         row_dict = dict(row)
         try:
             raw = decrypt_api_key(row_dict["api_key"])
@@ -781,10 +751,8 @@ def add_api_key_logic(body: APIKeyCreate, user_email: str, db):
 def list_api_keys_logic(user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        rows = db.execute(
-            text("SELECT id, provider_name, model_name, voice_enabled, api_key FROM candidate_llm_api_keys WHERE candidate_id = :cid"),
-            {"cid": candidate_id}
-        ).mappings().fetchall()
+        keys = db.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.candidate_id == candidate_id).all()
+        rows = [{"id": k.id, "provider_name": k.provider_name, "model_name": k.model_name, "voice_enabled": k.voice_enabled, "api_key": k.api_key} for k in keys]
         result = []
         for r in rows:
             row_dict = dict(r)
@@ -803,13 +771,10 @@ def list_api_keys_logic(user_email: str, db):
 def delete_api_key_logic(key_id: int, user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        existing = db.execute(
-            text("SELECT id FROM candidate_llm_api_keys WHERE id = :kid AND candidate_id = :cid"),
-            {"kid": key_id, "cid": candidate_id}
-        ).fetchone()
+        existing = db.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.id == key_id, CandidateLlmApiKeyORM.candidate_id == candidate_id).first()
         if not existing:
             raise HTTPException(status_code=404, detail="API key not found")
-        db.execute(text("DELETE FROM candidate_llm_api_keys WHERE id = :kid"), {"kid": key_id})
+        db.delete(existing)
         db.commit()
         return {"message": "API key deleted successfully"}
     except HTTPException:
@@ -821,17 +786,15 @@ def delete_api_key_logic(key_id: int, user_email: str, db):
 def extract_project_logic(user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing_id_row = db.execute(text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"), {"cid": candidate_id}).fetchone()
+        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+        marketing_id_row = [marketing[0]] if marketing else None
         if not marketing_id_row:
             raise HTTPException(status_code=404, detail="Setup not completed yet")
         marketing_id = str(marketing_id_row[0])
         import json
-        row = db.execute(
-            text("SELECT * FROM aiprep_tool_project_context WHERE user_id = :uid"),
-            {"uid": marketing_id}
-        ).mappings().fetchone()
-        if row:
-            res = dict(row)
+        ctx = db.query(AiPrepToolProjectContextORM).filter(AiPrepToolProjectContextORM.user_id == str(marketing_id)).first()
+        if ctx:
+            res = {c.name: getattr(ctx, c.name) for c in ctx.__table__.columns}
             try: res["skills"] = json.loads(res.get("skills") or "[]")
             except: res["skills"] = []
             return res
@@ -843,17 +806,15 @@ def extract_project_logic(user_email: str, db):
 def get_latest_project_logic(user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing_id_row = db.execute(text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"), {"cid": candidate_id}).fetchone()
+        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+        marketing_id_row = [marketing[0]] if marketing else None
         if not marketing_id_row:
             return {}
         marketing_id = str(marketing_id_row[0])
         import json
-        row = db.execute(
-            text("SELECT * FROM aiprep_tool_project_context WHERE user_id = :uid"),
-            {"uid": marketing_id}
-        ).mappings().fetchone()
-        if row:
-            res = dict(row)
+        ctx = db.query(AiPrepToolProjectContextORM).filter(AiPrepToolProjectContextORM.user_id == str(marketing_id)).first()
+        if ctx:
+            res = {c.name: getattr(ctx, c.name) for c in ctx.__table__.columns}
             try: res["skills"] = json.loads(res.get("skills") or "[]")
             except: res["skills"] = []
             return res
