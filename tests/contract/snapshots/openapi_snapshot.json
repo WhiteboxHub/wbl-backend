@@ -46617,6 +46617,14 @@
             ],
             "title": "New Subject Id"
           },
+          "joined_candidate_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Joined Candidate Ids",
+            "default": []
+          },
           "id": {
             "type": "integer",
             "title": "Id"
@@ -46717,6 +46725,20 @@
               }
             ],
             "title": "New Subject Id"
+          },
+          "joined_candidate_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined Candidate Ids"
           }
         },
         "type": "object",
@@ -47066,6 +47088,20 @@
               }
             ],
             "title": "Notes"
+          },
+          "joined_candidate_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined Candidate Ids"
           }
         },
         "type": "object",
@@ -47185,6 +47221,14 @@
               }
             ],
             "title": "Notes"
+          },
+          "joined_candidate_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Joined Candidate Ids",
+            "default": []
           },
           "sessionid": {
             "type": "integer",
@@ -47309,6 +47353,20 @@
               }
             ],
             "title": "Notes"
+          },
+          "joined_candidate_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined Candidate Ids"
           }
         },
         "type": "object",

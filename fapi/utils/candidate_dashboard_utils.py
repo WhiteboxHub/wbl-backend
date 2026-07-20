@@ -6,7 +6,9 @@ All business logic for dashboard operations using SQLAlchemy ORM
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, case, and_, or_, desc, distinct
 from fastapi import HTTPException
+from fapi.db import models
 from fapi.db.models import CandidateInterview
+from fapi.db.models import CandidateRecording, CandidateSession
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -1268,6 +1270,21 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
         cli_count = cli_analytics.jobs_submitted if cli_analytics else 0
         
         easy_apply_counter = autofill_count + cli_count
+
+    classes_joined = db.query(func.count(CandidateRecording.recording_id)).filter(CandidateRecording.candidate_id == candidate_id).scalar() or 0
+
+    sessions_joined = db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate_id).scalar() or 0
+
+    mocks_joined = db.query(func.count(CandidateSession.session_id)).join(
+        models.Session, models.Session.sessionid == CandidateSession.session_id
+    ).filter(
+        CandidateSession.candidate_id == candidate_id,
+        models.Session.type.in_(["Individual Mock", "Group Mock"])
+    ).scalar() or 0
+
+    stats["classes_joined"] = int(classes_joined)
+    stats["sessions_joined"] = int(sessions_joined)
+    stats["mocks_joined"] = int(mocks_joined)
 
     stats["job_listings_clicked"] = int(job_listings_clicked)
     stats["outreach_counter"] = int(outreach_counter)

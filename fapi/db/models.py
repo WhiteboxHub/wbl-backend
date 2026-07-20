@@ -262,7 +262,16 @@ class CandidateORM(Base):
     placement_percentage = Column(Integer, default=13, nullable=True)
     enrollment_status = Column(String(50), default="not completed", nullable=True)
 
-
+    joined_recordings = relationship(
+        "Recording",
+        secondary="candidate_recording",
+        back_populates="joined_candidates"
+    )
+    joined_sessions = relationship(
+        "Session",
+        secondary="candidate_session",
+        back_populates="joined_candidates"
+    )
     interviews = relationship(
         "CandidateInterview", back_populates="candidate", cascade="all, delete-orphan")
     preparations = relationship(
@@ -754,6 +763,15 @@ class Batch(Base):
 
     candidates = relationship("CandidateORM", back_populates="batch")
 
+class CandidateRecording(Base):
+    __tablename__ = "candidate_recording"
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"),primary_key=True)
+    recording_id = Column(Integer, ForeignKey("recording.id", ondelete="CASCADE"), primary_key=True)
+
+class CandidateSession(Base):
+    __tablename__ = "candidate_session"
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), primary_key=True)
+    session_id = Column(Integer, ForeignKey("session.sessionid", ondelete="CASCADE"), primary_key=True)
 
 class Recording(Base):
     __tablename__ = "recording"
@@ -773,7 +791,16 @@ class Recording(Base):
     subject_rel = relationship("Subject", back_populates="recordings")
     recording_batches = relationship(
         "RecordingBatch", back_populates="recording", cascade="all, delete-orphan")
+    
+    joined_candidates = relationship(
+        "CandidateORM",
+        secondary = "candidate_recording",
+        back_populates="joined_recordings",
+    )
 
+    @property
+    def joined_candidate_ids(self):
+        return [c.id for c in self.joined_candidates]
 
 class RecordingBatch(Base):
     __tablename__ = "recording_batch"
@@ -803,6 +830,15 @@ class Session(Base):
     subject = Column(String(45))
     notes = Column(String(100))
   # -------------------Internal documents--------------------
+    joined_candidates = relationship(
+        "CandidateORM",
+        secondary="candidate_session",
+        back_populates="joined_sessions"
+    )
+
+    @property
+    def joined_candidate_ids(self):
+        return [c.id for c in self.joined_candidates]
 
 
 class InternalDocument(Base):
