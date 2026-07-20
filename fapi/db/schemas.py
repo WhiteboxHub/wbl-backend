@@ -2022,6 +2022,7 @@ class RecordingBase(BaseModel):
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class RecordingCreate(RecordingBase):
@@ -2034,7 +2035,7 @@ class RecordingUpdate(RecordingBase):
 
 class RecordingOut(RecordingBase):
     id: int
-
+    joined_candidate_ids: List[int] = []
     @field_validator("lastmoddatetime", mode="before")
     def clean_invalid_datetime(cls, v):
         if v in ("0000-00-00 00:00:00", None, ""):
@@ -2340,6 +2341,7 @@ class SessionBase(BaseModel):
     lastmoddatetime: Optional[datetime] = None
     subject_id: int
     notes: Optional[str] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class SessionCreate(SessionBase):
@@ -2360,7 +2362,7 @@ class Session(SessionBase):
 
 class SessionOut(SessionBase):
     sessionid: int
-
+    joined_candidate_ids: List[int] = []
     @field_validator("sessiondate", mode="before")
     def clean_invalid_date(cls, v):
         if v in ("0000-00-00", None, ""):
