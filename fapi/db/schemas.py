@@ -4775,3 +4775,22 @@ class OutreachEmailOut(OutreachEmailBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+class SetupInit(BaseModel):
+    candidate_email: Optional[str] = None
+    candidate_id: Optional[Union[str, int]] = None
+    marketing_id: Optional[Union[str, int]] = None
+    prep_token: Optional[Union[str, int]] = None
+
+class SyncFromWblRequest(BaseModel):
+    prep_token: str
+
+class ResumeCreate(BaseModel):
+    resume_json: dict
+    file_name: Optional[str] = None
+
+class APIKeyCreate(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
