@@ -6,6 +6,7 @@ from fapi.db.models import EmployeeORM, AuthUserORM
 from fapi.utils.table_fingerprint import generate_version_for_model
 from fastapi import Response
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fapi.core.cache import cache_result, invalidate_cache
 
 
@@ -59,6 +60,12 @@ def create_employee_db(employee_data: dict) -> EmployeeORM:
     with SessionLocal() as session:
         employee = EmployeeORM(**employee_data)
         session.add(employee)
+        
+        if employee.email and employee.status is not None:
+            auth_user = session.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(employee.email)).first()
+            if auth_user:
+                auth_user.status = "active" if int(employee.status) == 1 else "inactive"
+
         session.commit()
         session.refresh(employee)
         return employee
@@ -78,10 +85,14 @@ def update_employee_db(employee_id: int, fields: dict) -> EmployeeORM:
             if hasattr(employee, key):
                 setattr(employee, key, value)
 
-        if "status" in fields:
-            auth_user = session.query(AuthUserORM).filter(AuthUserORM.uname == employee.email).first()
-            if auth_user:
-                auth_user.status = "active" if int(fields["status"]) == 1 else "inactive"
+        if "status" in fields or "email" in fields:
+            if employee.email and employee.status is not None:
+                auth_user = session.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(employee.email)).first()
+                if auth_user:
+                    auth_user.status = "active" if int(employee.status) == 1 else "inactive"
+                    if auth_user.status == "inactive":
+                        auth_user.refresh_token = None
+                        auth_user.refresh_token_expiry = None
 
         session.commit()
         session.refresh(employee)

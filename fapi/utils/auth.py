@@ -54,7 +54,9 @@ def determine_user_role(user):
     with SessionLocal() as db:
         employee = db.query(EmployeeORM).filter(EmployeeORM.email == user.uname).first()
         if employee:
-            return {"role": "employee", "is_admin": True, "is_employee": True}
+            user_role = getattr(user, 'role', 'employee')
+            user_role = user_role.lower() if user_role else 'employee'
+            return {"role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
 
     # Default to candidate
     return {"role": "candidate", "is_admin": False, "is_employee": False}
