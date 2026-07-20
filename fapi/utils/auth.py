@@ -30,19 +30,16 @@
 
 #     # If not a candidate, check if this email exists as an Employee.
 #     # Treat the provided username as an email for employee lookup.
-#     employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
-#     if employee:
-#         # Grant employee an admin-like role for avatar access.
-#         # We set role and is_admin flags; token creation will respect explicit role if provided.
-#         return {**user.__dict__, "candidateid": None, "role": "admin", "is_admin": True, "is_employee": True}
-
-#     # Not a candidate and not an employee
-#     return "not_a_candidate"
 from sqlalchemy.orm import Session
 from fapi.utils.db_queries import get_user_by_username, fetch_candidate_id_and_status_by_email
 from fapi.utils.auth_utils import verify_md5_hash
 from fapi.db.models import EmployeeORM
 
+import os
+
+def _get_admin_emails():
+    emails_env = os.getenv("TEST_ADMIN_EMAILS", "")
+    return {e.strip().lower() for e in emails_env.split(",") if e.strip()}
 
 def determine_user_role(user):
     from fapi.db.database import SessionLocal
@@ -54,8 +51,14 @@ def determine_user_role(user):
     with SessionLocal() as db:
         employee = db.query(EmployeeORM).filter(EmployeeORM.email == user.uname).first()
         if employee:
-            user_role = getattr(user, 'role', 'employee')
-            user_role = user_role.lower() if user_role else 'employee'
+            user_role = getattr(user, 'role', None)
+            if user_role:
+                user_role = user_role.lower()
+            elif user.uname.lower() in _get_admin_emails():
+                user_role = 'admin'
+            else:
+                user_role = 'employee'
+                
             return {"role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
 
     # Default to candidate
@@ -84,8 +87,14 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
     # Treat the provided username as an email for employee lookup.
     employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
     if employee:
-        user_role = getattr(user, 'role', 'employee')
-        user_role = user_role.lower() if user_role else 'employee'
+        user_role = getattr(user, 'role', None)
+        if user_role:
+            user_role = user_role.lower()
+        elif uname.lower() in _get_admin_emails():
+            user_role = 'admin'
+        else:
+            user_role = 'employee'
+            
         return {**user.__dict__, "candidateid": None, "role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
 
     # Not a candidate and not an employee
