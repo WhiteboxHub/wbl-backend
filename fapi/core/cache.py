@@ -18,12 +18,16 @@ def alchemy_encoder(obj: Any) -> Any:
         # For SQLAlchemy ORM objects
         data = dict(obj.__dict__)
         data.pop("_sa_instance_state", None)
+        
+        for attr_name in dir(obj.__class__):
+            attr = getattr(ob.__class__, attr_name)
+            if isinstance(attr, property):
+                try:
+                    data[attr_name] = getattr(obj, attr_name)
+                except Exception:
+                    pass
         return data
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-    if isinstance(obj, Decimal):
-        return float(obj)
-    return str(obj)
+
 
 def generate_cache_key(prefix: str, path: str, params: dict) -> str:
     """Generate a unique cache key with environment isolation."""
