@@ -666,6 +666,7 @@ def run_review(context: str, mode_name: str, metadata: dict = None, verbose: boo
     json_schema = BUG_REPORT_SCHEMA
     
     models_to_try = determine_models(metadata)
+    print(f"DEBUG: determine_models returned {len(models_to_try)} models: {models_to_try}", file=sys.stderr)
     
     start_time = time.time()
     response = None
@@ -674,6 +675,7 @@ def run_review(context: str, mode_name: str, metadata: dict = None, verbose: boo
     
     for model in models_to_try:
         base_url, keys = get_provider_config(model)
+        print(f"DEBUG: get_provider_config for '{model}' returned {len(keys)} keys.", file=sys.stderr)
         if not keys:
             print(f"[Warning] Skipping model {model}: No API key configured for this provider.", file=sys.stderr)
             continue
@@ -684,7 +686,14 @@ def run_review(context: str, mode_name: str, metadata: dict = None, verbose: boo
             client_args = {"api_key": key, "max_retries": 0, "timeout": 120.0}
             if base_url:
                 client_args["base_url"] = base_url
-            client = OpenAI(**client_args)
+            
+            # Print debug for client init
+            print(f"DEBUG: Initializing OpenAI client for key index {idx}", file=sys.stderr)
+            try:
+                client = OpenAI(**client_args)
+            except Exception as init_err:
+                print(f"DEBUG: OpenAI client init failed! {init_err}", file=sys.stderr)
+                continue
             
             try:
                 print(f"Attempting AI Review using model {model} and API Key {idx + 1} of {len(keys)}...", file=sys.stderr)
