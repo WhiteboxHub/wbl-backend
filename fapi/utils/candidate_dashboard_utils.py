@@ -634,7 +634,6 @@ def get_marketing_phase_details(
             "interview_stats": interview_stats,
             "interview_breakdown": _calculate_interview_breakdown(interviews) if interviews else {},
             "top_companies": _get_top_companies_for_candidate(db, candidate_id) if interviews else [],
-            "my_resume_filename": None,
             "has_uploaded_resume": False,
         }
 
@@ -672,7 +671,7 @@ def get_marketing_phase_details(
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
         "my_resume_filename": None,
-        "has_uploaded_resume": getattr(current_marketing, "resume_url", None) is not None,
+        "has_uploaded_resume": getattr(current_marketing, "candidate_json", None) is not None,
     }
 
     # Add historical records if requested
@@ -1388,28 +1387,30 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
         db.commit()
 
         ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
+        
+        # We need the marketing_record ID for the session_id
         session_id = str(marketing_record.id)
-        
         try:
-            files_payload = {"file": (filename, content, file.content_type)}
-            data_payload = {"session_id": session_id}
+            from fapi.utils.aiprep_setup_utils import process_resume_parsing
+            parsed_json = process_resume_parsing(
+                content=content, 
+                filename=filename, 
+                candidate_id=candidate_id, 
+                marketing_id=marketing_record.id, 
+                db=db
+            )
             
-            res = requests.post(f"{ai_backend_url}/parse-binary-resume", files=files_payload, data=data_payload, timeout=60)
-            if not res.ok:
-                logger.error(f"Failed to parse PDF resume in ai-prep-backend: {res.text}")
-                try:
-                    err_json = res.json()
-                    detail = err_json.get("detail", "AI parsing failed.")
-                except Exception:
-                    detail = res.text or "AI parsing failed."
-                raise HTTPException(status_code=400, detail=f"Resume saved, but AI parsing failed: {detail}")
-        except HTTPException:
-            raise
+            # Save the JSON back to the database
+            marketing_record.candidate_json = parsed_json
         except Exception as e:
-            logger.error(f"Error calling ai-prep-backend parsing: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Resume saved, but communication with AI parsing service failed: {str(e)}")
+            db.rollback()
+            logger.error(f"Error parsing resume via LLM: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"AI parsing failed: {str(e)}")
+
+        # Validation passed, AI parsing successful. We intentionally do not save the binary resume to the database.
+        db.commit()
         
-        return {"message": "Resume uploaded and parsed successfully", "filename": filename}
+        return {"message": "Resume uploaded and parsed successfully", "filename": filename, "candidate_json": parsed_json}
     except HTTPException:
         raise
     except Exception as e:
