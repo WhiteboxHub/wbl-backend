@@ -913,8 +913,6 @@ class CandidateMarketingBase(BaseModel):
     run_outreach_emails: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
-    My_Resume: Optional[bytes] = None
-    my_resume_filename: Optional[str] = None
     total_outreach_count: Optional[int] = 0
     daily_outreach_limit: Optional[int] = 250
     max_outreach_limit: Optional[int] = 500
@@ -981,8 +979,6 @@ class CandidateMarketingUpdate(BaseModel):
     run_outreach_emails: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
-    My_Resume: Optional[bytes] = None
-    my_resume_filename: Optional[str] = None
     total_outreach_count: Optional[int] = None
     daily_outreach_limit: Optional[int] = None
     max_outreach_limit: Optional[int] = None

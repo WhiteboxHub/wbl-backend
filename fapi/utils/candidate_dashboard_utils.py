@@ -671,8 +671,8 @@ def get_marketing_phase_details(
         "interview_breakdown": interview_breakdown,
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
-        "my_resume_filename": getattr(current_marketing, "my_resume_filename", None),
-        "has_uploaded_resume": getattr(current_marketing, "My_Resume", None) is not None,
+        "my_resume_filename": None,
+        "has_uploaded_resume": getattr(current_marketing, "resume_url", None) is not None,
     }
 
     # Add historical records if requested
@@ -1385,8 +1385,6 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
             db.flush()
             
         content = await file.read()
-        marketing_record.My_Resume = content
-        marketing_record.my_resume_filename = filename
         db.commit()
 
         ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
