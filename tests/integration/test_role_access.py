@@ -111,7 +111,7 @@ class TestcandidateBlockedOnAdminRoutes:
 
     def test_candidate_blocked_on_get_routes(self, client, candidate_user):
         token = _make_token(
-            candidate_user.id, candidate_user.uname, role="", is_admin=False
+            candidate_user.id, candidate_user.uname, role="candidate", is_admin=False
         )
         headers = _auth_headers(token)
 
@@ -123,7 +123,7 @@ class TestcandidateBlockedOnAdminRoutes:
 
     def test_candidate_blocked_on_post_routes(self, client, candidate_user):
         token = _make_token(
-            candidate_user.id, candidate_user.uname, role="", is_admin=False
+            candidate_user.id, candidate_user.uname, role="candidate", is_admin=False
         )
         headers = _auth_headers(token)
 
