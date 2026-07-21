@@ -124,6 +124,8 @@ def build_all_code_context(repo_path: str) -> Tuple[str, dict]:
     metadata = {"impact_score": "LOW", "signature_changes": 0, "architecture_violations": 0, "lines_changed": 0}
     return "".join(context_parts), metadata
 
+import hashlib
+
 def compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis, changed_signature_names):
     impact_analysis = []
     findings = []
@@ -149,13 +151,26 @@ def compute_downstream_impact(caller_counts, changed_symbols, modified_public_ap
         is_breaking = changed_signature_names.get(sym, True)
         breaking_str = "Breaking" if is_breaking else "Non-Breaking"
         impact_analysis.append(f"- Symbol '{sym}' (Score: {score}, Downstream Impact: {det}, References: {len(callers)}, {breaking_str} Signature)")
-        findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Signature Change", "evidence": f"Signature of '{sym}' was changed ({breaking_str}). Downstream impact score: {score}."})
+        
+        short_hash = hashlib.md5(f"IMPACT-{sym}".encode()).hexdigest()[:8].upper()
+        findings.append({
+            "schemaVersion": 1,
+            "id": f"IMP-{short_hash}",
+            "type": "api_signature",
+            "source": "impact",
+            "severity": "HIGH",
+            "attributes": {
+                "changeType": "signature_modified",
+                "compatibility": "breaking" if is_breaking else "backward_compatible",
+                "affectedCallers": len(callers),
+                "impactScore": score
+            },
+            "evidence": f"Signature of '{sym}' was changed ({breaking_str}). Downstream impact score: {score}."
+        })
     return impact_analysis, findings
 
 def run_static_analysis(f, lines, modified_public_apis):
     findings = []
-    critical = []
-    security_primitives = []
     import hashlib
     f_norm = f.replace("\\", "/")
     if 'api/' in f_norm or 'services/' in f_norm or 'routers/' in f_norm:
@@ -165,7 +180,19 @@ def run_static_analysis(f, lines, modified_public_apis):
         raw_id = f"{f_norm}:{node_lineno}:{prim_type}"
         short_hash = hashlib.md5(raw_id.encode()).hexdigest()[:6].upper()
         sec_id = f"SEC-{short_hash}"
-        security_primitives.append({"id": sec_id, "file": f_norm, "line": node_lineno, "primitive": prim_type, "description": desc})
+        findings.append({
+            "schemaVersion": 1,
+            "id": sec_id,
+            "type": "security_sink",
+            "source": "ast",
+            "severity": "CRITICAL",
+            "attributes": {
+                "sink": prim_type,
+                "sanitizerDetected": False,
+                "reason": desc
+            },
+            "evidence": f"Dangerous sink '{prim_type}' detected: {desc} at line {node_lineno}."
+        })
     
     try:
         src = pathlib.Path(f).read_text(encoding="utf-8")
@@ -177,7 +204,21 @@ def run_static_analysis(f, lines, modified_public_apis):
                 end = getattr(node, 'end_lineno', -1)
                 if start != -1 and end != -1 and any(start <= l <= end for l in lines):
                     if (end - start) > 150:
-                        findings.append({"severity": "MEDIUM", "confidence": "HIGH", "type": "Code Smell", "evidence": f"Function '{node.name}' exceeds 150 lines ({end-start} lines) at line {start}."})
+                        raw_id = f"{f_norm}:{start}:large_function"
+                        smell_id = f"SMELL-{hashlib.md5(raw_id.encode()).hexdigest()[:6].upper()}"
+                        findings.append({
+                            "schemaVersion": 1,
+                            "id": smell_id,
+                            "type": "code_smell",
+                            "source": "ast",
+                            "severity": "MEDIUM",
+                            "attributes": {
+                                "smellType": "large_function",
+                                "lines": end - start,
+                                "reason": f"Function exceeds 150 lines"
+                            },
+                            "evidence": f"Function '{node.name}' exceeds 150 lines ({end-start} lines) at line {start}."
+                        })
                     
                     is_endpoint = False
                     for dec in node.decorator_list:
@@ -193,7 +234,19 @@ def run_static_analysis(f, lines, modified_public_apis):
                                 for a in d.args:
                                     if isinstance(a, ast.Name) and a.id in VALID_AUTH_DEPENDENCIES: has_auth = True
                         if not has_auth:
-                            findings.append({"severity": "HIGH", "confidence": "HIGH", "type": "Architectural Violation", "evidence": f"FastAPI endpoint '{node.name}' at line {start} is missing a valid auth dependency (e.g. Depends(get_current_user))."})
+                            raw_id = f"{f_norm}:{start}:auth_missing"
+                            arch_id = f"ARCH-{hashlib.md5(raw_id.encode()).hexdigest()[:6].upper()}"
+                            findings.append({
+                                "schemaVersion": 1,
+                                "id": arch_id,
+                                "type": "architecture",
+                                "source": "ast",
+                                "severity": "HIGH",
+                                "attributes": {
+                                    "reason": "Missing auth dependency"
+                                },
+                                "evidence": f"FastAPI endpoint '{node.name}' at line {start} is missing a valid auth dependency (e.g. Depends(get_current_user))."
+                            })
                             
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == 'execute':
                 is_sql_target = False
@@ -241,21 +294,21 @@ def run_static_analysis(f, lines, modified_public_apis):
                                 val = node.value.value
                                 if len(val) > 5 and 'ENV_' not in val and not val.startswith('os.getenv'):
                                     if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                                        critical.append(f"[{f}] Potential hardcoded secret assigned to '{target.id}' at line {node.lineno}.")
+                                        add_primitive(node.lineno, "hardcoded_secret", f"Potential hardcoded secret assigned to '{target.id}'")
                             elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'get':
                                 if len(node.value.args) == 2 and isinstance(node.value.args[1], ast.Constant) and isinstance(node.value.args[1].value, str):
                                     if len(node.value.args[1].value) > 3:
                                         if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                                            critical.append(f"[{f}] Hardcoded fallback secret detected in os.getenv or environ.get at line {node.lineno}.")
+                                            add_primitive(node.lineno, "hardcoded_secret", "Hardcoded fallback secret detected in os.getenv or environ.get")
                             elif isinstance(node.value, ast.BoolOp) and isinstance(node.value.op, ast.Or):
                                 for val in node.value.values:
                                     if isinstance(val, ast.Constant) and isinstance(val.value, str) and len(val.value) > 3:
                                         if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
-                                            critical.append(f"[{f}] Hardcoded fallback secret detected in OR expression at line {node.lineno}.")
+                                            add_primitive(node.lineno, "hardcoded_secret", "Hardcoded fallback secret detected in OR expression")
     except Exception:
         pass
     
-    return critical, findings, security_primitives
+    return findings
 
 import json
 import os
@@ -349,21 +402,19 @@ def get_provider_config(model: str) -> Tuple[str, List[str]]:
     return None, []
 
 def _format_ast_findings(findings, impact_analysis, modified_public_apis):
-    final_context = "# 1. AST Findings (Facts)\n"
+    final_context = "# 2. AST Findings (Facts)\n"
     if not findings:
         final_context += "None.\n\n"
     else:
-        for fnd in findings:
-            final_context += f"- [Severity: {fnd['severity']}] [Confidence: {fnd['confidence']}] [Type: {fnd['type']}]\n  Evidence: {fnd['evidence']}\n"
-        final_context += "\n"
+        final_context += "```json\n" + json.dumps(findings, indent=2) + "\n```\n\n"
         
-    final_context += "# 2. Downstream Impact Analysis\n"
+    final_context += "# 3. Downstream Impact Analysis\n"
     if not impact_analysis:
         final_context += "No major downstream impacts detected.\n\n"
     else:
         final_context += "\n".join(impact_analysis) + "\n\n"
         
-    final_context += "# 3. Modified Public APIs\n"
+    final_context += "# 4. Modified Public APIs\n"
     if not modified_public_apis:
         final_context += "None.\n\n"
     else:
@@ -486,7 +537,10 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
             except Exception:
                 pass
 
-        critical = []
+        from reviewer.enrichment import enrich_evidence
+        from reviewer.policy import evaluate_review_policy
+        from reviewer.formatter import format_review_decisions
+        
         findings = []
         modified_public_apis = []
         impact_analysis = []
@@ -494,46 +548,44 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
         impact_analysis, impact_findings = compute_downstream_impact(caller_counts, changed_symbols, modified_public_apis, changed_signature_names)
         findings.extend(impact_findings)
         
-        all_security_primitives = []
         for f, lines in changes.items():
             if not f.endswith('.py') or not pathlib.Path(f).exists():
                 continue
-            c, fnd, prims = run_static_analysis(f, lines, modified_public_apis)
-            critical.extend(c)
+            fnd = run_static_analysis(f, lines, modified_public_apis)
             findings.extend(fnd)
-            all_security_primitives.extend(prims)
 
-        if critical:
-            critical_markdown = "##    CRITICAL AST VIOLATIONS\n\nThe PR has been automatically failed due to critical structural or security violations:\n\n"
-            for c in critical:
-                critical_markdown += f"- **{c}**\n"
-            print(critical_markdown)
+        # Semantic Evidence Enrichment
+        enriched_findings = enrich_evidence(findings)
+        
+        # Review Policy Engine
+        decisions = evaluate_review_policy(enriched_findings)
+        
+        # Deterministic Formatter for CI (CLI Output)
+        ci_output = format_review_decisions(decisions)
+        
+        has_blocking = any(d['priority'] == 'BLOCKING' for d in decisions)
+        
+        if has_blocking:
+            print("##    BLOCKING REVIEW DECISIONS DETECTED\n\nThe PR has been automatically failed due to blocking violations:\n\n")
+            print(ci_output)
             sys.exit(1)
             
         impact_score = "HIGH" if any(len(impact) > 0 for f, impact in caller_counts.items()) else "LOW"
         signature_changes = len(changed_signature_names)
-        architecture_violations = 1 if len(critical) > 0 else 0
+        architecture_violations = sum(1 for d in decisions if d['category'] == 'Architecture')
         lines_changed = sum(len(lns) for lns in changes.values())
         
         metadata = {
             "impact_score": impact_score,
             "signature_changes": signature_changes,
             "architecture_violations": architecture_violations,
-            "lines_changed": lines_changed,
-            "security_primitives": all_security_primitives
+            "lines_changed": lines_changed
         }
         
-        final_context = _format_ast_findings(findings, impact_analysis, modified_public_apis)
+        final_context = "# 1. Code Context (Source of Truth)\n"
+        final_context += format_context_as_markdown(changes, changed_snippets, impact_snippets, diff_text) + "\n\n"
         
-        # Inject AST Security Primitives into the context string
-        if all_security_primitives:
-            prim_markdown = "\n## AST Security Primitives Detected\n\n"
-            for p in all_security_primitives:
-                prim_markdown += f"- [{p['id']}] {p['primitive']} at {p['file']}:{p['line']} ({p['description']})\n"
-            final_context += prim_markdown
-            
-        final_context += "# 5. Code Context\n"
-        final_context += format_context_as_markdown(changes, changed_snippets, impact_snippets, diff_text)
+        final_context += _format_ast_findings(enriched_findings, impact_analysis, modified_public_apis)
             
         return final_context, metadata
     
