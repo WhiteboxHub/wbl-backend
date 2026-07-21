@@ -579,7 +579,9 @@ def build_smart_context(repo_path: str) -> Tuple[str, dict]:
             "impact_score": impact_score,
             "signature_changes": signature_changes,
             "architecture_violations": architecture_violations,
-            "lines_changed": lines_changed
+            "lines_changed": lines_changed,
+            "ci_output": ci_output,
+            "security_primitives": [f for f in enriched_findings if f["type"] == "security_sink"]
         }
         
         final_context = "# 1. Code Context (Source of Truth)\n"
@@ -713,20 +715,18 @@ def run_review(context: str, mode_name: str, metadata: dict = None, verbose: boo
         if response:
             break
                   
-
     if not response:
         print("Gemini API Error: Exhausted all available API keys or hit a fatal error.", file=sys.stderr)
         
         fallback_markdown = "##  AI Reviewer Unavailable\n\n"
         if last_error:
             fallback_markdown += f"**Error Details:** `{str(last_error)}`\n\n"
-        fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic AST findings and downstream impact analysis gathered by the engine:\n\n"
+        fallback_markdown += "The AI code reviewer is currently unavailable or timed out. Below are the deterministic review decisions evaluated by the Policy Engine:\n\n"
         
-        if "##    CRITICAL AST VIOLATIONS" in context or "1. AST Findings (Facts)" in context:
-            fallback_markdown += "###  AST Engine Output\n\n"
-            fallback_markdown += context.split("# 5. Code Context")[0].strip()
+        if metadata and "ci_output" in metadata:
+            fallback_markdown += metadata["ci_output"]
         else:
-            fallback_markdown += "No structural violations detected by the AST engine."
+            fallback_markdown += "No deterministic decisions generated."
             
         print(fallback_markdown)
         return {
@@ -742,7 +742,21 @@ def run_review(context: str, mode_name: str, metadata: dict = None, verbose: boo
 
     elapsed_time = time.time() - start_time
     output_text = response.choices[0].message.content
-    data = json.loads(output_text)
+    
+    # Clean markdown wrappers if present
+    cleaned_text = output_text.strip()
+    if cleaned_text.startswith("```json"):
+        cleaned_text = cleaned_text[7:]
+    elif cleaned_text.startswith("```"):
+        cleaned_text = cleaned_text[3:]
+    if cleaned_text.endswith("```"):
+        cleaned_text = cleaned_text[:-3]
+        
+    try:
+        data = json.loads(cleaned_text.strip())
+    except json.JSONDecodeError as e:
+        print(f"[Error] Failed to parse LLM JSON: {e}", file=sys.stderr)
+        data = {"bugs": []}
     
     input_tokens = getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0
     output_tokens = getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0
