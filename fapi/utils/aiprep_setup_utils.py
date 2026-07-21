@@ -303,7 +303,7 @@ def _get_candidate_id(db, user_email: str) -> int:
     row = db.query(CandidateORM.id).join(AuthUserORM, CandidateORM.email == AuthUserORM.uname).filter(AuthUserORM.uname == user_email).first()
     
     if not row:
-        row = db.execute(text("SELECT id FROM candidate WHERE email = :email"), {"email": user_email}).fetchone()
+        row = db.query(CandidateORM.id).filter(CandidateORM.email == user_email).first()
         
     if not row:
         raise ValueError(f"Candidate profile not found for email: {user_email}")
@@ -375,8 +375,9 @@ from fapi.utils.encryption_utils import encrypt_api_key, decrypt_api_key
 def fetch_resume_raw(db, session_id: str):
     if not session_id or session_id == "null": return None
     try:
+        from fapi.db.models import CandidateMarketingORM
         marketing_id = int(session_id)
-        result = db.execute(text("SELECT candidate_json FROM candidate_marketing WHERE id = :mid"), {"mid": marketing_id}).fetchone()
+        result = db.query(CandidateMarketingORM.candidate_json).filter(CandidateMarketingORM.id == marketing_id).first()
         if not result or not result[0]:
             return None
         raw = result[0]
@@ -397,29 +398,28 @@ def fetch_resume_raw(db, session_id: str):
         return None
 
 def _resolve_session(db, data: SetupInit) -> int:
+    from fapi.db.models import CandidateMarketingORM, CandidateORM
     if data.prep_token:
-        result = db.execute(text("SELECT id FROM candidate_marketing WHERE id = :id"), {"id": int(data.prep_token)}).fetchone()
+        result = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.id == int(data.prep_token)).first()
         if result: return result[0]
     if data.marketing_id:
-        result = db.execute(text("SELECT id FROM candidate_marketing WHERE id = :id"), {"id": int(data.marketing_id)}).fetchone()
+        result = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.id == int(data.marketing_id)).first()
         if result: return result[0]
     candidate_id = None
     if data.candidate_id:
-        result = db.execute(text("SELECT id FROM candidate WHERE id = :id"), {"id": int(data.candidate_id)}).fetchone()
+        result = db.query(CandidateORM.id).filter(CandidateORM.id == int(data.candidate_id)).first()
         if result: candidate_id = result[0]
     if not candidate_id and data.candidate_email:
-        result = db.execute(text("SELECT id FROM candidate WHERE email = :email LIMIT 1"), {"email": data.candidate_email}).fetchone()
+        result = db.query(CandidateORM.id).filter(CandidateORM.email == data.candidate_email).first()
         if result: candidate_id = result[0]
     if candidate_id:
-        result = db.execute(
-            text("SELECT id FROM candidate_marketing WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"),
-            {"cid": candidate_id}
-        ).fetchone()
+        result = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
         if result: return result[0]
-        db.execute(text("INSERT INTO candidate_marketing (candidate_id, status) VALUES (:cid, 'active')"), {"cid": candidate_id})
+        new_cm = CandidateMarketingORM(candidate_id=candidate_id, status='active')
+        db.add(new_cm)
         db.commit()
-        result = db.execute(text("SELECT LAST_INSERT_ID()")).fetchone()
-        return result[0]
+        db.refresh(new_cm)
+        return new_cm.id
     raise HTTPException(status_code=400, detail="Cannot resolve session from provided tokens")
 
 def _upsert_eval_login(db, marketing_id: int):
@@ -430,15 +430,16 @@ def get_resume_summary_logic(session_id: str, db):
         if session_id == "null" or not session_id:
             raise HTTPException(status_code=404, detail="Invalid session ID")
         marketing_id = int(session_id)
-        cand_row = db.execute(
-            text("""
-            SELECT c.full_name AS name, cm.email, cm.candidate_id, (cm.candidate_json IS NOT NULL) AS has_binary_resume
-            FROM candidate_marketing cm
-            JOIN candidate c ON c.id = cm.candidate_id
-            WHERE cm.id = :mid
-            """),
-            {"mid": marketing_id}
-        ).mappings().fetchone()
+        from fapi.db.models import CandidateMarketingORM, CandidateORM
+        cand_result = db.query(
+            CandidateORM.full_name.label("name"),
+            CandidateMarketingORM.email,
+            CandidateMarketingORM.candidate_id,
+            CandidateMarketingORM.candidate_json.isnot(None).label("has_binary_resume")
+        ).join(CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id).filter(
+            CandidateMarketingORM.id == marketing_id
+        ).first()
+        cand_row = cand_result._mapping if cand_result else None
         if not cand_row:
             raise HTTPException(status_code=404, detail="Session/Candidate not found")
         candidate_name = cand_row["name"] if cand_row and cand_row.get("name") else ""
@@ -450,11 +451,15 @@ def get_resume_summary_logic(session_id: str, db):
         llm_keys = []
         has_api_key = False
         if cid:
-            keys = db.execute(
-                text("SELECT id, provider_name, model_name, voice_enabled, created_at FROM candidate_llm_api_keys WHERE candidate_id = :cid ORDER BY id ASC"),
-                {"cid": cid}
-            ).mappings().fetchall()
-            llm_keys = [dict(k) for k in keys]
+            from fapi.db.models import CandidateLlmApiKeyORM
+            keys = db.query(
+                CandidateLlmApiKeyORM.id,
+                CandidateLlmApiKeyORM.provider_name,
+                CandidateLlmApiKeyORM.model_name,
+                CandidateLlmApiKeyORM.voice_enabled,
+                CandidateLlmApiKeyORM.created_at
+            ).filter(CandidateLlmApiKeyORM.candidate_id == cid).order_by(CandidateLlmApiKeyORM.id.asc()).all()
+            llm_keys = [dict(k._mapping) for k in keys]
             has_api_key = len(llm_keys) > 0
         resume_json_out = raw_resume
         resume_filename = ""
@@ -518,10 +523,14 @@ async def sync_from_wbl_logic(data: SyncFromWblRequest, db):
         candidate_id = int(session_id)
         result = db.query(AiPrepToolProjectContextORM.id).filter(AiPrepToolProjectContextORM.user_id == str(candidate_id)).first()
         needs_extraction = not result
-        row = db.execute(
-            text("SELECT full_name AS name, email FROM candidate c JOIN candidate_marketing cm ON c.id = cm.candidate_id WHERE cm.id = :mid"),
-            {"mid": candidate_id}
-        ).mappings().fetchone()
+        from fapi.db.models import CandidateMarketingORM, CandidateORM
+        res = db.query(
+            CandidateORM.full_name.label("name"),
+            CandidateORM.email
+        ).join(CandidateMarketingORM, CandidateORM.id == CandidateMarketingORM.candidate_id).filter(
+            CandidateMarketingORM.id == candidate_id
+        ).first()
+        row = res._mapping if res else None
         if row:
             if row.get("name"):
                 name = row["name"]
