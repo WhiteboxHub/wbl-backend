@@ -15,6 +15,12 @@ class PositionTypeEnum(str, enum.Enum):
     internship = 'internship'
 
 
+class AuthUserRoleEnum(str, enum.Enum):
+    ADMIN = 'admin'
+    EMPLOYEE = 'employee'
+    CANDIDATE = 'candidate'
+
+
 class EmploymentModeEnum(str, enum.Enum):
     onsite = 'onsite'
     hybrid = 'hybrid'

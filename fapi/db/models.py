@@ -6,7 +6,7 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum
+from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum, AuthUserRoleEnum
 
 Base = declarative_base()
 
@@ -40,7 +40,14 @@ class AuthUserORM(Base):
     googleId = Column(String(255))
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
-    role = Column(String(100))
+    role = Column(
+        SQLAEnum(
+            AuthUserRoleEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name='authuser_role_enum'
+        ),
+        server_default='candidate'
+    )
     visa_status = Column(
         SQLAEnum(
             'US_CITIZEN', 'GREEN_CARD', 'GC_EAD', 'I485_EAD', 'I140_APPROVED',
