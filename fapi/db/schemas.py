@@ -16,9 +16,9 @@ class PositionTypeEnum(str, enum.Enum):
 
 
 class AuthUserRoleEnum(str, enum.Enum):
-    ADMIN = 'admin'
-    EMPLOYEE = 'employee'
-    CANDIDATE = 'candidate'
+    admin = 'admin'
+    employee = 'employee'
+    candidate = 'candidate'
 
 
 class EmploymentModeEnum(str, enum.Enum):
