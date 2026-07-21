@@ -66,6 +66,12 @@ def evaluate_review_policy(enriched_evidence: List[Evidence]) -> List[ReviewDeci
             reason = attrs.get("reason", "Code smell detected.")
             recommendation = "Consider refactoring to improve maintainability."
             
+        elif ev_type == "architecture":
+            category = "Architecture"
+            priority = "BLOCKING"
+            reason = attrs.get("reason", "Architecture violation detected.")
+            recommendation = "Verify that appropriate dependencies or decorators are applied according to architecture guidelines."
+                        
         decisions.append({
             "id": ev["id"],
             "priority": priority,
