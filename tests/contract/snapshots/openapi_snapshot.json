@@ -23200,6 +23200,11 @@
         "summary": "Update Run Parameters",
         "description": "Saves the completely built run_parameters JSON back to the DB so it appears in the UI.",
         "operationId": "update_run_parameters_api_weekly_workflow_update_parameters__candidate_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -23576,10 +23581,535 @@
           }
         }
       }
+    },
+    "/api/setup/summary": {
+      "get": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Get Resume Summary",
+        "operationId": "get_resume_summary_api_setup_summary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/init": {
+      "post": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Init Session",
+        "operationId": "init_session_api_setup_init_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupInit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/init-and-summary": {
+      "post": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Init And Summary",
+        "operationId": "init_and_summary_api_setup_init_and_summary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupInit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/sync-from-wbl": {
+      "post": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Sync From Wbl",
+        "operationId": "sync_from_wbl_api_setup_sync_from_wbl_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncFromWblRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/me": {
+      "get": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Get Current User",
+        "operationId": "get_current_user_api_setup_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/setup-status": {
+      "get": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Get Setup Status",
+        "operationId": "get_setup_status_api_setup_setup_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/resume": {
+      "get": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Get Resume",
+        "operationId": "get_resume_api_setup_resume_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Update Resume",
+        "operationId": "update_resume_api_setup_resume_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Upload Resume File",
+        "operationId": "upload_resume_file_api_setup_resume_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_resume_file_api_setup_resume_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/api-keys": {
+      "get": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "List Api Keys",
+        "operationId": "list_api_keys_api_setup_api_keys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Add Api Key",
+        "operationId": "add_api_key_api_setup_api_keys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/APIKeyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/api-keys/{key_id}": {
+      "delete": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Delete Api Key",
+        "operationId": "delete_api_key_api_setup_api_keys__key_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/setup/extract-project": {
+      "post": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Extract Project Endpoint",
+        "operationId": "extract_project_endpoint_api_setup_extract_project_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/setup/latest-project": {
+      "get": {
+        "tags": [
+          "AI Prep Setup"
+        ],
+        "summary": "Get Latest Project",
+        "operationId": "get_latest_project_api_setup_latest_project_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "APIKeyCreate": {
+        "properties": {
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "voice_enabled": {
+            "type": "boolean",
+            "title": "Voice Enabled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_name",
+          "api_key"
+        ],
+        "title": "APIKeyCreate"
+      },
       "ActionEnum": {
         "type": "string",
         "enum": [
@@ -26957,6 +27487,28 @@
         ],
         "title": "Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post"
       },
+      "Body_upload_resume_file_api_setup_resume_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "resume_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume Json"
+          }
+        },
+        "type": "object",
+        "title": "Body_upload_resume_file_api_setup_resume_post"
+      },
       "CampaignEmailCreate": {
         "properties": {
           "workflow_id": {
@@ -29283,29 +29835,6 @@
             ],
             "title": "Candidate Json"
           },
-          "My_Resume": {
-            "anyOf": [
-              {
-                "type": "string",
-                "contentMediaType": "application/octet-stream"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "My Resume"
-          },
-          "my_resume_filename": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "My Resume Filename"
-          },
           "total_outreach_count": {
             "anyOf": [
               {
@@ -29621,29 +30150,6 @@
               }
             ],
             "title": "Candidate Json"
-          },
-          "My_Resume": {
-            "anyOf": [
-              {
-                "type": "string",
-                "contentMediaType": "application/octet-stream"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "My Resume"
-          },
-          "my_resume_filename": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "My Resume Filename"
           },
           "total_outreach_count": {
             "anyOf": [
@@ -29997,29 +30503,6 @@
               }
             ],
             "title": "Candidate Json"
-          },
-          "My_Resume": {
-            "anyOf": [
-              {
-                "type": "string",
-                "contentMediaType": "application/octet-stream"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "My Resume"
-          },
-          "my_resume_filename": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "My Resume Filename"
           },
           "total_outreach_count": {
             "anyOf": [
@@ -31208,6 +31691,18 @@
               }
             ],
             "title": "Enrollment Status"
+          },
+          "candidate_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Json"
           }
         },
         "type": "object",
@@ -46085,6 +46580,31 @@
         ],
         "title": "ResetPasswordRequest"
       },
+      "ResumeCreate": {
+        "properties": {
+          "resume_json": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Resume Json"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resume_json"
+        ],
+        "title": "ResumeCreate"
+      },
       "SessionCreate": {
         "properties": {
           "title": {
@@ -46483,6 +47003,65 @@
         ],
         "title": "SessionUpdate"
       },
+      "SetupInit": {
+        "properties": {
+          "candidate_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Email"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
+          "marketing_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketing Id"
+          },
+          "prep_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prep Token"
+          }
+        },
+        "type": "object",
+        "title": "SetupInit"
+      },
       "SqlExecutionRequest": {
         "properties": {
           "sql_query": {
@@ -46576,6 +47155,19 @@
         },
         "type": "object",
         "title": "SubjectUpdate"
+      },
+      "SyncFromWblRequest": {
+        "properties": {
+          "prep_token": {
+            "type": "string",
+            "title": "Prep Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prep_token"
+        ],
+        "title": "SyncFromWblRequest"
       },
       "TalentSearch": {
         "properties": {

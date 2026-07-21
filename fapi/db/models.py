@@ -1856,3 +1856,36 @@ class ApplicationReportORM(Base):
     human_fields    = Column(Integer)
     automation_rate = Column(DECIMAL(5, 2))
     submitted_at    = Column(DateTime, server_default=func.now(), index=True)
+
+
+class AiPrepToolProjectContextORM(Base):
+    __tablename__ = "aiprep_tool_project_context"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(255), nullable=False, unique=True, index=True)
+    company_name = Column(Text, nullable=True)
+    domain = Column(Text, nullable=True)
+    product = Column(Text, nullable=True)
+    business_problem = Column(Text, nullable=True)
+    previous_system = Column(Text, nullable=True)
+    key_problems = Column(Text, nullable=True)
+    ai_techniques = Column(Text, nullable=True)
+    agent_usage = Column(Text, nullable=True)
+    impact = Column(Text, nullable=True)
+    evaluation_approach = Column(Text, nullable=True)
+    challenges_learnings = Column(Text, nullable=True)
+    learnings = Column(Text, nullable=True)
+    future_roadmap = Column(Text, nullable=True)
+    background = Column(Text, nullable=True)
+    skills = Column(Text, nullable=True)
+    architecture = Column(Text, nullable=True)
+    business_value = Column(Text, nullable=True)
+    role = Column(Text, nullable=True)
+
+
+class EvalLoginORM(Base):
+    __tablename__ = "eval_logins"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    marketing_id = Column(Integer, nullable=False, unique=True, index=True)
+    login_password = Column(String(255), nullable=False)

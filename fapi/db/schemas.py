@@ -862,6 +862,7 @@ class CandidateUpdate(BaseModel):
     move_to_prep: Optional[bool] = None
     placement_percentage: Optional[int] = None
     enrollment_status: Optional[str] = None
+    candidate_json: Optional[Dict[str, Any]] = None
 
     model_config = {
         "from_attributes": True,
@@ -1059,24 +1060,6 @@ class CandidatePlacementUpdate(BaseModel):
 
 
 # ---------------- Candidate Setup Wizard Schemas ----------------
-
-class CandidateResumeBase(BaseModel):
-    resume_json: Dict[str, Any]
-    file_name: Optional[str] = None
-
-class CandidateResumeCreate(CandidateResumeBase):
-    pass
-
-class CandidateResumeUpdate(CandidateResumeBase):
-    pass
-
-class CandidateResumeOut(CandidateResumeBase):
-    id: int
-    candidate_id: int
-    created_at: datetime
-    updated_at: datetime
-    class Config:
-        from_attributes = True
 
 class CandidateAPIKeyBase(BaseModel):
     provider_name: str
@@ -4794,3 +4777,22 @@ class OutreachEmailOut(OutreachEmailBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+class SetupInit(BaseModel):
+    candidate_email: Optional[str] = None
+    candidate_id: Optional[Union[str, int]] = None
+    marketing_id: Optional[Union[str, int]] = None
+    prep_token: Optional[Union[str, int]] = None
+
+class SyncFromWblRequest(BaseModel):
+    prep_token: str
+
+class ResumeCreate(BaseModel):
+    resume_json: dict
+    file_name: Optional[str] = None
+
+class APIKeyCreate(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False

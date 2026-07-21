@@ -32,16 +32,5 @@ def decrypt_api_key(encrypted_key: str) -> str:
     try:
         return f.decrypt(encrypted_key.encode()).decode()
     except Exception as e:
-        # Fallbacks: try DEFAULT_KEY and the alternative key
-        fallbacks = [
-            DEFAULT_KEY,
-            b'7aqK1zhMEO0AF08ewGf1tL6nqY9kA9v8_E00MlsNjLw='
-        ]
-        for key in fallbacks:
-            try:
-                fallback_f = Fernet(key)
-                return fallback_f.decrypt(encrypted_key.encode()).decode()
-            except Exception:
-                continue
         logger.error(f"Decryption failed: {e}")
         return "DECRYPTION_FAILED"

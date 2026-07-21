@@ -155,6 +155,8 @@ def update_candidate(candidate_id: int, candidate_data: dict):
             raise HTTPException(status_code=404, detail="Candidate not found")
 
         for key, value in candidate_data.items():
+            if key == "candidate_json":
+                continue
             # If batchid is explicitly null/None, default it to current batch
             if key == "batchid" and value is None:
                 from fapi.utils.batch_utils import get_current_batch
@@ -209,6 +211,15 @@ def update_candidate(candidate_id: int, candidate_data: dict):
         final_active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
         candidate.move_to_prep = True if final_active_prep else False
 
+        # Update candidate_json in CandidateMarketingORM if provided
+        if "candidate_json" in candidate_data and candidate_data["candidate_json"] is not None:
+            marketing_record = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.candidate_id == candidate_id,
+                CandidateMarketingORM.status == "active"
+            ).order_by(CandidateMarketingORM.id.desc()).first()
+            if marketing_record:
+                marketing_record.candidate_json = candidate_data["candidate_json"]
+
         db.commit()
         db.refresh(candidate)
         return candidate.id
@@ -240,7 +251,7 @@ def delete_candidate(candidate_id: int):
 
 
 def download_candidate_resume(db: Session, record_id: int) -> Response:
-    raise HTTPException(status_code=404, detail="Binary resume file storage is disabled.")
+    raise HTTPException(status_code=404, detail="Binary resumes are no longer supported. Please use the parsed JSON format.")
 
 
 # # -----------------------------------------------Marketing----------------------------
@@ -286,7 +297,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         return None
 
     record_dict = record.__dict__.copy()
-    record_dict["has_uploaded_resume"] = getattr(record, "resume_url", None) is not None
+    record_dict["has_uploaded_resume"] = record.candidate_json is not None
     record_dict.pop("_sa_instance_state", None)
 
     candidate = record.candidate
