@@ -670,6 +670,7 @@ def get_marketing_phase_details(
         "interview_breakdown": interview_breakdown,
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
+        "my_resume_filename": None,
         "has_uploaded_resume": getattr(current_marketing, "candidate_json", None) is not None,
     }
 
@@ -1383,6 +1384,9 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
             db.flush()
             
         content = await file.read()
+        db.commit()
+
+        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
         
         # We need the marketing_record ID for the session_id
         session_id = str(marketing_record.id)

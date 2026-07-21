@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Optional, List, Literal, Dict, Any
 from datetime import time, date, datetime, timedelta
 from sqlalchemy import Column, Integer, String, Enum, DateTime, UniqueConstraint, Boolean, Date, Time, DECIMAL, Float, BigInteger, Text, ForeignKey, TIMESTAMP, Enum as SQLAEnum, func, text, JSON, Index, FetchedValue, Computed, LargeBinary
+from sqlalchemy.dialects.mysql import BIGINT as MySQL_BIGINT
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
@@ -9,6 +10,7 @@ import enum
 from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum
 
 Base = declarative_base()
+BigIntegerUnsigned = BigInteger().with_variant(MySQL_BIGINT(unsigned=True), "mysql")
 
 
 
@@ -338,6 +340,7 @@ class CandidateMarketingORM(Base):
     run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
+
     # Outreach Metrics
     total_outreach_count = Column(Integer, nullable=False, default=0, server_default="0")
     daily_outreach_limit = Column(Integer, nullable=False, default=250, server_default="250")
@@ -1261,7 +1264,7 @@ class JobLinkClicksORM(Base):
 class DeliveryEngineORM(Base):
     __tablename__ = "delivery_engines"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(BigIntegerUnsigned, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     engine_type = Column(SQLAEnum("smtp", "mailgun", "sendgrid", "aws_ses", "outlook_api"), nullable=False)
     host = Column(String(255), nullable=True)
@@ -1287,7 +1290,7 @@ class DeliveryEngineORM(Base):
 class EmailTemplateORM(Base):
     __tablename__ = "email_templates"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(BigIntegerUnsigned, primary_key=True, autoincrement=True)
     template_key = Column(String(100), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
@@ -1299,29 +1302,29 @@ class EmailTemplateORM(Base):
     version = Column(Integer, server_default="1")
     created_time = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
     last_mod_time = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-    last_mod_user_id = Column(BigInteger, nullable=True)
+    last_mod_user_id = Column(BigIntegerUnsigned, nullable=True)
 
 
 # -------------------- Automation Workflows --------------------
 class AutomationWorkflowORM(Base):
     __tablename__ = "automation_workflows"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(BigIntegerUnsigned, primary_key=True, autoincrement=True)
     workflow_key = Column(String(128), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     workflow_type = Column(SQLAEnum("email_sender", "extractor", "transformer", "webhook", "sync"), nullable=False)
     owner_id = Column(Integer, ForeignKey("employee.id"), nullable=True)
     status = Column(SQLAEnum("draft", "active", "paused", "inactive", "archived"), nullable=False, server_default="draft")
-    email_template_id = Column(BigInteger, ForeignKey("email_templates.id"), nullable=True)
-    delivery_engine_id = Column(BigInteger, ForeignKey("delivery_engines.id"), nullable=True)
+    email_template_id = Column(BigIntegerUnsigned, ForeignKey("email_templates.id"), nullable=True)
+    delivery_engine_id = Column(BigIntegerUnsigned, ForeignKey("delivery_engines.id"), nullable=True)
     credentials_list_sql = Column(Text, nullable=True)
     recipient_list_sql = Column(Text, nullable=True)
     parameters_config = Column(JSON, nullable=True)
     version = Column(Integer, nullable=False, server_default="1")
     created_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
-    last_mod_user_id = Column(BigInteger, nullable=True)
+    last_mod_user_id = Column(BigIntegerUnsigned, nullable=True)
 
     # Relationships
     owner = relationship("EmployeeORM")
@@ -1333,8 +1336,8 @@ class AutomationWorkflowORM(Base):
 class AutomationWorkflowScheduleORM(Base):
     __tablename__ = "automation_workflows_schedule"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    automation_workflow_id = Column(BigInteger, ForeignKey("automation_workflows.id"), nullable=False)
+    id = Column(BigIntegerUnsigned, primary_key=True, autoincrement=True)
+    automation_workflow_id = Column(BigIntegerUnsigned, ForeignKey("automation_workflows.id"), nullable=False)
     timezone = Column(String(64), nullable=False, server_default="America/Los_Angeles")
     cron_expression = Column(String(64), nullable=True)
     frequency = Column(SQLAEnum("once", "daily", "weekly", "monthly", "custom"), nullable=False)
@@ -1355,9 +1358,9 @@ class AutomationWorkflowScheduleORM(Base):
 class AutomationWorkflowLogORM(Base):
     __tablename__ = "automation_workflow_logs"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    workflow_id = Column(BigInteger, ForeignKey("automation_workflows.id"), nullable=False)
-    schedule_id = Column(BigInteger, ForeignKey("automation_workflows_schedule.id"), nullable=True)
+    id = Column(BigIntegerUnsigned, primary_key=True, autoincrement=True)
+    workflow_id = Column(BigIntegerUnsigned, ForeignKey("automation_workflows.id"), nullable=False)
+    schedule_id = Column(BigIntegerUnsigned, ForeignKey("automation_workflows_schedule.id"), nullable=True)
     run_id = Column(String(64), nullable=False)
     status = Column(SQLAEnum("queued", "running", "success", "failed", "partial_success", "timed_out"), nullable=False, server_default="queued")
     parameters_used = Column(JSON, nullable=True)
@@ -1380,16 +1383,16 @@ class AutomationWorkflowLogORM(Base):
 class CampaignEmailORM(Base):
     __tablename__ = "campaign_emails"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(BigIntegerUnsigned, primary_key=True, autoincrement=True)
     workflow_id = Column(
-        BigInteger,
+        BigIntegerUnsigned,
         ForeignKey("automation_workflows.id", ondelete="CASCADE"),
         nullable=False,
     )
     candidate_id = Column(Integer, nullable=False)
     vendor_email = Column(String(150), nullable=False)
     scheduler_id = Column(
-        BigInteger,
+        BigIntegerUnsigned,
         ForeignKey("automation_workflows_schedule.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -1409,7 +1412,7 @@ class CampaignEmailORM(Base):
     last_attempt_at = Column(DateTime, nullable=True)
 
     run_log_id = Column(
-        BigInteger,
+        BigIntegerUnsigned,
         ForeignKey("automation_workflow_logs.id", ondelete="SET NULL"),
         nullable=True,
     )
