@@ -320,7 +320,9 @@ def load_registry():
         try:
             import requests
             res = requests.get(gist_url, timeout=3)
-            return res.json()
+            data = res.json()
+            if "MODEL_CAPABILITIES" in data:
+                return data
         except Exception:
             pass
             
@@ -328,30 +330,34 @@ def load_registry():
     try:
         registry_path = os.path.join(os.path.dirname(__file__), "model_registry.json")
         with open(registry_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            if "MODEL_CAPABILITIES" in data:
+                return data
     except Exception:
-        # Ultimate fail-safe
-        return {
-            "MODEL_CAPABILITIES": {
-                "deepseek-reasoner": ["reasoning", "coding"],
-                "gemini-2.5-pro": ["reasoning", "large_context"],
-                "gpt-4o": ["reasoning", "coding", "large_context"],
-                "deepseek-chat": ["balanced", "coding"],
-                "gemini-3.5-flash": ["fast", "large_context"],
-                "gpt-4o-mini": ["fast", "balanced"],
-                "gemini-3.1-flash-lite": ["fast", "cost_efficient"]
-            },
-            "MODEL_SCORES": {
-                "deepseek-reasoner": 10,
-                "gemini-2.5-pro": 9,
-                "gpt-4o": 8,
-                "deepseek-chat": 8,
-                "gemini-3.5-flash": 7,
-                "gpt-4o-mini": 6,
-                "gemini-3.1-flash-lite": 5
-            },
-            "TAG_WEIGHTS": {"reasoning": 5, "coding": 3, "large_context": 2, "balanced": 1, "fast": 1, "cost_efficient": 0}
-        }
+        pass
+        
+    # Ultimate fail-safe
+    return {
+        "MODEL_CAPABILITIES": {
+            "deepseek-reasoner": ["reasoning", "coding"],
+            "gemini-2.5-pro": ["reasoning", "large_context"],
+            "gpt-4o": ["reasoning", "coding", "large_context"],
+            "deepseek-chat": ["balanced", "coding"],
+            "gemini-3.5-flash": ["fast", "large_context"],
+            "gpt-4o-mini": ["fast", "balanced"],
+            "gemini-3.1-flash-lite": ["fast", "cost_efficient"]
+        },
+        "MODEL_SCORES": {
+            "deepseek-reasoner": 10,
+            "gemini-2.5-pro": 9,
+            "gpt-4o": 8,
+            "deepseek-chat": 8,
+            "gemini-3.5-flash": 7,
+            "gpt-4o-mini": 6,
+            "gemini-3.1-flash-lite": 5
+        },
+        "TAG_WEIGHTS": {"reasoning": 5, "coding": 3, "large_context": 2, "balanced": 1, "fast": 1, "cost_efficient": 0}
+    }
 
 REGISTRY = load_registry()
 MODEL_CAPABILITIES = {k: set(v) for k, v in REGISTRY.get("MODEL_CAPABILITIES", {}).items()}
