@@ -40,8 +40,19 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-logging.basicConfig(level=logging.INFO)
+from fastapi.responses import JSONResponse
+import logging
 logger = logging.getLogger("wbl")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception during request: %s %s: %s", request.method, request.url, exc)
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"}
+    )
 
 @app.on_event("startup")
 async def startup_event():
@@ -59,12 +70,40 @@ async def startup_event():
     Base.metadata.create_all(bind=engine, checkfirst=True)
 
         
-    # Ensure outreach_date column exists (for older DB schemas)
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE candidate_marketing ADD COLUMN outreach_date DATE"))
-    except Exception as e:
-        logger.info(f"outreach_date column may already exist or failed to add: {e}")
+    # Ensure missing columns exist (for older DB schemas)
+    cm_cols = [
+        ("candidate_marketing", [
+            ("outreach_date", "DATE"),
+            ("run_daily_workflow", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("run_weekly_workflow", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("run_email_extraction", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("run_raw_positions_workflow", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("run_outreach_emails", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("linkedin_post", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("candidate_json", "JSON NULL"),
+            ("total_outreach_count", "INT NOT NULL DEFAULT 0"),
+            ("daily_outreach_limit", "INT NOT NULL DEFAULT 250"),
+            ("max_outreach_limit", "INT NOT NULL DEFAULT 500"),
+            ("fcount", "INT NOT NULL DEFAULT 0"),
+        ]),
+        ("candidate", [
+            ("placement_percentage", "INT NULL DEFAULT 13"),
+            ("enrollment_status", "VARCHAR(50) NULL DEFAULT 'not completed'"),
+        ]),
+        ("candidate_interview", [
+            ("duration_minutes", "INT NULL DEFAULT 60"),
+        ])
+    ]
+    with engine.connect() as conn:
+        for tbl, cols in cm_cols:
+            try:
+                existing = [row[0] for row in conn.execute(text(f"SHOW COLUMNS FROM {tbl}"))]
+                for col_name, col_type in cols:
+                    if col_name not in existing:
+                        conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+            except Exception as e:
+                logger.info(f"Column sync check error for {tbl}: {e}")
 
     # Ensure user_id column exists in application_report (for older DB schemas)
     try:
