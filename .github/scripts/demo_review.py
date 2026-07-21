@@ -321,7 +321,7 @@ def load_registry():
             import requests
             res = requests.get(gist_url, timeout=3)
             data = res.json()
-            if "MODEL_CAPABILITIES" in data:
+            if data.get("MODEL_CAPABILITIES"):
                 return data
         except Exception:
             pass
@@ -331,7 +331,7 @@ def load_registry():
         registry_path = os.path.join(os.path.dirname(__file__), "model_registry.json")
         with open(registry_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if "MODEL_CAPABILITIES" in data:
+            if data.get("MODEL_CAPABILITIES"):
                 return data
     except Exception:
         pass
