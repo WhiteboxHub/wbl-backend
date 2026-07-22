@@ -164,7 +164,7 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "tools": [{"googleSearchRetrieval": {}}]
+        "tools": [{"googleSearch": {}}]
     }
     
     res = requests.post(url, json=payload, timeout=15)
@@ -217,7 +217,7 @@ def extract_new_model_specs(new_model_name, provider):
                 logger.info(f"Classification successful with {scout_model}: {result}")
                 return result
             except Exception as e:
-                logger.debug(f"Scout model {scout_model} failed with a key: {e}")
+                logger.warning(f"Scout model {scout_model} failed with a key: {e}")
                 continue
             
     logger.warning(f"All scout models and keys failed for {new_model_name}. Defaulting to pending.")
