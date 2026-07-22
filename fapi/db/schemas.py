@@ -4893,6 +4893,8 @@ class CoderpadDetectProviderRequest(BaseModel):
 class CoderpadDetectProviderResponse(BaseModel):
     provider_name: Optional[str] = None
     models: List[str] = []
+    status: Optional[str] = None
+    message: Optional[str] = None
 
 
 class CoderpadDiscoverModelsRequest(BaseModel):
