@@ -582,17 +582,26 @@ def update_candidate_llm_key_to_db(
         else:
             status_val = "inactive"
 
-        r.status = status_val
+        if r.status != status_val:
+            r.status = status_val
+            status_updated = True
         r.failure_reason = failure_reason
         r.last_validated_at = datetime.now(timezone.utc) if status_val != "inactive" else None
         
         # If the key is updated to inactive/invalid, it can no longer be default
         if status_val != "active":
             r.is_default = False
-        
-        status_updated = True
     elif not _row_secret(r):
         raise ValueError("API key is required")
+    elif status is not None:
+        status_val = status.strip().lower()
+        if status_val not in ("active", "inactive", "invalid", "credits_exhausted"):
+            status_val = "inactive"
+        if r.status != status_val:
+            r.status = status_val
+            status_updated = True
+            if status_val != "active":
+                r.is_default = False
 
     r.provider_name = provider
     r.model_name = (model_name or r.model_name or _default_model_for_provider(provider)).strip()
