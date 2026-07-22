@@ -4796,3 +4796,141 @@ class APIKeyCreate(BaseModel):
     api_key: str
     model_name: Optional[str] = None
     voice_enabled: bool = False
+
+
+# --- LLM Key & Coderpad Schemas ---
+
+class CandidateLlmApiKeyCreate(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+    status: Optional[str] = None
+
+
+class CandidateLlmApiKeyUpdate(BaseModel):
+    provider_name: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    voice_enabled: Optional[bool] = None
+
+
+class CandidateLlmApiKeyResponse(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[Union[str, datetime]] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+    validation_status: str = "inactive"
+    validation_message: Optional[str] = None
+
+
+class CandidateLlmKeyListItemOut(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[Union[str, datetime]] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+    status: str = "inactive"
+    validation_status: str = "inactive"
+    validation_message: Optional[str] = None
+
+
+class CoderpadMyOpenaiKeyStatusOut(BaseModel):
+    has_key: bool
+    status: str
+
+
+class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
+    masked_key: str
+
+
+class CoderpadMyOpenaiKeyRevealOut(BaseModel):
+    api_key: str
+
+
+class CoderpadSaveOpenaiKeyRequest(BaseModel):
+    api_key: str
+
+
+class CoderpadSaveLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+    status: Optional[str] = None
+
+
+class CoderpadUpdateLlmKeyRequest(BaseModel):
+    provider_name: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    voice_enabled: Optional[bool] = None
+
+
+class CoderpadLlmKeyValidateItemIn(BaseModel):
+    id: int
+    provider_name: str
+    source: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchIn(BaseModel):
+    keys: List[CoderpadLlmKeyValidateItemIn] = []
+    session_id: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateResultOut(BaseModel):
+    id: int
+    status: str
+    message: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchOut(BaseModel):
+    results: List[CoderpadLlmKeyValidateResultOut] = []
+
+
+class CoderpadLlmKeyVoiceEnabledIn(BaseModel):
+    voice_enabled: bool
+
+
+class CoderpadLlmKeyIsDefaultIn(BaseModel):
+    is_default: bool
+
+
+class CoderpadDetectProviderRequest(BaseModel):
+    api_key: str
+
+
+class CoderpadDetectProviderResponse(BaseModel):
+    provider_name: Optional[str] = None
+    models: List[str] = []
+
+
+class CoderpadDiscoverModelsRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+    key_id: Optional[int] = None
+
+
+class CoderpadDiscoverModelsResponse(BaseModel):
+    models: List[str] = []
+
+
+class CoderpadValidateSingleKeyRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+
+
+class CoderpadValidateSingleKeyResponse(BaseModel):
+    valid: bool
+    status: str
+    message: Optional[str] = None
+
+
+
+
+
