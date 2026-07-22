@@ -619,6 +619,7 @@ def update_candidate_llm_key_to_db(
         db.commit()
 
 
+
 def save_candidate_openai_key_to_db(
     db: Session,
     current_user: AuthUserORM,
