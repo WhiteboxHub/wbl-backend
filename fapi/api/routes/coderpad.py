@@ -257,6 +257,12 @@ def validate_single_llm_key(
 ):
     """Validate a single raw API key against a provider adapter."""
     provider = normalize_llm_provider_name(body.provider_name)
+    if not body.api_key or not body.api_key.strip():
+        return CoderpadValidateSingleKeyResponse(
+            valid=False,
+            status="INVALID",
+            message="API key is required."
+        )
     adapter = get_adapter(provider)
     if not adapter:
         return CoderpadValidateSingleKeyResponse(
