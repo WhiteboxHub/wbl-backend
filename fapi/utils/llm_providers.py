@@ -776,4 +776,8 @@ def detect_provider(api_key: str) -> Tuple[Optional[str], List[str], str]:
                 models = FALLBACK_MODELS.get(provider_name, [])
             return provider_name, models, status
 
+    if matched_providers:
+        p_name, _ = matched_providers[0]
+        return p_name, FALLBACK_MODELS.get(p_name, []), "inactive"
+
     return None, [], "inactive"

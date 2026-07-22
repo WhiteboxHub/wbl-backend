@@ -19,15 +19,14 @@ def test_llm_discover_models(client, admin_headers):
     assert "models" in data
     assert len(data["models"]) > 0
 
-@patch("fapi.utils.llm_execution_service.execute_llm_request_with_failover")
-def test_llm_failover_routing(mock_execute, client, admin_headers):
+@patch("fapi.utils.llm_providers.OpenAIProviderAdapter.execute_request")
+def test_llm_failover_routing(mock_execute, client, candidate_db_user, candidate_headers):
     # Setup mock to return a standard structure
-    mock_execute.return_value = {
-        "passed": True,
-        "summary": "Mock passed",
-        "feedback": "Great code!",
-        "confidence": 0.95
-    }
+    mock_execute.return_value = (
+        '{"passed": true, "summary": "Mock passed", "feedback": "Great code!", "confidence": 0.95}',
+        None,
+        200
+    )
 
     payload = {
         "problem_statement": "Write a function that returns double the input",
@@ -37,7 +36,8 @@ def test_llm_failover_routing(mock_execute, client, admin_headers):
             {"input": "5", "expected_output": "10", "description": "Double 5"}
         ]
     }
-    response = client.post("/api/coderpad/llm-validate", json=payload, headers=admin_headers)
+    headers = {**candidate_headers, "X-OpenAI-Api-Key": "sk-proj-testkeyoverride12345678901234567890"}
+    response = client.post("/api/coderpad/llm-validate", json=payload, headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["passed"] is True

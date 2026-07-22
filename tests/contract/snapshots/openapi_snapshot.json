@@ -33656,16 +33656,39 @@
       },
       "CoderpadMyOpenaiKeyPreviewOut": {
         "properties": {
-          "masked_key": {
-            "type": "string",
-            "title": "Masked Key"
+          "has_stored_key": {
+            "type": "boolean",
+            "title": "Has Stored Key"
+          },
+          "masked_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Masked Preview"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Id"
           }
         },
         "type": "object",
         "required": [
-          "masked_key"
+          "has_stored_key"
         ],
-        "title": "CoderpadMyOpenaiKeyPreviewOut"
+        "title": "CoderpadMyOpenaiKeyPreviewOut",
+        "description": "OpenAI row in ``candidate_llm_api_keys`` for this user\u2019s ``candidate.id`` (masked only)."
       },
       "CoderpadMyOpenaiKeyRevealOut": {
         "properties": {
@@ -33682,21 +33705,22 @@
       },
       "CoderpadMyOpenaiKeyStatusOut": {
         "properties": {
-          "has_key": {
+          "configured": {
             "type": "boolean",
-            "title": "Has Key"
+            "title": "Configured"
           },
-          "status": {
-            "type": "string",
-            "title": "Status"
+          "stored_in_db": {
+            "type": "boolean",
+            "title": "Stored In Db"
           }
         },
         "type": "object",
         "required": [
-          "has_key",
-          "status"
+          "configured",
+          "stored_in_db"
         ],
-        "title": "CoderpadMyOpenaiKeyStatusOut"
+        "title": "CoderpadMyOpenaiKeyStatusOut",
+        "description": "``configured``: LLM can run (DB or env). ``stored_in_db``: row in ``candidate_llm_api_keys``."
       },
       "CoderpadQuestionCreate": {
         "properties": {
@@ -34526,14 +34550,7 @@
       "CoderpadUpdateLlmKeyRequest": {
         "properties": {
           "provider_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Provider Name"
           },
           "api_key": {
@@ -34559,18 +34576,26 @@
             "title": "Model Name"
           },
           "voice_enabled": {
+            "type": "boolean",
+            "title": "Voice Enabled",
+            "default": false
+          },
+          "status": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Voice Enabled"
+            "title": "Status"
           }
         },
         "type": "object",
+        "required": [
+          "provider_name"
+        ],
         "title": "CoderpadUpdateLlmKeyRequest"
       },
       "CoderpadValidateSingleKeyRequest": {

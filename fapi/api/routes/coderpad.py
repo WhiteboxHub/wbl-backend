@@ -546,15 +546,18 @@ def llm_validate_coderpad(
                 error=error_msg,
             )
     else:
-        res = execute_llm_request_with_failover(
-            db=db,
-            current_user=current_user,
-            system_prompt=CODERPAD_VALIDATE_SYSTEM_PROMPT,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=2000,
-        )
-        content = res["content"] or ""
+        try:
+            res = execute_llm_request_with_failover(
+                db=db,
+                current_user=current_user,
+                system_prompt=CODERPAD_VALIDATE_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=2000,
+            )
+            content = res["content"] or ""
+        except LookupError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     parsed = _parse_json_from_text(content)
     if not parsed:
@@ -570,7 +573,7 @@ def llm_validate_coderpad(
         passed=parsed.get("passed"),
         summary=str(parsed.get("summary", "") or ""),
         feedback=str(parsed.get("feedback", "") or ""),
-        confidence=parsed.get("confidence"),
+        confidence=str(parsed.get("confidence")) if parsed.get("confidence") is not None else None,
         raw_model_text=content,
         error=None,
     )

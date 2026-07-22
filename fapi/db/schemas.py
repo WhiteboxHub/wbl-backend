@@ -4389,6 +4389,7 @@ class CoderpadUpdateLlmKeyRequest(BaseModel):
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     voice_enabled: bool = False
+    status: Optional[str] = None
 
 
 class CandidateLlmKeyListItemOut(BaseModel):
@@ -4840,15 +4841,6 @@ class CandidateLlmKeyListItemOut(BaseModel):
     validation_message: Optional[str] = None
 
 
-class CoderpadMyOpenaiKeyStatusOut(BaseModel):
-    has_key: bool
-    status: str
-
-
-class CoderpadMyOpenaiKeyPreviewOut(BaseModel):
-    masked_key: str
-
-
 class CoderpadMyOpenaiKeyRevealOut(BaseModel):
     api_key: str
 
@@ -4863,13 +4855,6 @@ class CoderpadSaveLlmKeyRequest(BaseModel):
     model_name: Optional[str] = None
     voice_enabled: bool = False
     status: Optional[str] = None
-
-
-class CoderpadUpdateLlmKeyRequest(BaseModel):
-    provider_name: Optional[str] = None
-    api_key: Optional[str] = None
-    model_name: Optional[str] = None
-    voice_enabled: Optional[bool] = None
 
 
 class CoderpadLlmKeyValidateItemIn(BaseModel):
