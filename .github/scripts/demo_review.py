@@ -256,7 +256,7 @@ def run_static_analysis(f, lines, modified_public_apis):
                     is_sql_target = True
                 
                 if is_sql_target:
-                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                    if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                         add_primitive(node.lineno, "sql_execution", "Direct SQL execution (.execute()) detected")
                         
             # Shell execution sinks
@@ -272,17 +272,17 @@ def run_static_analysis(f, lines, modified_public_apis):
                         if kw.arg == 'shell' and isinstance(kw.value, ast.Constant) and kw.value.value is True:
                             is_shell, desc = True, f"subprocess.{node.func.attr}(shell=True) detected"
                 
-                if is_shell and hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                if is_shell and hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                     add_primitive(node.lineno, "shell_execution", desc)
 
                 # Dynamic execution sinks
                 if isinstance(node.func, ast.Name) and node.func.id in ('eval', 'exec'):
-                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                    if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                         add_primitive(node.lineno, "dynamic_code_execution", f"{node.func.id}() call detected")
                         
                 # Template injection sinks
                 if isinstance(node.func, ast.Name) and node.func.id == 'render_template_string':
-                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                    if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                         add_primitive(node.lineno, "html_rendering", "render_template_string() call detected")
                     
             if isinstance(node, ast.Assign):
@@ -293,17 +293,17 @@ def run_static_analysis(f, lines, modified_public_apis):
                             if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
                                 val = node.value.value
                                 if len(val) > 5 and 'ENV_' not in val and not val.startswith('os.getenv'):
-                                    if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                                    if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                                         add_primitive(node.lineno, "hardcoded_secret", f"Potential hardcoded secret assigned to '{target.id}'")
                             elif isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'get':
                                 if len(node.value.args) == 2 and isinstance(node.value.args[1], ast.Constant) and isinstance(node.value.args[1].value, str):
                                     if len(node.value.args[1].value) > 3:
-                                        if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                                        if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                                             add_primitive(node.lineno, "hardcoded_secret", "Hardcoded fallback secret detected in os.getenv or environ.get")
                             elif isinstance(node.value, ast.BoolOp) and isinstance(node.value.op, ast.Or):
                                 for val in node.value.values:
                                     if isinstance(val, ast.Constant) and isinstance(val.value, str) and len(val.value) > 3:
-                                        if hasattr(node, 'lineno') and any(node.lineno == l for l in lines):
+                                        if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
                                             add_primitive(node.lineno, "hardcoded_secret", "Hardcoded fallback secret detected in OR expression")
     except Exception:
         pass
