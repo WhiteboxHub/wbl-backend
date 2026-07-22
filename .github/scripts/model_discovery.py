@@ -3,6 +3,7 @@ import json
 import logging
 import requests
 import re
+import time
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
@@ -199,7 +200,7 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     return {"caps": caps, "tier": tier}
 
 def extract_new_model_specs(new_model_name, provider):
-    scout_candidates = ["gemini-flash", "gemini-pro"]
+    scout_candidates = ["gemini-3.5-flash"]
     gemini_keys = get_gemini_api_keys()
     
     if not gemini_keys:
@@ -348,6 +349,8 @@ def sync_and_update_models():
                 "scout": specs["scout"]
             }
             logger.info(f"Added {live_model} to staging area (unverified).")
+            # Wait to avoid rate limiting when processing many new models
+            time.sleep(15)
         else:
             # Model already exists in metadata
             meta = model_metadata[live_model]
