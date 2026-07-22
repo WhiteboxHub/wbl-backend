@@ -1386,7 +1386,6 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
         content = await file.read()
         db.commit()
 
-        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
         
         # We need the marketing_record ID for the session_id
         session_id = str(marketing_record.id)
