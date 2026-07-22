@@ -218,6 +218,7 @@ def _voice_enabled_by_provider_from_api_keys(
 ) -> Dict[str, bool]:
     """``candidate_api_keys.voice_enabled`` keyed by lowercased provider name."""
     try:
+        # candidate_api_keys has no ORM model; all values are parameterized (safe). # nosec B608
         rows = db.execute(
             text(
                 """
@@ -262,17 +263,9 @@ def _llm_key_db_columns(db: Session) -> set[str]:
             pass
 
     try:
-        rows = db.execute(
-            text(
-                """
-                SELECT COLUMN_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'candidate_llm_api_keys'
-                """
-            )
-        ).fetchall()
-        cached = {str(r[0]).lower() for r in rows}
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(db.get_bind())
+        cached = {c["name"].lower() for c in inspector.get_columns("candidate_llm_api_keys")}
     except Exception:
         cached = {
             "id",
@@ -306,18 +299,16 @@ def _default_flags_for_keys(
     if not _llm_has_column(db, "is_default"):
         return {key_ids[0]: True} if key_ids else {}
     try:
-        rows = db.execute(
-            text(
-                """
-                SELECT id, is_default
-                FROM candidate_llm_api_keys
-                WHERE candidate_id = :cid
-                """
-            ),
-            {"cid": candidate_id},
-        ).fetchall()
         wanted = {int(i) for i in key_ids}
-        return {int(r[0]): bool(r[1]) for r in rows if int(r[0]) in wanted}
+        rows = (
+            db.query(CandidateLlmApiKeyORM.id, CandidateLlmApiKeyORM.is_default)
+            .filter(
+                CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                CandidateLlmApiKeyORM.id.in_(wanted),
+            )
+            .all()
+        )
+        return {int(r.id): bool(r.is_default) for r in rows}
     except Exception:
         return {}
 
@@ -326,18 +317,15 @@ def _has_default_key(db: Session, candidate_id: int) -> bool:
     if not _llm_has_column(db, "is_default"):
         return False
     try:
-        row = db.execute(
-            text(
-                """
-                SELECT 1
-                FROM candidate_llm_api_keys
-                WHERE candidate_id = :cid AND is_default = 1
-                LIMIT 1
-                """
-            ),
-            {"cid": candidate_id},
-        ).first()
-        return row is not None
+        exists = (
+            db.query(CandidateLlmApiKeyORM.id)
+            .filter(
+                CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                CandidateLlmApiKeyORM.is_default.is_(True),
+            )
+            .first()
+        )
+        return exists is not None
     except Exception:
         return False
 
@@ -371,18 +359,15 @@ def _is_key_default(db: Session, candidate_id: int, key_id: int) -> bool:
     if not _llm_has_column(db, "is_default"):
         return False
     try:
-        row = db.execute(
-            text(
-                """
-                SELECT is_default
-                FROM candidate_llm_api_keys
-                WHERE candidate_id = :cid AND id = :kid
-                LIMIT 1
-                """
-            ),
-            {"cid": candidate_id, "kid": key_id},
-        ).first()
-        return bool(row[0]) if row else False
+        row = (
+            db.query(CandidateLlmApiKeyORM.is_default)
+            .filter(
+                CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                CandidateLlmApiKeyORM.id == key_id,
+            )
+            .first()
+        )
+        return bool(row.is_default) if row else False
     except Exception:
         return False
 
@@ -401,6 +386,7 @@ def _sync_voice_enabled_to_api_keys(
     """Keep ``candidate_api_keys.voice_enabled`` aligned when that row exists."""
     p = (provider_name or "OpenAI").strip()
     try:
+        # candidate_api_keys has no ORM model; all values are parameterized (safe). # nosec B608
         db.execute(
             text(
                 """

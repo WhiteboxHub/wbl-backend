@@ -1,71 +1,80 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status, Query, Response
+import logging
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+
 from fapi.db.database import get_db
 from fapi.db.models import AuthUserORM, CodeSnippetORM, CodeExecutionLogORM
 from fapi.db.schemas import (
-    CodeSnippetCreate,
-    CodeSnippetUpdate,
-    CodeSnippetOut,
-    CodeSnippetListOut,
+    CandidateLlmKeyListItemOut,
+    CodeExecutionLogOut,
     CodeExecutionRequest,
     CodeExecutionWithTestsResponse,
-    CodeExecutionLogOut,
-    CoderpadTrackingLogsResponse,
-    CoderpadQuestionCreate,
-    CoderpadQuestionUpdate,
-    CoderpadQuestionOut,
+    CodeSnippetCreate,
+    CodeSnippetListOut,
+    CodeSnippetOut,
+    CodeSnippetUpdate,
     CoderpadAssignableCandidateOut,
-    CoderpadLlmValidateRequest,
-    CoderpadLlmValidateResponse,
-    CoderpadLlmGenerateRequest,
-    CoderpadLlmGenerateResponse,
-    CoderpadMyOpenaiKeyStatusOut,
-    CoderpadMyOpenaiKeyPreviewOut,
-    CoderpadMyOpenaiKeyRevealOut,
-    CoderpadSaveOpenaiKeyRequest,
-    CoderpadSaveLlmKeyRequest,
-    CoderpadUpdateLlmKeyRequest,
-    CandidateLlmKeyListItemOut,
-    CoderpadLlmKeyValidateBatchIn,
-    CoderpadLlmKeyValidateBatchOut,
-    CoderpadLlmKeyValidateResultOut,
-    CoderpadLlmKeyVoiceEnabledIn,
-    CoderpadLlmKeyIsDefaultIn,
-    CoderpadValidateSingleKeyRequest,
-    CoderpadValidateSingleKeyResponse,
-)
-from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
-from fapi.utils import coderpad_utils
-from fapi.utils.coderpad_llm_utils import llm_validate_code_submission, llm_generate_question_from_topic
-from fapi.utils.coderpad_openai_key import (
-    CODERPAD_MISSING_OPENAI_KEY_MSG,
-    candidate_has_openai_key_in_db,
-    get_stored_openai_key_for_owner,
-    openai_key_configured_for_user,
-    openai_key_db_preview_for_user,
-    resolve_coderpad_openai_api_key,
-    save_candidate_openai_key_to_db,
-    create_candidate_llm_key_to_db,
-    update_candidate_llm_key_to_db,
-    list_candidate_llm_keys_for_user,
-    reveal_candidate_llm_key_by_id,
-    delete_candidate_llm_key_for_user,
-    update_candidate_llm_key_voice_enabled,
-    update_candidate_llm_key_is_default,
-    validate_llm_key_batch_for_user,
-    finish_setup_for_user,
-)
-from fapi.db.schemas import (
     CoderpadDetectProviderRequest,
     CoderpadDetectProviderResponse,
     CoderpadDiscoverModelsRequest,
     CoderpadDiscoverModelsResponse,
+    CoderpadLlmGenerateRequest,
+    CoderpadLlmGenerateResponse,
+    CoderpadLlmKeyIsDefaultIn,
+    CoderpadLlmKeyValidateBatchIn,
+    CoderpadLlmKeyValidateBatchOut,
+    CoderpadLlmKeyValidateResultOut,
+    CoderpadLlmKeyVoiceEnabledIn,
+    CoderpadLlmValidateRequest,
+    CoderpadLlmValidateResponse,
+    CoderpadMyOpenaiKeyPreviewOut,
+    CoderpadMyOpenaiKeyRevealOut,
+    CoderpadMyOpenaiKeyStatusOut,
+    CoderpadQuestionCreate,
+    CoderpadQuestionOut,
+    CoderpadQuestionUpdate,
+    CoderpadSaveLlmKeyRequest,
+    CoderpadSaveOpenaiKeyRequest,
+    CoderpadTrackingLogsResponse,
+    CoderpadUpdateLlmKeyRequest,
+    CoderpadValidateSingleKeyRequest,
+    CoderpadValidateSingleKeyResponse,
+)
+from fapi.utils import coderpad_utils
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
+from fapi.utils.coderpad_llm_utils import (
+    _build_validation_user_prompt,
+    _parse_json_from_text,
+    CODERPAD_GENERATE_SYSTEM_PROMPT,
+    CODERPAD_VALIDATE_SYSTEM_PROMPT,
+)
+from fapi.utils.coderpad_openai_key import (
+    CODERPAD_MISSING_OPENAI_KEY_MSG,
+    candidate_has_openai_key_in_db,
+    create_candidate_llm_key_to_db,
+    delete_candidate_llm_key_for_user,
+    finish_setup_for_user,
+    get_stored_openai_key_for_owner,
+    list_candidate_llm_keys_for_user,
+    openai_key_configured_for_user,
+    openai_key_db_preview_for_user,
+    reveal_candidate_llm_key_by_id,
+    save_candidate_openai_key_to_db,
+    update_candidate_llm_key_is_default,
+    update_candidate_llm_key_to_db,
+    update_candidate_llm_key_voice_enabled,
+    validate_llm_key_batch_for_user,
 )
 from fapi.utils.llm_execution_service import execute_llm_request_with_failover
-from fapi.utils.coderpad_llm_utils import _parse_json_from_text, CODERPAD_VALIDATE_SYSTEM_PROMPT, CODERPAD_GENERATE_SYSTEM_PROMPT, _build_validation_user_prompt
-from fapi.utils.llm_providers import detect_provider, get_adapter, FALLBACK_MODELS, _default_model_for_provider, normalize_llm_provider_name
-import logging
+from fapi.utils.llm_providers import (
+    _default_model_for_provider,
+    detect_provider,
+    FALLBACK_MODELS,
+    get_adapter,
+    normalize_llm_provider_name,
+)
 
 logger = logging.getLogger(__name__)
 
