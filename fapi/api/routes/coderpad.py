@@ -32,6 +32,8 @@ from fapi.db.schemas import (
     CoderpadLlmKeyValidateResultOut,
     CoderpadLlmKeyVoiceEnabledIn,
     CoderpadLlmKeyIsDefaultIn,
+    CoderpadValidateSingleKeyRequest,
+    CoderpadValidateSingleKeyResponse,
 )
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.utils import coderpad_utils
@@ -54,6 +56,15 @@ from fapi.utils.coderpad_openai_key import (
     validate_llm_key_batch_for_user,
     finish_setup_for_user,
 )
+from fapi.db.schemas import (
+    CoderpadDetectProviderRequest,
+    CoderpadDetectProviderResponse,
+    CoderpadDiscoverModelsRequest,
+    CoderpadDiscoverModelsResponse,
+)
+from fapi.utils.llm_execution_service import execute_llm_request_with_failover
+from fapi.utils.coderpad_llm_utils import _parse_json_from_text, CODERPAD_VALIDATE_SYSTEM_PROMPT, CODERPAD_GENERATE_SYSTEM_PROMPT, _build_validation_user_prompt
+from fapi.utils.llm_providers import detect_provider, get_adapter, FALLBACK_MODELS, _default_model_for_provider, normalize_llm_provider_name
 import logging
 
 logger = logging.getLogger(__name__)
@@ -146,6 +157,7 @@ def create_my_llm_key(
             body.api_key,
             body.model_name,
             body.voice_enabled,
+            body.status,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -171,6 +183,7 @@ def update_my_llm_key(
             body.api_key,
             body.model_name,
             body.voice_enabled,
+            body.status,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -210,6 +223,117 @@ def reveal_my_llm_key(
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return CoderpadMyOpenaiKeyRevealOut(api_key=raw)
+
+
+@router.post("/me/llm-keys/detect-provider", response_model=CoderpadDetectProviderResponse)
+def detect_llm_provider(
+    body: CoderpadDetectProviderRequest,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Detect provider, validate, and retrieve models for an API key."""
+    try:
+        p_name, models, status_val = detect_provider(body.api_key)
+        return CoderpadDetectProviderResponse(
+            provider_name=p_name,
+            models=models,
+            status=status_val,
+            message="Active and verified" if status_val == "active" else f"Provider: {p_name}, status: {status_val}"
+        )
+    except Exception as e:
+        return CoderpadDetectProviderResponse(
+            provider_name=None,
+            models=[],
+            status="inactive",
+            message=str(e)
+        )
+
+
+@router.post("/me/llm-keys/validate", response_model=CoderpadValidateSingleKeyResponse)
+def validate_single_llm_key(
+    body: CoderpadValidateSingleKeyRequest,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Validate a single raw API key against a provider adapter."""
+    provider = normalize_llm_provider_name(body.provider_name)
+    if not body.api_key or not body.api_key.strip():
+        return CoderpadValidateSingleKeyResponse(
+            valid=False,
+            status="INVALID",
+            message="API key is required."
+        )
+    adapter = get_adapter(provider)
+    if not adapter:
+        return CoderpadValidateSingleKeyResponse(
+            valid=False,
+            status="INVALID",
+            message="Provider not supported."
+        )
+    try:
+        status_val, message = adapter.validate_key(body.api_key)
+        if status_val == "active":
+            return CoderpadValidateSingleKeyResponse(
+                valid=True,
+                status="ACTIVE",
+                message="API key validated successfully."
+            )
+        elif status_val == "credits_exhausted":
+            return CoderpadValidateSingleKeyResponse(
+                valid=False,
+                status="CREDITS_EXHAUSTED",
+                message="Your API key is valid, but there are no available credits or quota. Please add credits and validate the key again."
+            )
+        elif status_val == "invalid":
+            return CoderpadValidateSingleKeyResponse(
+                valid=False,
+                status="INVALID",
+                message="Invalid API key. Please enter a valid API key."
+            )
+        else:
+            return CoderpadValidateSingleKeyResponse(
+                valid=False,
+                status="INACTIVE",
+                message="Unable to validate the API key right now. Please try again."
+            )
+    except Exception as e:
+        logger.exception(f"Error in validate_single_llm_key: {e}")
+        return CoderpadValidateSingleKeyResponse(
+            valid=False,
+            status="INACTIVE",
+            message="Unable to validate the API key right now. Please try again."
+        )
+
+
+@router.post("/me/llm-keys/discover-models", response_model=CoderpadDiscoverModelsResponse)
+def discover_llm_models(
+    body: CoderpadDiscoverModelsRequest,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieve available models for a given provider and API key / stored key."""
+    api_key = body.api_key
+    if body.key_id:
+        try:
+            api_key = reveal_candidate_llm_key_by_id(db, current_user, body.key_id)
+        except Exception:
+            pass
+
+    if not api_key:
+        models = FALLBACK_MODELS.get(body.provider_name) or FALLBACK_MODELS.get(normalize_llm_provider_name(body.provider_name)) or []
+        return CoderpadDiscoverModelsResponse(models=models)
+
+    adapter = get_adapter(body.provider_name)
+    if not adapter:
+        models = FALLBACK_MODELS.get(body.provider_name) or FALLBACK_MODELS.get(normalize_llm_provider_name(body.provider_name)) or []
+        return CoderpadDiscoverModelsResponse(models=models)
+
+    try:
+        models = adapter.list_models(api_key)
+        return CoderpadDiscoverModelsResponse(models=models)
+    except Exception:
+        models = FALLBACK_MODELS.get(body.provider_name) or FALLBACK_MODELS.get(normalize_llm_provider_name(body.provider_name)) or []
+        return CoderpadDiscoverModelsResponse(models=models)
 
 
 @router.patch("/me/llm-keys/{key_id}/voice-enabled", status_code=status.HTTP_204_NO_CONTENT)
@@ -385,32 +509,80 @@ def llm_validate_coderpad(
     db: Session = Depends(get_db),
 ):
     """
-    Validate candidate code against the problem + test cases using OpenAI.
-    Uses ``X-OpenAI-Api-Key`` when provided; otherwise the candidate's **default**
-  My LLM key when OpenAI, else latest OpenAI row, then server env keys.
+    Validate candidate code against the problem + test cases using LLM execution service with failover.
     """
-    key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
-
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
-        )
     if not (body.problem_statement or "").strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="problem_statement is required",
         )
-    model = (body.model or "gpt-4o-mini").strip()
-    result = llm_validate_code_submission(
-        problem_statement=body.problem_statement.strip(),
-        code=body.code,
-        language=body.language or "python",
-        test_cases=body.test_cases,
-        openai_api_key=key,
-        model=model,
+    user_prompt = _build_validation_user_prompt(
+        body.problem_statement.strip(),
+        body.code,
+        body.language or "python",
+        body.test_cases
     )
-    return CoderpadLlmValidateResponse(**result)
+
+    if x_openai_api_key and x_openai_api_key.strip():
+        header_key = x_openai_api_key.strip()
+        provider_name, models, status_val = detect_provider(header_key)
+        provider = provider_name or "OpenAI"
+        adapter = get_adapter(provider)
+        if not adapter:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported override provider: {provider}",
+            )
+        model = (body.model or _default_model_for_provider(provider)).strip()
+        content, error_msg, status_code = adapter.execute_request(
+            api_key=header_key,
+            model=model,
+            system_prompt=CODERPAD_VALIDATE_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.2,
+            max_tokens=2000,
+        )
+        if error_msg:
+            return CoderpadLlmValidateResponse(
+                passed=None,
+                summary="",
+                feedback="",
+                confidence=None,
+                raw_model_text=None,
+                error=error_msg,
+            )
+    else:
+        try:
+            res = execute_llm_request_with_failover(
+                db=db,
+                current_user=current_user,
+                system_prompt=CODERPAD_VALIDATE_SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=2000,
+            )
+            content = res["content"] or ""
+        except LookupError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    parsed = _parse_json_from_text(content)
+    if not parsed:
+        return CoderpadLlmValidateResponse(
+            passed=None,
+            summary="Could not parse model output",
+            feedback=content[:8000],
+            confidence=None,
+            raw_model_text=content,
+            error=None,
+        )
+    return CoderpadLlmValidateResponse(
+        passed=parsed.get("passed"),
+        summary=str(parsed.get("summary", "") or ""),
+        feedback=str(parsed.get("feedback", "") or ""),
+        confidence=str(parsed.get("confidence")) if parsed.get("confidence") is not None else None,
+        raw_model_text=content,
+        error=None,
+    )
 
 
 @router.post("/llm-generate", response_model=CoderpadLlmGenerateResponse)
@@ -423,33 +595,88 @@ def llm_generate_question(
     """
     Generate a CoderPad question (title, statement, starter code, test cases) from a topic.
     """
-    key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
-        )
     if not (body.topic or "").strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="topic is required",
         )
+    user_prompt = f"""Generate a coding problem based on the following topic: "{body.topic.strip()}".
+The target programming language is {body.language or "python"}.
 
-    model = (body.model or "gpt-4o-mini").strip()
-    result = llm_generate_question_from_topic(
-        topic=body.topic.strip(),
-        language=body.language or "python",
-        openai_api_key=key,
-        model=model,
-    )
+Format requirements for `problem_statement`:
+- Use rich HTML formatting in the style of LeetCode or HackerRank.
+- Start with a clear problem description wrapped in appropriate <p> tags.
+- Include an "Examples" section with at least two examples (Input, Output, and Explanation). Use <pre> or <code> blocks and <strong> text for clarity.
+- Include a "Constraints" section (e.g., as a <ul> list).
+- Ensure the formatting uses proper spacing and alignment, utilizing HTML tags.
 
-    if result.get("error"):
+Output EXACTLY this JSON format and no accompanying text:
+{{
+  "title": "<A concise title for the assignment>",
+  "problem_statement": "<The richly formatted HTML string containing the description, examples, and constraints.>",
+  "starter_code": "<Initial code template for the candidate to start with. Should include function signature.>",
+  "language": "{body.language or "python"}",
+  "test_cases": [
+    {{
+      "input": "<string of input, or empty if args are passed in code directly>",
+      "expected_output": "<string of expected output when the function is run>",
+      "description": "<short description of what this tests>",
+      "locked": false
+    }}
+  ]
+}}
+Ensure you generate 3 to 5 test cases. Ensure starter_code has necessary imports and a working function signature.
+"""
+
+    if x_openai_api_key and x_openai_api_key.strip():
+        header_key = x_openai_api_key.strip()
+        provider_name, models, status_val = detect_provider(header_key)
+        provider = provider_name or "OpenAI"
+        adapter = get_adapter(provider)
+        if not adapter:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported override provider: {provider}",
+            )
+        model = (body.model or _default_model_for_provider(provider)).strip()
+        content, error_msg, status_code = adapter.execute_request(
+            api_key=header_key,
+            model=model,
+            system_prompt=CODERPAD_GENERATE_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.3,
+            max_tokens=3000,
+        )
+        if error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_msg,
+            )
+    else:
+        res = execute_llm_request_with_failover(
+            db=db,
+            current_user=current_user,
+            system_prompt=CODERPAD_GENERATE_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.3,
+            max_tokens=3000,
+        )
+        content = res["content"] or ""
+
+    parsed = _parse_json_from_text(content)
+    if not parsed:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result["error"]
+            detail="Could not parse model output as JSON.",
         )
-
-    return CoderpadLlmGenerateResponse(**result)
+    return CoderpadLlmGenerateResponse(
+        title=parsed.get("title", ""),
+        problem_statement=parsed.get("problem_statement", ""),
+        starter_code=parsed.get("starter_code", ""),
+        language=parsed.get("language", body.language or "python"),
+        test_cases=parsed.get("test_cases", []),
+        error=None,
+    )
 
 
 @router.post("/questions/{question_id}/update-statement-with-llm", response_model=CoderpadLlmGenerateResponse)
@@ -461,51 +688,101 @@ def update_question_statement_with_llm(
     db: Session = Depends(get_db),
 ):
     """
-    Generate an updated problem statement for an existing CoderPad question using LLM.
-    Takes the same topic/language/model as llm-generate, generates a new statement,
-    and updates the question with the generated content.
+    Generate an updated problem statement for an existing CoderPad question using LLM execution service with failover.
     """
-    # Verify question exists
     question_row = coderpad_utils.get_question_by_id(db, question_id)
     if not question_row:
         raise HTTPException(status_code=404, detail="Question not found")
-
-    key = resolve_coderpad_openai_api_key(db, current_user, x_openai_api_key)
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=CODERPAD_MISSING_OPENAI_KEY_MSG,
-        )
     if not (body.topic or "").strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="topic is required",
         )
+    user_prompt = f"""Generate a coding problem based on the following topic: "{body.topic.strip()}".
+The target programming language is {body.language or "python"}.
 
-    model = (body.model or "gpt-4o-mini").strip()
-    result = llm_generate_question_from_topic(
-        topic=body.topic.strip(),
-        language=body.language or "python",
-        openai_api_key=key,
-        model=model,
-    )
+Format requirements for `problem_statement`:
+- Use rich HTML formatting in the style of LeetCode or HackerRank.
+- Start with a clear problem description wrapped in appropriate <p> tags.
+- Include an "Examples" section with at least two examples (Input, Output, and Explanation). Use <pre> or <code> blocks and <strong> text for clarity.
+- Include a "Constraints" section (e.g., as a <ul> list).
+- Ensure the formatting uses proper spacing and alignment, utilizing HTML tags.
 
-    if result.get("error"):
+Output EXACTLY this JSON format and no accompanying text:
+{{
+  "title": "<A concise title for the assignment>",
+  "problem_statement": "<The richly formatted HTML string containing the description, examples, and constraints.>",
+  "starter_code": "<Initial code template for the candidate to start with. Should include function signature.>",
+  "language": "{body.language or "python"}",
+  "test_cases": [
+    {{
+      "input": "<string of input, or empty if args are passed in code directly>",
+      "expected_output": "<string of expected output when the function is run>",
+      "description": "<short description of what this tests>",
+      "locked": false
+    }}
+  ]
+}}
+Ensure you generate 3 to 5 test cases. Ensure starter_code has necessary imports and a working function signature.
+"""
+
+    if x_openai_api_key and x_openai_api_key.strip():
+        header_key = x_openai_api_key.strip()
+        provider_name, models, status_val = detect_provider(header_key)
+        provider = provider_name or "OpenAI"
+        adapter = get_adapter(provider)
+        if not adapter:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported override provider: {provider}",
+            )
+        model = (body.model or _default_model_for_provider(provider)).strip()
+        content, error_msg, status_code = adapter.execute_request(
+            api_key=header_key,
+            model=model,
+            system_prompt=CODERPAD_GENERATE_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.3,
+            max_tokens=3000,
+        )
+        if error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_msg,
+            )
+    else:
+        res = execute_llm_request_with_failover(
+            db=db,
+            current_user=current_user,
+            system_prompt=CODERPAD_GENERATE_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.3,
+            max_tokens=3000,
+        )
+        content = res["content"] or ""
+
+    parsed = _parse_json_from_text(content)
+    if not parsed:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result["error"]
+            detail="Could not parse model output as JSON.",
         )
 
-    # Update the question with the generated content
     update_data = CoderpadQuestionUpdate(
-        problem_statement=result.get("problem_statement"),
-        starter_code=result.get("starter_code"),
-        test_cases=result.get("test_cases"),
-        language=result.get("language", body.language or "python"),
+        problem_statement=parsed.get("problem_statement"),
+        starter_code=parsed.get("starter_code"),
+        test_cases=parsed.get("test_cases"),
+        language=parsed.get("language", body.language or "python"),
     )
     coderpad_utils.update_question(db, question_row, update_data)
-
-    return CoderpadLlmGenerateResponse(**result)
+    return CoderpadLlmGenerateResponse(
+        title=parsed.get("title", ""),
+        problem_statement=parsed.get("problem_statement", ""),
+        starter_code=parsed.get("starter_code", ""),
+        language=parsed.get("language", body.language or "python"),
+        test_cases=parsed.get("test_cases", []),
+        error=None,
+    )
 
 
 @router.post("/snippets/{snippet_id}/execute", response_model=CodeExecutionWithTestsResponse)

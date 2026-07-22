@@ -20875,6 +20875,150 @@
         }
       }
     },
+    "/api/coderpad/me/llm-keys/detect-provider": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Detect Llm Provider",
+        "description": "Detect provider, validate, and retrieve models for an API key.",
+        "operationId": "detect_llm_provider_api_coderpad_me_llm_keys_detect_provider_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoderpadDetectProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoderpadDetectProviderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/coderpad/me/llm-keys/validate": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Validate Single Llm Key",
+        "description": "Validate a single raw API key against a provider adapter.",
+        "operationId": "validate_single_llm_key_api_coderpad_me_llm_keys_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoderpadValidateSingleKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoderpadValidateSingleKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/coderpad/me/llm-keys/discover-models": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Discover Llm Models",
+        "description": "Retrieve available models for a given provider and API key / stored key.",
+        "operationId": "discover_llm_models_api_coderpad_me_llm_keys_discover_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoderpadDiscoverModelsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoderpadDiscoverModelsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/coderpad/me/llm-keys/{key_id}/voice-enabled": {
       "patch": {
         "tags": [
@@ -21337,7 +21481,7 @@
           "CoderPad"
         ],
         "summary": "Llm Validate Coderpad",
-        "description": "Validate candidate code against the problem + test cases using OpenAI.\n  Uses ``X-OpenAI-Api-Key`` when provided; otherwise the candidate's **default**\nMy LLM key when OpenAI, else latest OpenAI row, then server env keys.",
+        "description": "Validate candidate code against the problem + test cases using LLM execution service with failover.",
         "operationId": "llm_validate_coderpad_api_coderpad_llm_validate_post",
         "security": [
           {
@@ -21469,7 +21613,7 @@
           "CoderPad"
         ],
         "summary": "Update Question Statement With Llm",
-        "description": "Generate an updated problem statement for an existing CoderPad question using LLM.\nTakes the same topic/language/model as llm-generate, generates a new statement,\nand updates the question with the generated content.",
+        "description": "Generate an updated problem statement for an existing CoderPad question using LLM execution service with failover.",
         "operationId": "update_question_statement_with_llm_api_coderpad_questions__question_id__update_statement_with_llm_post",
         "security": [
           {
@@ -29585,6 +29729,9 @@
           "entry_date": {
             "anyOf": [
               {
+                "type": "string"
+              },
+              {
                 "type": "string",
                 "format": "date-time"
               },
@@ -29603,6 +29750,27 @@
             "type": "boolean",
             "title": "Is Default",
             "default": false
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "inactive"
+          },
+          "validation_status": {
+            "type": "string",
+            "title": "Validation Status",
+            "default": "inactive"
+          },
+          "validation_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Message"
           }
         },
         "type": "object",
@@ -33078,6 +33246,93 @@
         ],
         "title": "CoderpadAssignableCandidateOut"
       },
+      "CoderpadDetectProviderRequest": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key"
+        ],
+        "title": "CoderpadDetectProviderRequest"
+      },
+      "CoderpadDetectProviderResponse": {
+        "properties": {
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "CoderpadDetectProviderResponse"
+      },
+      "CoderpadDiscoverModelsRequest": {
+        "properties": {
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "key_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_name"
+        ],
+        "title": "CoderpadDiscoverModelsRequest"
+      },
+      "CoderpadDiscoverModelsResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "CoderpadDiscoverModelsResponse"
+      },
       "CoderpadLlmGenerateRequest": {
         "properties": {
           "topic": {
@@ -33181,6 +33436,14 @@
       },
       "CoderpadLlmKeyValidateBatchIn": {
         "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/CoderpadLlmKeyValidateItemIn"
+            },
+            "type": "array",
+            "title": "Keys",
+            "default": []
+          },
           "session_id": {
             "anyOf": [
               {
@@ -33191,19 +33454,9 @@
               }
             ],
             "title": "Session Id"
-          },
-          "keys": {
-            "items": {
-              "$ref": "#/components/schemas/CoderpadLlmKeyValidateItemIn"
-            },
-            "type": "array",
-            "title": "Keys"
           }
         },
         "type": "object",
-        "required": [
-          "keys"
-        ],
         "title": "CoderpadLlmKeyValidateBatchIn"
       },
       "CoderpadLlmKeyValidateBatchOut": {
@@ -33213,13 +33466,11 @@
               "$ref": "#/components/schemas/CoderpadLlmKeyValidateResultOut"
             },
             "type": "array",
-            "title": "Results"
+            "title": "Results",
+            "default": []
           }
         },
         "type": "object",
-        "required": [
-          "results"
-        ],
         "title": "CoderpadLlmKeyValidateBatchOut"
       },
       "CoderpadLlmKeyValidateItemIn": {
@@ -33233,9 +33484,15 @@
             "title": "Provider Name"
           },
           "source": {
-            "type": "string",
-            "title": "Source",
-            "default": "wbl"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
           }
         },
         "type": "object",
@@ -33250,11 +33507,6 @@
           "id": {
             "type": "integer",
             "title": "Id"
-          },
-          "source": {
-            "type": "string",
-            "title": "Source",
-            "default": "wbl"
           },
           "status": {
             "type": "string",
@@ -33449,8 +33701,7 @@
         "required": [
           "api_key"
         ],
-        "title": "CoderpadMyOpenaiKeyRevealOut",
-        "description": "Full stored OpenAI key (owner only; use only after explicit user action to reveal)."
+        "title": "CoderpadMyOpenaiKeyRevealOut"
       },
       "CoderpadMyOpenaiKeyStatusOut": {
         "properties": {
@@ -34183,6 +34434,17 @@
             "type": "boolean",
             "title": "Voice Enabled",
             "default": false
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
           }
         },
         "type": "object",
@@ -34197,23 +34459,6 @@
           "api_key": {
             "type": "string",
             "title": "Api Key"
-          },
-          "model_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model Name",
-            "default": "gpt-4o-mini"
-          },
-          "voice_enabled": {
-            "type": "boolean",
-            "title": "Voice Enabled",
-            "default": false
           }
         },
         "type": "object",
@@ -34334,6 +34579,17 @@
             "type": "boolean",
             "title": "Voice Enabled",
             "default": false
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
           }
         },
         "type": "object",
@@ -34341,6 +34597,59 @@
           "provider_name"
         ],
         "title": "CoderpadUpdateLlmKeyRequest"
+      },
+      "CoderpadValidateSingleKeyRequest": {
+        "properties": {
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_name"
+        ],
+        "title": "CoderpadValidateSingleKeyRequest"
+      },
+      "CoderpadValidateSingleKeyResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "status"
+        ],
+        "title": "CoderpadValidateSingleKeyResponse"
       },
       "CommissionPaymentStatusEnum": {
         "type": "string",

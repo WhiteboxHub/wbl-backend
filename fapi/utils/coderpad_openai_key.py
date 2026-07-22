@@ -68,19 +68,36 @@ def ensure_default_llm_key_for_candidate(
     *,
     commit: bool = False,
 ) -> None:
-    """Single key → default; multiple keys with no default → newest row becomes default."""
+    """
+    Ensure that exactly one eligible active key is marked as default in the database.
+    If an active key is already marked as default, do nothing and ensure other keys are NOT default.
+    Otherwise, clear default status on any ineligible keys, find the first active key, and promote it to default.
+    """
+    if not _llm_has_column(db, "is_default"):
+        return
+
+    # Check if we already have a valid default key
+    default_row = _default_llm_key_row(db, candidate_id)
+    if default_row:
+        # Guarantee that no other key has default=True
+        db.query(CandidateLlmApiKeyORM).filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.id != default_row.id,
+        ).update({CandidateLlmApiKeyORM.is_default: False}, synchronize_session="fetch")
+        if commit:
+            db.commit()
+        return
+
+    # No valid default exists. Clear is_default on all keys for this candidate
+    db.query(CandidateLlmApiKeyORM).filter(
+        CandidateLlmApiKeyORM.candidate_id == candidate_id
+    ).update({CandidateLlmApiKeyORM.is_default: False}, synchronize_session="fetch")
+
+    # Find the newest/first active key to promote
     rows = _keys_for_candidate_id(db, candidate_id)
-    if not rows or not _llm_has_column(db, "is_default"):
-        return
-    if len(rows) == 1:
-        kid = int(rows[0].id)
-        if not bool(rows[0].is_default):
-            _set_default_key_for_candidate(db, candidate_id, kid)
-            if commit:
-                db.commit()
-        return
-    if not _has_default_key(db, candidate_id):
-        _set_default_key_for_candidate(db, candidate_id, int(rows[0].id))
+    active_rows = [r for r in rows if getattr(r, "status", "inactive") == "active"]
+    if active_rows:
+        active_rows[0].is_default = True
         if commit:
             db.commit()
 
@@ -89,22 +106,18 @@ def _default_llm_key_row(
     db: Session,
     candidate_id: int,
 ) -> Optional[CandidateLlmApiKeyORM]:
-    """Row marked default, or the only key when exactly one exists."""
+    """Row marked default in the database with active status."""
     if _llm_has_column(db, "is_default"):
-        r = (
+        return (
             db.query(CandidateLlmApiKeyORM)
             .filter(
                 CandidateLlmApiKeyORM.candidate_id == candidate_id,
                 CandidateLlmApiKeyORM.is_default.is_(True),
+                CandidateLlmApiKeyORM.status == "active",
             )
             .order_by(CandidateLlmApiKeyORM.id.desc())
             .first()
         )
-        if r:
-            return r
-    rows = _keys_for_candidate_id(db, candidate_id)
-    if len(rows) == 1:
-        return rows[0]
     return None
 
 
@@ -135,9 +148,7 @@ def mask_openai_api_key(secret: str) -> str:
     s = (secret or "").strip()
     if not s:
         return ""
-    if len(s) <= 12:
-        return "•" * len(s)
-    return f"{s[:7]}…{s[-4:]}"
+    return "••••••••••••••••"
 
 
 def openai_key_db_preview_for_user(
@@ -238,6 +249,18 @@ def _llm_key_db_columns(db: Session) -> set[str]:
     cached = db.info.get("llm_key_columns")
     if cached is not None:
         return cached
+
+    # SQLite inspection for test environments
+    if db.bind and db.bind.dialect.name == "sqlite":
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(db.connection())
+            cached = {c["name"].lower() for c in inspector.get_columns("candidate_llm_api_keys")}
+            db.info["llm_key_columns"] = cached
+            return cached
+        except Exception:
+            pass
+
     try:
         rows = db.execute(
             text(
@@ -257,6 +280,13 @@ def _llm_key_db_columns(db: Session) -> set[str]:
             "provider_name",
             "api_key",
             "model_name",
+            "voice_enabled",
+            "created_at",
+            "is_default",
+            "status",
+            "failure_reason",
+            "failure_code",
+            "last_validated_at",
         }
     db.info["llm_key_columns"] = cached
     return cached
@@ -321,26 +351,15 @@ def _set_default_key_for_candidate(
     if not _llm_has_column(db, "is_default"):
         return
     try:
-        db.execute(
-            text(
-                """
-                UPDATE candidate_llm_api_keys
-                SET is_default = 0
-                WHERE candidate_id = :cid AND id <> :kid
-                """
-            ),
-            {"cid": candidate_id, "kid": key_id},
-        )
-        db.execute(
-            text(
-                """
-                UPDATE candidate_llm_api_keys
-                SET is_default = 1
-                WHERE candidate_id = :cid AND id = :kid
-                """
-            ),
-            {"cid": candidate_id, "kid": key_id},
-        )
+        db.query(CandidateLlmApiKeyORM).filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.id != key_id,
+        ).update({CandidateLlmApiKeyORM.is_default: False}, synchronize_session="fetch")
+        db.query(CandidateLlmApiKeyORM).filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.id == key_id,
+        ).update({CandidateLlmApiKeyORM.is_default: True}, synchronize_session="fetch")
+        db.flush()
     except Exception:
         pass
 
@@ -397,36 +416,7 @@ def _sync_voice_enabled_to_api_keys(
         pass
 
 
-_PROVIDER_ALIASES: Dict[str, str] = {
-    "openai": "OpenAI",
-    "gpt": "OpenAI",
-    "claude": "Claude",
-    "anthropic": "Claude",
-    "mistral": "Mistral",
-    "gemini": "Gemini",
-    "google": "Gemini",
-}
-
-_DEFAULT_MODEL_BY_PROVIDER: Dict[str, str] = {
-    "OpenAI": "gpt-4o-mini",
-    "Claude": "claude-3-5-haiku-20241022",
-    "Mistral": "mistral-small-latest",
-    "Gemini": "gemini-2.0-flash",
-}
-
-
-def normalize_llm_provider_name(provider_name: str) -> str:
-    k = (provider_name or "").strip().lower()
-    if k not in _PROVIDER_ALIASES:
-        raise ValueError(
-            f"Unsupported provider: {provider_name}. "
-            "Use OpenAI, Claude, Mistral, or Gemini."
-        )
-    return _PROVIDER_ALIASES[k]
-
-
-def _default_model_for_provider(provider: str) -> str:
-    return _DEFAULT_MODEL_BY_PROVIDER.get(provider, "gpt-4o-mini")
+from fapi.utils.llm_providers import normalize_llm_provider_name, _default_model_for_provider
 
 
 def _find_key_row_for_provider(
@@ -454,6 +444,7 @@ def create_candidate_llm_key_to_db(
     api_key: str,
     model_name: Optional[str] = None,
     voice_enabled: bool = False,
+    status: Optional[str] = "inactive",
 ) -> int:
     """Insert a new LLM key row (never deletes or replaces existing keys)."""
     key = (api_key or "").strip()
@@ -464,25 +455,76 @@ def create_candidate_llm_key_to_db(
     m = (model_name or _default_model_for_provider(provider)).strip()
     ve = bool(voice_enabled)
     encrypted_key = encrypt_api_key(key)
+
+    # Resolve actual status to write
+    status_val = (status or "inactive").strip().lower()
+    failure_reason = None
+
+    if status_val == "active":
+        # Enforce server-side re-validation
+        from fapi.utils.llm_providers import get_adapter
+        adapter = get_adapter(provider)
+        if adapter:
+            v_status, message = adapter.validate_key(key)
+        else:
+            v_status, message = "inactive", "Validation not supported"
+
+        if v_status != "active":
+            if v_status == "credits_exhausted":
+                raise ValueError("Your API key is valid, but there are no available credits or quota. Please add credits and validate the key again.")
+            elif v_status == "invalid":
+                raise ValueError("Invalid API key. Please enter a valid API key.")
+            else:
+                raise ValueError(message or "API key validation failed. Please try again.")
+        status_val = "active"
+    elif status_val in ("invalid", "credits_exhausted"):
+        status_val = status_val
+        failure_reason = "Pre-validated as " + status_val
+    else:
+        status_val = "inactive"
+
+    # Unvalidated or invalid keys cannot be marked default automatically.
+    # Only ACTIVE keys can be default.
+    make_default = False
+    if status_val == "active":
+        has_active_default = (
+            db.query(CandidateLlmApiKeyORM)
+            .filter(
+                CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                CandidateLlmApiKeyORM.is_default == True,
+                CandidateLlmApiKeyORM.status == "active",
+            )
+            .first()
+            is not None
+        )
+        make_default = not has_active_default
+
     row_kwargs: Dict[str, Any] = {
         "candidate_id": candidate_id,
         "provider_name": provider,
         "api_key": encrypted_key,
         "model_name": m,
+        "status": status_val,
+        "failure_reason": failure_reason,
+        "last_validated_at": datetime.now(timezone.utc) if status_val != "inactive" else None,
     }
     if _llm_has_column(db, "voice_enabled"):
         row_kwargs["voice_enabled"] = ve
     if _llm_has_column(db, "created_at"):
         row_kwargs["created_at"] = datetime.now(timezone.utc)
     if _llm_has_column(db, "is_default"):
-        row_kwargs["is_default"] = False
+        row_kwargs["is_default"] = make_default
     row = CandidateLlmApiKeyORM(**row_kwargs)
     db.add(row)
     db.flush()
     row_id = int(row.id)
     _sync_voice_enabled_to_api_keys(db, candidate_id, provider, ve)
     db.commit()
-    ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
+
+    if make_default:
+        _set_default_key_for_candidate(db, candidate_id, row_id)
+        db.commit()
+
     return row_id
 
 
@@ -494,6 +536,7 @@ def update_candidate_llm_key_to_db(
     api_key: Optional[str] = None,
     model_name: Optional[str] = None,
     voice_enabled: bool = False,
+    status: Optional[str] = "inactive",
 ) -> None:
     """Update an existing LLM key row (API key optional — keeps current when omitted)."""
     provider = normalize_llm_provider_name(provider_name)
@@ -508,17 +551,86 @@ def update_candidate_llm_key_to_db(
     )
     if not r:
         raise LookupError("Key not found")
+    
     key = (api_key or "").strip()
+    status_updated = False
+    
     if key:
         r.api_key = encrypt_api_key(key)
+        status_val = (status or "inactive").strip().lower()
+        failure_reason = None
+
+        if status_val == "active":
+            from fapi.utils.llm_providers import get_adapter
+            adapter = get_adapter(provider)
+            if adapter:
+                v_status, message = adapter.validate_key(key)
+            else:
+                v_status, message = "inactive", "Validation not supported"
+
+            if v_status != "active":
+                if v_status == "credits_exhausted":
+                    raise ValueError("Your API key is valid, but there are no available credits or quota. Please add credits and validate the key again.")
+                elif v_status == "invalid":
+                    raise ValueError("Invalid API key. Please enter a valid API key.")
+                else:
+                    raise ValueError(message or "API key validation failed. Please try again.")
+            status_val = "active"
+        elif status_val in ("invalid", "credits_exhausted"):
+            status_val = status_val
+            failure_reason = "Pre-validated as " + status_val
+        else:
+            status_val = "inactive"
+
+        if r.status != status_val:
+            r.status = status_val
+            status_updated = True
+        r.failure_reason = failure_reason
+        r.last_validated_at = datetime.now(timezone.utc) if status_val != "inactive" else None
+        
+        # If the key is updated to inactive/invalid, it can no longer be default
+        if status_val != "active":
+            r.is_default = False
     elif not _row_secret(r):
         raise ValueError("API key is required")
+    elif status is not None:
+        status_val = status.strip().lower()
+        if status_val not in ("active", "inactive", "invalid", "credits_exhausted"):
+            status_val = "inactive"
+        if r.status != status_val:
+            r.status = status_val
+            status_updated = True
+            if status_val != "active":
+                r.is_default = False
+
     r.provider_name = provider
     r.model_name = (model_name or r.model_name or _default_model_for_provider(provider)).strip()
     if _llm_has_column(db, "voice_enabled"):
         r.voice_enabled = bool(voice_enabled)
+
     _sync_voice_enabled_to_api_keys(db, candidate_id, provider, bool(voice_enabled))
     db.commit()
+
+    if status_updated and r.status == "active":
+        # Check if there is currently a working active default key
+        has_active_default = (
+            db.query(CandidateLlmApiKeyORM)
+            .filter(
+                CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                CandidateLlmApiKeyORM.is_default == True,
+                CandidateLlmApiKeyORM.status == "active",
+                CandidateLlmApiKeyORM.id != key_id
+            )
+            .first()
+            is not None
+        )
+        if not has_active_default:
+            _set_default_key_for_candidate(db, candidate_id, key_id)
+            db.commit()
+    elif status_updated and r.status != "active":
+        # If it was default, clear it and try to promote the next active key
+        _ensure_candidate_has_default_key(db, candidate_id)
+        db.commit()
 
 
 def save_candidate_openai_key_to_db(
@@ -658,11 +770,13 @@ def list_candidate_llm_keys_for_user(
             {
                 "id": rid,
                 "provider_name": str(r.provider_name or "Unknown"),
-                "masked_key": masked or "••••••••••••",
+                "masked_key": masked or "••••••••••••••••",
                 "model_name": r.model_name,
                 "entry_date": entry,
                 "voice_enabled": _resolve_voice_enabled(r, api_keys_voice),
                 "is_default": bool(default_by_id.get(rid, False)),
+                "status": getattr(r, "status", "inactive") or "inactive",
+                "validation_message": getattr(r, "failure_reason", None),
             }
         )
     return out
@@ -757,12 +871,9 @@ def delete_candidate_llm_key_for_user(
     )
     if not r:
         raise LookupError("Key not found")
-    if _is_key_default(db, candidate_id, key_id):
-        raise ValueError(
-            "Cannot delete the default API key. Set another key as default first."
-        )
     db.delete(r)
-    _ensure_candidate_has_default_key(db, candidate_id)
+    db.flush()
+    ensure_default_llm_key_for_candidate(db, candidate_id, commit=False)
     db.commit()
 
 
@@ -772,7 +883,7 @@ def validate_llm_key_batch_for_user(
     keys: List[Dict[str, Any]],
     session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    from fapi.utils.llm_key_validation_utils import validate_provider_key
+    from fapi.utils.llm_providers import get_adapter
 
     del session_id  # unused; validation reads from DB
     candidate_id = _candidate_id_for_user(db, current_user)
@@ -785,7 +896,52 @@ def validate_llm_key_batch_for_user(
         if not raw:
             status, message = "inactive", "Key not found"
         else:
-            status, message = validate_provider_key(provider, raw)
+            adapter = get_adapter(provider)
+            if adapter:
+                status, message = adapter.validate_key(raw)
+            else:
+                from fapi.utils.llm_key_validation_utils import validate_provider_key
+                status, message = validate_provider_key(provider, raw)
+            
+            # Save to database
+            if key_id > 0:
+                r = (
+                    db.query(CandidateLlmApiKeyORM)
+                    .filter(
+                        CandidateLlmApiKeyORM.id == key_id,
+                        CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                    )
+                    .first()
+                )
+                print(f"DEBUG: key_id={key_id}, candidate_id={candidate_id}, r_found={r is not None}", flush=True)
+                if r:
+                    print(f"DEBUG: updating r.status from {r.status} to {status}", flush=True)
+                    r.status = status
+                    r.failure_reason = message if status != "active" else None
+                    r.failure_code = "CREDITS_EXHAUSTED" if status == "credits_exhausted" else ("INVALID_KEY" if status == "invalid" else None)
+                    r.last_validated_at = datetime.now(timezone.utc)
+                    if status != "active":
+                        r.is_default = False
+                    print(f"DEBUG: before flush, is_modified={db.is_modified(r)}, dirty={db.dirty}", flush=True)
+                    db.flush()
+                    print(f"DEBUG: after flush, is_modified={db.is_modified(r)}, dirty={db.dirty}", flush=True)
+
+            # Automatic promoter on recovery:
+            if status == "active":
+                has_active_default = (
+                    db.query(CandidateLlmApiKeyORM)
+                    .filter(
+                        CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                        CandidateLlmApiKeyORM.is_default == True,
+                        CandidateLlmApiKeyORM.status == "active",
+                    )
+                    .first()
+                    is not None
+                )
+                if not has_active_default:
+                    _set_default_key_for_candidate(db, candidate_id, key_id)
+                    db.flush()
+
         results.append(
             {
                 "id": key_id,
@@ -794,6 +950,10 @@ def validate_llm_key_batch_for_user(
                 "message": message,
             }
         )
+    db.commit()
+    db_check = db.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.id == key_id).first() if key_id > 0 else None
+    if db_check:
+        print(f"DEBUG: right after commit, status in DB is {db_check.status}", flush=True)
     return results
 
 
@@ -807,15 +967,15 @@ def finish_setup_for_user(
     default_row = _default_llm_key_row(db, candidate_id)
     
     if not default_row:
-        return {"setup_complete": False, "error": "No LLM API keys found. Please add a key first."}
+        return {"setup_complete": False, "error": "NO_USABLE_LLM_KEY"}
     
     secret = _row_secret(default_row)
     if not secret:
-        return {"setup_complete": False, "error": "The default LLM API key has an invalid format or is empty."}
+        return {"setup_complete": False, "error": "NO_USABLE_LLM_KEY"}
         
     status, message = validate_provider_key(default_row.provider_name or "", secret)
     
     if status == "active":
         return {"setup_complete": True}
     else:
-        return {"setup_complete": False, "error": f"Default API key validation failed: {message}"}
+        return {"setup_complete": False, "error": "NO_USABLE_LLM_KEY"}
