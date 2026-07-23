@@ -13,3 +13,5 @@ policy:
     - "**/google_calendar_utils.py"
     - "fapi/utils/google_drive_utils.py"  
     - "**/google_drive_utils.py"
+    - "tests/**/*"
+    - "**/tests/**/*"

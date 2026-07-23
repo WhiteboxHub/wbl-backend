@@ -103,6 +103,8 @@ def generate_fallback_template(candidate_name: str, candidate_email: str, candid
 
 def extract_latest_company_bg(user_id: str, resume_json: dict, api_key: str, provider: str = "openai"):
     from fapi.db.database import engine
+    from fapi.db.models import AiPrepToolProjectContextORM
+    from sqlalchemy.orm import Session
     from sqlalchemy import text
 
     prompt = f"""
@@ -171,10 +173,10 @@ def extract_latest_company_bg(user_id: str, resume_json: dict, api_key: str, pro
 
         if company_name or domain or product:
             try:
-                with engine.connect() as conn:
+                with Session(engine) as session:
                     marketing_id = int(user_id)
                     marketing_id_str = str(marketing_id)
-                    existing = conn.query(AiPrepToolProjectContextORM).filter(AiPrepToolProjectContextORM.user_id == marketing_id_str).first()
+                    existing = session.query(AiPrepToolProjectContextORM).filter(AiPrepToolProjectContextORM.user_id == marketing_id_str).first()
                     fields = {
                         "company_name": company_name, "domain": domain, "product": product,
                         "business_problem": business_problem, "previous_system": previous_system,
@@ -189,8 +191,8 @@ def extract_latest_company_bg(user_id: str, resume_json: dict, api_key: str, pro
                         for k, v in fields.items(): setattr(existing, k, v)
                     else:
                         new_ctx = AiPrepToolProjectContextORM(user_id=marketing_id_str, **fields)
-                        conn.add(new_ctx)
-                    conn.commit()
+                        session.add(new_ctx)
+                    session.commit()
             except Exception as e:
                 logger.error(f"Failed to update project context DB: {e}")
     except Exception as e:

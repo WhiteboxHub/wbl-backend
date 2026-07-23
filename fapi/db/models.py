@@ -13,7 +13,6 @@ Base = declarative_base()
 BigIntegerUnsigned = BigInteger().with_variant(MySQL_BIGINT(unsigned=True), "mysql")
 
 
-
 # -----------------------------------------------------
 
 
