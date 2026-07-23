@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 
 # Suppress all post-exit closed-stream logging tracebacks during test runs
 logging.raiseExceptions = False
-logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 # 1. Set Mock Environment Variables BEFORE any imports happen
 os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"  # pragma: allowlist secret

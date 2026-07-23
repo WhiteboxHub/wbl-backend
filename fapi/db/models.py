@@ -373,10 +373,6 @@ class CandidateLlmApiKeyORM(Base):
     last_used_at = Column(DateTime, nullable=True)
     voice_enabled = Column(Boolean, nullable=False, default=False)
     is_default = Column(Boolean, nullable=False, default=False)
-    status = Column(String(50), nullable=False, default="inactive")
-    failure_reason = Column(Text, nullable=True)
-    failure_code = Column(String(100), nullable=True)
-    last_validated_at = Column(DateTime, nullable=True)
 
 
 # # -------------------------------------- Candidate Interview -------------------------------
