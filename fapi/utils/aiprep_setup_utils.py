@@ -9,6 +9,8 @@ with open(os.path.join(os.path.dirname(__file__), "resume_parser_prompt.txt"), "
 
 from fapi.db.database import get_db
 from fapi.utils.llm_service import call_llm_with_context
+from fastapi import HTTPException
+from fapi.db.models import CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 
 logger = logging.getLogger(__name__)
 
@@ -624,12 +626,15 @@ def get_resume_logic(user_email: str, db):
 
 def update_resume_logic(body: ResumeCreate, user_email: str, db):
     try:
-        candidate_id = _get_candidate_id(db, user_email)
-        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
-        marketing_id_row = [marketing[0]] if marketing else None
-        if not marketing_id_row:
-            raise HTTPException(status_code=404, detail="Candidate marketing not found")
-        save_resume_for_session(db, str(marketing_id_row[0]), body.resume_json)
+        if body.session_id:
+            save_resume_for_session(db, str(body.session_id), body.resume_json)
+        else:
+            candidate_id = _get_candidate_id(db, user_email)
+            marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+            marketing_id_row = [marketing[0]] if marketing else None
+            if not marketing_id_row:
+                raise HTTPException(status_code=404, detail="Candidate marketing not found")
+            save_resume_for_session(db, str(marketing_id_row[0]), body.resume_json)
         return {"resume_json": body.resume_json, "file_name": body.file_name}
     except Exception as e:
         logger.error(f"update_resume error for {user_email}: {e}")

@@ -4790,6 +4790,7 @@ class SyncFromWblRequest(BaseModel):
 class ResumeCreate(BaseModel):
     resume_json: dict
     file_name: Optional[str] = None
+    session_id: Optional[str] = None
 
 class APIKeyCreate(BaseModel):
     provider_name: str
