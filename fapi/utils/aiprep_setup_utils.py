@@ -364,8 +364,13 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
 
 def save_resume_for_session(db, session_id: str, resume_data: dict) -> None:
     from sqlalchemy import text
+    from fastapi import HTTPException
     resume_json_str = json.dumps(resume_data)
-    marketing_id = int(session_id)
+    try:
+        marketing_id = int(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+    
     cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == marketing_id).first()
     if cm:
         cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
