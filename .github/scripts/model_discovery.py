@@ -218,6 +218,7 @@ def extract_new_model_specs(new_model_name, provider):
                 return result
             except Exception as e:
                 logger.warning(f"Scout model {scout_model} failed with a key: {e}")
+                time.sleep(5) # Delay between key fallbacks to prevent 429 bursts
                 continue
             
     logger.warning(f"All scout models and keys failed for {new_model_name}. Defaulting to pending.")
@@ -334,6 +335,10 @@ def sync_and_update_models():
             # Found a completely new model!
             logger.info(f"New model discovered: {live_model} from {provider}")
             specs = extract_new_model_specs(live_model, provider)
+            
+            if specs.get("scout") == "failed":
+                logger.error(f"Failed to extract specs for {live_model} due to API exhaustion. Skipping to prevent pending spam.")
+                continue
             
             model_metadata[live_model] = {
                 "provider": provider,
