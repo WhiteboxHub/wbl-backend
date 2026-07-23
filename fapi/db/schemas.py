@@ -868,6 +868,7 @@ class CandidateUpdate(BaseModel):
     move_to_prep: Optional[bool] = None
     placement_percentage: Optional[int] = None
     enrollment_status: Optional[str] = None
+    candidate_json: Optional[Dict[str, Any]] = None
 
     model_config = {
         "from_attributes": True,
@@ -919,8 +920,6 @@ class CandidateMarketingBase(BaseModel):
     run_outreach_emails: bool = False
     linkedin_post: bool = False
     candidate_json: Optional[Dict[str, Any]] = None
-    My_Resume: Optional[bytes] = None
-    my_resume_filename: Optional[str] = None
     total_outreach_count: Optional[int] = 0
     daily_outreach_limit: Optional[int] = 250
     max_outreach_limit: Optional[int] = 500
@@ -987,8 +986,6 @@ class CandidateMarketingUpdate(BaseModel):
     run_outreach_emails: Optional[bool] = None
     linkedin_post: Optional[bool] = None
     candidate_json: Optional[Dict[str, Any]] = None
-    My_Resume: Optional[bytes] = None
-    my_resume_filename: Optional[str] = None
     total_outreach_count: Optional[int] = None
     daily_outreach_limit: Optional[int] = None
     max_outreach_limit: Optional[int] = None
@@ -1069,24 +1066,6 @@ class CandidatePlacementUpdate(BaseModel):
 
 
 # ---------------- Candidate Setup Wizard Schemas ----------------
-
-class CandidateResumeBase(BaseModel):
-    resume_json: Dict[str, Any]
-    file_name: Optional[str] = None
-
-class CandidateResumeCreate(CandidateResumeBase):
-    pass
-
-class CandidateResumeUpdate(CandidateResumeBase):
-    pass
-
-class CandidateResumeOut(CandidateResumeBase):
-    id: int
-    candidate_id: int
-    created_at: datetime
-    updated_at: datetime
-    class Config:
-        from_attributes = True
 
 class CandidateAPIKeyBase(BaseModel):
     provider_name: str
@@ -2028,6 +2007,7 @@ class RecordingBase(BaseModel):
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class RecordingCreate(RecordingBase):
@@ -2040,7 +2020,7 @@ class RecordingUpdate(RecordingBase):
 
 class RecordingOut(RecordingBase):
     id: int
-
+    joined_candidate_ids: List[int] = []
     @field_validator("lastmoddatetime", mode="before")
     def clean_invalid_datetime(cls, v):
         if v in ("0000-00-00 00:00:00", None, ""):
@@ -2346,6 +2326,7 @@ class SessionBase(BaseModel):
     lastmoddatetime: Optional[datetime] = None
     subject_id: int
     notes: Optional[str] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class SessionCreate(SessionBase):
@@ -2366,7 +2347,7 @@ class Session(SessionBase):
 
 class SessionOut(SessionBase):
     sessionid: int
-
+    joined_candidate_ids: List[int] = []
     @field_validator("sessiondate", mode="before")
     def clean_invalid_date(cls, v):
         if v in ("0000-00-00", None, ""):
@@ -4414,6 +4395,7 @@ class CoderpadUpdateLlmKeyRequest(BaseModel):
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     voice_enabled: bool = False
+    status: Optional[str] = None
 
 
 class CandidateLlmKeyListItemOut(BaseModel):
@@ -4802,3 +4784,146 @@ class OutreachEmailOut(OutreachEmailBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+class SetupInit(BaseModel):
+    candidate_email: Optional[str] = None
+    candidate_id: Optional[Union[str, int]] = None
+    marketing_id: Optional[Union[str, int]] = None
+    prep_token: Optional[Union[str, int]] = None
+
+class SyncFromWblRequest(BaseModel):
+    prep_token: str
+
+class ResumeCreate(BaseModel):
+    resume_json: dict
+    file_name: Optional[str] = None
+
+class APIKeyCreate(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+
+
+# --- LLM Key & Coderpad Schemas ---
+
+class CandidateLlmApiKeyCreate(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+    status: Optional[str] = None
+
+
+class CandidateLlmApiKeyUpdate(BaseModel):
+    provider_name: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    voice_enabled: Optional[bool] = None
+
+
+class CandidateLlmApiKeyResponse(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[Union[str, datetime]] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+    validation_status: str = "inactive"
+    validation_message: Optional[str] = None
+
+
+class CandidateLlmKeyListItemOut(BaseModel):
+    id: int
+    provider_name: str
+    masked_key: str
+    model_name: Optional[str] = None
+    entry_date: Optional[Union[str, datetime]] = None
+    voice_enabled: bool = False
+    is_default: bool = False
+    status: str = "inactive"
+    validation_status: str = "inactive"
+    validation_message: Optional[str] = None
+
+
+class CoderpadMyOpenaiKeyRevealOut(BaseModel):
+    api_key: str
+
+
+class CoderpadSaveOpenaiKeyRequest(BaseModel):
+    api_key: str
+
+
+class CoderpadSaveLlmKeyRequest(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+    status: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateItemIn(BaseModel):
+    id: int
+    provider_name: str
+    source: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchIn(BaseModel):
+    keys: List[CoderpadLlmKeyValidateItemIn] = []
+    session_id: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateResultOut(BaseModel):
+    id: int
+    status: str
+    message: Optional[str] = None
+
+
+class CoderpadLlmKeyValidateBatchOut(BaseModel):
+    results: List[CoderpadLlmKeyValidateResultOut] = []
+
+
+class CoderpadLlmKeyVoiceEnabledIn(BaseModel):
+    voice_enabled: bool
+
+
+class CoderpadLlmKeyIsDefaultIn(BaseModel):
+    is_default: bool
+
+
+class CoderpadDetectProviderRequest(BaseModel):
+    api_key: str
+
+
+class CoderpadDetectProviderResponse(BaseModel):
+    provider_name: Optional[str] = None
+    models: List[str] = []
+    status: Optional[str] = None
+    message: Optional[str] = None
+
+
+class CoderpadDiscoverModelsRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+    key_id: Optional[int] = None
+
+
+class CoderpadDiscoverModelsResponse(BaseModel):
+    models: List[str] = []
+
+
+class CoderpadValidateSingleKeyRequest(BaseModel):
+    provider_name: str
+    api_key: Optional[str] = None
+
+
+class CoderpadValidateSingleKeyResponse(BaseModel):
+    valid: bool
+    status: str
+    message: Optional[str] = None
+
+
+
+
+

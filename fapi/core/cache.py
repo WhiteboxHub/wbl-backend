@@ -14,16 +14,27 @@ logger = logging.getLogger(__name__)
 
 def alchemy_encoder(obj: Any) -> Any:
     """Helper to serialize SQLAlchemy objects and other types."""
-    if hasattr(obj, "__dict__"):
-        # For SQLAlchemy ORM objects
-        data = dict(obj.__dict__)
-        data.pop("_sa_instance_state", None)
-        return data
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     if isinstance(obj, Decimal):
         return float(obj)
-    return str(obj)
+    if isinstance(obj, set):
+        return list(obj)
+    if hasattr(obj, "__dict__"):
+        # For SQLAlchemy ORM objects
+        data = dict(obj.__dict__)
+        data.pop("_sa_instance_state", None)
+        
+        for attr_name in dir(obj.__class__):
+            attr = getattr(obj.__class__, attr_name)
+            if isinstance(attr, property):
+                try:
+                    data[attr_name] = getattr(obj, attr_name)
+                except Exception:
+                    pass
+        return data
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
 
 def generate_cache_key(prefix: str, path: str, params: dict) -> str:
     """Generate a unique cache key with environment isolation."""
@@ -76,7 +87,7 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
                 if cached_data:
                     if isinstance(cached_data, (bytes, bytearray)):
                         cached_data = cached_data.decode()
-                    msg = f"🟢 [REDIS CACHE HIT] Function: {func.__name__} | Key: {cache_key}"
+                    msg = f"[REDIS CACHE HIT] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
                     print(msg) # Ensure visibility in terminal
                     return json.loads(cached_data)
@@ -94,7 +105,7 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
                         json.dumps(result, default=alchemy_encoder),
                         ex=ttl
                     )
-                    msg = f"⚪ [REDIS CACHE MISS] Function: {func.__name__} | Key: {cache_key}"
+                    msg = f"[REDIS CACHE MISS] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
                     print(msg) # Ensure visibility in terminal
             except Exception as e:

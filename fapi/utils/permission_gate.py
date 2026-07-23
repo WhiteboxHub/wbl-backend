@@ -23,21 +23,28 @@ ALLOWED_GET_PREFIXES = {
     "/api/automation-workflow",
     "/api/candidates/track-clicks-batch",
     "/api/github-classroom-repos",
+    "/api/setup",
 }
 
 ALLOWED_POST_PREFIXES = {
     "/api/candidates/track-clicks-batch",
     "/api/interviews",
     "/api/candidate/generate-prep-token",
+    "/api/setup",
 }
 
 ALLOWED_PUT_PREFIXES = {
     "/api/interviews",
     "/api/candidates",
+    "/api/setup",
 }
 
 ALLOWED_PATCH_PREFIXES = {
     "/api/candidates/interviews",
+}
+
+ALLOWED_DELETE_PREFIXES = {
+    "/api/setup",
 }
 
 def _is_admin(user) -> bool:
@@ -88,6 +95,11 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
 
     if method == "PATCH":
         for prefix in ALLOWED_PATCH_PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                return current_user
+
+    if method == "DELETE":
+        for prefix in ALLOWED_DELETE_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
 

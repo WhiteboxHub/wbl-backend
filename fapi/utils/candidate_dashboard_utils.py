@@ -6,7 +6,9 @@ All business logic for dashboard operations using SQLAlchemy ORM
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, case, and_, or_, desc, distinct
 from fastapi import HTTPException
+from fapi.db import models
 from fapi.db.models import CandidateInterview
+from fapi.db.models import CandidateClass, CandidateSession
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
@@ -632,7 +634,6 @@ def get_marketing_phase_details(
             "interview_stats": interview_stats,
             "interview_breakdown": _calculate_interview_breakdown(interviews) if interviews else {},
             "top_companies": _get_top_companies_for_candidate(db, candidate_id) if interviews else [],
-            "my_resume_filename": None,
             "has_uploaded_resume": False,
         }
 
@@ -669,8 +670,8 @@ def get_marketing_phase_details(
         "interview_breakdown": interview_breakdown,
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
-        "my_resume_filename": getattr(current_marketing, "my_resume_filename", None),
-        "has_uploaded_resume": getattr(current_marketing, "My_Resume", None) is not None,
+        "my_resume_filename": None,
+        "has_uploaded_resume": getattr(current_marketing, "candidate_json", None) is not None,
     }
 
     # Add historical records if requested
@@ -1271,6 +1272,21 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
         
         easy_apply_counter = autofill_count + cli_count
 
+    classes_joined = db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate_id).scalar() or 0
+
+    sessions_joined = db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate_id).scalar() or 0
+
+    mocks_joined = db.query(func.count(CandidateSession.session_id)).join(
+        models.Session, models.Session.sessionid == CandidateSession.session_id
+    ).filter(
+        CandidateSession.candidate_id == candidate_id,
+        models.Session.type.in_(["Individual Mock", "Group Mock"])
+    ).scalar() or 0
+
+    stats["classes_joined"] = int(classes_joined)
+    stats["sessions_joined"] = int(sessions_joined)
+    stats["mocks_joined"] = int(mocks_joined)
+
     stats["job_listings_clicked"] = int(job_listings_clicked)
     stats["outreach_counter"] = int(outreach_counter)
     stats["easy_apply_counter"] = int(easy_apply_counter)
@@ -1368,33 +1384,32 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
             db.flush()
             
         content = await file.read()
-        marketing_record.My_Resume = content
-        marketing_record.my_resume_filename = filename
         db.commit()
 
-        ai_backend_url = os.getenv("AIPREP_API_URL", "http://ai-prep-backend:8080").replace("/api", "") + "/api/setup"
+        
+        # We need the marketing_record ID for the session_id
         session_id = str(marketing_record.id)
-        
         try:
-            files_payload = {"file": (filename, content, file.content_type)}
-            data_payload = {"session_id": session_id}
+            from fapi.utils.aiprep_setup_utils import process_resume_parsing
+            parsed_json = process_resume_parsing(
+                content=content, 
+                filename=filename, 
+                candidate_id=candidate_id, 
+                marketing_id=marketing_record.id, 
+                db=db
+            )
             
-            res = requests.post(f"{ai_backend_url}/parse-binary-resume", files=files_payload, data=data_payload, timeout=60)
-            if not res.ok:
-                logger.error(f"Failed to parse PDF resume in ai-prep-backend: {res.text}")
-                try:
-                    err_json = res.json()
-                    detail = err_json.get("detail", "AI parsing failed.")
-                except Exception:
-                    detail = res.text or "AI parsing failed."
-                raise HTTPException(status_code=400, detail=f"Resume saved, but AI parsing failed: {detail}")
-        except HTTPException:
-            raise
+            # Save the JSON back to the database
+            marketing_record.candidate_json = parsed_json
         except Exception as e:
-            logger.error(f"Error calling ai-prep-backend parsing: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Resume saved, but communication with AI parsing service failed: {str(e)}")
+            db.rollback()
+            logger.error(f"Error parsing resume via LLM: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"AI parsing failed: {str(e)}")
+
+        # Validation passed, AI parsing successful. We intentionally do not save the binary resume to the database.
+        db.commit()
         
-        return {"message": "Resume uploaded and parsed successfully", "filename": filename}
+        return {"message": "Resume uploaded and parsed successfully", "filename": filename, "candidate_json": parsed_json}
     except HTTPException:
         raise
     except Exception as e:
