@@ -369,7 +369,12 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
     from fastapi import HTTPException
     resume_json_str = json.dumps(resume_data)
     
-    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == session_id).first()
+    try:
+        session_id_int = int(session_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+        
+    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == session_id_int).first()
     if cm:
         cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
     db.commit()
