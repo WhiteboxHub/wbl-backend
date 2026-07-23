@@ -73,6 +73,15 @@ async def startup_event():
             conn.commit()
     except Exception as e:
         logger.info(f"user_id column in application_report may already exist or failed to add: {e}")
+
+    # Ensure my_resume columns exist in candidate_marketing (for older DB schemas)
+    try:
+        with engine.connect() as conn:
+            getattr(conn, "execute")(text("ALTER TABLE candidate_marketing ADD COLUMN my_resume LONGBLOB NULL"))
+            getattr(conn, "execute")(text("ALTER TABLE candidate_marketing ADD COLUMN my_resume_filename VARCHAR(255) NULL"))
+            conn.commit()
+    except Exception as e:
+        logger.info(f"my_resume columns may already exist or failed to add: {e}")
     # Coderpad Tables
     try:
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
