@@ -176,7 +176,7 @@ def run_static_analysis(f, lines, modified_public_apis):
     if 'api/' in f_norm or 'services/' in f_norm or 'routers/' in f_norm:
         if f_norm not in modified_public_apis: modified_public_apis.append(f_norm)
         
-    def add_primitive(node_lineno, prim_type, desc):
+    def add_primitive(node_lineno, prim_type, desc, sanitized=False):
         raw_id = f"{f_norm}:{node_lineno}:{prim_type}"
         short_hash = hashlib.md5(raw_id.encode()).hexdigest()[:6].upper()
         sec_id = f"SEC-{short_hash}"
@@ -188,7 +188,7 @@ def run_static_analysis(f, lines, modified_public_apis):
             "severity": "CRITICAL",
             "attributes": {
                 "sink": prim_type,
-                "sanitizerDetected": False,
+                "sanitizerDetected": sanitized,
                 "reason": desc
             },
             "evidence": f"Dangerous sink '{prim_type}' detected: {desc} at line {node_lineno}."
@@ -257,7 +257,12 @@ def run_static_analysis(f, lines, modified_public_apis):
                 
                 if is_sql_target:
                     if hasattr(node, 'lineno') and any(node.lineno <= l <= getattr(node, 'end_lineno', node.lineno) for l in lines):
-                        add_primitive(node.lineno, "sql_execution", "Direct SQL execution (.execute()) detected")
+                        sanitized = False
+                        if hasattr(node, 'args') and len(node.args) > 0:
+                            first_arg = node.args[0]
+                            if isinstance(first_arg, ast.Call) and isinstance(first_arg.func, ast.Name) and first_arg.func.id in ('text', 'select', 'insert', 'update', 'delete'):
+                                sanitized = True
+                        add_primitive(node.lineno, "sql_execution", "Direct SQL execution (.execute()) detected", sanitized)
                         
             # Shell execution sinks
             if isinstance(node, ast.Call):
