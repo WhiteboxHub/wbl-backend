@@ -46597,6 +46597,17 @@
               }
             ],
             "title": "File Name"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
           }
         },
         "type": "object",

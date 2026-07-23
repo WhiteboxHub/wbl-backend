@@ -9,6 +9,8 @@ with open(os.path.join(os.path.dirname(__file__), "resume_parser_prompt.txt"), "
 
 from fapi.db.database import get_db
 from fapi.utils.llm_service import call_llm_with_context
+from fastapi import HTTPException
+from fapi.db.models import CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 
 logger = logging.getLogger(__name__)
 
@@ -360,11 +362,20 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
         logger.error(f"Error validating API key for {provider}: {e}")
     return is_valid, supports_voice
 
-def save_resume_for_session(db, session_id: str, resume_data: dict) -> None:
+import typing
+
+def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict) -> None:
     from sqlalchemy import text
+    from fastapi import HTTPException
+    import json
     resume_json_str = json.dumps(resume_data)
-    marketing_id = int(session_id)
-    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == marketing_id).first()
+    
+    try:
+        session_id_int = int(session_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+        
+    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == session_id_int).first()
     if cm:
         cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
     db.commit()
@@ -593,16 +604,18 @@ async def upload_resume_file_logic(file, resume_json, user_email: str, db):
             content = await file.read()
             if file.filename.endswith(".json") or file.content_type == "application/json":
                 updated_resume = json.loads(content.decode("utf-8"))
-                save_resume_for_session(db, str(marketing_id), updated_resume)
+                save_resume_for_session(db, marketing_id, updated_resume)
             else:
                 updated_resume = process_resume_parsing(content, file.filename, candidate_id, marketing_id, db)
-                save_resume_for_session(db, str(marketing_id), updated_resume)
+                save_resume_for_session(db, marketing_id, updated_resume)
         elif resume_json:
             updated_resume = json.loads(resume_json)
-            save_resume_for_session(db, str(marketing_id), updated_resume)
+            save_resume_for_session(db, marketing_id, updated_resume)
         else:
             raise HTTPException(status_code=400, detail="No file or resume_json provided")
         return {"resume_json": updated_resume, "file_name": file_name}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"upload_resume error for {user_email}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -627,12 +640,28 @@ def get_resume_logic(user_email: str, db):
 def update_resume_logic(body: ResumeCreate, user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
-        marketing_id_row = [marketing[0]] if marketing else None
-        if not marketing_id_row:
-            raise HTTPException(status_code=404, detail="Candidate marketing not found")
-        save_resume_for_session(db, str(marketing_id_row[0]), body.resume_json)
+        if body.session_id:
+            try:
+                session_id_int = int(body.session_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid session ID format")
+                
+            cm = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.id == session_id_int,
+                CandidateMarketingORM.candidate_id == candidate_id
+            ).first()
+            if not cm:
+                raise HTTPException(status_code=403, detail="Not authorized to edit this session")
+            save_resume_for_session(db, session_id_int, body.resume_json)
+        else:
+            marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+            marketing_id_row = [marketing[0]] if marketing else None
+            if not marketing_id_row:
+                raise HTTPException(status_code=404, detail="Candidate marketing not found")
+            save_resume_for_session(db, marketing_id_row[0], body.resume_json)
         return {"resume_json": body.resume_json, "file_name": body.file_name}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"update_resume error for {user_email}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update resume")
