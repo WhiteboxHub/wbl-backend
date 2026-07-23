@@ -633,10 +633,21 @@ def get_resume_logic(user_email: str, db):
 
 def update_resume_logic(body: ResumeCreate, user_email: str, db):
     try:
+        candidate_id = _get_candidate_id(db, user_email)
         if body.session_id:
+            try:
+                session_id_int = int(body.session_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid session ID format")
+                
+            cm = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.id == session_id_int,
+                CandidateMarketingORM.candidate_id == candidate_id
+            ).first()
+            if not cm:
+                raise HTTPException(status_code=403, detail="Not authorized to edit this session")
             save_resume_for_session(db, str(body.session_id), body.resume_json)
         else:
-            candidate_id = _get_candidate_id(db, user_email)
             marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
             marketing_id_row = [marketing[0]] if marketing else None
             if not marketing_id_row:
