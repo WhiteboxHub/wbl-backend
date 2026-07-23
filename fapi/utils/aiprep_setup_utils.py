@@ -367,6 +367,7 @@ import typing
 def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict) -> None:
     from sqlalchemy import text
     from fastapi import HTTPException
+    import json
     resume_json_str = json.dumps(resume_data)
     
     try:
