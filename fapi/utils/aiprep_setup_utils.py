@@ -362,12 +362,14 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
         logger.error(f"Error validating API key for {provider}: {e}")
     return is_valid, supports_voice
 
-def save_resume_for_session(db, marketing_id: int, resume_data: dict) -> None:
+import typing
+
+def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict) -> None:
     from sqlalchemy import text
     from fastapi import HTTPException
     resume_json_str = json.dumps(resume_data)
     
-    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == marketing_id).first()
+    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == session_id).first()
     if cm:
         cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
     db.commit()
