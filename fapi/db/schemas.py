@@ -4395,10 +4395,14 @@ class CandidateLlmKeyListItemOut(BaseModel):
     id: int
     provider_name: str
     masked_key: str
+    api_key: Optional[str] = None
     model_name: Optional[str] = None
     entry_date: Optional[datetime] = None
     voice_enabled: bool = False
     is_default: bool = False
+    validation_status: str = "inactive"
+    validation_message: Optional[str] = None
+    last_validated_at: Optional[datetime] = None
 
 
 class CoderpadLlmKeyVoiceEnabledIn(BaseModel):

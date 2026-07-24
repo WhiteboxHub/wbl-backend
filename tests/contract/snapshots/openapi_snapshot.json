@@ -21053,6 +21053,80 @@
         ]
       }
     },
+    "/api/coderpad/me/llm-keys/detect-and-validate": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Detect And Validate Llm Key",
+        "description": "Auto-detect provider, validate key live, and fetch dynamic model list.",
+        "operationId": "detect_and_validate_llm_key_api_coderpad_me_llm_keys_detect_and_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/coderpad/llm-providers": {
+      "get": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Get Llm Providers",
+        "description": "List metadata for all registered LLM providers.",
+        "operationId": "get_llm_providers_api_coderpad_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/coderpad/snippets": {
       "get": {
         "tags": [
@@ -29571,6 +29645,17 @@
             "type": "string",
             "title": "Masked Key"
           },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
           "model_name": {
             "anyOf": [
               {
@@ -29603,6 +29688,34 @@
             "type": "boolean",
             "title": "Is Default",
             "default": false
+          },
+          "validation_status": {
+            "type": "string",
+            "title": "Validation Status",
+            "default": "inactive"
+          },
+          "validation_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Message"
+          },
+          "last_validated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Validated At"
           }
         },
         "type": "object",

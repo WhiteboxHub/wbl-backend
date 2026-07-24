@@ -68,21 +68,42 @@ def ensure_default_llm_key_for_candidate(
     *,
     commit: bool = False,
 ) -> None:
-    """Single key → default; multiple keys with no default → newest row becomes default."""
+    """Ensures a default key exists.
+    If the current default key is already active, keep it as default.
+    Only if the current default key is missing or invalid/inactive, switch to the first active key.
+    """
     rows = _keys_for_candidate_id(db, candidate_id)
     if not rows or not _llm_has_column(db, "is_default"):
         return
-    if len(rows) == 1:
-        kid = int(rows[0].id)
-        if not bool(rows[0].is_default):
-            _set_default_key_for_candidate(db, candidate_id, kid)
-            if commit:
-                db.commit()
-        return
-    if not _has_default_key(db, candidate_id):
-        _set_default_key_for_candidate(db, candidate_id, int(rows[0].id))
+
+    current_default = None
+    first_active_key = None
+
+    for r in rows:
+        st = (getattr(r, "status", None) or "").lower()
+        if st == "active" and first_active_key is None:
+            first_active_key = r
+        if bool(r.is_default):
+            current_default = r
+
+    # 1. If current default key exists and is ACTIVE, DO NOT SWITCH!
+    if current_default and (getattr(current_default, "status", None) or "").lower() == "active":
         if commit:
             db.commit()
+        return
+
+    # 2. Current default is missing or NOT active — switch to first active key if available
+    if first_active_key:
+        _set_default_key_for_candidate(db, candidate_id, int(first_active_key.id))
+        if commit:
+            db.commit()
+        return
+
+    # 3. If no active key exists (all keys invalid or credits exhausted), clear all default flags
+    for r in rows:
+        r.is_default = False
+    if commit:
+        db.commit()
 
 
 def _default_llm_key_row(
@@ -109,25 +130,27 @@ def _default_llm_key_row(
 
 
 def _openai_key_for_candidate_id(db: Session, candidate_id: int) -> Optional[str]:
-    """Default My LLM key when OpenAI, else latest OpenAI row."""
+    """Default My LLM key when OpenAI, else latest active OpenAI row."""
     ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
     default_row = _default_llm_key_row(db, candidate_id)
     if default_row and _provider_is_openai(default_row.provider_name):
         secret = _row_secret(default_row)
         if secret:
             return secret
-    r = (
-        db.query(CandidateLlmApiKeyORM)
-        .filter(
-            CandidateLlmApiKeyORM.candidate_id == candidate_id,
-            func.lower(CandidateLlmApiKeyORM.provider_name) == "openai",
-        )
-        .order_by(CandidateLlmApiKeyORM.id.desc())
-        .first()
-    )
-    if not r:
-        return None
-    return _row_secret(r)
+    # Fallback to first active OpenAI key
+    rows = _keys_for_candidate_id(db, candidate_id)
+    for r in rows:
+        if _provider_is_openai(r.provider_name) and (getattr(r, "status", None) or "").lower() == "active":
+            secret = _row_secret(r)
+            if secret:
+                return secret
+    # Final fallback to newest OpenAI key
+    for r in rows:
+        if _provider_is_openai(r.provider_name):
+            secret = _row_secret(r)
+            if secret:
+                return secret
+    return None
 
 
 def mask_openai_api_key(secret: str) -> str:
@@ -405,28 +428,38 @@ _PROVIDER_ALIASES: Dict[str, str] = {
     "mistral": "Mistral",
     "gemini": "Gemini",
     "google": "Gemini",
+    "groq": "Groq",
+    "grok": "Grok",
+    "xai": "Grok",
+    "deepseek": "DeepSeek",
+    "openrouter": "OpenRouter",
+    "llama": "Llama",
+    "cohere": "Cohere",
+    "together": "Together",
+    "perplexity": "Perplexity",
 }
 
 _DEFAULT_MODEL_BY_PROVIDER: Dict[str, str] = {
-    "OpenAI": "gpt-4o-mini",
-    "Claude": "claude-3-5-haiku-20241022",
-    "Mistral": "mistral-small-latest",
+    "OpenAI": "gpt-4o",
+    "Claude": "claude-3-7-sonnet-20250219",
+    "Mistral": "mistral-large-latest",
     "Gemini": "gemini-2.0-flash",
+    "Groq": "llama-3.3-70b-versatile",
+    "Grok": "grok-2-1212",
+    "DeepSeek": "deepseek-chat",
+    "OpenRouter": "openai/gpt-4o",
 }
 
 
 def normalize_llm_provider_name(provider_name: str) -> str:
     k = (provider_name or "").strip().lower()
-    if k not in _PROVIDER_ALIASES:
-        raise ValueError(
-            f"Unsupported provider: {provider_name}. "
-            "Use OpenAI, Claude, Mistral, or Gemini."
-        )
-    return _PROVIDER_ALIASES[k]
+    if k in _PROVIDER_ALIASES:
+        return _PROVIDER_ALIASES[k]
+    return (provider_name or "OpenAI").strip()
 
 
 def _default_model_for_provider(provider: str) -> str:
-    return _DEFAULT_MODEL_BY_PROVIDER.get(provider, "gpt-4o-mini")
+    return _DEFAULT_MODEL_BY_PROVIDER.get(provider, "gpt-4o")
 
 
 def _find_key_row_for_provider(
@@ -455,13 +488,21 @@ def create_candidate_llm_key_to_db(
     model_name: Optional[str] = None,
     voice_enabled: bool = False,
 ) -> int:
-    """Insert a new LLM key row (never deletes or replaces existing keys)."""
+    """Insert a new LLM key row with auto-detected provider & model."""
     key = (api_key or "").strip()
     if not key:
         raise ValueError("API key is required")
-    provider = normalize_llm_provider_name(provider_name)
+
+    from fapi.utils.llm_provider_registry import provider_registry
+    detection = provider_registry.detect_and_validate(key, override_provider_id=provider_name)
+    detected_prov = detection.get("detected_provider") or provider_name
+    detected_model = model_name or detection.get("default_model") or _default_model_for_provider(detected_prov)
+    val_status = detection.get("status") or "inactive"
+    val_msg = detection.get("message")
+
+    provider = normalize_llm_provider_name(detected_prov)
     candidate_id = _candidate_id_for_user(db, current_user)
-    m = (model_name or _default_model_for_provider(provider)).strip()
+    m = (detected_model or _default_model_for_provider(provider)).strip()
     ve = bool(voice_enabled)
     encrypted_key = encrypt_api_key(key)
     row_kwargs: Dict[str, Any] = {
@@ -474,6 +515,10 @@ def create_candidate_llm_key_to_db(
         row_kwargs["voice_enabled"] = ve
     if _llm_has_column(db, "created_at"):
         row_kwargs["created_at"] = datetime.now(timezone.utc)
+    if _llm_has_column(db, "status"):
+        row_kwargs["status"] = val_status
+        row_kwargs["failure_reason"] = val_msg if val_status != "active" else None
+        row_kwargs["last_validated_at"] = datetime.now(timezone.utc)
     if _llm_has_column(db, "is_default"):
         row_kwargs["is_default"] = False
     row = CandidateLlmApiKeyORM(**row_kwargs)
@@ -496,7 +541,6 @@ def update_candidate_llm_key_to_db(
     voice_enabled: bool = False,
 ) -> None:
     """Update an existing LLM key row (API key optional — keeps current when omitted)."""
-    provider = normalize_llm_provider_name(provider_name)
     candidate_id = _candidate_id_for_user(db, current_user)
     r = (
         db.query(CandidateLlmApiKeyORM)
@@ -509,12 +553,27 @@ def update_candidate_llm_key_to_db(
     if not r:
         raise LookupError("Key not found")
     key = (api_key or "").strip()
+    
+    provider = normalize_llm_provider_name(provider_name)
+    m = (model_name or r.model_name or _default_model_for_provider(provider)).strip()
+    
     if key:
+        from fapi.utils.llm_provider_registry import provider_registry
+        detection = provider_registry.detect_and_validate(key, override_provider_id=provider_name)
+        if detection.get("detected_provider"):
+            provider = normalize_llm_provider_name(detection["detected_provider"])
+        if not model_name and detection.get("default_model"):
+            m = detection["default_model"]
+        if _llm_has_column(db, "status"):
+            r.status = detection.get("status", "inactive")
+            r.failure_reason = detection.get("message") if r.status != "active" else None
+            r.last_validated_at = datetime.now(timezone.utc)
         r.api_key = encrypt_api_key(key)
     elif not _row_secret(r):
         raise ValueError("API key is required")
+
     r.provider_name = provider
-    r.model_name = (model_name or r.model_name or _default_model_for_provider(provider)).strip()
+    r.model_name = m
     if _llm_has_column(db, "voice_enabled"):
         r.voice_enabled = bool(voice_enabled)
     _sync_voice_enabled_to_api_keys(db, candidate_id, provider, bool(voice_enabled))
@@ -570,7 +629,7 @@ def _plaintext_api_key(raw: str) -> str:
     s = (raw or "").strip()
     if not s:
         return ""
-    if s.startswith(("sk-", "sk-ant-", "sk-proj-", "AIzaSy")):
+    if s.startswith(("sk-", "sk-ant-", "sk-proj-", "AIza", "gsk_", "xai-", "sk-or-", "sk-ds-", "msk-")):
         return s
     dec = decrypt_api_key(s)
     if dec and dec != "DECRYPTION_FAILED":
@@ -659,10 +718,14 @@ def list_candidate_llm_keys_for_user(
                 "id": rid,
                 "provider_name": str(r.provider_name or "Unknown"),
                 "masked_key": masked or "••••••••••••",
+                "api_key": secret or "",
                 "model_name": r.model_name,
                 "entry_date": entry,
                 "voice_enabled": _resolve_voice_enabled(r, api_keys_voice),
                 "is_default": bool(default_by_id.get(rid, False)),
+                "validation_status": getattr(r, "status", None) or "inactive",
+                "validation_message": getattr(r, "failure_reason", None),
+                "last_validated_at": getattr(r, "last_validated_at", None),
             }
         )
     return out
@@ -757,13 +820,9 @@ def delete_candidate_llm_key_for_user(
     )
     if not r:
         raise LookupError("Key not found")
-    if _is_key_default(db, candidate_id, key_id):
-        raise ValueError(
-            "Cannot delete the default API key. Set another key as default first."
-        )
     db.delete(r)
-    _ensure_candidate_has_default_key(db, candidate_id)
     db.commit()
+    ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
 
 
 def validate_llm_key_batch_for_user(
@@ -773,6 +832,7 @@ def validate_llm_key_batch_for_user(
     session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     from fapi.utils.llm_key_validation_utils import validate_provider_key
+    from datetime import datetime, timezone
 
     del session_id  # unused; validation reads from DB
     candidate_id = _candidate_id_for_user(db, current_user)
@@ -786,6 +846,28 @@ def validate_llm_key_batch_for_user(
             status, message = "inactive", "Key not found"
         else:
             status, message = validate_provider_key(provider, raw)
+
+        # Persist result back to DB — eliminates the need for localStorage cache
+        row = None
+        try:
+            row = (
+                db.query(CandidateLlmApiKeyORM)
+                .filter(
+                    CandidateLlmApiKeyORM.id == key_id,
+                    CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                )
+                .first()
+            )
+            if row:
+                row.status = status
+                row.failure_reason = message if status != "active" else None
+                row.failure_code = None
+                row.last_validated_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:
+            if row:
+                db.expire(row)
+
         results.append(
             {
                 "id": key_id,
@@ -794,6 +876,13 @@ def validate_llm_key_batch_for_user(
                 "message": message,
             }
         )
+
+    # Automatically shift default to first active key if current default became invalid/inactive
+    try:
+        ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
+    except Exception:
+        pass
+
     return results
 
 
@@ -803,19 +892,59 @@ def finish_setup_for_user(
 ) -> Dict[str, Any]:
     from fapi.utils.llm_key_validation_utils import validate_provider_key
     candidate_id = _candidate_id_for_user(db, current_user)
+    
+    keys = (
+        db.query(CandidateLlmApiKeyORM)
+        .filter(CandidateLlmApiKeyORM.candidate_id == candidate_id)
+        .all()
+    )
+    if not keys:
+        return {
+            "setup_complete": False,
+            "error_code": "NO_USABLE_LLM_KEY",
+            "error": "No LLM API keys found. Add and validate at least one usable LLM key to complete your profile setup.",
+        }
+
     ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
     default_row = _default_llm_key_row(db, candidate_id)
     
-    if not default_row:
-        return {"setup_complete": False, "error": "No LLM API keys found. Please add a key first."}
-    
+    active_keys = [k for k in keys if k.status == "active"]
+    if not active_keys:
+        return {
+            "setup_complete": False,
+            "error_code": "NO_USABLE_LLM_KEY",
+            "error": "A valid and usable LLM API key is required to complete setup.",
+        }
+
+    if not default_row or default_row.status != "active":
+        default_row = active_keys[0]
+        default_row.is_default = True
+        db.commit()
+
     secret = _row_secret(default_row)
     if not secret:
-        return {"setup_complete": False, "error": "The default LLM API key has an invalid format or is empty."}
+        return {
+            "setup_complete": False,
+            "error_code": "NO_USABLE_LLM_KEY",
+            "error": "The selected default LLM API key has an invalid format or is empty.",
+        }
         
     status, message = validate_provider_key(default_row.provider_name or "", secret)
-    
     if status == "active":
         return {"setup_complete": True}
     else:
-        return {"setup_complete": False, "error": f"Default API key validation failed: {message}"}
+        default_row.status = status
+        db.commit()
+        ensure_default_llm_key_for_candidate(db, candidate_id, commit=True)
+        new_default = _default_llm_key_row(db, candidate_id)
+        if new_default and new_default.status == "active":
+            new_secret = _row_secret(new_default)
+            if new_secret:
+                st2, msg2 = validate_provider_key(new_default.provider_name or "", new_secret)
+                if st2 == "active":
+                    return {"setup_complete": True}
+        return {
+            "setup_complete": False,
+            "error_code": "NO_USABLE_LLM_KEY",
+            "error": f"LLM API key validation failed: {message}",
+        }
