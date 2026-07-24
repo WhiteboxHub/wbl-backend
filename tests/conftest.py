@@ -152,7 +152,7 @@ def candidate_db_user(db_session):
         uname=email,
         passwd="hashed_password",  # pragma: allowlist secret
         status="active",
-        role="",
+        role="candidate",
         enddate=date(1990,1 ,1),
     )
     db_session.add(auth_user)
@@ -174,5 +174,5 @@ def candidate_db_user(db_session):
 @pytest.fixture
 def candidate_headers(candidate_db_user):
     auth_user = candidate_db_user["auth_user"]
-    token = _forge_token(auth_user.id, auth_user.uname, role="", is_admin=False)
+    token = _forge_token(auth_user.id, auth_user.uname, role="candidate", is_admin=False)
     return {"Authorization": f"Bearer {token}"}
