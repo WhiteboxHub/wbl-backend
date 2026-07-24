@@ -364,11 +364,32 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
 
 import typing
 
+from pydantic import BaseModel, ConfigDict, Field
+from typing import List, Dict, Any, Optional
+
+class ResumeDataSchema(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    basics: Optional[Dict[str, Any]] = None
+    work: Optional[List[Dict[str, Any]]] = None
+    education: Optional[List[Dict[str, Any]]] = None
+    skills: Optional[List[Dict[str, Any]]] = None
+    projects: Optional[List[Dict[str, Any]]] = None
+    awards: Optional[List[Dict[str, Any]]] = None
+    headings: Optional[Dict[str, Any]] = None
+    sections: Optional[List[str]] = None
+    selectedTemplate: Optional[int] = None
+    meta_filename: Optional[str] = Field(None, alias='_meta_filename')
+
 def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict, candidate_id: typing.Optional[int] = None) -> None:
     from sqlalchemy import text
     from fastapi import HTTPException
     import json
-    resume_json_str = json.dumps(resume_data)
+    
+    try:
+        validated_resume = ResumeDataSchema.model_validate(resume_data)
+        sanitized_data = validated_resume.model_dump(by_alias=True, exclude_none=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid resume data format: {e}")
     
     try:
         session_id_int = int(session_id)
@@ -384,7 +405,7 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
     if not cm:
         raise HTTPException(status_code=403, detail="Not authorized to edit this session or session not found")
         
-    cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
+    cm.candidate_json = sanitized_data
     db.commit()
 
 from fastapi import HTTPException
