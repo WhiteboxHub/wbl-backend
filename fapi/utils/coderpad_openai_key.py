@@ -831,7 +831,7 @@ def validate_llm_key_batch_for_user(
     keys: List[Dict[str, Any]],
     session_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    from fapi.utils.llm_key_validation_utils import validate_provider_key
+    from fapi.utils.llm_provider_registry import provider_registry
     from datetime import datetime, timezone
 
     del session_id  # unused; validation reads from DB
@@ -845,7 +845,9 @@ def validate_llm_key_batch_for_user(
         if not raw:
             status, message = "inactive", "Key not found"
         else:
-            status, message = validate_provider_key(provider, raw)
+            detection = provider_registry.detect_and_validate(raw, override_provider_id=provider)
+            status = detection.get("status") or "inactive"
+            message = detection.get("message") or ""
 
         # Persist result back to DB — eliminates the need for localStorage cache
         row = None
@@ -890,7 +892,7 @@ def finish_setup_for_user(
     db: Session,
     current_user: AuthUserORM,
 ) -> Dict[str, Any]:
-    from fapi.utils.llm_key_validation_utils import validate_provider_key
+    from fapi.utils.llm_provider_registry import provider_registry
     candidate_id = _candidate_id_for_user(db, current_user)
     
     keys = (
@@ -929,7 +931,9 @@ def finish_setup_for_user(
             "error": "The selected default LLM API key has an invalid format or is empty.",
         }
         
-    status, message = validate_provider_key(default_row.provider_name or "", secret)
+    detection = provider_registry.detect_and_validate(secret, override_provider_id=default_row.provider_name)
+    status = detection.get("status") or "inactive"
+    message = detection.get("message") or ""
     if status == "active":
         return {"setup_complete": True}
     else:
@@ -940,7 +944,9 @@ def finish_setup_for_user(
         if new_default and new_default.status == "active":
             new_secret = _row_secret(new_default)
             if new_secret:
-                st2, msg2 = validate_provider_key(new_default.provider_name or "", new_secret)
+                det2 = provider_registry.detect_and_validate(new_secret, override_provider_id=new_default.provider_name)
+                st2 = det2.get("status") or "inactive"
+                msg2 = det2.get("message") or ""
                 if st2 == "active":
                     return {"setup_complete": True}
         return {
