@@ -387,7 +387,15 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
     
     try:
         validated_resume = ResumeDataSchema.model_validate(resume_data)
-        sanitized_data = validated_resume.model_dump(by_alias=True, exclude_none=True)
+        sanitized_data = validated_resume.model_dump(
+            by_alias=True, 
+            exclude_none=True,
+            include={
+                'basics', 'work', 'education', 'skills', 
+                'projects', 'awards', 'headings', 'sections', 
+                'selectedTemplate', 'meta_filename'
+            }
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid resume data format: {e}")
     
