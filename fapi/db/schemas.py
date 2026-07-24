@@ -4784,7 +4784,7 @@ class OutreachEmailOut(OutreachEmailBase):
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
-<<<<<<< HEAD
+
 
 # -------------------- Job Link Click Tracking --------------------
 
@@ -4820,7 +4820,7 @@ class CandidateClickStatsOut(BaseModel):
     job_listings_clicked: int = 0
     outreach_counter: int = 0
     easy_apply_counter: int = 0
-=======
+
 class SetupInit(BaseModel):
     candidate_email: Optional[str] = None
     candidate_id: Optional[Union[str, int]] = None
@@ -4840,4 +4840,4 @@ class APIKeyCreate(BaseModel):
     api_key: str
     model_name: Optional[str] = None
     voice_enabled: bool = False
->>>>>>> cf3b071d664750629d95a871c2fadf5b4bbbbed5
+
