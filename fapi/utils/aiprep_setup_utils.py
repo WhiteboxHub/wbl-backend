@@ -472,6 +472,11 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
     import json
     
     try:
+        if isinstance(resume_data, str):
+            try:
+                resume_data = json.loads(resume_data)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid JSON format in resume data")
         validated_resume = ResumeDataSchema.model_validate(resume_data)
         sanitized_data = validated_resume.model_dump(
             by_alias=True, 
