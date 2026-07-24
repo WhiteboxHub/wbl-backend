@@ -124,11 +124,11 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_stats": interview_stats,
         "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
-<<<<<<< HEAD
+
         "candidate_stats": candidate_stats,
-=======
-        "candidate_stats": get_candidate_statistics(db, candidate_id),
->>>>>>> cf3b071d664750629d95a871c2fadf5b4bbbbed5
+
+        
+
     }
 
 
