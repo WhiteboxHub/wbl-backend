@@ -466,7 +466,7 @@ class ResumeDataSchema(BaseModel):
     selectedTemplate: Optional[int] = None
     meta_filename: Optional[str] = Field(None, alias='_meta_filename')
 
-def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict, candidate_id: typing.Optional[int] = None) -> None:
+def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict, candidate_id: typing.Optional[int] = None) -> dict:
     from sqlalchemy import text
     from fastapi import HTTPException
     import json
@@ -510,6 +510,7 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
         
     cm.candidate_json = sanitized_data
     db.commit()
+    return sanitized_data
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -735,13 +736,13 @@ async def upload_resume_file_logic(file, resume_json, user_email: str, db):
             content = await file.read()
             if file.filename.endswith(".json") or file.content_type == "application/json":
                 updated_resume = json.loads(content.decode("utf-8"))
-                save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
+                updated_resume = save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
             else:
                 updated_resume = process_resume_parsing(content, file.filename, candidate_id, marketing_id, db)
-                save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
+                updated_resume = save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
         elif resume_json:
             updated_resume = json.loads(resume_json)
-            save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
+            updated_resume = save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
         else:
             raise HTTPException(status_code=400, detail="No file or resume_json provided")
         return {"resume_json": updated_resume, "file_name": file_name}
@@ -783,14 +784,14 @@ def update_resume_logic(body: ResumeCreate, user_email: str, db):
             ).first()
             if not cm:
                 raise HTTPException(status_code=403, detail="Not authorized to edit this session")
-            save_resume_for_session(db, session_id_int, body.resume_json, candidate_id=candidate_id)
+            sanitized = save_resume_for_session(db, session_id_int, body.resume_json, candidate_id=candidate_id)
         else:
             marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
             marketing_id_row = [marketing[0]] if marketing else None
             if not marketing_id_row:
                 raise HTTPException(status_code=404, detail="Candidate marketing not found")
-            save_resume_for_session(db, marketing_id_row[0], body.resume_json, candidate_id=candidate_id)
-        return {"resume_json": body.resume_json, "file_name": body.file_name}
+            sanitized = save_resume_for_session(db, marketing_id_row[0], body.resume_json, candidate_id=candidate_id)
+        return {"resume_json": sanitized, "file_name": body.file_name}
     except HTTPException:
         raise
     except Exception as e:
