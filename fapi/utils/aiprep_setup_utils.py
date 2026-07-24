@@ -368,7 +368,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Dict, Any, Optional, Union
 
 class ResumeBasics(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -378,7 +378,7 @@ class ResumeBasics(BaseModel):
     summary: Optional[str] = None
 
 class ResumeWork(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     company: Optional[str] = None
     name: Optional[str] = None
     employer: Optional[str] = None
@@ -399,7 +399,7 @@ class ResumeWork(BaseModel):
     bullets: Optional[List[str]] = None
 
 class ResumeEducation(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     institution: Optional[str] = None
     school: Optional[str] = None
     university: Optional[str] = None
@@ -430,13 +430,13 @@ class ResumeEducation(BaseModel):
     cgpa: Optional[str] = None
 
 class ResumeSkill(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     name: Optional[str] = None
     level: Optional[str] = None
     keywords: Optional[List[str]] = None
 
 class ResumeProject(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     name: Optional[str] = None
     description: Optional[str] = None
     startDate: Optional[str] = None
@@ -447,14 +447,14 @@ class ResumeProject(BaseModel):
     highlights: Optional[List[str]] = None
 
 class ResumeAward(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     title: Optional[str] = None
     date: Optional[str] = None
     awarder: Optional[str] = None
     summary: Optional[str] = None
 
 class ResumeDataSchema(BaseModel):
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
     basics: Optional[ResumeBasics] = None
     work: Optional[List[ResumeWork]] = None
     education: Optional[List[ResumeEducation]] = None
