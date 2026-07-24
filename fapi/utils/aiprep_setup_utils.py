@@ -365,17 +365,103 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
 import typing
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
+
+class ResumeBasics(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    url: Optional[str] = None
+    location: Optional[Dict[str, str]] = None
+    summary: Optional[str] = None
+
+class ResumeWork(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    company: Optional[str] = None
+    name: Optional[str] = None
+    employer: Optional[str] = None
+    organization: Optional[str] = None
+    position: Optional[str] = None
+    title: Optional[str] = None
+    role: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    place: Optional[str] = None
+    startDate: Optional[str] = None
+    start_date: Optional[str] = None
+    endDate: Optional[str] = None
+    end_date: Optional[str] = None
+    current: Optional[bool] = None
+    summary: Optional[str] = None
+    highlights: Optional[List[str]] = None
+    bullets: Optional[List[str]] = None
+
+class ResumeEducation(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    institution: Optional[str] = None
+    school: Optional[str] = None
+    university: Optional[str] = None
+    college: Optional[str] = None
+    name: Optional[str] = None
+    studyType: Optional[str] = None
+    degree: Optional[str] = None
+    qualification: Optional[str] = None
+    certificate: Optional[str] = None
+    award: Optional[str] = None
+    area: Optional[str] = None
+    field: Optional[str] = None
+    major: Optional[str] = None
+    specialization: Optional[str] = None
+    subject: Optional[str] = None
+    study: Optional[str] = None
+    fieldOfStudy: Optional[str] = None
+    startDate: Optional[str] = None
+    start_date: Optional[str] = None
+    from_date: Optional[str] = Field(None, alias="from")
+    endDate: Optional[str] = None
+    end_date: Optional[str] = None
+    year: Optional[str] = None
+    graduationYear: Optional[str] = None
+    to_date: Optional[str] = Field(None, alias="to")
+    gpa: Optional[str] = None
+    grade: Optional[str] = None
+    cgpa: Optional[str] = None
+
+class ResumeSkill(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    name: Optional[str] = None
+    level: Optional[str] = None
+    keywords: Optional[List[str]] = None
+
+class ResumeProject(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    name: Optional[str] = None
+    description: Optional[str] = None
+    startDate: Optional[str] = None
+    start_date: Optional[str] = None
+    endDate: Optional[str] = None
+    end_date: Optional[str] = None
+    url: Optional[str] = None
+    highlights: Optional[List[str]] = None
+
+class ResumeAward(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+    title: Optional[str] = None
+    date: Optional[str] = None
+    awarder: Optional[str] = None
+    summary: Optional[str] = None
 
 class ResumeDataSchema(BaseModel):
     model_config = ConfigDict(extra='ignore')
-    basics: Optional[Dict[str, Any]] = None
-    work: Optional[List[Dict[str, Any]]] = None
-    education: Optional[List[Dict[str, Any]]] = None
-    skills: Optional[List[Dict[str, Any]]] = None
-    projects: Optional[List[Dict[str, Any]]] = None
-    awards: Optional[List[Dict[str, Any]]] = None
-    headings: Optional[Dict[str, Any]] = None
+    basics: Optional[ResumeBasics] = None
+    work: Optional[List[ResumeWork]] = None
+    education: Optional[List[ResumeEducation]] = None
+    skills: Optional[List[ResumeSkill]] = None
+    projects: Optional[List[ResumeProject]] = None
+    awards: Optional[List[ResumeAward]] = None
+    headings: Optional[Dict[str, str]] = None
     sections: Optional[List[str]] = None
     selectedTemplate: Optional[int] = None
     meta_filename: Optional[str] = Field(None, alias='_meta_filename')
