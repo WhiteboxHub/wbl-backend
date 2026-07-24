@@ -9,6 +9,8 @@ with open(os.path.join(os.path.dirname(__file__), "resume_parser_prompt.txt"), "
 
 from fapi.db.database import get_db
 from fapi.utils.llm_service import call_llm_with_context
+from fastapi import HTTPException
+from fapi.db.models import CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 
 logger = logging.getLogger(__name__)
 
@@ -360,14 +362,155 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
         logger.error(f"Error validating API key for {provider}: {e}")
     return is_valid, supports_voice
 
-def save_resume_for_session(db, session_id: str, resume_data: dict) -> None:
+import typing
+
+from pydantic import BaseModel, ConfigDict, Field
+from typing import List, Dict, Any, Optional, Union
+
+class ResumeBasics(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    url: Optional[str] = None
+    location: Optional[Dict[str, str]] = None
+    summary: Optional[str] = None
+
+class ResumeWork(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    company: Optional[str] = None
+    name: Optional[str] = None
+    employer: Optional[str] = None
+    organization: Optional[str] = None
+    position: Optional[str] = None
+    title: Optional[str] = None
+    role: Optional[str] = None
+    location: Optional[str] = None
+    city: Optional[str] = None
+    place: Optional[str] = None
+    startDate: Optional[str] = None
+    start_date: Optional[str] = None
+    endDate: Optional[str] = None
+    end_date: Optional[str] = None
+    current: Optional[bool] = None
+    summary: Optional[str] = None
+    highlights: Optional[List[str]] = None
+    bullets: Optional[List[str]] = None
+
+class ResumeEducation(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    institution: Optional[str] = None
+    school: Optional[str] = None
+    university: Optional[str] = None
+    college: Optional[str] = None
+    name: Optional[str] = None
+    studyType: Optional[str] = None
+    degree: Optional[str] = None
+    qualification: Optional[str] = None
+    certificate: Optional[str] = None
+    award: Optional[str] = None
+    area: Optional[str] = None
+    field: Optional[str] = None
+    major: Optional[str] = None
+    specialization: Optional[str] = None
+    subject: Optional[str] = None
+    study: Optional[str] = None
+    fieldOfStudy: Optional[str] = None
+    startDate: Optional[str] = None
+    start_date: Optional[str] = None
+    from_date: Optional[str] = Field(None, alias="from")
+    endDate: Optional[str] = None
+    end_date: Optional[str] = None
+    year: Optional[str] = None
+    graduationYear: Optional[str] = None
+    to_date: Optional[str] = Field(None, alias="to")
+    gpa: Optional[str] = None
+    grade: Optional[str] = None
+    cgpa: Optional[str] = None
+
+class ResumeSkill(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    name: Optional[str] = None
+    level: Optional[str] = None
+    keywords: Optional[List[str]] = None
+
+class ResumeProject(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    name: Optional[str] = None
+    description: Optional[str] = None
+    startDate: Optional[str] = None
+    start_date: Optional[str] = None
+    endDate: Optional[str] = None
+    end_date: Optional[str] = None
+    url: Optional[str] = None
+    highlights: Optional[List[str]] = None
+
+class ResumeAward(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    title: Optional[str] = None
+    date: Optional[str] = None
+    awarder: Optional[str] = None
+    summary: Optional[str] = None
+
+class ResumeDataSchema(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+    basics: Optional[ResumeBasics] = None
+    work: Optional[List[ResumeWork]] = None
+    education: Optional[List[ResumeEducation]] = None
+    skills: Optional[List[ResumeSkill]] = None
+    projects: Optional[List[ResumeProject]] = None
+    awards: Optional[List[ResumeAward]] = None
+    headings: Optional[Dict[str, str]] = None
+    sections: Optional[List[str]] = None
+    selectedTemplate: Optional[int] = None
+    meta_filename: Optional[str] = Field(None, alias='_meta_filename')
+
+def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict, candidate_id: typing.Optional[int] = None) -> dict:
     from sqlalchemy import text
-    resume_json_str = json.dumps(resume_data)
-    marketing_id = int(session_id)
-    cm = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == marketing_id).first()
-    if cm:
-        cm.candidate_json = json.loads(resume_json_str) if isinstance(resume_json_str, str) else resume_json_str
+    from fastapi import HTTPException
+    import json
+    
+    try:
+        if isinstance(resume_data, str):
+            try:
+                resume_data = json.loads(resume_data)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid JSON format in resume data")
+        validated_resume = ResumeDataSchema.model_validate(resume_data)
+        sanitized_data = validated_resume.model_dump(
+            by_alias=True, 
+            exclude_none=True,
+            include={
+                'basics', 'work', 'education', 'skills', 
+                'projects', 'awards', 'headings', 'sections', 
+                'selectedTemplate', 'meta_filename'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Pydantic validation failed for resume data: {e}")
+        raise HTTPException(status_code=400, detail="Invalid resume data format")
+    
+    try:
+        session_id_int = int(session_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+        
+    if candidate_id is None:
+        raise HTTPException(status_code=403, detail="candidate_id is required to update session")
+        
+    query = db.query(CandidateMarketingORM).filter(
+        CandidateMarketingORM.id == session_id_int,
+        CandidateMarketingORM.candidate_id == candidate_id
+    )
+    cm = query.first()
+    
+    if not cm:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this session or session not found")
+        
+    cm.candidate_json = sanitized_data
     db.commit()
+    return sanitized_data
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -593,16 +736,18 @@ async def upload_resume_file_logic(file, resume_json, user_email: str, db):
             content = await file.read()
             if file.filename.endswith(".json") or file.content_type == "application/json":
                 updated_resume = json.loads(content.decode("utf-8"))
-                save_resume_for_session(db, str(marketing_id), updated_resume)
+                updated_resume = save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
             else:
                 updated_resume = process_resume_parsing(content, file.filename, candidate_id, marketing_id, db)
-                save_resume_for_session(db, str(marketing_id), updated_resume)
+                updated_resume = save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
         elif resume_json:
             updated_resume = json.loads(resume_json)
-            save_resume_for_session(db, str(marketing_id), updated_resume)
+            updated_resume = save_resume_for_session(db, marketing_id, updated_resume, candidate_id=candidate_id)
         else:
             raise HTTPException(status_code=400, detail="No file or resume_json provided")
         return {"resume_json": updated_resume, "file_name": file_name}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"upload_resume error for {user_email}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -627,12 +772,28 @@ def get_resume_logic(user_email: str, db):
 def update_resume_logic(body: ResumeCreate, user_email: str, db):
     try:
         candidate_id = _get_candidate_id(db, user_email)
-        marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
-        marketing_id_row = [marketing[0]] if marketing else None
-        if not marketing_id_row:
-            raise HTTPException(status_code=404, detail="Candidate marketing not found")
-        save_resume_for_session(db, str(marketing_id_row[0]), body.resume_json)
-        return {"resume_json": body.resume_json, "file_name": body.file_name}
+        if body.session_id:
+            try:
+                session_id_int = int(body.session_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid session ID format")
+                
+            cm = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.id == session_id_int,
+                CandidateMarketingORM.candidate_id == candidate_id
+            ).first()
+            if not cm:
+                raise HTTPException(status_code=403, detail="Not authorized to edit this session")
+            sanitized = save_resume_for_session(db, session_id_int, body.resume_json, candidate_id=candidate_id)
+        else:
+            marketing = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
+            marketing_id_row = [marketing[0]] if marketing else None
+            if not marketing_id_row:
+                raise HTTPException(status_code=404, detail="Candidate marketing not found")
+            sanitized = save_resume_for_session(db, marketing_id_row[0], body.resume_json, candidate_id=candidate_id)
+        return {"resume_json": sanitized, "file_name": body.file_name}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"update_resume error for {user_email}: {e}")
         raise HTTPException(status_code=500, detail="Failed to update resume")
