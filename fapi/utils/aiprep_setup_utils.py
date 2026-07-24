@@ -397,7 +397,8 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
             }
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid resume data format: {e}")
+        logger.error(f"Pydantic validation failed for resume data: {e}")
+        raise HTTPException(status_code=400, detail="Invalid resume data format")
     
     try:
         session_id_int = int(session_id)
