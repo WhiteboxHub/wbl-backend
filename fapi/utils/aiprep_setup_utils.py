@@ -405,10 +405,13 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid session ID format")
         
-    query = db.query(CandidateMarketingORM).filter(CandidateMarketingORM.id == session_id_int)
-    if candidate_id is not None:
-        query = query.filter(CandidateMarketingORM.candidate_id == candidate_id)
+    if candidate_id is None:
+        raise HTTPException(status_code=403, detail="candidate_id is required to update session")
         
+    query = db.query(CandidateMarketingORM).filter(
+        CandidateMarketingORM.id == session_id_int,
+        CandidateMarketingORM.candidate_id == candidate_id
+    )
     cm = query.first()
     
     if not cm:
