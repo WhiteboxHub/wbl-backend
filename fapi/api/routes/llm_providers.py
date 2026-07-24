@@ -65,8 +65,10 @@ def get_provider_models(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Provider '{provider_id}' not found in registry",
         )
+    fallback_models = getattr(provider, "fallback_models", ["default"])
     return {
         "provider_id": provider.provider_id,
         "display_name": provider.display_name,
         "key_prefixes": provider.key_prefixes,
+        "models": fallback_models,
     }

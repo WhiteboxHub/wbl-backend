@@ -41,6 +41,7 @@ class BaseLLMProvider:
     display_name: str
     key_prefixes: List[str]
     key_pattern: Optional[re.Pattern] = None
+    fallback_models: List[str] = ["default"]
 
     def matches_key(self, api_key: str) -> bool:
         k = (api_key or "").strip()
@@ -62,6 +63,7 @@ class OpenAIProvider(BaseLLMProvider):
     display_name = "OpenAI"
     key_prefixes = ["sk-proj-", "sk-admin-", "sk-svcacct-"]
     key_pattern = re.compile(r"^sk-[a-zA-Z0-9_-]{30,}$")
+    fallback_models = ["gpt-4o", "gpt-4o-mini"]
 
     def matches_key(self, api_key: str) -> bool:
         k = (api_key or "").strip()
@@ -104,6 +106,12 @@ class AnthropicProvider(BaseLLMProvider):
     display_name = "Anthropic (Claude)"
     key_prefixes = ["sk-ant-"]
     key_pattern = re.compile(r"^sk-ant-api03-[a-zA-Z0-9_-]{40,}$")
+    fallback_models = [
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku-20241022",
+        "claude-3-opus-20240229",
+    ]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -141,6 +149,7 @@ class GeminiProvider(BaseLLMProvider):
     provider_id = "Gemini"
     display_name = "Google Gemini"
     key_prefixes = ["AIzaSy", "AIza", "AQ.", "AQ"]
+    fallback_models = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -175,6 +184,7 @@ class GroqProvider(BaseLLMProvider):
     provider_id = "Groq"
     display_name = "Groq"
     key_prefixes = ["gsk_"]
+    fallback_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "deepseek-r1-distill-llama-70b"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -204,6 +214,7 @@ class MistralProvider(BaseLLMProvider):
     provider_id = "Mistral"
     display_name = "Mistral AI"
     key_prefixes = ["msk-"]
+    fallback_models = ["mistral-large-latest", "codestral-latest", "mistral-small-latest"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -233,6 +244,7 @@ class DeepSeekProvider(BaseLLMProvider):
     provider_id = "DeepSeek"
     display_name = "DeepSeek"
     key_prefixes = ["sk-ds-"]
+    fallback_models = ["deepseek-chat", "deepseek-reasoner"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -257,6 +269,7 @@ class OpenRouterProvider(BaseLLMProvider):
     provider_id = "OpenRouter"
     display_name = "OpenRouter"
     key_prefixes = ["sk-or-v1-", "sk-or-"]
+    fallback_models = ["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "deepseek/deepseek-r1"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -293,6 +306,7 @@ class GrokProvider(BaseLLMProvider):
     provider_id = "Grok"
     display_name = "xAI (Grok)"
     key_prefixes = ["xai-"]
+    fallback_models = ["grok-2-latest", "grok-2-vision-latest", "grok-beta"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -317,6 +331,7 @@ class PerplexityProvider(BaseLLMProvider):
     provider_id = "Perplexity"
     display_name = "Perplexity AI"
     key_prefixes = ["pplx-"]
+    fallback_models = ["sonar-pro", "sonar", "sonar-reasoning"]
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
         fallback_models = ["sonar-pro", "sonar", "sonar-reasoning"]
@@ -339,6 +354,7 @@ class CohereProvider(BaseLLMProvider):
     provider_id = "Cohere"
     display_name = "Cohere"
     key_prefixes = ["co-"]
+    fallback_models = ["command-r-plus", "command-r", "command-light"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -362,6 +378,7 @@ class HuggingFaceProvider(BaseLLMProvider):
     provider_id = "HuggingFace"
     display_name = "Hugging Face"
     key_prefixes = ["hf_"]
+    fallback_models = ["meta-llama/Llama-3.3-70B-Instruct", "deepseek-ai/DeepSeek-R1", "mistralai/Mistral-7B-Instruct-v0.3"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -382,6 +399,7 @@ class FireworksProvider(BaseLLMProvider):
     provider_id = "Fireworks"
     display_name = "Fireworks AI"
     key_prefixes = ["fw-"]
+    fallback_models = ["accounts/fireworks/models/llama-v3p3-70b-instruct", "accounts/fireworks/models/deepseek-r1"]
 
     def validate_and_fetch_models(self, api_key: str) -> Tuple[ValidationStatus, str, List[str], Optional[str]]:
         key = api_key.strip()
@@ -405,6 +423,7 @@ class GenericOpenAICompatibleProvider(BaseLLMProvider):
     provider_id = "OpenAICompatible"
     display_name = "OpenAI Compatible Provider"
     key_prefixes = []
+    fallback_models = ["default"]
 
     OPENAI_ENDPOINTS = [
         ("Together", "https://api.together.xyz/v1/models"),
