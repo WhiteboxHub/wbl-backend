@@ -93,6 +93,10 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
 
     for key, value in update_data.items():
         setattr(db_user, key, value)
+        
+    if update_data.get("role") == "employee" or update_data.get("status") == "inactive":
+        db_user.refresh_token = None
+        db_user.refresh_token_expiry = None
     
     db_user.lastmoddatetime = datetime.utcnow()
 

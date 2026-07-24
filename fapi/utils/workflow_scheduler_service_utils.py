@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from croniter import croniter
 from sqlalchemy.orm import Session
 
@@ -44,7 +45,7 @@ _scheduler_started = False
 # Create and auto-start the scheduler
 try:
     _scheduler = BackgroundScheduler()
-    _scheduler.add_job(_run_scheduler_job, "interval", minutes=5)
+    _scheduler.add_job(_run_scheduler_job, IntervalTrigger(minutes=5))
     _scheduler.start()
     _scheduler_started = True
     logger.info("Automation Workflow Scheduler started (polling every 5 minutes)")

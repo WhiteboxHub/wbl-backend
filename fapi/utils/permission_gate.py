@@ -23,21 +23,28 @@ ALLOWED_GET_PREFIXES = {
     "/api/automation-workflow",
     "/api/candidates/track-clicks-batch",
     "/api/github-classroom-repos",
+    "/api/setup",
 }
 
 ALLOWED_POST_PREFIXES = {
     "/api/candidates/track-clicks-batch",
     "/api/interviews",
     "/api/candidate/generate-prep-token",
+    "/api/setup",
 }
 
 ALLOWED_PUT_PREFIXES = {
     "/api/interviews",
     "/api/candidates",
+    "/api/setup",
 }
 
 ALLOWED_PATCH_PREFIXES = {
     "/api/candidates/interviews",
+}
+
+ALLOWED_DELETE_PREFIXES = {
+    "/api/setup",
 }
 
 def _is_admin(user) -> bool:
@@ -48,13 +55,27 @@ def _is_admin(user) -> bool:
         or uname == "admin"
     )
 
+def _is_employee(user) -> bool:
+    return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
+
 def enforce_access(request: Request, current_user=Depends(get_current_user)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
+    
     if _is_admin(current_user):
         return current_user
 
-    # Authenticated learners/employees may use CoderPad (snippets, run, assignments).
+    if _is_employee(current_user):
+        forbidden_prefixes = ["/api/employees", "/api/user", "/api/users"]
+        if method in ["POST", "PUT", "DELETE", "PATCH"]:
+            if any(path == prefix or path.startswith(prefix + "/") for prefix in forbidden_prefixes):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Employees do not have permission to modify this resource."
+                )
+        return current_user
+
+    # Authenticated learners may use CoderPad (snippets, run, assignments).
     if path == "/api/coderpad" or path.startswith("/api/coderpad/"):
         return current_user
 
@@ -74,6 +95,11 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
 
     if method == "PATCH":
         for prefix in ALLOWED_PATCH_PREFIXES:
+            if path == prefix or path.startswith(prefix + "/"):
+                return current_user
+
+    if method == "DELETE":
+        for prefix in ALLOWED_DELETE_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
 

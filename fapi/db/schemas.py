@@ -15,6 +15,12 @@ class PositionTypeEnum(str, enum.Enum):
     internship = 'internship'
 
 
+class AuthUserRoleEnum(str, enum.Enum):
+    admin = 'admin'
+    employee = 'employee'
+    candidate = 'candidate'
+
+
 class EmploymentModeEnum(str, enum.Enum):
     onsite = 'onsite'
     hybrid = 'hybrid'
@@ -862,6 +868,7 @@ class CandidateUpdate(BaseModel):
     move_to_prep: Optional[bool] = None
     placement_percentage: Optional[int] = None
     enrollment_status: Optional[str] = None
+    candidate_json: Optional[Dict[str, Any]] = None
 
     model_config = {
         "from_attributes": True,
@@ -1059,24 +1066,6 @@ class CandidatePlacementUpdate(BaseModel):
 
 
 # ---------------- Candidate Setup Wizard Schemas ----------------
-
-class CandidateResumeBase(BaseModel):
-    resume_json: Dict[str, Any]
-    file_name: Optional[str] = None
-
-class CandidateResumeCreate(CandidateResumeBase):
-    pass
-
-class CandidateResumeUpdate(CandidateResumeBase):
-    pass
-
-class CandidateResumeOut(CandidateResumeBase):
-    id: int
-    candidate_id: int
-    created_at: datetime
-    updated_at: datetime
-    class Config:
-        from_attributes = True
 
 class CandidateAPIKeyBase(BaseModel):
     provider_name: str
@@ -2018,6 +2007,7 @@ class RecordingBase(BaseModel):
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class RecordingCreate(RecordingBase):
@@ -2030,7 +2020,7 @@ class RecordingUpdate(RecordingBase):
 
 class RecordingOut(RecordingBase):
     id: int
-
+    joined_candidate_ids: List[int] = []
     @field_validator("lastmoddatetime", mode="before")
     def clean_invalid_datetime(cls, v):
         if v in ("0000-00-00 00:00:00", None, ""):
@@ -2336,6 +2326,7 @@ class SessionBase(BaseModel):
     lastmoddatetime: Optional[datetime] = None
     subject_id: int
     notes: Optional[str] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class SessionCreate(SessionBase):
@@ -2356,7 +2347,7 @@ class Session(SessionBase):
 
 class SessionOut(SessionBase):
     sessionid: int
-
+    joined_candidate_ids: List[int] = []
     @field_validator("sessiondate", mode="before")
     def clean_invalid_date(cls, v):
         if v in ("0000-00-00", None, ""):
@@ -4793,6 +4784,7 @@ class OutreachEmailOut(OutreachEmailBase):
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
+<<<<<<< HEAD
 
 # -------------------- Job Link Click Tracking --------------------
 
@@ -4828,3 +4820,24 @@ class CandidateClickStatsOut(BaseModel):
     job_listings_clicked: int = 0
     outreach_counter: int = 0
     easy_apply_counter: int = 0
+=======
+class SetupInit(BaseModel):
+    candidate_email: Optional[str] = None
+    candidate_id: Optional[Union[str, int]] = None
+    marketing_id: Optional[Union[str, int]] = None
+    prep_token: Optional[Union[str, int]] = None
+
+class SyncFromWblRequest(BaseModel):
+    prep_token: str
+
+class ResumeCreate(BaseModel):
+    resume_json: dict
+    file_name: Optional[str] = None
+    session_id: Optional[str] = None
+
+class APIKeyCreate(BaseModel):
+    provider_name: str
+    api_key: str
+    model_name: Optional[str] = None
+    voice_enabled: bool = False
+>>>>>>> cf3b071d664750629d95a871c2fadf5b4bbbbed5

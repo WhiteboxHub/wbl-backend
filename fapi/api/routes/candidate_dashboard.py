@@ -149,7 +149,8 @@ async def upload_onboarding_documents(
                 signature=signature,
                 notes=notes,
                 drive_link=drive_link,
-                file_paths=[] # Exclusive use of Drive link for production
+                file_paths=[],
+                placement_percentage=candidate.placement_percentage if candidate.placement_percentage else 13
             )
             logger.info(f"Consolidated onboarding email sent for candidate {candidate_id}")
         except Exception as email_err:
@@ -255,6 +256,18 @@ def get_candidate_marketing_endpoint(
     except Exception as e:
         logger.error(f"Error fetching marketing for candidate {candidate_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch marketing details: {str(e)}")
+
+
+@router.post("/{candidate_id}/marketing/upload-resume")
+async def upload_candidate_marketing_resume(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
+    from fapi.utils import candidate_dashboard_utils
+    return await candidate_dashboard_utils.upload_candidate_resume(db, candidate_id, file)
+
 
 
 # ==================== PLACEMENT PHASE ====================

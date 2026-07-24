@@ -6,11 +6,19 @@ All business logic for dashboard operations using SQLAlchemy ORM
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, case, and_, or_, desc, distinct
 from fastapi import HTTPException
+from fapi.db import models
 from fapi.db.models import CandidateInterview
+from fapi.db.models import CandidateClass, CandidateSession
 from typing import Dict, Any, List, Optional
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fapi.core.cache import cache_result, invalidate_cache
+import os
+import requests
+import logging
+from fastapi import UploadFile
+
+logger = logging.getLogger(__name__)
 
 from fapi.db.models import (
     CandidateORM,
@@ -116,7 +124,11 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_stats": interview_stats,
         "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
+<<<<<<< HEAD
         "candidate_stats": candidate_stats,
+=======
+        "candidate_stats": get_candidate_statistics(db, candidate_id),
+>>>>>>> cf3b071d664750629d95a871c2fadf5b4bbbbed5
     }
 
 
@@ -290,6 +302,7 @@ def _build_phase_metrics(candidate: CandidateORM, db: Session) -> Dict[str, Any]
             "pending_interviews": interview_counts["pending"],
             "negative_interviews": interview_counts["negative"],
             "success_rate": interview_counts["success_rate"],
+            "candidate_resume": marketing.resume_url,
         }
 
     placement = _get_active_or_latest(candidate.placements, "status", "Active")
@@ -683,6 +696,7 @@ def get_marketing_phase_details(
             "interview_stats": interview_stats,
             "interview_breakdown": _calculate_interview_breakdown(interviews) if interviews else {},
             "top_companies": _get_top_companies_for_candidate(db, candidate_id) if interviews else [],
+            "has_uploaded_resume": False,
         }
 
     current_marketing = marketing_records[0]
@@ -690,6 +704,8 @@ def get_marketing_phase_details(
     # Calculate detailed stats
     interview_breakdown = _calculate_interview_breakdown(interviews)
     top_companies = _get_top_companies_for_candidate(db, candidate_id)
+
+    prep = _get_active_or_latest(current_marketing.candidate.preparations, "status", "active") if current_marketing.candidate else None
 
     # Build result with actual marketing data
     result = {
@@ -716,6 +732,8 @@ def get_marketing_phase_details(
         "interview_breakdown": interview_breakdown,
         "top_companies": top_companies,
         "last_modified": current_marketing.last_mod_datetime.isoformat() if current_marketing.last_mod_datetime else None,
+        "my_resume_filename": None,
+        "has_uploaded_resume": getattr(current_marketing, "candidate_json", None) is not None,
     }
 
     # Add historical records if requested
@@ -1275,6 +1293,66 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     interview_stats = _calculate_interview_stats(candidate.interviews)
     stats["interview_success_rate"] = interview_stats["success_rate"]
 
+    # 1. Get authuser to fetch user-level click
+    authuser = db.query(AuthUserORM).filter(
+        func.lower(AuthUserORM.uname) == candidate.email.lower()
+    ).first() if candidate.email else None
+    
+    # 2. Click counter
+    job_listings_clicked = 0
+    if authuser:
+        from fapi.db.models import JobLinkClicksORM
+        job_listings_clicked = db.query(func.sum(JobLinkClicksORM.click_count)).filter(
+            JobLinkClicksORM.authuser_id == authuser.id
+        ).scalar() or 0
+
+    # 3. Outreach counter
+    from fapi.db.models import CampaignEmailORM, CandidateMarketingORM
+    campaign_emails_sent = db.query(func.count(CampaignEmailORM.id)).filter(
+        CampaignEmailORM.candidate_id == candidate_id,
+        CampaignEmailORM.status == 'sent'
+    ).scalar() or 0
+    
+    marketing_outreach_count = db.query(func.sum(CandidateMarketingORM.total_outreach_count)).filter(
+        CandidateMarketingORM.candidate_id == candidate_id
+    ).scalar() or 0
+    
+    outreach_counter = max(campaign_emails_sent, marketing_outreach_count)
+
+    # 4. Easy apply counter
+    easy_apply_counter = 0
+    if authuser:
+        from fapi.db.models import ApplicationReportORM, WboxcliApplyAnalyticsORM
+        autofill_count = db.query(func.count(ApplicationReportORM.id)).filter(
+            ApplicationReportORM.user_id == authuser.id
+        ).scalar() or 0
+        
+        cli_analytics = db.query(WboxcliApplyAnalyticsORM).filter(
+            WboxcliApplyAnalyticsORM.user_id == authuser.uname
+        ).first()
+        cli_count = cli_analytics.jobs_submitted if cli_analytics else 0
+        
+        easy_apply_counter = autofill_count + cli_count
+
+    classes_joined = db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate_id).scalar() or 0
+
+    sessions_joined = db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate_id).scalar() or 0
+
+    mocks_joined = db.query(func.count(CandidateSession.session_id)).join(
+        models.Session, models.Session.sessionid == CandidateSession.session_id
+    ).filter(
+        CandidateSession.candidate_id == candidate_id,
+        models.Session.type.in_(["Individual Mock", "Group Mock"])
+    ).scalar() or 0
+
+    stats["classes_joined"] = int(classes_joined)
+    stats["sessions_joined"] = int(sessions_joined)
+    stats["mocks_joined"] = int(mocks_joined)
+
+    stats["job_listings_clicked"] = int(job_listings_clicked)
+    stats["outreach_counter"] = int(outreach_counter)
+    stats["easy_apply_counter"] = int(easy_apply_counter)
+
     return stats
 
 
@@ -1332,3 +1410,70 @@ def update_interview_feedback(db: Session, interview_id: int, feedback: str):
     db.commit()
     db.refresh(interview)
     return {"id": interview_id, "feedback": interview.feedback}
+
+async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFile) -> Dict[str, Any]:
+    # Validate file extension
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in [".pdf", ".doc", ".docx"]:
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX formats are accepted.")
+    
+    try:
+        # Get active marketing record
+        marketing_record = db.query(CandidateMarketingORM).filter(
+            CandidateMarketingORM.candidate_id == candidate_id,
+            CandidateMarketingORM.status == "active"
+        ).first()
+        
+        if not marketing_record:
+            # Check if any marketing record exists
+            marketing_record = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.candidate_id == candidate_id
+            ).first()
+            
+        if not marketing_record:
+            # Check if candidate exists
+            candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+            if not candidate:
+                raise HTTPException(status_code=404, detail="Candidate not found")
+            # Create a default active marketing record
+            marketing_record = CandidateMarketingORM(
+                candidate_id=candidate_id,
+                start_date=date.today(),
+                status="active"
+            )
+            db.add(marketing_record)
+            db.flush()
+            
+        content = await file.read()
+        db.commit()
+
+        
+        # We need the marketing_record ID for the session_id
+        session_id = str(marketing_record.id)
+        try:
+            from fapi.utils.aiprep_setup_utils import process_resume_parsing
+            parsed_json = process_resume_parsing(
+                content=content, 
+                filename=filename, 
+                candidate_id=candidate_id, 
+                marketing_id=marketing_record.id, 
+                db=db
+            )
+            
+            # Save the JSON back to the database
+            marketing_record.candidate_json = parsed_json
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error parsing resume via LLM: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"AI parsing failed: {str(e)}")
+
+        # Validation passed, AI parsing successful. We intentionally do not save the binary resume to the database.
+        db.commit()
+        
+        return {"message": "Resume uploaded and parsed successfully", "filename": filename, "candidate_json": parsed_json}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading resume for candidate {candidate_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload resume: {str(e)}")

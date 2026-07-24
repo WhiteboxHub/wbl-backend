@@ -23,6 +23,10 @@ croniter
 apscheduler
 upstash-redis
 
+# Document Parsing
+PyMuPDF
+python-docx
+
 fpdf2
 jinja2
 

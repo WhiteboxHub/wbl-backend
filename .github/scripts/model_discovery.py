@@ -3,6 +3,7 @@ import json
 import logging
 import requests
 import re
+import time
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
@@ -163,7 +164,7 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "tools": [{"googleSearchRetrieval": {}}]
+        "tools": [{"google_search": {}}]
     }
     
     res = requests.post(url, json=payload, timeout=15)
@@ -199,7 +200,7 @@ def run_search_classification(new_model_name, scout_model, provider, api_key):
     return {"caps": caps, "tier": tier}
 
 def extract_new_model_specs(new_model_name, provider):
-    scout_candidates = ["gemini-flash", "gemini-pro"]
+    scout_candidates = ["gemini-3.5-flash"]
     gemini_keys = get_gemini_api_keys()
     
     if not gemini_keys:
@@ -216,7 +217,8 @@ def extract_new_model_specs(new_model_name, provider):
                 logger.info(f"Classification successful with {scout_model}: {result}")
                 return result
             except Exception as e:
-                logger.debug(f"Scout model {scout_model} failed with a key: {e}")
+                logger.warning(f"Scout model {scout_model} failed with a key: {e}")
+                time.sleep(5) # Delay between key fallbacks to prevent 429 bursts
                 continue
             
     logger.warning(f"All scout models and keys failed for {new_model_name}. Defaulting to pending.")
@@ -334,6 +336,10 @@ def sync_and_update_models():
             logger.info(f"New model discovered: {live_model} from {provider}")
             specs = extract_new_model_specs(live_model, provider)
             
+            if specs.get("scout") == "failed":
+                logger.error(f"Failed to extract specs for {live_model} due to API exhaustion. Skipping to prevent pending spam.")
+                continue
+            
             model_metadata[live_model] = {
                 "provider": provider,
                 "tier": specs["tier"],
@@ -348,6 +354,8 @@ def sync_and_update_models():
                 "scout": specs["scout"]
             }
             logger.info(f"Added {live_model} to staging area (unverified).")
+            # Wait to avoid rate limiting when processing many new models
+            time.sleep(15)
         else:
             # Model already exists in metadata
             meta = model_metadata[live_model]

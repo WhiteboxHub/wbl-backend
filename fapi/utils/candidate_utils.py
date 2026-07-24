@@ -155,6 +155,8 @@ def update_candidate(candidate_id: int, candidate_data: dict):
             raise HTTPException(status_code=404, detail="Candidate not found")
 
         for key, value in candidate_data.items():
+            if key == "candidate_json":
+                continue
             # If batchid is explicitly null/None, default it to current batch
             if key == "batchid" and value is None:
                 from fapi.utils.batch_utils import get_current_batch
@@ -166,6 +168,29 @@ def update_candidate(candidate_id: int, candidate_data: dict):
 
         db.flush()
 
+        # If candidate status is updated to closed, deactivate active prep, marketing, and placement records
+        if candidate.status and str(candidate.status).lower() == "closed":
+            # Deactivate active prep
+            active_preps = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').all()
+            for prep in active_preps:
+                prep.status = "inactive"
+                prep.move_to_mrkt = False
+            
+            # Deactivate active marketing
+            active_marketings = db.query(CandidateMarketingORM).filter_by(candidate_id=candidate.id, status='active').all()
+            for marketing in active_marketings:
+                marketing.status = "inactive"
+                marketing.move_to_placement = False
+
+            # Deactivate active placement
+            active_placements = db.query(CandidatePlacementORM).filter_by(candidate_id=candidate.id, status='Active').all()
+            for placement in active_placements:
+                placement.status = "Inactive"
+
+            # Set candidate move_to_prep flag to False
+            candidate.move_to_prep = False
+            db.flush()
+
 
         if getattr(candidate, "move_to_prep", False):
             active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
@@ -176,10 +201,24 @@ def update_candidate(candidate_id: int, candidate_data: dict):
                     status="active"
                 )
                 db.add(new_prep)
+        else:
+            active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
+            if active_prep:
+                active_prep.status = "inactive"
+                db.flush()
         
         # Keep the flag in sync with the actual active preparation status
         final_active_prep = db.query(CandidatePreparation).filter_by(candidate_id=candidate.id, status='active').first()
         candidate.move_to_prep = True if final_active_prep else False
+
+        # Update candidate_json in CandidateMarketingORM if provided
+        if "candidate_json" in candidate_data and candidate_data["candidate_json"] is not None:
+            marketing_record = db.query(CandidateMarketingORM).filter(
+                CandidateMarketingORM.candidate_id == candidate_id,
+                CandidateMarketingORM.status == "active"
+            ).order_by(CandidateMarketingORM.id.desc()).first()
+            if marketing_record:
+                marketing_record.candidate_json = candidate_data["candidate_json"]
 
         db.commit()
         db.refresh(candidate)
@@ -210,6 +249,9 @@ def delete_candidate(candidate_id: int):
         db.close() 
 
 
+
+def download_candidate_resume(db: Session, record_id: int) -> Response:
+    raise HTTPException(status_code=404, detail="Binary resumes are no longer supported. Please use the parsed JSON format.")
 
 
 # # -----------------------------------------------Marketing----------------------------
@@ -255,6 +297,7 @@ def serialize_marketing(record: CandidateMarketingORM) -> dict:
         return None
 
     record_dict = record.__dict__.copy()
+    record_dict["has_uploaded_resume"] = record.candidate_json is not None
     record_dict.pop("_sa_instance_state", None)
 
     candidate = record.candidate
@@ -404,6 +447,11 @@ def update_marketing(record_id: int, payload: CandidateMarketingUpdate) -> dict:
                         status="Active"
                     )
                     db.add(new_placement)
+        else:
+            active_placement = db.query(CandidatePlacementORM).filter_by(candidate_id=record.candidate_id, status="Active").first()
+            if active_placement:
+                active_placement.status = "Inactive"
+                db.flush()
 
         # Keep flag in sync with actual active placement status
         final_placement = db.query(CandidatePlacementORM).filter_by(candidate_id=record.candidate_id, status="Active").first()
@@ -1053,6 +1101,11 @@ def update_candidate_preparation(db: Session, prep_id: int, updates: CandidatePr
                 status="active"
             )
             db.add(new_marketing)
+    else:
+        active_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()
+        if active_marketing:
+            active_marketing.status = "inactive"
+            db.flush()
 
     # Keep flag in sync with actual active marketing status
     final_marketing = db.query(CandidateMarketingORM).filter_by(candidate_id=db_prep.candidate_id, status="active").first()

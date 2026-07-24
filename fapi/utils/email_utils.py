@@ -382,12 +382,7 @@ async def send_agreement_signed_email(
         subject=f" Agreement Signed: {candidate_name}",
         recipients=admin_emails,
         body=html_content,
-        subtype="html"
-    )
-    
-    fm = FastMail(fastmail_config)
-    await fm.send_message(message)
-
+        subtype="html")
 async def send_consolidated_onboarding_email(
     candidate_name: str,
     candidate_email: str,
@@ -395,6 +390,7 @@ async def send_consolidated_onboarding_email(
     signature: str,
     notes: str,
     drive_link: str,
+    placement_percentage: float = 13.0,
     file_paths: List[str] = None
 ):
     """Notify recruiters with a single consolidated onboarding email"""
@@ -429,7 +425,7 @@ async def send_consolidated_onboarding_email(
                         <p>This document outlines the payment structure, placement fees, and re-support terms for candidates enrolled with our training and placement services, with a focus on IT roles including AI and ML positions.</p>
                         
                         <p><strong>1. Post Placement Fees</strong><br/>
-                        After successful placement, a placement fee of <strong>13%</strong> from your offered annual salary will be applicable.</p>
+                        After successful placement, a placement fee of <strong>{placement_percentage}%</strong> from your offered annual salary will be applicable.</p>
                         
                         <p><strong>2. Payment Method and Installments</strong><br/>
                         The post placement fee may be paid in three installments using postpaid checks.</p>
@@ -441,11 +437,11 @@ async def send_consolidated_onboarding_email(
                         
                         <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin: 15px 0;">
                             <p style="margin: 0; font-weight: bold; color: #334155;">Illustration:</p>
-                            <p style="margin: 5px 0;">If offer received of USD 150,000, then 13% of 150,000 that is 19,500 is split into three installments:</p>
+                            <p style="margin: 5px 0;">If offer received of USD 150,000, then {placement_percentage} of 150,000 is split into three installments:</p>
                             <ul style="margin-bottom: 0; padding-left: 20px;">
-                                <li>First Installment: $6,500, payable after BGV and before Onboarding date.</li>
-                                <li>Second Installment: $6,500, payable after receiving your first paycheck.</li>
-                                <li>Third Installment: $6,500, payable after receiving your second paycheck.</li>
+                                <li>First Installment: Payable after BGV and before Onboarding date.</li>
+                                <li>Second Installment: Payable after receiving your first paycheck.</li>
+                                <li>Third Installment: Payable after receiving your second paycheck.</li>
                             </ul>
                         </div>
                         

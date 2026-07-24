@@ -29,6 +29,9 @@ def cache_get(key):
 
 
 def determine_user_role(userinfo) -> str:
+    db_role = getattr(userinfo, "role", None)
+    if db_role:
+        return db_role.lower()
     uname = (getattr(userinfo, "uname", "") or "").lower()
     return "admin" if uname == "admin" else "candidate"
 
