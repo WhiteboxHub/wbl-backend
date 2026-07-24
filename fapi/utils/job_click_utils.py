@@ -96,6 +96,39 @@ def get_job_click_analytics(db: Session) -> List[Dict[str, Any]]:
         for r in results
     ]
 
+def get_my_job_click_analytics(db: Session, authuser_id: int) -> List[Dict[str, Any]]:
+    """
+    Get click analytics for a single authenticated user (their own job listing clicks).
+    """
+    results = (
+        db.query(
+            JobLinkClicksORM.id,
+            JobLinkClicksORM.job_listing_id,
+            JobListingORM.title.label("job_title"),
+            JobListingORM.company_name,
+            JobLinkClicksORM.click_count,
+            JobLinkClicksORM.first_clicked_at,
+            JobLinkClicksORM.last_clicked_at
+        )
+        .outerjoin(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+        .filter(JobLinkClicksORM.authuser_id == authuser_id)
+        .order_by(JobLinkClicksORM.last_clicked_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": r.id,
+            "job_listing_id": r.job_listing_id,
+            "job_title": r.job_title or "Job listing no longer available",
+            "company_name": r.company_name or "—",
+            "click_count": r.click_count,
+            "first_clicked_at": r.first_clicked_at,
+            "last_clicked_at": r.last_clicked_at
+        }
+        for r in results
+    ]
+
 def get_paginated_job_click_analytics(db: Session, page: int = 1, page_size: int = 5000) -> Dict[str, Any]:
     """
     Get paginated full click analytics with 3-table join.

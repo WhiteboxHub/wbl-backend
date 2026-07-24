@@ -4792,3 +4792,39 @@ class OutreachEmailOut(OutreachEmailBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------- Job Link Click Tracking --------------------
+
+class JobLinkClickIn(BaseModel):
+    """Single job click payload."""
+    job_listing_id: int
+    count: int = 1
+
+
+class JobLinkClickBatchIn(BaseModel):
+    """Batch of job clicks — sent by Service Worker or direct call."""
+    clicks: List[JobLinkClickIn]
+
+
+class JobLinkClickAnalytics(BaseModel):
+    """Analytics response for a single job click record."""
+    id: int
+    authuser_id: int
+    job_listing_id: int
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    job_title: Optional[str] = None
+    company_name: Optional[str] = None
+    click_count: int
+    first_clicked_at: Optional[datetime] = None
+    last_clicked_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CandidateClickStatsOut(BaseModel):
+    """Per-candidate analytics counters for the Application Analytics dashboard cards."""
+    job_listings_clicked: int = 0
+    outreach_counter: int = 0
+    easy_apply_counter: int = 0

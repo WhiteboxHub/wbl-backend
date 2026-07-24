@@ -21,6 +21,9 @@ from fapi.db.models import (
     Batch,
     EmployeeORM,
     AuthUserORM,
+    JobLinkClicksORM,
+    CampaignEmailORM,
+    ApplicationReportORM,
 )
 from fapi.db.schemas import CandidateInterviewOut
 
@@ -103,6 +106,7 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
     )
 
     alerts = _generate_candidate_alerts(candidate, db)
+    candidate_stats = _get_candidate_stats(db, candidate, auth_user)
 
     return {
         "basic_info": basic_info,
@@ -112,6 +116,7 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_stats": interview_stats,
         "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
+        "candidate_stats": candidate_stats,
     }
 
 
@@ -138,6 +143,60 @@ def _get_basic_candidate_info(candidate: CandidateORM) -> Dict[str, Any]:
         "fee_paid": float(candidate.fee_paid) if candidate.fee_paid else 0.0,
         "agreement": candidate.agreement,
         "notes": candidate.notes,
+    }
+
+
+def _get_candidate_stats(db: Session, candidate: CandidateORM, auth_user: Optional[AuthUserORM]) -> Dict[str, Any]:
+    """
+    Compute Application Analytics counters for the candidate:
+    - job_listings_clicked: total clicks on job listings from the Job Board
+    - outreach_counter: number of campaign emails sent for this candidate
+    - easy_apply_counter: number of easy-apply submissions via the WboxCLI
+    """
+    job_listings_clicked = 0
+    outreach_counter = 0
+    easy_apply_counter = 0
+
+    try:
+        if auth_user:
+            # 1. Sum all click_count rows for this authuser
+            result = (
+                db.query(func.coalesce(func.sum(JobLinkClicksORM.click_count), 0))
+                .filter(JobLinkClicksORM.authuser_id == auth_user.id)
+                .scalar()
+            )
+            job_listings_clicked = int(result or 0)
+    except Exception:
+        pass
+
+    try:
+        # 2. Count campaign emails with status='sent' for this candidate
+        outreach_counter = (
+            db.query(func.count(CampaignEmailORM.id))
+            .filter(
+                CampaignEmailORM.candidate_id == candidate.id,
+                CampaignEmailORM.status == "sent",
+            )
+            .scalar() or 0
+        )
+    except Exception:
+        pass
+
+    try:
+        if auth_user:
+            # 3. Count application_report rows submitted by this authuser
+            easy_apply_counter = (
+                db.query(func.count(ApplicationReportORM.id))
+                .filter(ApplicationReportORM.user_id == auth_user.id)
+                .scalar() or 0
+            )
+    except Exception:
+        pass
+
+    return {
+        "job_listings_clicked": job_listings_clicked,
+        "outreach_counter": outreach_counter,
+        "easy_apply_counter": easy_apply_counter,
     }
 
 def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:

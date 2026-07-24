@@ -34,6 +34,13 @@ def track_clicks_batch_endpoint(
             authuser_id=user.id,
             clicks=[c.model_dump() for c in payload.clicks]
         )
+
+        # Invalidate the dashboard cache so candidate_stats refreshes on next load
+        try:
+            from fapi.core.cache import invalidate_cache
+            invalidate_cache("candidates")
+        except Exception as cache_err:
+            logger.warning(f"Cache invalidation failed after click tracking: {cache_err}")
             
         return {"status": "success", "processed": processed_count}
     except Exception as e:
@@ -57,6 +64,27 @@ def get_job_click_paginated_endpoint(
     except Exception as e:
         logger.error(f"Error fetching click analytics: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch analytics: {str(e)}")
+
+@router.get("/click-analytics/me")
+def get_my_job_click_analytics_endpoint(
+    db: Session = Depends(get_db),
+    user: any = Depends(enforce_access),
+):
+    """
+    **Get click analytics for the currently authenticated candidate only**
+    """
+    try:
+        if not user or not hasattr(user, 'id'):
+            raise HTTPException(status_code=401, detail="User identity not found in token")
+
+        from fapi.utils.job_click_utils import get_my_job_click_analytics
+        return get_my_job_click_analytics(db, authuser_id=user.id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching own click analytics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch analytics: {str(e)}")
+
 
 @router.get("/click-analytics", response_model=List[JobLinkClickAnalytics])
 def get_job_click_analytics_endpoint(
