@@ -31,7 +31,9 @@ class ProviderMetadataOut(BaseModel):
 
 
 @router.get("/providers", response_model=List[ProviderMetadataOut])
-def get_all_providers():
+def get_all_providers(
+    current_user: AuthUserORM = Depends(get_current_user),
+):
     """List metadata and key prefixes for all registered LLM providers."""
     return provider_registry.list_providers_metadata()
 
@@ -52,7 +54,10 @@ def detect_and_validate_key(
 
 
 @router.get("/providers/{provider_id}/models")
-def get_provider_models(provider_id: str):
+def get_provider_models(
+    provider_id: str,
+    current_user: AuthUserORM = Depends(get_current_user),
+):
     """Get static/fallback models for a registered provider by ID."""
     provider = provider_registry.get_provider_by_id(provider_id)
     if not provider:

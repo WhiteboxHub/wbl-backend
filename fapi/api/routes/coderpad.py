@@ -316,7 +316,9 @@ def detect_and_validate_llm_key(
 
 
 @router.get("/llm-providers")
-def get_llm_providers():
+def get_llm_providers(
+    current_user: AuthUserORM = Depends(get_current_user),
+):
     """List metadata for all registered LLM providers."""
     from fapi.utils.llm_provider_registry import provider_registry
     return provider_registry.list_providers_metadata()

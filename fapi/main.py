@@ -252,3 +252,4 @@ app.include_router(outreach_orchestrator.router, prefix="/api", tags=["Outreach 
 app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=["Weekly Workflow"])
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setup"], dependencies=[Depends(enforce_access)])
+app.include_router(llm_providers.router, prefix="/api", tags=["LLM Providers"], dependencies=[Depends(enforce_access)])
