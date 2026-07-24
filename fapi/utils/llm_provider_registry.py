@@ -487,7 +487,7 @@ class LLMProviderRegistry:
             p_display_clean = p.display_name.lower().replace(" ", "").replace("-", "").replace("_", "")
             if k == pid_clean or p_display_clean == pid_clean:
                 return p
-            if k in pid_clean or pid_clean in k or p_display_clean in pid_clean:
+            if k in pid_clean or pid_clean in k or pid_clean in p_display_clean:
                 return p
         return None
 
