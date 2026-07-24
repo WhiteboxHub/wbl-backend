@@ -874,6 +874,7 @@ def validate_llm_key_batch_for_user(
                 row.last_validated_at = datetime.now(timezone.utc)
                 db.commit()
         except Exception:
+            db.rollback()
             if row:
                 db.expire(row)
 
