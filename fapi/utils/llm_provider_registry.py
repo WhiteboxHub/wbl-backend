@@ -532,17 +532,31 @@ class LLMProviderRegistry:
                 }
 
         # 2. Otherwise auto-detect provider for a new key
-        candidate_providers = []
         p_hint = self.detect_provider(key)
         if p_hint:
-            candidate_providers.append(p_hint)
+            try:
+                st, msg, models, default_m = p_hint.validate_and_fetch_models(key)
+                return {
+                    "detected_provider": p_hint.provider_id,
+                    "display_name": p_hint.display_name,
+                    "status": st,
+                    "message": msg,
+                    "available_models": models if models else ["default"],
+                    "default_model": default_m or (models[0] if models else "default"),
+                }
+            except Exception as e:
+                return {
+                    "detected_provider": p_hint.provider_id,
+                    "display_name": p_hint.display_name,
+                    "status": "inactive",
+                    "message": f"Validation failed for detected provider {p_hint.display_name}: {e}",
+                    "available_models": [],
+                    "default_model": None,
+                }
 
-        for p in self._providers.values():
-            if p not in candidate_providers:
-                candidate_providers.append(p)
-
+        # Fallback to checking all providers if no specific provider was detected by prefix
         best_result = None
-        for p in candidate_providers:
+        for p in self._providers.values():
             try:
                 st, msg, models, default_m = p.validate_and_fetch_models(key)
                 res = {
@@ -555,7 +569,7 @@ class LLMProviderRegistry:
                 }
                 if st == "active":
                     return res
-                if best_result is None or p_hint == p:
+                if best_result is None:
                     best_result = res
             except Exception:
                 continue
