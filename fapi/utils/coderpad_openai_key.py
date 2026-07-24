@@ -553,13 +553,21 @@ def update_candidate_llm_key_to_db(
     if not r:
         raise LookupError("Key not found")
     key = (api_key or "").strip()
-    
     provider = normalize_llm_provider_name(provider_name)
     m = (model_name or r.model_name or _default_model_for_provider(provider)).strip()
-    
-    if key:
+
+    existing_secret = _row_secret(r)
+    if not existing_secret and not key:
+        raise ValueError("API key is required")
+
+    if not key and provider != r.provider_name:
+        key_to_validate = existing_secret
+    else:
+        key_to_validate = key
+
+    if key_to_validate:
         from fapi.utils.llm_provider_registry import provider_registry
-        detection = provider_registry.detect_and_validate(key, override_provider_id=provider_name)
+        detection = provider_registry.detect_and_validate(key_to_validate, override_provider_id=provider_name)
         if detection.get("detected_provider"):
             provider = normalize_llm_provider_name(detection["detected_provider"])
         if not model_name and detection.get("default_model"):
@@ -568,9 +576,8 @@ def update_candidate_llm_key_to_db(
             r.status = detection.get("status", "inactive")
             r.failure_reason = detection.get("message") if r.status != "active" else None
             r.last_validated_at = datetime.now(timezone.utc)
-        r.api_key = encrypt_api_key(key)
-    elif not _row_secret(r):
-        raise ValueError("API key is required")
+        if key:
+            r.api_key = encrypt_api_key(key)
 
     r.provider_name = provider
     r.model_name = m

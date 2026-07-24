@@ -478,11 +478,16 @@ class LLMProviderRegistry:
 
     def get_provider_by_id(self, provider_id: str) -> Optional[BaseLLMProvider]:
         pid = (provider_id or "").strip().lower()
-        if pid in self._providers:
-            return self._providers[pid]
-        # Soft matching
-        for k, p in self._providers.items():
-            if k in pid or pid in k or p.display_name.lower() in pid:
+        pid_clean = pid.replace(" ", "").replace("-", "").replace("_", "")
+        if pid_clean in self._providers:
+            return self._providers[pid_clean]
+        
+        sorted_providers = sorted(self._providers.items(), key=lambda x: len(x[0]), reverse=True)
+        for k, p in sorted_providers:
+            p_display_clean = p.display_name.lower().replace(" ", "").replace("-", "").replace("_", "")
+            if k == pid_clean or p_display_clean == pid_clean:
+                return p
+            if k in pid_clean or pid_clean in k or p_display_clean in pid_clean:
                 return p
         return None
 
