@@ -718,7 +718,7 @@ def list_candidate_llm_keys_for_user(
                 "id": rid,
                 "provider_name": str(r.provider_name or "Unknown"),
                 "masked_key": masked or "••••••••••••",
-                "api_key": secret or "",
+                "api_key": None,
                 "model_name": r.model_name,
                 "entry_date": entry,
                 "voice_enabled": _resolve_voice_enabled(r, api_keys_voice),
