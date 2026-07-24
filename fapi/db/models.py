@@ -7,7 +7,7 @@ from sqlalchemy.dialects.mysql import BIGINT as MySQL_BIGINT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base, relationship
 import enum
-from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum
+from fapi.db.schemas import PositionTypeEnum, EmploymentModeEnum, PositionStatusEnum, ProcessingStatusEnum, OutreachConnectionStatusEnum, OutreachMessageStatusEnum, JobListingSourceEnum, AuthUserRoleEnum
 
 Base = declarative_base()
 BigIntegerUnsigned = BigInteger().with_variant(MySQL_BIGINT(unsigned=True), "mysql")
@@ -41,7 +41,14 @@ class AuthUserORM(Base):
     googleId = Column(String(255))
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
-    role = Column(String(100))
+    role = Column(
+        SQLAEnum(
+            AuthUserRoleEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name='authuser_role_enum'
+        ),
+        server_default='candidate'
+    )
     visa_status = Column(
         SQLAEnum(
             'US_CITIZEN', 'GREEN_CARD', 'GC_EAD', 'I485_EAD', 'I140_APPROVED',
@@ -339,7 +346,6 @@ class CandidateMarketingORM(Base):
     run_outreach_emails = Column(Boolean, nullable=False, server_default="0", comment='Flag to trigger weekly vendor outreach emails via Outreach service')
     linkedin_post = Column(Boolean, nullable=False, server_default="0")
     candidate_json = Column(JSON, nullable=True)
-
     # Outreach Metrics
     total_outreach_count = Column(Integer, nullable=False, default=0, server_default="0")
     daily_outreach_limit = Column(Integer, nullable=False, default=250, server_default="250")
