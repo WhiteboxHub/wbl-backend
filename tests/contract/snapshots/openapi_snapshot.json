@@ -21053,6 +21053,80 @@
         ]
       }
     },
+    "/api/coderpad/me/llm-keys/detect-and-validate": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Detect And Validate Llm Key",
+        "description": "Auto-detect provider, validate key live, and fetch dynamic model list.",
+        "operationId": "detect_and_validate_llm_key_api_coderpad_me_llm_keys_detect_and_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/coderpad/llm-providers": {
+      "get": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Get Llm Providers",
+        "description": "List metadata for all registered LLM providers.",
+        "operationId": "get_llm_providers_api_coderpad_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/coderpad/snippets": {
       "get": {
         "tags": [
@@ -24071,6 +24145,133 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/llm/providers": {
+      "get": {
+        "tags": [
+          "LLM Providers",
+          "LLM Providers"
+        ],
+        "summary": "Get All Providers",
+        "description": "List metadata and key prefixes for all registered LLM providers.",
+        "operationId": "get_all_providers_api_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderMetadataOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get All Providers Api Llm Providers Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/llm/providers/detect-and-validate": {
+      "post": {
+        "tags": [
+          "LLM Providers",
+          "LLM Providers"
+        ],
+        "summary": "Detect And Validate Key",
+        "description": "Auto-detect provider from API key pattern, test live provider connectivity,\nand return dynamically discovered models list.",
+        "operationId": "detect_and_validate_key_api_llm_providers_detect_and_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectAndValidateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectAndValidateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/llm/providers/{provider_id}/models": {
+      "get": {
+        "tags": [
+          "LLM Providers",
+          "LLM Providers"
+        ],
+        "summary": "Get Provider Models",
+        "description": "Get static/fallback models for a registered provider by ID.",
+        "operationId": "get_provider_models_api_llm_providers__provider_id__models_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -29571,6 +29772,17 @@
             "type": "string",
             "title": "Masked Key"
           },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
           "model_name": {
             "anyOf": [
               {
@@ -29603,6 +29815,34 @@
             "type": "boolean",
             "title": "Is Default",
             "default": false
+          },
+          "validation_status": {
+            "type": "string",
+            "title": "Validation Status",
+            "default": "inactive"
+          },
+          "validation_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Message"
+          },
+          "last_validated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Validated At"
           }
         },
         "type": "object",
@@ -36576,6 +36816,91 @@
         },
         "type": "object",
         "title": "DeliveryEngineUpdate"
+      },
+      "DetectAndValidateIn": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "API key to detect provider and fetch models"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name",
+            "description": "Optional provider override"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key"
+        ],
+        "title": "DetectAndValidateIn"
+      },
+      "DetectAndValidateOut": {
+        "properties": {
+          "detected_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Provider"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "available_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available Models",
+            "default": []
+          },
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "DetectAndValidateOut"
       },
       "DownloadPayload": {
         "properties": {
@@ -46000,6 +46325,32 @@
         },
         "type": "object",
         "title": "ProjectUpdate"
+      },
+      "ProviderMetadataOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "key_prefixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Prefixes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ProviderMetadataOut"
       },
       "Recipient": {
         "properties": {

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fapi.db.database import get_db
 from fapi.db.models import AuthUserORM, CodeSnippetORM, CodeExecutionLogORM
 from fapi.db.schemas import (
@@ -291,7 +291,37 @@ def finish_setup(
     db: Session = Depends(get_db),
 ):
     """Validate default key and return setup_complete status."""
-    return finish_setup_for_user(db, current_user)
+    res = finish_setup_for_user(db, current_user)
+    if not res.get("setup_complete"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": res.get("error_code", "NO_USABLE_LLM_KEY"),
+                "message": res.get("error", "A valid and usable LLM API key is required to complete setup."),
+            },
+        )
+    return res
+
+
+@router.post("/me/llm-keys/detect-and-validate")
+def detect_and_validate_llm_key(
+    body: Dict[str, Any],
+    current_user: AuthUserORM = Depends(get_current_user),
+):
+    """Auto-detect provider, validate key live, and fetch dynamic model list."""
+    from fapi.utils.llm_provider_registry import provider_registry
+    key = str(body.get("api_key") or "")
+    provider_override = body.get("provider_name")
+    return provider_registry.detect_and_validate(key, override_provider_id=provider_override)
+
+
+@router.get("/llm-providers")
+def get_llm_providers(
+    current_user: AuthUserORM = Depends(get_current_user),
+):
+    """List metadata for all registered LLM providers."""
+    from fapi.utils.llm_provider_registry import provider_registry
+    return provider_registry.list_providers_metadata()
 
 
 # ==================== Code Snippet CRUD ====================
