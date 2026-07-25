@@ -121,6 +121,7 @@ async def upload_onboarding_documents(
         # Update candidate folder path in DB with the Drive link and mark agreement as pending review
         candidate.candidate_folder = drive_link
         candidate.agreement = "P"
+        candidate.onboarding_doc_submitted_at = datetime.utcnow()
         db.commit()
 
         # Invalidate cache so the dashboard overview sees the new agreement status

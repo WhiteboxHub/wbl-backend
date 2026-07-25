@@ -510,3 +510,61 @@ async def send_consolidated_onboarding_email(
     
     fm = FastMail(fastmail_config)
     await fm.send_message(message)
+
+
+# --- ADDED CODE: Candidate Approval Email (Inbox Delivery Optimization) ---
+def send_candidate_approval_email(candidate_email: str, candidate_name: str):
+    """Notify the candidate that their onboarding status has been approved and profile is active"""
+    import smtplib
+    
+    config = get_email_config()
+    validate_email_config(config)
+    
+    # Soft and friendly HTML content matching the registration successful email style
+    
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <h2 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-top: 0;">
+                Onboarding Status: Approved
+            </h2>
+            <p>Dear {candidate_name},</p>
+            <p>We are pleased to inform you that your government-issued ID and onboarding agreement have been successfully reviewed and <strong>approved</strong> by our team.</p>
+            <p>You now have full access to your candidate dashboard. Please log in to your account to get started with the next steps.</p>
+            
+            <div style="margin: 20px 0; padding: 15px; background-color: #f0fdf4; border-left: 4px solid #10b981; border-radius: 4px;">
+                <p style="margin: 0; color: #15803d; font-weight: bold;">Congratulations! Your profile is now active.</p>
+            </div>
+            
+            <p>If you have any questions or require further assistance, please feel free to reach out to us.</p>
+            <br/>
+            <p>Best regards,</p>
+            <p><strong>Recruiting & Onboarding Team</strong><br/>Whitebox Learning</p>
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
+            <p style="font-size: 12px; color: #64748b; text-align: center; margin-bottom: 0;">
+                Whitebox Learning - Automated Onboarding System
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        with smtplib.SMTP(config['smtp_server'], int(config['smtp_port'])) as server:
+            server.starttls()
+            server.login(config['from_email'], config['password'])
+            
+            # We reuse the exact same helper function that sends registration emails to the inbox
+            send_html_email(
+                server=server,
+                from_email=config['from_email'], # No display name to avoid spoofing detection
+                to_emails=[candidate_email],
+                subject="Onboarding Status Update - Profile Approved",
+                html_content=html_content
+            )
+            print(f"Successfully sent candidate approval email to {candidate_email}")
+    except Exception as e:
+        print(f"Error while sending candidate approval email: {e}")
+        raise e
+
