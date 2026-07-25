@@ -130,14 +130,33 @@ def get_candidate(
 def create_candidate(candidate: CandidateCreate):
     return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
 
-
 @router.put("/candidates/{candidate_id}")
-async def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdate, db: Session = Depends(get_db)):
-    # 1. Perform the update
+async def update_candidate_endpoint(
+    candidate_id: int, 
+    candidate: CandidateUpdate, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    # 1. Fetch current candidate state before update to check agreement status transition
+    db_candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    old_agreement = db_candidate.agreement if db_candidate else None
+
+    # 2. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
     candidate_utils.update_candidate(candidate_id, candidate_dict)
-    
-    # 2. Invalidate dashboard cache
+
+    # 3. Check if agreement was changed from pending review ("P") to approved ("Y")
+    new_agreement = candidate_dict.get("agreement")
+    if db_candidate and old_agreement == "P" and new_agreement == "Y":
+        # Send approval email using background tasks to prevent blocking the HTTP response
+        try:
+            from fapi.utils.email_utils import send_candidate_approval_email
+            background_tasks.add_task(send_candidate_approval_email, db_candidate.email, db_candidate.full_name)
+            logger.info(f"Scheduled candidate approval email for: {db_candidate.email}")
+        except Exception as e:
+            logger.error(f"Failed to schedule approval email for candidate {candidate_id}: {e}")
+
+    # 4. Invalidate dashboard cache
     try:
         from fapi.core.cache import invalidate_cache
         invalidate_cache("candidates")
@@ -145,6 +164,10 @@ async def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdat
         logger.error(f"Cache invalidation failed for update: {e}")
 
     return {"message": "Candidate updated successfully"}
+
+
+
+
 
 @router.delete("/candidates/{candidate_id}")
 def delete_candidate(candidate_id: int):
