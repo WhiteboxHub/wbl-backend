@@ -135,8 +135,10 @@ async def update_candidate_endpoint(
     candidate_id: int, 
     candidate: CandidateUpdate, 
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security)
 ):
+
     # 1. Fetch current candidate state before update to check agreement status transition
     db_candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
     old_agreement = db_candidate.agreement if db_candidate else None
