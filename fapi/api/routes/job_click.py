@@ -1,3 +1,5 @@
+from fapi.utils.permission_gate import enforce_access
+from fapi.utils.auth_dependencies import staff_or_admin_required
 from fastapi import APIRouter, Depends, HTTPException, Security, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -54,7 +56,9 @@ def get_job_click_paginated_endpoint(
     page_size: int = 5000,
     db: Session = Depends(get_db),
     user: any = Depends(enforce_access),
+    _staff: any = Depends(staff_or_admin_required),
 ):
+    
     """
     **Get paginated comprehensive click analytics from MySQL**
     """
@@ -90,6 +94,7 @@ def get_my_job_click_analytics_endpoint(
 def get_job_click_analytics_endpoint(
     db: Session = Depends(get_db),
     user: any = Depends(enforce_access),
+    _staff: any = Depends(staff_or_admin_required),
 ):
     """
     **Get comprehensive click analytics from MySQL**
