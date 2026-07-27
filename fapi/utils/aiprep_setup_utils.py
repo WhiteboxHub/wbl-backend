@@ -364,7 +364,7 @@ def _validate_api_key(provider: str, api_key: str) -> tuple[bool, bool]:
 
 import typing
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Dict, Any, Optional, Union
 
 class ResumeBasics(BaseModel):
@@ -466,6 +466,35 @@ class ResumeDataSchema(BaseModel):
     selectedTemplate: Optional[int] = None
     meta_filename: Optional[str] = Field(None, alias='_meta_filename')
 
+    @field_validator('skills', mode='before')
+    @classmethod
+    def convert_strings_to_skills(cls, v):
+        if not v:
+            return v
+        cleaned_skills = []
+        for skill in v:
+            if isinstance(skill, str):
+                cleaned_skills.append({"name": skill})
+            elif isinstance(skill, dict):
+                cleaned_skills.append(skill)
+        return cleaned_skills
+
+def clean_resume_data(data):
+    if isinstance(data, dict):
+        cleaned = {}
+        for k, v in data.items():
+            if v is not None:
+                cleaned[k] = clean_resume_data(v)
+        return cleaned
+    elif isinstance(data, list):
+        cleaned = []
+        for item in data:
+            if item is not None:
+                cleaned.append(clean_resume_data(item))
+        return cleaned
+    else:
+        return data
+
 def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data: dict, candidate_id: typing.Optional[int] = None) -> dict:
     from sqlalchemy import text
     from fastapi import HTTPException
@@ -477,6 +506,9 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
                 resume_data = json.loads(resume_data)
             except json.JSONDecodeError:
                 raise HTTPException(status_code=400, detail="Invalid JSON format in resume data")
+        
+        resume_data = clean_resume_data(resume_data)
+        
         validated_resume = ResumeDataSchema.model_validate(resume_data)
         sanitized_data = validated_resume.model_dump(
             by_alias=True, 
@@ -489,7 +521,12 @@ def save_resume_for_session(db, session_id: typing.Union[str, int], resume_data:
         )
     except Exception as e:
         logger.error(f"Pydantic validation failed for resume data: {e}")
-        raise HTTPException(status_code=400, detail="Invalid resume data format")
+        error_detail = "Invalid resume data format"
+        from pydantic import ValidationError
+        if isinstance(e, ValidationError):
+            error_msg = "; ".join([f"{'.'.join(str(loc) for loc in err['loc'])}: {err['msg']}" for err in e.errors()])
+            error_detail = f"Invalid resume data format: {error_msg}"
+        raise HTTPException(status_code=400, detail=error_detail)
     
     try:
         session_id_int = int(session_id)
