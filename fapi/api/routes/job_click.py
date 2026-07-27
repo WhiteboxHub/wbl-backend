@@ -110,6 +110,7 @@ def get_job_click_analytics_endpoint(
 def check_click_analytics_version(
     db: Session = Depends(get_db),
     user: any = Depends(enforce_access),
+    _staff: any = Depends(staff_or_admin_required),
 ):
     """
     **Check data version for caching**
