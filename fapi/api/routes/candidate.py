@@ -136,6 +136,7 @@ async def update_candidate_endpoint(
     candidate: CandidateUpdate, 
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: AuthUserORM = Depends(get_current_user),
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
 
