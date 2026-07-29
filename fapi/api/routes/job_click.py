@@ -1,5 +1,5 @@
 from fapi.utils.permission_gate import enforce_access
-from fapi.utils.auth_dependencies import staff_or_admin_required
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fastapi import APIRouter, Depends, HTTPException, Security, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -9,7 +9,6 @@ import logging
 from fapi.db.database import get_db
 from fapi.db.schemas import JobLinkClickBatchIn, JobLinkClickAnalytics
 from fapi.utils.job_click_utils import bulk_upsert_job_clicks, get_job_click_analytics
-from fapi.utils.permission_gate import enforce_access
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +20,7 @@ def track_clicks_batch_endpoint(
     payload: JobLinkClickBatchIn,
     db: Session = Depends(get_db),
     user: any = Depends(enforce_access),
+    _auth=Depends(get_current_user),
 ):
     """
     **Batch track candidate clicks on job listings**
@@ -73,6 +73,7 @@ def get_job_click_paginated_endpoint(
 def get_my_job_click_analytics_endpoint(
     db: Session = Depends(get_db),
     user: any = Depends(enforce_access),
+    _auth=Depends(get_current_user),
 ):
     """
     **Get click analytics for the currently authenticated candidate only**
