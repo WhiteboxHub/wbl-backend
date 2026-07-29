@@ -9,6 +9,31 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
+def track_clicks_with_cache_invalidation(
+    db: Session,
+    authuser_id: int,
+    clicks: list,
+) -> dict:
+
+    if not authuser_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="User identity not found in token")
+
+    processed_count = bulk_upsert_job_clicks(
+        db=db,
+        authuser_id=authuser_id,
+        clicks=clicks,
+    )
+
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("candidates")
+    except Exception as cache_err:
+        logger.warning(f"Cache invalidation failed after click tracking: {cache_err}")
+
+    return {"status": "success", "processed": processed_count}
+
 def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str, Any]]) -> int:
     """
     Perform a single bulk UPSERT to MySQL for a batch of clicks.
