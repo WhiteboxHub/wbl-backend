@@ -144,6 +144,32 @@
         }
       }
     },
+    "/api/candidates/click-analytics/me": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get My Job Click Analytics Endpoint",
+        "description": "**Get click analytics for the currently authenticated candidate only**",
+        "operationId": "get_my_job_click_analytics_endpoint_api_candidates_click_analytics_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/candidates/click-analytics": {
       "get": {
         "tags": [
@@ -40848,15 +40874,36 @@
             "title": "Full Name"
           },
           "email": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Email"
           },
           "job_title": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Job Title"
           },
           "company_name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Company Name"
           },
           "click_count": {
@@ -40864,18 +40911,28 @@
             "title": "Click Count"
           },
           "first_clicked_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "First Clicked At"
           },
           "last_clicked_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Last Clicked At"
-          },
-          "logincount": {
-            "type": "integer",
-            "title": "Logincount"
           }
         },
         "type": "object",
@@ -40883,21 +40940,16 @@
           "id",
           "authuser_id",
           "job_listing_id",
-          "email",
-          "job_title",
-          "company_name",
-          "click_count",
-          "first_clicked_at",
-          "last_clicked_at",
-          "logincount"
+          "click_count"
         ],
-        "title": "JobLinkClickAnalytics"
+        "title": "JobLinkClickAnalytics",
+        "description": "Analytics response for a single job click record."
       },
       "JobLinkClickBatchIn": {
         "properties": {
           "clicks": {
             "items": {
-              "$ref": "#/components/schemas/JobLinkClickItem"
+              "$ref": "#/components/schemas/JobLinkClickIn"
             },
             "type": "array",
             "title": "Clicks"
@@ -40907,9 +40959,10 @@
         "required": [
           "clicks"
         ],
-        "title": "JobLinkClickBatchIn"
+        "title": "JobLinkClickBatchIn",
+        "description": "Batch of job clicks \u2014 sent by Service Worker or direct call."
       },
-      "JobLinkClickItem": {
+      "JobLinkClickIn": {
         "properties": {
           "job_listing_id": {
             "type": "integer",
@@ -40917,15 +40970,16 @@
           },
           "count": {
             "type": "integer",
-            "title": "Count"
+            "title": "Count",
+            "default": 1
           }
         },
         "type": "object",
         "required": [
-          "job_listing_id",
-          "count"
+          "job_listing_id"
         ],
-        "title": "JobLinkClickItem"
+        "title": "JobLinkClickIn",
+        "description": "Single job click payload."
       },
       "JobListingBulkCreate": {
         "properties": {

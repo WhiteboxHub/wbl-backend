@@ -9,6 +9,31 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
+def track_clicks_with_cache_invalidation(
+    db: Session,
+    authuser_id: int,
+    clicks: list,
+) -> dict:
+
+    if not authuser_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="User identity not found in token")
+
+    processed_count = bulk_upsert_job_clicks(
+        db=db,
+        authuser_id=authuser_id,
+        clicks=clicks,
+    )
+
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("candidates")
+    except Exception as cache_err:
+        logger.warning(f"Cache invalidation failed after click tracking: {cache_err}")
+
+    return {"status": "success", "processed": processed_count}
+
 def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str, Any]]) -> int:
     """
     Perform a single bulk UPSERT to MySQL for a batch of clicks.
@@ -89,6 +114,39 @@ def get_job_click_analytics(db: Session) -> List[Dict[str, Any]]:
             "email": r.email,
             "job_title": r.job_title,
             "company_name": r.company_name,
+            "click_count": r.click_count,
+            "first_clicked_at": r.first_clicked_at,
+            "last_clicked_at": r.last_clicked_at
+        }
+        for r in results
+    ]
+
+def get_my_job_click_analytics(db: Session, authuser_id: int) -> List[Dict[str, Any]]:
+    """
+    Get click analytics for a single authenticated user (their own job listing clicks).
+    """
+    results = (
+        db.query(
+            JobLinkClicksORM.id,
+            JobLinkClicksORM.job_listing_id,
+            JobListingORM.title.label("job_title"),
+            JobListingORM.company_name,
+            JobLinkClicksORM.click_count,
+            JobLinkClicksORM.first_clicked_at,
+            JobLinkClicksORM.last_clicked_at
+        )
+        .outerjoin(JobListingORM, JobLinkClicksORM.job_listing_id == JobListingORM.id)
+        .filter(JobLinkClicksORM.authuser_id == authuser_id)
+        .order_by(JobLinkClicksORM.last_clicked_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": r.id,
+            "job_listing_id": r.job_listing_id,
+            "job_title": r.job_title or "Job listing no longer available",
+            "company_name": r.company_name or "—",
             "click_count": r.click_count,
             "first_clicked_at": r.first_clicked_at,
             "last_clicked_at": r.last_clicked_at

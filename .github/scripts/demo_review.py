@@ -58,7 +58,7 @@ def is_excluded_file(filepath: str, repo_path: str, patterns):
             return True
     return False
 
-VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff', 'staff_or_admin_required']
+VALID_AUTH_DEPENDENCIES = ['get_current_user', 'require_admin', 'require_staff', 'staff_or_admin_required', 'enforce_access']
 
 BUG_REPORT_SCHEMA = {
     "type": "object",
