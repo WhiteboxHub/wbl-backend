@@ -144,32 +144,6 @@
         }
       }
     },
-    "/api/candidates/click-analytics/me": {
-      "get": {
-        "tags": [
-          "Job Link Click Tracking",
-          "Job Link Click Tracking"
-        ],
-        "summary": "Get My Job Click Analytics Endpoint",
-        "description": "**Get click analytics for the currently authenticated candidate only**",
-        "operationId": "get_my_job_click_analytics_endpoint_api_candidates_click_analytics_me_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/candidates/click-analytics": {
       "get": {
         "tags": [
@@ -283,9 +257,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -373,9 +344,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -445,9 +413,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -495,9 +460,6 @@
         "summary": "List Candidate Credentials",
         "operationId": "list_candidate_credentials_api_candidates_credentials_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -566,9 +528,6 @@
         "summary": "Get Candidate",
         "operationId": "get_candidate_api_candidates__candidate_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -716,9 +675,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -774,9 +730,6 @@
         "summary": "Check Version Marketing",
         "operationId": "check_version_marketing_api_candidate_marketing_head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -990,9 +943,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1036,9 +986,6 @@
         "summary": "Read All Placements",
         "operationId": "read_all_placements_api_candidate_placements_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -1096,9 +1043,6 @@
         "summary": "Check Version Placements",
         "operationId": "check_version_placements_api_candidate_placements_head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -1181,9 +1125,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -1196,9 +1137,6 @@
         "summary": "Read Placement",
         "operationId": "read_placement_api_candidate_placements__placement_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -1358,9 +1296,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -1387,9 +1322,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -1414,9 +1346,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -1513,9 +1442,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -1813,9 +1739,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1869,9 +1792,6 @@
         "summary": "Delete Prep",
         "operationId": "delete_prep_api_candidate_preparation__prep_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -1935,9 +1855,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -1998,9 +1915,6 @@
         "summary": "Get Candidate Suggestions",
         "operationId": "get_candidate_suggestions_api_candidates_search_names__search_term__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2199,9 +2113,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2614,9 +2525,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -2661,9 +2569,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -2684,9 +2589,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2713,9 +2615,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -2728,9 +2627,6 @@
         "summary": "Get Vendor",
         "operationId": "get_vendor_api_vendors__vendor_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2776,9 +2672,6 @@
         "summary": "Update Vendor Route",
         "operationId": "update_vendor_route_api_vendors__vendor_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2834,9 +2727,6 @@
         "summary": "Delete Vendor",
         "operationId": "delete_vendor_api_vendors__vendor_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2919,9 +2809,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -2934,9 +2821,6 @@
         "summary": "Get Vendor Suggestions Endpoint",
         "operationId": "get_vendor_suggestions_endpoint_api_vendors_search_names__search_term__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -2982,9 +2866,6 @@
         "summary": "Get Leads Paginated",
         "operationId": "get_leads_paginated_api_leads_paginated_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -3072,9 +2953,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3145,9 +3023,6 @@
         "summary": "Check Leads Version",
         "operationId": "check_leads_version_api_leads_head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -3473,9 +3348,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3535,9 +3407,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -3604,9 +3473,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -4579,9 +4445,6 @@
           },
           {
             "OAuth2PasswordBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -4594,9 +4457,6 @@
         "summary": "Read Batches",
         "operationId": "read_batches_api_batch_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -4655,9 +4515,6 @@
         "summary": "Check Batches Version",
         "operationId": "check_batches_version_api_batch_head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -4726,9 +4583,6 @@
         "summary": "Read Batch",
         "operationId": "read_batch_api_batch__batch_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -4878,9 +4732,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -4901,9 +4752,6 @@
         "summary": "Read Users",
         "operationId": "read_users_api_user_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -5053,9 +4901,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -5078,9 +4923,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -5093,9 +4935,6 @@
         "summary": "Read User",
         "operationId": "read_user_api_user__user_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -5509,9 +5348,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5568,9 +5404,6 @@
         "summary": "Check Recordings Version",
         "operationId": "check_recordings_version_api_recordings_head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -5805,9 +5638,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -5853,9 +5683,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -5878,9 +5705,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -5894,9 +5718,6 @@
         "description": "Get all batches for a specific recording",
         "operationId": "get_batches_for_recording_api_recording_batches_recording__recording_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -5951,9 +5772,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -6004,9 +5822,6 @@
         "description": "Get a specific recording batch mapping",
         "operationId": "get_recording_batch_api_recording_batches__recording_id___batch_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -6062,9 +5877,6 @@
         "description": "Update an existing recording batch mapping",
         "operationId": "update_recording_batch_api_recording_batches__recording_id___batch_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -6130,9 +5942,6 @@
         "description": "Delete a recording batch mapping",
         "operationId": "delete_recording_batch_api_recording_batches__recording_id___batch_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -6205,9 +6014,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -6274,9 +6080,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -6289,9 +6092,6 @@
         "summary": "Get Course",
         "operationId": "get_course_api_courses__course_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -6455,9 +6255,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -6522,9 +6319,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -6702,9 +6496,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -6816,9 +6607,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -6903,9 +6691,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -6972,9 +6757,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -6987,9 +6769,6 @@
         "summary": "Get Course Content By Id",
         "operationId": "get_course_content_by_id_api_course_contents__content_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -7154,9 +6933,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -7221,9 +6997,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -7927,9 +7700,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -7964,9 +7734,6 @@
         "summary": "Get Session Types",
         "operationId": "get_session_types_api_session_types_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -8013,9 +7780,6 @@
         "summary": "Get Sessions",
         "operationId": "get_sessions_api_sessions_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -10255,9 +10019,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -10328,9 +10089,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -10344,9 +10102,6 @@
         "description": "Get single job activity log by ID",
         "operationId": "get_job_activity_log_api_job_activity_logs__log_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -10456,9 +10211,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -10504,9 +10256,6 @@
         "description": "Get all logs for specific job ID",
         "operationId": "get_logs_by_job_api_job_activity_logs_job__job_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -10560,9 +10309,6 @@
         "description": "Get all logs for specific employee ID",
         "operationId": "get_logs_by_employee_api_job_activity_logs_employee__employee_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -10684,9 +10430,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -10757,9 +10500,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -10773,9 +10513,6 @@
         "description": "Get single job type by ID",
         "operationId": "get_job_type_api_job_types__job_type_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -10883,9 +10620,6 @@
         "description": "Delete job type",
         "operationId": "delete_job_type_api_job_types__job_type_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -11698,9 +11432,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -12097,9 +11828,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -12144,9 +11872,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -12169,9 +11894,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -12184,9 +11906,6 @@
         "summary": "Update Hr Contact Route",
         "operationId": "update_hr_contact_route_api_hr_contacts__contact_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -12242,9 +11961,6 @@
         "summary": "Delete Hr Contact",
         "operationId": "delete_hr_contact_api_hr_contacts__contact_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -12324,9 +12040,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -13366,9 +13079,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -13480,9 +13190,6 @@
         "summary": "Check Version",
         "operationId": "check_version_api_positions__head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -13991,9 +13698,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -14072,9 +13776,6 @@
         "summary": "Check Version",
         "operationId": "check_version_api_email_positions__head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -15720,9 +15421,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -15743,9 +15441,6 @@
         "summary": "Get Potential Leads",
         "operationId": "get_potential_leads_api_potential_leads_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -15820,9 +15515,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -15869,9 +15561,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -15915,9 +15604,6 @@
         "summary": "Update Existing Potential Lead",
         "operationId": "update_existing_potential_lead_api_potential_leads__lead_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -15973,9 +15659,6 @@
         "summary": "Delete Existing Potential Lead",
         "operationId": "delete_existing_potential_lead_api_potential_leads__lead_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -17350,9 +17033,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17375,9 +17055,6 @@
         "description": "Get automation extracts with page-based pagination and optional filters",
         "operationId": "read_automation_extracts_paginated_api_automation_extracts_paginated_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -17549,9 +17226,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17573,9 +17247,6 @@
         "summary": "Read Automation Extracts",
         "operationId": "read_automation_extracts_api_automation_extracts_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -17747,9 +17418,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -17829,9 +17497,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -17879,9 +17544,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -17895,9 +17557,6 @@
         "summary": "Read Automation Extract",
         "operationId": "read_automation_extract_api_automation_extracts__extract_id__get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -17944,9 +17603,6 @@
         "summary": "Update Automation Extract",
         "operationId": "update_automation_extract_api_automation_extracts__extract_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -18003,9 +17659,6 @@
         "summary": "Delete Automation Extract",
         "operationId": "delete_automation_extract_api_automation_extracts__extract_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -18082,9 +17735,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -18098,9 +17748,6 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys_paginated_head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -18181,9 +17828,6 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys__head",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -18678,9 +18322,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -18880,9 +18521,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -19132,9 +18770,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -19436,9 +19071,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -19639,9 +19271,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -19875,9 +19504,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -19923,9 +19549,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       },
@@ -19949,9 +19572,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ]
       }
@@ -19965,9 +19585,6 @@
         "summary": "Get Campaign Emails Paginated",
         "operationId": "get_campaign_emails_paginated_api_campaign_emails_paginated_get",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -20056,9 +19673,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20111,9 +19725,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20158,9 +19769,6 @@
         "summary": "Update Campaign Email",
         "operationId": "update_campaign_email_api_campaign_emails__record_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -20217,9 +19825,6 @@
         "summary": "Delete Campaign Email",
         "operationId": "delete_campaign_email_api_campaign_emails__record_id__delete",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -20300,9 +19905,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "HTTPBearer": []
           }
@@ -21434,6 +21036,80 @@
         "summary": "Finish Setup",
         "description": "Validate default key and return setup_complete status.",
         "operationId": "finish_setup_api_coderpad_me_finish_setup_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/coderpad/me/llm-keys/detect-and-validate": {
+      "post": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Detect And Validate Llm Key",
+        "description": "Auto-detect provider, validate key live, and fetch dynamic model list.",
+        "operationId": "detect_and_validate_llm_key_api_coderpad_me_llm_keys_detect_and_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/coderpad/llm-providers": {
+      "get": {
+        "tags": [
+          "CoderPad",
+          "CoderPad"
+        ],
+        "summary": "Get Llm Providers",
+        "description": "List metadata for all registered LLM providers.",
+        "operationId": "get_llm_providers_api_coderpad_llm_providers_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -23658,9 +23334,6 @@
         "security": [
           {
             "HTTPBearer": []
-          },
-          {
-            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -24472,6 +24145,133 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/llm/providers": {
+      "get": {
+        "tags": [
+          "LLM Providers",
+          "LLM Providers"
+        ],
+        "summary": "Get All Providers",
+        "description": "List metadata and key prefixes for all registered LLM providers.",
+        "operationId": "get_all_providers_api_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderMetadataOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get All Providers Api Llm Providers Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/llm/providers/detect-and-validate": {
+      "post": {
+        "tags": [
+          "LLM Providers",
+          "LLM Providers"
+        ],
+        "summary": "Detect And Validate Key",
+        "description": "Auto-detect provider from API key pattern, test live provider connectivity,\nand return dynamically discovered models list.",
+        "operationId": "detect_and_validate_key_api_llm_providers_detect_and_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectAndValidateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectAndValidateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/llm/providers/{provider_id}/models": {
+      "get": {
+        "tags": [
+          "LLM Providers",
+          "LLM Providers"
+        ],
+        "summary": "Get Provider Models",
+        "description": "Get static/fallback models for a registered provider by ID.",
+        "operationId": "get_provider_models_api_llm_providers__provider_id__models_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -27852,7 +27652,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -27866,14 +27666,14 @@
         "properties": {
           "govId": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "Govid"
           },
           "resume": {
             "anyOf": [
               {
                 "type": "string",
-                "format": "binary"
+                "contentMediaType": "application/octet-stream"
               },
               {
                 "type": "null"
@@ -27892,7 +27692,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "resume_json": {
@@ -29972,6 +29772,17 @@
             "type": "string",
             "title": "Masked Key"
           },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
           "model_name": {
             "anyOf": [
               {
@@ -30004,6 +29815,34 @@
             "type": "boolean",
             "title": "Is Default",
             "default": false
+          },
+          "validation_status": {
+            "type": "string",
+            "title": "Validation Status",
+            "default": "inactive"
+          },
+          "validation_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validation Message"
+          },
+          "last_validated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Validated At"
           }
         },
         "type": "object",
@@ -36978,6 +36817,91 @@
         "type": "object",
         "title": "DeliveryEngineUpdate"
       },
+      "DetectAndValidateIn": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "API key to detect provider and fetch models"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name",
+            "description": "Optional provider override"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key"
+        ],
+        "title": "DetectAndValidateIn"
+      },
+      "DetectAndValidateOut": {
+        "properties": {
+          "detected_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Provider"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "available_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available Models",
+            "default": []
+          },
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "message"
+        ],
+        "title": "DetectAndValidateOut"
+      },
       "DownloadPayload": {
         "properties": {
           "version": {
@@ -40924,36 +40848,15 @@
             "title": "Full Name"
           },
           "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Email"
           },
           "job_title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Job Title"
           },
           "company_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Company Name"
           },
           "click_count": {
@@ -40961,28 +40864,18 @@
             "title": "Click Count"
           },
           "first_clicked_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "format": "date-time",
             "title": "First Clicked At"
           },
           "last_clicked_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "format": "date-time",
             "title": "Last Clicked At"
+          },
+          "logincount": {
+            "type": "integer",
+            "title": "Logincount"
           }
         },
         "type": "object",
@@ -40990,16 +40883,21 @@
           "id",
           "authuser_id",
           "job_listing_id",
-          "click_count"
+          "email",
+          "job_title",
+          "company_name",
+          "click_count",
+          "first_clicked_at",
+          "last_clicked_at",
+          "logincount"
         ],
-        "title": "JobLinkClickAnalytics",
-        "description": "Analytics response for a single job click record."
+        "title": "JobLinkClickAnalytics"
       },
       "JobLinkClickBatchIn": {
         "properties": {
           "clicks": {
             "items": {
-              "$ref": "#/components/schemas/JobLinkClickIn"
+              "$ref": "#/components/schemas/JobLinkClickItem"
             },
             "type": "array",
             "title": "Clicks"
@@ -41009,10 +40907,9 @@
         "required": [
           "clicks"
         ],
-        "title": "JobLinkClickBatchIn",
-        "description": "Batch of job clicks \u2014 sent by Service Worker or direct call."
+        "title": "JobLinkClickBatchIn"
       },
-      "JobLinkClickIn": {
+      "JobLinkClickItem": {
         "properties": {
           "job_listing_id": {
             "type": "integer",
@@ -41020,16 +40917,15 @@
           },
           "count": {
             "type": "integer",
-            "title": "Count",
-            "default": 1
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "job_listing_id"
+          "job_listing_id",
+          "count"
         ],
-        "title": "JobLinkClickIn",
-        "description": "Single job click payload."
+        "title": "JobLinkClickItem"
       },
       "JobListingBulkCreate": {
         "properties": {
@@ -46430,6 +46326,32 @@
         "type": "object",
         "title": "ProjectUpdate"
       },
+      "ProviderMetadataOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "key_prefixes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Prefixes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ProviderMetadataOut"
+      },
       "Recipient": {
         "properties": {
           "email": {
@@ -48324,6 +48246,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
