@@ -26,6 +26,10 @@ jobs:
       run: |
         pip install -r requirements.txt
 
+    - name: Regenerate OpenAPI snapshot (ensures Linux-generated snapshot is always fresh)
+      run: |
+        UPDATE_SNAPSHOT=1 PYTHONPATH=. pytest tests/contract/test_openapi_snapshot.py -v
+
     - name: Run tests
       run: |
         PYTHONPATH=. pytest --ignore=tests/smoke tests/

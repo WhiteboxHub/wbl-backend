@@ -67,6 +67,6 @@ def get_latest_batches_classes(db: Session = Depends(get_db)):
     return get_classes_per_latest_batches(db)
 
 
-@router.get("/employee-birthdays")
+@router.get("/employee-birthdays", operation_id="avatar_get_employee_birthdays")
 def get_employee_birthdays_endpoint(db: Session = Depends(get_db), current_user = Depends(enforce_access)):
     return get_employee_birthdays(db)

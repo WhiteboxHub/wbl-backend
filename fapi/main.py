@@ -20,6 +20,8 @@ from fapi.api.routes import (
     email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli, cli_analytics,
     campaign_email, outreach_email, tracking, aiprep_setup, llm_providers
 )
+from fapi.api.routes import aiprep_analytics
+from fapi.utils.auth_dependencies import staff_or_admin_required
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
@@ -220,6 +222,11 @@ app.include_router(hr_contact.router, prefix="/api", tags=["HR Contact"], depend
 app.include_router(sync_cli.router, prefix="/api", tags=["JobCLI Sync"])
 app.include_router(cli_analytics.router, prefix="/api", tags=["WboxCLI Analytics"])
 app.include_router(tracking.router, prefix="/api", tags=["ATS Reporting"])
+app.include_router(aiprep_analytics.router, prefix="/api")
+
+@app.get("/api/analytics/ai-prep-report", tags=["AI Prep Analytics"])
+def get_ai_prep_report_alias(db=Depends(get_db), current_user=Depends(staff_or_admin_required)):
+    return aiprep_analytics.get_ai_prep_report(db=db, current_user=current_user)
 
 
 # Job and Outreach Routers
