@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
@@ -202,6 +203,13 @@ def get_ai_prep_report(
             "pass_rate_pct": pass_rate,
             "users": users,
         }
+    except OperationalError as e:
+        # aiprep_tool_* tables don't exist in this environment (e.g. test DB or not yet set up)
+        logger.warning(f"aiprep_tool tables unavailable, returning empty report: {e}")
+        return {
+            "total_users": 0, "users_with_intro": 0, "active_last_7_days": 0,
+            "avg_intro_score": 0, "pass_rate_pct": 0, "users": [],
+        }
     except Exception as e:
         logger.error(f"Error in ai-prep-report: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -231,6 +239,13 @@ def get_summary(
             "intro_pass_rate": intro_pass_rate,
             "total_case_studies": case_studies,
             "intro_passed_count": intro_passed_count,
+        }
+    except OperationalError as e:
+        logger.warning(f"aiprep_tool tables unavailable, returning empty summary: {e}")
+        return {
+            "total_marketing_candidates": 0, "total_ai_prep_registered": 0,
+            "active_this_week": 0, "intro_pass_rate": 0.0,
+            "total_case_studies": 0, "intro_passed_count": 0,
         }
     except Exception as e:
         logger.error(f"Error in summary: {e}")
@@ -371,6 +386,9 @@ def get_candidates(
 
         return {"candidates": results, "total": len(results)}
 
+    except OperationalError as e:
+        logger.warning(f"aiprep_tool tables unavailable, returning empty candidates list: {e}")
+        return {"candidates": [], "total": 0}
     except Exception as e:
         logger.error(f"Error in candidates list: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -494,6 +512,9 @@ def get_candidate_detail(
 
     except HTTPException:
         raise
+    except OperationalError as e:
+        logger.warning(f"aiprep_tool tables unavailable for candidate detail: {e}")
+        raise HTTPException(status_code=404, detail="Candidate not found (AI-Prep data unavailable)")
     except Exception as e:
         logger.error(f"Error in candidate details: {e}")
         raise HTTPException(status_code=500, detail=str(e))
