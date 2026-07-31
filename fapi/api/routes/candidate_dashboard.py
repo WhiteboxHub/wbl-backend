@@ -46,6 +46,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/candidates", tags=["Candidate Dashboard"])
 security = HTTPBearer()
 
+# ==================== SERVER TIME ====================
+@router.get("/server-time")
+def get_server_time():
+    return {"server_time": datetime.utcnow().isoformat() + "Z"}
 
 # ==================== ONBOARDING DOCUMENT UPLOAD ====================
 

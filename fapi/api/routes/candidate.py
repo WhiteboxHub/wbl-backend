@@ -142,7 +142,27 @@ async def update_candidate_endpoint(
 
     # 1. Fetch current candidate state before update to check agreement status transition
     db_candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
-    old_agreement = db_candidate.agreement if db_candidate else None
+    if not db_candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Authorization check to prevent unauthorized updates (Broken Access Control)
+    is_admin_or_staff = (
+        getattr(current_user, "role", None) in ["admin", "staff"]
+        or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
+        or (getattr(current_user, "uname", "") or "").lower() == "admin"
+    )
+    is_owner = (
+        getattr(current_user, "uname", "").lower() == (db_candidate.email or "").lower()
+    )
+    if not (is_admin_or_staff or is_owner):
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to modify this candidate profile."
+        )
+
+    old_agreement = db_candidate.agreement
+
 
     # 2. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
