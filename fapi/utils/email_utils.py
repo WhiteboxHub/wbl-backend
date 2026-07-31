@@ -517,8 +517,16 @@ def send_candidate_approval_email(candidate_email: str, candidate_name: str):
     """Notify the candidate that their onboarding status has been approved and profile is active"""
     import smtplib
     
-    config = get_email_config()
-    validate_email_config(config)
+    try:
+        config = get_email_config()
+        validate_email_config(config)
+        smtp_server = config['smtp_server']
+        smtp_port = int(config['smtp_port'])
+        from_email = config['from_email']
+        password = config['password']
+        del config
+    except Exception:
+        raise RuntimeError("Email configuration load failed") from None
     
     # Soft and friendly HTML content matching the registration successful email style
     
@@ -551,20 +559,20 @@ def send_candidate_approval_email(candidate_email: str, candidate_name: str):
     """
     
     try:
-        with smtplib.SMTP(config['smtp_server'], int(config['smtp_port'])) as server:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
-            server.login(config['from_email'], config['password'])
+            server.login(from_email, password)
+            del password
             
             # We reuse the exact same helper function that sends registration emails to the inbox
             send_html_email(
                 server=server,
-                from_email=config['from_email'], # No display name to avoid spoofing detection
+                from_email=from_email, # No display name to avoid spoofing detection
                 to_emails=[candidate_email],
                 subject="Onboarding Status Update - Profile Approved",
                 html_content=html_content
             )
             print(f"Successfully sent candidate approval email to {candidate_email}")
-    except Exception as e:
-        print(f"Error while sending candidate approval email: {e}")
-        raise e
-
+    except Exception:
+        print("Error while sending candidate approval email")
+        raise RuntimeError("Failed to send candidate approval email") from None
