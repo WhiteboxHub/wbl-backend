@@ -82,7 +82,13 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
     if (getattr(user, "status", "") or "").lower() != "active":
         return "inactive_authuser"
 
-    user_role = (getattr(user, "role", None) or "").lower().strip()
+    user_role = getattr(user, "role", None)
+    if hasattr(user_role, "value"):
+        user_role = user_role.value
+    if user_role:
+        user_role = str(user_role).lower().strip()
+    else:
+        user_role = ""
 
     # AuthUser.role is the primary authoritative source of truth
     if user_role == "admin":
