@@ -131,8 +131,10 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": False
         }
 
+    user_email = (user.uname or "").lower().strip()
+
     # Fallback for legacy database records where AuthUser.role is unset / None
-    candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
+    candidate_info = fetch_candidate_id_and_status_by_email(db, user_email)
     if candidate_info:
         if candidate_info.status.lower() not in ("active", "closed"):
             return "inactive_candidate"
@@ -145,9 +147,9 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
         }
 
     from fapi.db.models import EmployeeORM
-    employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
+    employee = db.query(EmployeeORM).filter(EmployeeORM.email == user_email).first()
     if employee:
-        role = "admin" if uname.lower() in _get_admin_emails() else "employee"
+        role = "admin" if user_email in _get_admin_emails() else "employee"
         return {
             **user.__dict__,
             "candidateid": None,
