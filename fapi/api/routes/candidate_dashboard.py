@@ -46,10 +46,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/candidates", tags=["Candidate Dashboard"])
 security = HTTPBearer()
 
-# ==================== SERVER TIME ====================
-@router.get("/server-time")
-def get_server_time(_current_user: AuthUserORM = Depends(get_current_user)):
-    return {"server_time": datetime.utcnow().isoformat() + "Z"}
 
 
 
