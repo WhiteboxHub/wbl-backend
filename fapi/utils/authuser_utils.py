@@ -2,7 +2,7 @@
 import re 
 from typing import List
 from sqlalchemy.orm import Session
-from fapi.db.models import AuthUserORM
+from fapi.db.models import AuthUserORM, EmployeeORM
 from fapi.db.schemas import AuthUserCreate, AuthUserUpdate
 from fapi.utils.auth_utils import hash_password
 from datetime import datetime
@@ -112,7 +112,22 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
     if role_val is not None or status_val == "inactive":
         db_user.refresh_token = None
         db_user.refresh_token_expiry = None
-    
+
+    # Auto-create Employee record when role is promoted to "employee"
+    # so the employee dashboard works immediately after login
+    if role_val == "employee" and db_user.uname:
+        existing_employee = db.query(EmployeeORM).filter(
+            EmployeeORM.email == db_user.uname.lower().strip()
+        ).first()
+        if not existing_employee:
+            new_employee = EmployeeORM(
+                name=db_user.fullname or db_user.uname,
+                email=db_user.uname.lower().strip(),
+                phone=db_user.phone,
+                status=1,  # 1 = active
+            )
+            db.add(new_employee)
+
     db_user.lastmoddatetime = datetime.utcnow()
 
     db.commit()
