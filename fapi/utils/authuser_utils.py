@@ -87,9 +87,12 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
         return None
 
     update_data = user.dict(exclude_unset=True)
-    if "passwd" in update_data and update_data["passwd"]:
-        validate_password_strength(update_data["passwd"])
-        update_data["passwd"] = hash_password(update_data["passwd"])
+    if "passwd" in update_data:
+        if update_data["passwd"]:
+            validate_password_strength(update_data["passwd"])
+            update_data["passwd"] = hash_password(update_data["passwd"])
+        else:
+            update_data.pop("passwd")
 
     # Capture the current role BEFORE applying updates (needed for change detection)
     old_role = getattr(db_user, "role", None)
