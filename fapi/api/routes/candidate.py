@@ -170,6 +170,14 @@ async def update_candidate_endpoint(
 
     # 2. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
+    if "agreement" in candidate_dict and not is_admin_or_staff:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to modify the agreement status."
+        )
+    
+    # Input validation and sanitization to prevent CRLF/SMTP Injection
+
     
     # Input validation and sanitization to prevent CRLF/SMTP Injection
     if "email" in candidate_dict and candidate_dict["email"]:
