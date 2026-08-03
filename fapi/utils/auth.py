@@ -49,9 +49,13 @@ def determine_user_role(user):
     if uname == "admin":
         return {"role": "admin", "is_admin": True, "is_employee": True}
 
-    user_role = getattr(user, 'role', None)
+    user_role = getattr(user, "role", None)
+    if hasattr(user_role, "value"):
+        user_role = user_role.value
     if user_role:
-        user_role = user_role.lower().strip()
+        user_role = str(user_role).lower().strip()
+    else:
+        user_role = ""
 
     # AuthUser.role is the primary authoritative source of truth
     if user_role == 'admin':
