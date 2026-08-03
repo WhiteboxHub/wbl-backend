@@ -45,11 +45,9 @@ def determine_user_role(user):
     from fapi.db.database import SessionLocal
     from fapi.db.models import EmployeeORM
 
-    raw_uname = getattr(user, "uname", "") or ""
-    if raw_uname.lower() == "admin":
+    uname = (getattr(user, "uname", "") or "").lower().strip()
+    if uname == "admin":
         return {"role": "admin", "is_admin": True, "is_employee": True}
-
-    uname = raw_uname.lower().strip()
 
     user_role = getattr(user, 'role', None)
     if user_role:
@@ -136,10 +134,9 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": False
         }
 
-    clean_uname = uname.lower().strip()
-    employee = db.query(EmployeeORM).filter(EmployeeORM.email == clean_uname).first()
+    employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
     if employee:
-        role = "admin" if clean_uname in _get_admin_emails() else "employee"
+        role = "admin" if uname.lower() in _get_admin_emails() else "employee"
         return {
             **user.__dict__,
             "candidateid": None,

@@ -94,7 +94,7 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
     for key, value in update_data.items():
         setattr(db_user, key, value)
         
-    if "role" in update_data or update_data.get("status") == "inactive":
+    if update_data.get("role") in ["employee", "admin"] or update_data.get("status") == "inactive":
         db_user.refresh_token = None
         db_user.refresh_token_expiry = None
     
