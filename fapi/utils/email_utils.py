@@ -531,7 +531,8 @@ def send_candidate_approval_email(candidate_email: str, candidate_name: str):
     
     try:
         config = get_email_config()
-        validate_email_config(config)
+        if not all([config.get('from_email'), config.get('password'), config.get('smtp_server'), config.get('smtp_port')]):
+            raise RuntimeError("Incomplete SMTP configuration")
 
         smtp_server = config['smtp_server']
         smtp_port = int(config['smtp_port'])
