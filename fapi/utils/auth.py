@@ -160,10 +160,7 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": True
         }
 
-    return {
-        **user.__dict__,
-        "candidateid": None,
-        "role": "candidate",
-        "is_admin": False,
-        "is_employee": False
-    }
+    # No candidate or employee record found for this user — reject authentication.
+    # Legacy AuthUser records with unset roles that have no associated
+    # candidate/employee record should NOT be granted access silently.
+    return "not_a_candidate"
