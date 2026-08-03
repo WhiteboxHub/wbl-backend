@@ -44,32 +44,31 @@ def _get_admin_emails():
 def determine_user_role(user):
     from fapi.db.database import SessionLocal
     from fapi.db.models import EmployeeORM
+
     uname = (getattr(user, "uname", "") or "").lower().strip()
     if uname == "admin":
-        return {"role": "admin", "is_admin": True, "is_employee": False}
+        return {"role": "admin", "is_admin": True, "is_employee": True}
 
     user_role = getattr(user, 'role', None)
     if user_role:
         user_role = user_role.lower().strip()
 
-    # If AuthUser has explicit employee or admin role
-    if user_role in ['employee', 'admin']:
-        return {"role": user_role, "is_admin": (user_role == 'admin'), "is_employee": True}
+    # AuthUser.role is the primary authoritative source of truth
+    if user_role == 'admin':
+        return {"role": "admin", "is_admin": True, "is_employee": True}
+    elif user_role == 'employee':
+        return {"role": "employee", "is_admin": False, "is_employee": True}
+    elif user_role == 'candidate':
+        return {"role": "candidate", "is_admin": False, "is_employee": False}
 
-    # Check if user is in Employee table
+    # Fallback for legacy database records where AuthUser.role is unset / None
     with SessionLocal() as db:
         employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
         if employee:
-            if user_role:
-                role_str = user_role
-            elif uname in _get_admin_emails():
-                role_str = 'admin'
-            else:
-                role_str = 'employee'
-                
+            role_str = 'admin' if uname in _get_admin_emails() else 'employee'
             return {"role": role_str, "is_admin": (role_str == 'admin'), "is_employee": True}
 
-    return {"role": user_role or "candidate", "is_admin": False, "is_employee": False}
+    return {"role": "candidate", "is_admin": False, "is_employee": False}
 
 
 async def authenticate_user(uname: str, passwd: str, db: Session):
@@ -78,24 +77,51 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
         return None
 
     if uname.lower() == "admin":
-        return {**user.__dict__, "candidateid": None, "role": "admin", "is_admin": True, "is_employee": False}
+        return {**user.__dict__, "candidateid": None, "role": "admin", "is_admin": True, "is_employee": True}
 
     if (getattr(user, "status", "") or "").lower() != "active":
         return "inactive_authuser"
 
     user_role = (getattr(user, "role", None) or "").lower().strip()
 
-    # If AuthUser role is employee or admin, grant access as employee/admin
-    if user_role in ["employee", "admin"]:
+    # AuthUser.role is the primary authoritative source of truth
+    if user_role == "admin":
         return {
             **user.__dict__,
             "candidateid": None,
-            "role": user_role,
-            "is_admin": (user_role == "admin"),
+            "role": "admin",
+            "is_admin": True,
             "is_employee": True
         }
+    elif user_role == "employee":
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": "employee",
+            "is_admin": False,
+            "is_employee": True
+        }
+    elif user_role == "candidate":
+        candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
+        if candidate_info:
+            if candidate_info.status.lower() not in ("active", "closed"):
+                return "inactive_candidate"
+            return {
+                **user.__dict__,
+                "candidateid": candidate_info.candidateid,
+                "role": "candidate",
+                "is_admin": False,
+                "is_employee": False
+            }
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": "candidate",
+            "is_admin": False,
+            "is_employee": False
+        }
 
-    # First try candidate lookup (existing behavior)
+    # Fallback for legacy database records where AuthUser.role is unset / None
     candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
     if candidate_info:
         if candidate_info.status.lower() not in ("active", "closed"):
@@ -103,15 +129,14 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
         return {
             **user.__dict__,
             "candidateid": candidate_info.candidateid,
-            "role": user_role or "candidate",
+            "role": "candidate",
             "is_admin": False,
             "is_employee": False
         }
 
-    # Check if this email exists as an Employee
     employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
     if employee:
-        role = user_role or ("admin" if uname.lower() in _get_admin_emails() else "employee")
+        role = "admin" if uname.lower() in _get_admin_emails() else "employee"
         return {
             **user.__dict__,
             "candidateid": None,
@@ -120,11 +145,10 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": True
         }
 
-    # Active AuthUser fallback
     return {
         **user.__dict__,
         "candidateid": None,
-        "role": user_role or "candidate",
+        "role": "candidate",
         "is_admin": False,
         "is_employee": False
     }
