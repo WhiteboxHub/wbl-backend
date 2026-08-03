@@ -136,9 +136,10 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": False
         }
 
-    employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
+    clean_uname = uname.lower().strip()
+    employee = db.query(EmployeeORM).filter(EmployeeORM.email == clean_uname).first()
     if employee:
-        role = "admin" if uname.lower() in _get_admin_emails() else "employee"
+        role = "admin" if clean_uname in _get_admin_emails() else "employee"
         return {
             **user.__dict__,
             "candidateid": None,
