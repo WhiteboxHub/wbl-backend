@@ -58,7 +58,7 @@ def determine_user_role(user):
 
     # Check if user is in Employee table
     with SessionLocal() as db:
-        employee = db.query(EmployeeORM).filter(EmployeeORM.email == user.uname).first()
+        employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
         if employee:
             if user_role:
                 role_str = user_role
