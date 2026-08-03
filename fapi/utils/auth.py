@@ -44,25 +44,32 @@ def _get_admin_emails():
 def determine_user_role(user):
     from fapi.db.database import SessionLocal
     from fapi.db.models import EmployeeORM
-    if user.uname.lower() == "admin":
+    uname = (getattr(user, "uname", "") or "").lower().strip()
+    if uname == "admin":
         return {"role": "admin", "is_admin": True, "is_employee": False}
 
-    # Check if user is employee (email in employee table)
+    user_role = getattr(user, 'role', None)
+    if user_role:
+        user_role = user_role.lower().strip()
+
+    # If AuthUser has explicit employee or admin role
+    if user_role in ['employee', 'admin']:
+        return {"role": user_role, "is_admin": (user_role == 'admin'), "is_employee": True}
+
+    # Check if user is in Employee table
     with SessionLocal() as db:
         employee = db.query(EmployeeORM).filter(EmployeeORM.email == user.uname).first()
         if employee:
-            user_role = getattr(user, 'role', None)
             if user_role:
-                user_role = user_role.lower()
-            elif user.uname.lower() in _get_admin_emails():
-                user_role = 'admin'
+                role_str = user_role
+            elif uname in _get_admin_emails():
+                role_str = 'admin'
             else:
-                user_role = 'employee'
+                role_str = 'employee'
                 
-            return {"role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
+            return {"role": role_str, "is_admin": (role_str == 'admin'), "is_employee": True}
 
-    # Default to candidate
-    return {"role": "candidate", "is_admin": False, "is_employee": False}
+    return {"role": user_role or "candidate", "is_admin": False, "is_employee": False}
 
 
 async def authenticate_user(uname: str, passwd: str, db: Session):
@@ -71,31 +78,53 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
         return None
 
     if uname.lower() == "admin":
-        return {**user.__dict__, "candidateid": None}
+        return {**user.__dict__, "candidateid": None, "role": "admin", "is_admin": True, "is_employee": False}
 
-    if user.status.lower() != "active":
+    if (getattr(user, "status", "") or "").lower() != "active":
         return "inactive_authuser"
+
+    user_role = (getattr(user, "role", None) or "").lower().strip()
+
+    # If AuthUser role is employee or admin, grant access as employee/admin
+    if user_role in ["employee", "admin"]:
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": user_role,
+            "is_admin": (user_role == "admin"),
+            "is_employee": True
+        }
 
     # First try candidate lookup (existing behavior)
     candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
     if candidate_info:
         if candidate_info.status.lower() not in ("active", "closed"):
             return "inactive_candidate"
-        return {**user.__dict__, "candidateid": candidate_info.candidateid}
+        return {
+            **user.__dict__,
+            "candidateid": candidate_info.candidateid,
+            "role": user_role or "candidate",
+            "is_admin": False,
+            "is_employee": False
+        }
 
-    # If not a candidate, check if this email exists as an Employee.
-    # Treat the provided username as an email for employee lookup.
+    # Check if this email exists as an Employee
     employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
     if employee:
-        user_role = getattr(user, 'role', None)
-        if user_role:
-            user_role = user_role.lower()
-        elif uname.lower() in _get_admin_emails():
-            user_role = 'admin'
-        else:
-            user_role = 'employee'
-            
-        return {**user.__dict__, "candidateid": None, "role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
+        role = user_role or ("admin" if uname.lower() in _get_admin_emails() else "employee")
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": role,
+            "is_admin": (role == "admin"),
+            "is_employee": True
+        }
 
-    # Not a candidate and not an employee
-    return "not_a_candidate"
+    # Active AuthUser fallback
+    return {
+        **user.__dict__,
+        "candidateid": None,
+        "role": user_role or "candidate",
+        "is_admin": False,
+        "is_employee": False
+    }
