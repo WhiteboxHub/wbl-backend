@@ -44,24 +44,34 @@ def _get_admin_emails():
 def determine_user_role(user):
     from fapi.db.database import SessionLocal
     from fapi.db.models import EmployeeORM
-    if user.uname.lower() == "admin":
-        return {"role": "admin", "is_admin": True, "is_employee": False}
 
-    # Check if user is employee (email in employee table)
+    uname = (getattr(user, "uname", "") or "").lower().strip()
+    if uname == "admin":
+        return {"role": "admin", "is_admin": True, "is_employee": True}
+
+    user_role = getattr(user, "role", None)
+    if hasattr(user_role, "value"):
+        user_role = user_role.value
+    if user_role:
+        user_role = str(user_role).lower().strip()
+    else:
+        user_role = ""
+
+    # AuthUser.role is the primary authoritative source of truth
+    if user_role == 'admin':
+        return {"role": "admin", "is_admin": True, "is_employee": True}
+    elif user_role == 'employee':
+        return {"role": "employee", "is_admin": False, "is_employee": True}
+    elif user_role == 'candidate':
+        return {"role": "candidate", "is_admin": False, "is_employee": False}
+
+    # Fallback for legacy database records where AuthUser.role is unset / None
     with SessionLocal() as db:
-        employee = db.query(EmployeeORM).filter(EmployeeORM.email == user.uname).first()
+        employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
         if employee:
-            user_role = getattr(user, 'role', None)
-            if user_role:
-                user_role = user_role.lower()
-            elif user.uname.lower() in _get_admin_emails():
-                user_role = 'admin'
-            else:
-                user_role = 'employee'
-                
-            return {"role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
+            role_str = 'admin' if uname in _get_admin_emails() else 'employee'
+            return {"role": role_str, "is_admin": (role_str == 'admin'), "is_employee": True}
 
-    # Default to candidate
     return {"role": "candidate", "is_admin": False, "is_employee": False}
 
 
@@ -71,31 +81,86 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
         return None
 
     if uname.lower() == "admin":
-        return {**user.__dict__, "candidateid": None}
+        return {**user.__dict__, "candidateid": None, "role": "admin", "is_admin": True, "is_employee": True}
 
-    if user.status.lower() != "active":
+    if (getattr(user, "status", "") or "").lower() != "active":
         return "inactive_authuser"
 
-    # First try candidate lookup (existing behavior)
-    candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
+    user_role = getattr(user, "role", None)
+    if hasattr(user_role, "value"):
+        user_role = user_role.value
+    if user_role:
+        user_role = str(user_role).lower().strip()
+    else:
+        user_role = ""
+
+    # AuthUser.role is the primary authoritative source of truth
+    if user_role == "admin":
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": "admin",
+            "is_admin": True,
+            "is_employee": True
+        }
+    elif user_role == "employee":
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": "employee",
+            "is_admin": False,
+            "is_employee": True
+        }
+    elif user_role == "candidate":
+        # Use verified user.uname from DB, not raw input, to prevent identity spoofing
+        verified_uname = (user.uname or "").lower().strip()
+        candidate_info = fetch_candidate_id_and_status_by_email(db, verified_uname)
+        if candidate_info:
+            if candidate_info.status.lower() not in ("active", "closed"):
+                return "inactive_candidate"
+            return {
+                **user.__dict__,
+                "candidateid": candidate_info.candidateid,
+                "role": "candidate",
+                "is_admin": False,
+                "is_employee": False
+            }
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": "candidate",
+            "is_admin": False,
+            "is_employee": False
+        }
+
+    user_email = (user.uname or "").lower().strip()
+
+    # Fallback for legacy database records where AuthUser.role is unset / None
+    candidate_info = fetch_candidate_id_and_status_by_email(db, user_email)
     if candidate_info:
         if candidate_info.status.lower() not in ("active", "closed"):
             return "inactive_candidate"
-        return {**user.__dict__, "candidateid": candidate_info.candidateid}
+        return {
+            **user.__dict__,
+            "candidateid": candidate_info.candidateid,
+            "role": "candidate",
+            "is_admin": False,
+            "is_employee": False
+        }
 
-    # If not a candidate, check if this email exists as an Employee.
-    # Treat the provided username as an email for employee lookup.
-    employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
+    from fapi.db.models import EmployeeORM
+    employee = db.query(EmployeeORM).filter(EmployeeORM.email == user_email).first()
     if employee:
-        user_role = getattr(user, 'role', None)
-        if user_role:
-            user_role = user_role.lower()
-        elif uname.lower() in _get_admin_emails():
-            user_role = 'admin'
-        else:
-            user_role = 'employee'
-            
-        return {**user.__dict__, "candidateid": None, "role": user_role, "is_admin": user_role == 'admin', "is_employee": True}
+        role = "admin" if user_email in _get_admin_emails() else "employee"
+        return {
+            **user.__dict__,
+            "candidateid": None,
+            "role": role,
+            "is_admin": (role == "admin"),
+            "is_employee": True
+        }
 
-    # Not a candidate and not an employee
+    # No candidate or employee record found for this user — reject authentication.
+    # Legacy AuthUser records with unset roles that have no associated
+    # candidate/employee record should NOT be granted access silently.
     return "not_a_candidate"

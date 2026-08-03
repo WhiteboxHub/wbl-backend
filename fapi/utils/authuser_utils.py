@@ -2,7 +2,7 @@
 import re 
 from typing import List
 from sqlalchemy.orm import Session
-from fapi.db.models import AuthUserORM
+from fapi.db.models import AuthUserORM, EmployeeORM
 from fapi.db.schemas import AuthUserCreate, AuthUserUpdate
 from fapi.utils.auth_utils import hash_password
 from datetime import datetime
@@ -69,8 +69,8 @@ def create_user(db: Session, user: AuthUserCreate):
         fullname=user.fullname,
         phone=user.phone,
         team=user.team,
-        role=user.role,
-        status=user.status,
+        role=user.role or "candidate",
+        status=user.status or "inactive",
         visa_status=user.visa_status,
         lastmoddatetime=datetime.utcnow(),
         registereddate=datetime.utcnow(),
@@ -91,13 +91,51 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
         validate_password_strength(update_data["passwd"])
         update_data["passwd"] = hash_password(update_data["passwd"])
 
+    # Capture the current role BEFORE applying updates (needed for change detection)
+    old_role = getattr(db_user, "role", None)
+    if hasattr(old_role, "value"):
+        old_role = old_role.value
+    if old_role is not None:
+        old_role = str(old_role).lower().strip()
+
     for key, value in update_data.items():
         setattr(db_user, key, value)
-        
-    if update_data.get("role") == "employee" or update_data.get("status") == "inactive":
+
+    # Safely extract role value (handles both str and Enum instances)
+    role_val = update_data.get("role")
+    if hasattr(role_val, "value"):
+        role_val = role_val.value
+    if role_val is not None:
+        role_val = str(role_val).lower().strip()
+
+    # Safely extract status value
+    status_val = update_data.get("status")
+    if hasattr(status_val, "value"):
+        status_val = status_val.value
+    if status_val is not None:
+        status_val = str(status_val).lower().strip()
+
+    # Only invalidate refresh tokens when role ACTUALLY changed or account is deactivated
+    # (avoids logging out users on profile-only updates where role is included but unchanged)
+    role_changed = role_val is not None and role_val != old_role
+    if role_changed or status_val == "inactive":
         db_user.refresh_token = None
         db_user.refresh_token_expiry = None
-    
+
+    # Auto-create Employee record when role is promoted to "employee"
+    # so the employee dashboard works immediately after login
+    if role_val == "employee" and db_user.uname:
+        existing_employee = db.query(EmployeeORM).filter(
+            EmployeeORM.email == db_user.uname.lower().strip()
+        ).first()
+        if not existing_employee:
+            new_employee = EmployeeORM(
+                name=db_user.fullname or db_user.uname,
+                email=db_user.uname.lower().strip(),
+                phone=db_user.phone,
+            )
+            db.add(new_employee)
+
     db_user.lastmoddatetime = datetime.utcnow()
 
     db.commit()

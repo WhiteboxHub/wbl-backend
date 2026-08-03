@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, date
 from fapi.db.models import AuthUserORM, LeadORM
 from fapi.db.schemas import UserRegistration
 
@@ -50,11 +50,11 @@ def create_user_and_lead(db: Session, user: UserRegistration):
         registereddate=user.registereddate,
         # level3date=user.level3date,
         # demo=user.demo or "N",
-        enddate=user.enddate or "1990-01-01",
+        enddate=user.enddate or date(1990, 1, 1),
         googleId=user.googleId,
         reset_token=user.reset_token,
         token_expiry=user.token_expiry,
-        role=user.role,
+        role=user.role or "candidate",
         visa_status=user.visa_status,
         notes=notes_text,
         lastmoddatetime=datetime.utcnow()
