@@ -117,8 +117,8 @@ def list_candidate_credentials(
 # ==================== SERVER TIME ====================
 @router.get("/candidates/server-time")
 def get_server_time(_current_user: AuthUserORM = Depends(get_current_user)):
-    from datetime import datetime
-    return {"server_time": datetime.utcnow().isoformat() + "Z"}
+    return candidate_utils.get_server_time_utc()
+
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(
     candidate_id: int,
@@ -154,8 +154,8 @@ async def update_candidate_endpoint(
         getattr(current_user, "role", None) in ["admin", "staff"]
         or getattr(current_user, "is_admin", False)
         or getattr(current_user, "is_employee", False)
-        or (getattr(current_user, "uname", "") or "").lower() == "admin"
     )
+
     is_owner = (
         getattr(current_user, "uname", "").lower() == (db_candidate.email or "").lower()
     )
