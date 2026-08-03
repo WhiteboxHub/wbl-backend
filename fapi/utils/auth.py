@@ -112,7 +112,9 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": True
         }
     elif user_role == "candidate":
-        candidate_info = fetch_candidate_id_and_status_by_email(db, uname)
+        # Use verified user.uname from DB, not raw input, to prevent identity spoofing
+        verified_uname = (user.uname or "").lower().strip()
+        candidate_info = fetch_candidate_id_and_status_by_email(db, verified_uname)
         if candidate_info:
             if candidate_info.status.lower() not in ("active", "closed"):
                 return "inactive_candidate"
