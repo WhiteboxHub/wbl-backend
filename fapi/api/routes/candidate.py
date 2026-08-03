@@ -114,7 +114,11 @@ def list_candidate_credentials(
 ):
     return candidate_utils.get_candidate_credentials_paginated(db, page, limit, search)
 
-
+# ==================== SERVER TIME ====================
+@router.get("/candidates/server-time")
+def get_server_time(_current_user: AuthUserORM = Depends(get_current_user)):
+    from datetime import datetime
+    return {"server_time": datetime.utcnow().isoformat() + "Z"}
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(
     candidate_id: int,
@@ -166,8 +170,24 @@ async def update_candidate_endpoint(
 
     # 2. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
+    
+    # Input validation and sanitization to prevent CRLF/SMTP Injection
+    if "email" in candidate_dict and candidate_dict["email"]:
+        email_val = candidate_dict["email"].strip()
+        if not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email_val):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        if "\r" in email_val or "\n" in email_val:
+            raise HTTPException(status_code=400, detail="CRLF characters are not allowed in email")
+        candidate_dict["email"] = email_val
+
+    if "full_name" in candidate_dict and candidate_dict["full_name"]:
+        name_val = re.sub(r"[\r\n]", "", str(candidate_dict["full_name"])).strip()
+        name_val = re.sub(r"<[^>]*>", "", name_val)  # Strip HTML tags
+        candidate_dict["full_name"] = name_val
+
     candidate_utils.update_candidate(candidate_id, candidate_dict)
     db.refresh(db_candidate)
+
 
     # 3. Check if agreement was changed from pending review ("P") to approved ("Y")
     new_agreement = candidate_dict.get("agreement")
