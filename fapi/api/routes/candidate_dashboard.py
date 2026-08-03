@@ -70,8 +70,8 @@ async def upload_onboarding_documents(
             getattr(current_user, "role", None) in ["admin", "staff"]
             or getattr(current_user, "is_admin", False)
             or getattr(current_user, "is_employee", False)
-            or (getattr(current_user, "uname", "") or "").lower() == "admin"
         )
+
         is_owner = (
             getattr(current_user, "uname", "").lower() == (candidate.email or "").lower()
         )
