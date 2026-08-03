@@ -140,6 +140,7 @@ async def authenticate_user(uname: str, passwd: str, db: Session):
             "is_employee": False
         }
 
+    from fapi.db.models import EmployeeORM
     employee = db.query(EmployeeORM).filter(EmployeeORM.email == uname).first()
     if employee:
         role = "admin" if uname.lower() in _get_admin_emails() else "employee"
