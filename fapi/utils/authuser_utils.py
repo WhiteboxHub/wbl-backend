@@ -93,8 +93,24 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
 
     for key, value in update_data.items():
         setattr(db_user, key, value)
-        
-    if update_data.get("role") in ["employee", "admin"] or update_data.get("status") == "inactive":
+
+    # Safely extract role value (handles both str and Enum instances)
+    role_val = update_data.get("role")
+    if hasattr(role_val, "value"):
+        role_val = role_val.value
+    if role_val is not None:
+        role_val = str(role_val).lower().strip()
+
+    # Safely extract status value
+    status_val = update_data.get("status")
+    if hasattr(status_val, "value"):
+        status_val = status_val.value
+    if status_val is not None:
+        status_val = str(status_val).lower().strip()
+
+    # Invalidate refresh tokens when role changes to employee/admin,
+    # or when account is deactivated — forces re-login with new role
+    if role_val in ("employee", "admin") or status_val == "inactive":
         db_user.refresh_token = None
         db_user.refresh_token_expiry = None
     
