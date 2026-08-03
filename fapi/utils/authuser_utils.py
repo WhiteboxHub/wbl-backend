@@ -108,9 +108,8 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
     if status_val is not None:
         status_val = str(status_val).lower().strip()
 
-    # Invalidate refresh tokens when role changes to employee/admin,
-    # or when account is deactivated — forces re-login with new role
-    if role_val in ("employee", "admin") or status_val == "inactive":
+    # Invalidate refresh tokens on ANY role change or deactivation — forces re-login with updated permissions
+    if role_val is not None or status_val == "inactive":
         db_user.refresh_token = None
         db_user.refresh_token_expiry = None
     
