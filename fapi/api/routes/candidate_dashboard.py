@@ -69,7 +69,24 @@ async def upload_onboarding_documents(
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
 
+        # Authorization check to prevent unauthorized document uploads (Broken Access Control)
+        is_admin_or_staff = (
+            getattr(current_user, "role", None) in ["admin", "staff"]
+            or getattr(current_user, "is_admin", False)
+            or getattr(current_user, "is_employee", False)
+            or (getattr(current_user, "uname", "") or "").lower() == "admin"
+        )
+        is_owner = (
+            getattr(current_user, "uname", "").lower() == (candidate.email or "").lower()
+        )
+        if not (is_admin_or_staff or is_owner):
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to upload onboarding documents for this candidate profile."
+            )
+
         files_to_process = [
+
             ("govId", govId),
         ]
         if resume:
