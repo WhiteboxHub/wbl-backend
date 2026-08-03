@@ -45,9 +45,11 @@ def determine_user_role(user):
     from fapi.db.database import SessionLocal
     from fapi.db.models import EmployeeORM
 
-    uname = (getattr(user, "uname", "") or "").lower().strip()
-    if uname == "admin":
+    raw_uname = getattr(user, "uname", "") or ""
+    if raw_uname.lower() == "admin":
         return {"role": "admin", "is_admin": True, "is_employee": True}
+
+    uname = raw_uname.lower().strip()
 
     user_role = getattr(user, 'role', None)
     if user_role:
