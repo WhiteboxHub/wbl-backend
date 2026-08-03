@@ -516,10 +516,23 @@ async def send_consolidated_onboarding_email(
 def send_candidate_approval_email(candidate_email: str, candidate_name: str):
     """Notify the candidate that their onboarding status has been approved and profile is active"""
     import smtplib
+    import re
+    
+    # Strictly validate candidate_email format to prevent SMTP/header injection
+    candidate_email = (candidate_email or "").strip()
+    if not candidate_email or not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", candidate_email):
+        raise ValueError("Invalid candidate email format")
+    if "\r" in candidate_email or "\n" in candidate_email:
+        raise ValueError("CRLF injection detected in candidate email")
+
+    # Sanitize candidate_name to prevent header/HTML injection
+    candidate_name = re.sub(r"[\r\n]", "", str(candidate_name or "")).strip()
+    candidate_name = re.sub(r"<[^>]*>", "", candidate_name)  # Strip HTML tags
     
     try:
         config = get_email_config()
         validate_email_config(config)
+
         smtp_server = config['smtp_server']
         smtp_port = int(config['smtp_port'])
         from_email = config['from_email']
