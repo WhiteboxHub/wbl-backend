@@ -167,6 +167,7 @@ async def update_candidate_endpoint(
     # 2. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
     candidate_utils.update_candidate(candidate_id, candidate_dict)
+    db.refresh(db_candidate)
 
     # 3. Check if agreement was changed from pending review ("P") to approved ("Y")
     new_agreement = candidate_dict.get("agreement")
