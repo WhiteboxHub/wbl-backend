@@ -209,6 +209,8 @@ def _get_candidate_stats(db: Session, candidate: CandidateORM, auth_user: Option
         "job_listings_clicked": job_listings_clicked,
         "outreach_counter": outreach_counter,
         "easy_apply_counter": easy_apply_counter,
+        "classes_joined": db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate.id).scalar() or 0,
+        "sessions_joined": db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate.id).scalar() or 0,
     }
 
 def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
