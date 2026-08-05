@@ -639,6 +639,12 @@ class AuthUserUpdate(AuthUserBase):
     logincount: Optional[int] = None
     enddate: Optional[date] = None
 
+    @validator("enddate", pre=True)
+    def validate_enddate(cls, v):
+        if not v or v in ("0000-00-00", "1990-01-01", "0000-00-00 00:00:00", "1990-01-01 00:00:00") or str(v).startswith("1990-01-01"):
+            return None
+        return v
+
 
 class AuthUserResponse(AuthUserBase):
     id: int
@@ -652,7 +658,9 @@ class AuthUserResponse(AuthUserBase):
         pre=True,
     )
     def fix_invalid_datetime(cls, v):
-        if v in ("0000-00-00 00:00:00", "0000-00-00", None, ""):
+        if v in ("0000-00-00 00:00:00", "0000-00-00", "1990-01-01", "1990-01-01 00:00:00", None, ""):
+            return None
+        if str(v).startswith("1990-01-01"):
             return None
         return v
 
@@ -2283,6 +2291,7 @@ class RecordingBase(BaseModel):
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class RecordingCreate(RecordingBase):

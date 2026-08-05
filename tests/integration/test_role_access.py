@@ -62,7 +62,7 @@ def candidate_user(db_session):
         passwd="hashed_password",  # pragma: allowlist secret
         status="active",
         role=None,
-        enddate=date(1990, 1, 1),
+        enddate=None,
     )
     db_session.add(user)
     db_session.commit()
@@ -79,7 +79,7 @@ def admin_user(db_session):
         passwd="hashed_password",  # pragma: allowlist secret
         status="active",
         role="admin",
-        enddate=date(1990, 1, 1),
+        enddate=None,
     )
     db_session.add(user)
     db_session.commit()
