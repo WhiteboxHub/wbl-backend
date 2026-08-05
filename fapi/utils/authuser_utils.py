@@ -18,6 +18,11 @@ def clean_dates(user):
         value = getattr(user, field, None)
         if value and str(value) == "0000-00-00 00:00:00":
             setattr(user, field, None)
+
+    enddate_val = getattr(user, "enddate", None)
+    if enddate_val and str(enddate_val) in ("1990-01-01", "1990-01-01 00:00:00", "0000-00-00", "0000-00-00 00:00:00"):
+        setattr(user, "enddate", None)
+
     return user
 
 

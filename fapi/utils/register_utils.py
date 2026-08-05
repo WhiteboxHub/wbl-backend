@@ -50,7 +50,7 @@ def create_user_and_lead(db: Session, user: UserRegistration):
         registereddate=user.registereddate,
         # level3date=user.level3date,
         # demo=user.demo or "N",
-        enddate=user.enddate or date(1990, 1, 1),
+        enddate=user.enddate or None,
         googleId=user.googleId,
         reset_token=user.reset_token,
         token_expiry=user.token_expiry,
