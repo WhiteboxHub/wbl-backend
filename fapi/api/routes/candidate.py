@@ -114,6 +114,10 @@ def list_candidate_credentials(
 ):
     return candidate_utils.get_candidate_credentials_paginated(db, page, limit, search)
 
+# ==================== SERVER TIME ====================
+@router.get("/candidates/server-time")
+def get_server_time(_current_user: AuthUserORM = Depends(get_current_user)):
+    return candidate_utils.get_server_time_utc()
 
 @router.get("/candidates/{candidate_id}", response_model=dict)
 def get_candidate(
@@ -130,14 +134,81 @@ def get_candidate(
 def create_candidate(candidate: CandidateCreate):
     return candidate_utils.create_candidate(candidate.dict(exclude_unset=True))
 
-
 @router.put("/candidates/{candidate_id}")
-async def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdate, db: Session = Depends(get_db)):
-    # 1. Perform the update
+async def update_candidate_endpoint(
+    candidate_id: int, 
+    candidate: CandidateUpdate, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: AuthUserORM = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Security(security)
+):
+
+    # 1. Fetch current candidate state before update to check agreement status transition
+    db_candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    if not db_candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    # Authorization check to prevent unauthorized updates (Broken Access Control)
+    is_admin_or_staff = (
+        getattr(current_user, "role", None) in ["admin", "staff"]
+        or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
+    )
+
+    is_owner = (
+        getattr(current_user, "uname", "").lower() == (db_candidate.email or "").lower()
+    )
+    if not (is_admin_or_staff or is_owner):
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to modify this candidate profile."
+        )
+
+    old_agreement = db_candidate.agreement
+
+
+    # 2. Perform the update
     candidate_dict = candidate.dict(exclude_unset=True)
-    candidate_utils.update_candidate(candidate_id, candidate_dict)
+    if "agreement" in candidate_dict and not is_admin_or_staff:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to modify the agreement status."
+        )
     
-    # 2. Invalidate dashboard cache
+    # Input validation and sanitization to prevent CRLF/SMTP Injection
+
+    
+    # Input validation and sanitization to prevent CRLF/SMTP Injection
+    if "email" in candidate_dict and candidate_dict["email"]:
+        email_val = candidate_dict["email"].strip()
+        if not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", email_val):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        if "\r" in email_val or "\n" in email_val:
+            raise HTTPException(status_code=400, detail="CRLF characters are not allowed in email")
+        candidate_dict["email"] = email_val
+
+    if "full_name" in candidate_dict and candidate_dict["full_name"]:
+        name_val = re.sub(r"[\r\n]", "", str(candidate_dict["full_name"])).strip()
+        name_val = re.sub(r"<[^>]*>", "", name_val)  # Strip HTML tags
+        candidate_dict["full_name"] = name_val
+
+    candidate_utils.update_candidate(candidate_id, candidate_dict)
+    db.refresh(db_candidate)
+
+
+    # 3. Check if agreement was changed from pending review ("P") to approved ("Y")
+    new_agreement = candidate_dict.get("agreement")
+    if db_candidate and old_agreement == "P" and new_agreement == "Y":
+        # Send approval email using background tasks to prevent blocking the HTTP response
+        try:
+            from fapi.utils.email_utils import send_candidate_approval_email
+            background_tasks.add_task(send_candidate_approval_email, db_candidate.email, db_candidate.full_name)
+            logger.info(f"Scheduled candidate approval email for: {db_candidate.email}")
+        except Exception as e:
+            logger.error(f"Failed to schedule approval email for candidate {candidate_id}: {e}")
+
+    # 4. Invalidate dashboard cache
     try:
         from fapi.core.cache import invalidate_cache
         invalidate_cache("candidates")
@@ -145,6 +216,10 @@ async def update_candidate_endpoint(candidate_id: int, candidate: CandidateUpdat
         logger.error(f"Cache invalidation failed for update: {e}")
 
     return {"message": "Candidate updated successfully"}
+
+
+
+
 
 @router.delete("/candidates/{candidate_id}")
 def delete_candidate(candidate_id: int):

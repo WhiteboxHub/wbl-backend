@@ -91,6 +91,7 @@ async def startup_event():
         ("candidate", [
             ("placement_percentage", "INT NULL DEFAULT 13"),
             ("enrollment_status", "VARCHAR(50) NULL DEFAULT 'not completed'"),
+            ("onboarding_doc_submitted_at", "DATETIME NULL"),
         ]),
         ("candidate_interview", [
             ("duration_minutes", "INT NULL DEFAULT 60"),

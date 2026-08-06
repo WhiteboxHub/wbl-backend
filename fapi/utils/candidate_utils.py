@@ -1785,3 +1785,7 @@ def get_backup_candidates(exclude_ids: List[int] = None, db: Session = None) -> 
     finally:
         if close_session:
             db.close()
+
+def get_server_time_utc() -> dict:
+    from datetime import datetime
+    return {"server_time": datetime.utcnow().isoformat() + "Z"}
