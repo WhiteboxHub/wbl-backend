@@ -91,6 +91,7 @@ def move_lead_to_candidate(lead_id: int, db: Session = Depends(get_db)):
     return create_candidate_from_lead(db, lead_id)
 
 @router.delete("/leads/movetocandidate/{lead_id}")
+@router.delete("/leads/{lead_id}/move-to-candidate")
 def remove_lead_from_candidate(lead_id: int, db: Session = Depends(get_db)):
     lead = get_lead_by_id(db, lead_id)
     if not lead:

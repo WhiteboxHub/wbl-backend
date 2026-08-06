@@ -66,6 +66,7 @@ def create_user(user: schemas.AuthUserCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/user/{user_id}", response_model=schemas.AuthUserResponse)
+@router.patch("/user/{user_id}", response_model=schemas.AuthUserResponse)
 def update_user(user_id: int, user: schemas.AuthUserUpdate, db: Session = Depends(get_db)):
     updated_user = authuser_utils.update_user(db, user_id, user)
     if not updated_user:

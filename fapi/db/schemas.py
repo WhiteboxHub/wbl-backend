@@ -628,6 +628,12 @@ class AuthUserBase(BaseModel):
         except Exception:
             return v
 
+    @validator("visa_status", pre=True)
+    def validate_visa_status(cls, v):
+        if not v or (isinstance(v, str) and v.strip() == ""):
+            return None
+        return v
+
 
 class AuthUserCreate(AuthUserBase):
     uname: EmailStr
