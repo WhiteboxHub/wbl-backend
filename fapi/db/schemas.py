@@ -639,12 +639,6 @@ class AuthUserUpdate(AuthUserBase):
     logincount: Optional[int] = None
     enddate: Optional[date] = None
 
-    @validator("enddate", pre=True)
-    def validate_enddate(cls, v):
-        if not v or v in ("0000-00-00", "1990-01-01", "0000-00-00 00:00:00", "1990-01-01 00:00:00") or str(v).startswith("1990-01-01"):
-            return None
-        return v
-
 
 class AuthUserResponse(AuthUserBase):
     id: int
@@ -658,9 +652,7 @@ class AuthUserResponse(AuthUserBase):
         pre=True,
     )
     def fix_invalid_datetime(cls, v):
-        if v in ("0000-00-00 00:00:00", "0000-00-00", "1990-01-01", "1990-01-01 00:00:00", None, ""):
-            return None
-        if str(v).startswith("1990-01-01"):
+        if v in ("0000-00-00 00:00:00", "0000-00-00", None, ""):
             return None
         return v
 
