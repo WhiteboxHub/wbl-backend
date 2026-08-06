@@ -47,6 +47,8 @@ router = APIRouter(prefix="/candidates", tags=["Candidate Dashboard"])
 security = HTTPBearer()
 
 
+
+
 # ==================== ONBOARDING DOCUMENT UPLOAD ====================
 
 @router.post("/{candidate_id}/onboarding/upload")
@@ -63,7 +65,24 @@ async def upload_onboarding_documents(
         if not candidate:
             raise HTTPException(status_code=404, detail="Candidate not found")
 
+        # Authorization check to prevent unauthorized document uploads (Broken Access Control)
+        is_admin_or_staff = (
+            getattr(current_user, "role", None) in ["admin", "staff"]
+            or getattr(current_user, "is_admin", False)
+            or getattr(current_user, "is_employee", False)
+        )
+
+        is_owner = (
+            getattr(current_user, "uname", "").lower() == (candidate.email or "").lower()
+        )
+        if not (is_admin_or_staff or is_owner):
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to upload onboarding documents for this candidate profile."
+            )
+
         files_to_process = [
+
             ("govId", govId),
         ]
         if resume:
@@ -121,6 +140,7 @@ async def upload_onboarding_documents(
         # Update candidate folder path in DB with the Drive link and mark agreement as pending review
         candidate.candidate_folder = drive_link
         candidate.agreement = "P"
+        candidate.onboarding_doc_submitted_at = datetime.utcnow()
         db.commit()
 
         # Invalidate cache so the dashboard overview sees the new agreement status
