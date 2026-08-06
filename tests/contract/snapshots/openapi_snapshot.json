@@ -546,6 +546,30 @@
         }
       }
     },
+    "/api/candidates/server-time": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Get Server Time",
+        "operationId": "get_server_time_api_candidates_server_time_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/candidates/{candidate_id}": {
       "get": {
         "tags": [
@@ -46769,6 +46793,20 @@
               }
             ],
             "title": "New Subject Id"
+          },
+          "joined_candidate_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined Candidate Ids"
           }
         },
         "type": "object",
