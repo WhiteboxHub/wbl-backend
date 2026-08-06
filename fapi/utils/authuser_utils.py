@@ -104,9 +104,10 @@ def update_user(db: Session, user_id: int, user: AuthUserUpdate):
         old_role = str(old_role).lower().strip()
 
     for key, value in update_data.items():
-        if key == "enddate" and not value:
-            value = "1990-01-01"
-        setattr(db_user, key, value)
+        if hasattr(db_user, key):
+            if key == "enddate" and not value:
+                value = "1990-01-01"
+            setattr(db_user, key, value)
 
     # Safely extract role value (handles both str and Enum instances)
     role_val = update_data.get("role")
