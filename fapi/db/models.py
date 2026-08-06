@@ -37,7 +37,7 @@ class AuthUserORM(Base):
     registereddate = Column(DateTime)
     lastmoddatetime = Column(
         TIMESTAMP, server_default=func.now(), onupdate=func.now())
-    enddate = Column(Date, default=None)
+    enddate = Column(Date, default="1990-01-01")
     googleId = Column(String(255))
     reset_token = Column(String(255))
     token_expiry = Column(DateTime)
