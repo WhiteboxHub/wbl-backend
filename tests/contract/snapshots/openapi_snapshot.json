@@ -226,6 +226,62 @@
         ]
       }
     },
+    "/api/candidates/job-clicks/today": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get Today Job Click Summary Endpoint",
+        "description": "**Get Job Board Clicks Today summary & daily goal status for authenticated user**",
+        "operationId": "get_today_job_click_summary_endpoint_api_candidates_job_clicks_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayJobClickSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/candidates/click-summary/today": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get Today Job Click Summary Endpoint",
+        "description": "**Get Job Board Clicks Today summary & daily goal status for authenticated user**",
+        "operationId": "get_today_job_click_summary_endpoint_api_candidates_click_summary_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayJobClickSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/candidates/click-analytics/{click_id}": {
       "delete": {
         "tags": [
@@ -544,6 +600,30 @@
             }
           }
         }
+      }
+    },
+    "/api/candidates/server-time": {
+      "get": {
+        "tags": [
+          "Candidate"
+        ],
+        "summary": "Get Server Time",
+        "operationId": "get_server_time_api_candidates_server_time_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/candidates/{candidate_id}": {
@@ -46769,6 +46849,20 @@
               }
             ],
             "title": "New Subject Id"
+          },
+          "joined_candidate_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined Candidate Ids"
           }
         },
         "type": "object",
@@ -48023,6 +48117,44 @@
           "passed"
         ],
         "title": "TestCaseExecutionResult"
+      },
+      "TodayJobClickSummary": {
+        "properties": {
+          "job_board_clicks": {
+            "type": "integer",
+            "title": "Job Board Clicks"
+          },
+          "target_clicks": {
+            "type": "integer",
+            "title": "Target Clicks",
+            "default": 30
+          },
+          "remaining_clicks": {
+            "type": "integer",
+            "title": "Remaining Clicks"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "status_label": {
+            "type": "string",
+            "title": "Status Label"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_board_clicks",
+          "remaining_clicks",
+          "status",
+          "status_label",
+          "message"
+        ],
+        "title": "TodayJobClickSummary"
       },
       "Token": {
         "properties": {

@@ -154,6 +154,7 @@ def _get_basic_candidate_info(candidate: CandidateORM) -> Dict[str, Any]:
         "address": candidate.address,
         "fee_paid": float(candidate.fee_paid) if candidate.fee_paid else 0.0,
         "agreement": candidate.agreement,
+        "onboarding_doc_submitted_at": candidate.onboarding_doc_submitted_at.isoformat() if candidate.onboarding_doc_submitted_at else None,
         "notes": candidate.notes,
     }
 
@@ -209,6 +210,8 @@ def _get_candidate_stats(db: Session, candidate: CandidateORM, auth_user: Option
         "job_listings_clicked": job_listings_clicked,
         "outreach_counter": outreach_counter,
         "easy_apply_counter": easy_apply_counter,
+        "classes_joined": db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate.id).scalar() or 0,
+        "sessions_joined": db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate.id).scalar() or 0,
     }
 
 def _build_journey_timeline(candidate: CandidateORM) -> Dict[str, Any]:
@@ -514,6 +517,7 @@ def get_candidate_full_profile(db: Session, candidate_id: int) -> Dict[str, Any]
             "batch_name": candidate.batch.batchname if candidate.batch else None,
             "candidate_folder": candidate.candidate_folder,
             "agreement": candidate.agreement,
+            "onboarding_doc_submitted_at": candidate.onboarding_doc_submitted_at.isoformat() if candidate.onboarding_doc_submitted_at else None,
             "enrollment_status": getattr(candidate, "enrollment_status", "not completed"),
         },
         "financial": {

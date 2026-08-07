@@ -2283,6 +2283,7 @@ class RecordingBase(BaseModel):
     filename: Optional[str] = None
     lastmoddatetime: Optional[datetime] = None
     new_subject_id: Optional[int] = None
+    joined_candidate_ids: Optional[List[int]] = None
 
 
 class RecordingCreate(RecordingBase):
