@@ -6,7 +6,7 @@ from typing import List
 import logging
 
 from fapi.db.database import get_db
-from fapi.db.schemas import JobLinkClickBatchIn, JobLinkClickAnalytics
+from fapi.db.schemas import JobLinkClickBatchIn, JobLinkClickAnalytics, TodayJobClickSummary
 from fapi.utils.job_click_utils import (
     bulk_upsert_job_clicks,
     get_job_click_analytics,
@@ -15,6 +15,7 @@ from fapi.utils.job_click_utils import (
     get_job_clicks_version,
     delete_job_click,
     track_clicks_with_cache_invalidation,
+    get_today_job_click_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,18 @@ def check_click_analytics_version(
     return get_job_clicks_version(db)
 
 
+@router.get("/click-summary/today", response_model=TodayJobClickSummary)
+@router.get("/job-clicks/today", response_model=TodayJobClickSummary)
+def get_today_job_click_summary_endpoint(
+    db: Session = Depends(get_db),
+    user: any = Depends(enforce_access),
+):
+    """
+    **Get Job Board Clicks Today summary & daily goal status for authenticated user**
+    """
+    return get_today_job_click_summary(db, authuser_id=user.id)
+
+
 @router.delete("/click-analytics/{click_id}")
 def delete_click_analytics_endpoint(
     click_id: int,
@@ -99,7 +112,7 @@ def delete_click_analytics_endpoint(
     """
     **Delete a job click analytics record**
     """
-    success = delete_job_click(db, click_id)
+    success = delete_job_click(db, click_id, user)
     if not success:
         raise HTTPException(status_code=404, detail="Click record not found")
     return {"status": "success", "message": "Click record deleted"}

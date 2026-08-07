@@ -211,6 +211,8 @@ def get_job_clicks_version(db: Session) -> Response:
     """
     return generate_version_for_model(db, JobLinkClicksORM)
 
+from fastapi import HTTPException
+
 def delete_job_click(db: Session, click_id: int) -> bool:
     """
     Deletes a specific job click record by ID.
@@ -226,3 +228,40 @@ def delete_job_click(db: Session, click_id: int) -> bool:
         db.rollback()
         logger.error(f"Error deleting job click {click_id}: {str(e)}")
         raise e
+
+def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: int = 30) -> Dict[str, Any]:
+    """
+    Calculate today's job board clicks and goal status for the given authuser.
+    """
+    from datetime import datetime, timezone
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    clicks_today = (
+        db.query(func.coalesce(func.sum(JobLinkClicksORM.click_count), 0))
+        .filter(
+            JobLinkClicksORM.authuser_id == authuser_id,
+            JobLinkClicksORM.last_clicked_at >= today_start
+        )
+        .scalar()
+    ) or 0
+
+    job_board_clicks = int(clicks_today)
+    remaining_clicks = max(0, target_clicks - job_board_clicks)
+
+    if remaining_clicks == 0:
+        status = "GOAL_MET"
+        status_label = "GOAL MET"
+        message = "Daily click goal achieved."
+    else:
+        status = "BELOW_TARGET"
+        status_label = "BELOW TARGET"
+        message = f"You need {remaining_clicks} more clicks to reach the daily objective."
+
+    return {
+        "job_board_clicks": job_board_clicks,
+        "target_clicks": target_clicks,
+        "remaining_clicks": remaining_clicks,
+        "status": status,
+        "status_label": status_label,
+        "message": message,
+    }
