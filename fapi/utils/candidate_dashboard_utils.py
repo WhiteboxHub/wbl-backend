@@ -14,6 +14,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from fapi.core.cache import cache_result, invalidate_cache
 import os
+import re
 import requests
 import logging
 from fastapi import UploadFile
@@ -114,7 +115,153 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
     )
 
     alerts = _generate_candidate_alerts(candidate, db)
-    candidate_stats = _get_candidate_stats(db, candidate, auth_user)
+
+    # Helper function to parse notes from Bot LinkedIn Easy Apply activity logs
+    def _parse_easy_apply_entry(line: str, default_date: str) -> Optional[dict]:
+        stripped = line.strip()
+        if not stripped:
+            return None
+
+        # Key-value entries (Company:, Role:, Date:)
+        if ":" in stripped and any(k in stripped.lower() for k in ["company", "role", "position", "date"]):
+            parts = [p.strip() for p in stripped.split(",") if p.strip()]
+            data = {"company": None, "role": None, "date": None}
+            for part in parts:
+                if ":" in part:
+                    key, val = part.split(":", 1)
+                    key = key.strip().lower()
+                    val = val.strip()
+                    if "company" in key:
+                        data["company"] = val
+                    elif "role" in key or "position" in key:
+                        data["role"] = val
+                    elif "date" in key:
+                        data["date"] = val
+            if data["company"] or data["role"]:
+                return {
+                    "company": data["company"] or "N/A",
+                    "role": data["role"] or "Easy Apply",
+                    "date": data["date"] or default_date,
+                }
+
+        match = re.match(r"^(?:Created from Swagger\s*)?(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(.*)$", stripped)
+        if match:
+            timestamp = match.group(1)
+            row_text = match.group(2).strip().lstrip(",")
+            parts = [p.strip() for p in row_text.split(",") if p.strip()]
+            if len(parts) >= 4:
+                remaining = parts[:-2]
+                if len(remaining) >= 2:
+                    company = remaining[-1]
+                    role = ",".join(remaining[1:]).strip() if len(remaining) > 2 else remaining[1]
+
+                    status = "Pending"
+                    if len(parts) >= 5 and parts[-1]:
+                        status = parts[-1].strip()
+                    return {
+                        "company": company,
+                        "role": role or "Easy Apply",
+                        "date": timestamp,
+                        "status": status,
+                    }
+
+        for delimiter in ["|", "-"]:
+            if delimiter in stripped:
+                parts = [p.strip() for p in stripped.split(delimiter)]
+                if len(parts) >= 2:
+                    return {
+                        "company": parts[0],
+                        "role": parts[1],
+                        "date": parts[2] if len(parts) > 2 else default_date,
+                        "status": "Pending",
+                    }
+
+        # Only return a result if this line matches a known application pattern.
+        # Do not create a generic fallback entry for summary lines like "No applications today."
+        return None
+
+    def _extract_easy_apply_entries(notes_str: str, default_date: str) -> List[dict]:
+        if not notes_str:
+            return []
+        entries = []
+        for line in notes_str.strip().split("\n"):
+            entry = _parse_easy_apply_entry(line, default_date)
+            if entry:
+                entries.append(entry)
+        return entries
+
+    # Fetch Easy Apply applications from job_activity_log
+    from fapi.db.models import JobActivityLogORM, JobTypeORM
+    easy_apply_logs = []
+    try:
+        logs_query = (
+            db.query(JobActivityLogORM)
+            .join(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id)
+            .filter(
+                JobActivityLogORM.candidate_id == candidate_id,
+                or_(
+                    JobTypeORM.name.ilike("%Bot LinkedIn Easy Apply%"),
+                    JobTypeORM.name.ilike("%Linkedin%"),
+                    JobTypeORM.name.ilike("%Easy Apply%"),
+                )
+            )
+            .order_by(JobActivityLogORM.activity_date.desc(), JobActivityLogORM.id.desc())
+            
+            .all()
+        )
+        logger.info(f"JobActivityLogORM returned {len(logs_query)} records for candidate {candidate_id}")
+
+        for log in logs_query:
+            formatted_date = log.activity_date.isoformat() if log.activity_date else None
+            entries = _extract_easy_apply_entries(log.notes, formatted_date)
+            for entry in entries:
+                easy_apply_logs.append(
+                    {
+                        "id": log.id,
+                        "company": entry["company"],
+                        "role": entry["role"],
+                        "date": entry["date"],
+                        "status": entry.get("status", "Pending"),
+                        
+
+                    }
+                )
+
+        easy_apply_logs = sorted(
+            easy_apply_logs,
+            key=lambda x: x["date"] or "",
+            reverse=True,
+        )
+
+        if len(easy_apply_logs) == 0:
+            from fapi.db.models import ApplicationReportORM
+            authuser = db.query(AuthUserORM).filter(
+                func.lower(AuthUserORM.uname) == candidate.email.lower()
+            ).first() if candidate.email else None
+            if authuser:
+                apps_query = (
+                    db.query(ApplicationReportORM)
+                    .filter(ApplicationReportORM.user_id == authuser.id)
+                    .order_by(ApplicationReportORM.submitted_at.desc())
+                    
+                    .all()
+                )
+                logger.info(f"ApplicationReportORM fallback returned {len(apps_query)} records for user_id={authuser.id}")
+                for app in apps_query:
+                    formatted_date = app.submitted_at.isoformat() if app.submitted_at else None
+                    easy_apply_logs.append(
+                        {
+                            "id": app.id,
+                            "company": app.company_name or "N/A",
+                            "role": "Easy Apply",
+                            "date": formatted_date,
+                            "status": app.status or "Pending",
+
+                        }
+                    )
+    except Exception as query_err:
+        logger.error(f"Failed to fetch Easy Apply logs: {str(query_err)}", exc_info=True)
+
 
     return {
         "basic_info": basic_info,
@@ -124,11 +271,8 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_stats": interview_stats,
         "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
-
-        "candidate_stats": candidate_stats,
-
-        
-
+        "candidate_stats": get_candidate_statistics(db, candidate_id),
+        "easy_apply_logs": easy_apply_logs,
     }
 
 
@@ -1313,30 +1457,89 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     # 3. Outreach counter
     from fapi.db.models import CampaignEmailORM, CandidateMarketingORM
     campaign_emails_sent = db.query(func.count(CampaignEmailORM.id)).filter(
-        CampaignEmailORM.candidate_id == candidate_id,
-        CampaignEmailORM.status == 'sent'
+         CampaignEmailORM.candidate_id == candidate_id,
+         CampaignEmailORM.status == 'sent'
     ).scalar() or 0
-    
+
     marketing_outreach_count = db.query(func.sum(CandidateMarketingORM.total_outreach_count)).filter(
         CandidateMarketingORM.candidate_id == candidate_id
     ).scalar() or 0
+
     
     outreach_counter = max(campaign_emails_sent, marketing_outreach_count)
 
-    # 4. Easy apply counter
+    
+    
+   # "Today" count — read total_outreach_count from the active candidate_marketing record.
+    # This is the same trusted field that drives the outreach workflow and is updated
+    # every time the outreach service delivers emails for this candidate.
+    daily_outreach = (
+        db.query(CandidateMarketingORM.total_outreach_count)
+        .filter(
+            CandidateMarketingORM.candidate_id == candidate_id,
+            CandidateMarketingORM.status == "active",
+        )
+        .order_by(CandidateMarketingORM.id.desc())
+        .scalar() or 0
+    )
+
+    # "This Week" count — sum of total_outreach_count for candidate marketing
+    # records that started within the last 7 days (inclusive). This reflects
+    # outreach activity in the most recent week rather than all-time totals.
+    from fapi.db.models import AutomationWorkflowLogORM
+    from sqlalchemy import cast, String
+    weekly_outreach = 0
+    workflow_logs = (
+        db.query(AutomationWorkflowLogORM)
+        .filter(
+            AutomationWorkflowLogORM.workflow_id == 3,
+        )
+        .order_by(AutomationWorkflowLogORM.id.desc())
+        .all()
+    )
+
+    for log in workflow_logs:
+        metadata = log.execution_metadata or {}
+        if metadata.get("candidate_id") == candidate_id:
+            weekly_outreach = metadata.get("total_sent_till_now", 0)
+            break
+    # 4. Easy apply counter - from job_activity_log (same as Avatar dashboard)
+    # Show TODAY's count if available, otherwise show most recent count
     easy_apply_counter = 0
-    if authuser:
-        from fapi.db.models import ApplicationReportORM, WboxcliApplyAnalyticsORM
-        autofill_count = db.query(func.count(ApplicationReportORM.id)).filter(
-            ApplicationReportORM.user_id == authuser.id
-        ).scalar() or 0
+    today = date.today()
+    
+    try:
+        from fapi.db.models import JobActivityLogORM, JobTypeORM
         
-        cli_analytics = db.query(WboxcliApplyAnalyticsORM).filter(
-            WboxcliApplyAnalyticsORM.user_id == authuser.uname
-        ).first()
-        cli_count = cli_analytics.jobs_submitted if cli_analytics else 0
+        # PRIMARY: Try to get TODAY's Easy Apply count
+        today_count = db.query(func.sum(JobActivityLogORM.activity_count)).filter(
+            JobActivityLogORM.candidate_id == candidate_id,
+            JobActivityLogORM.activity_date == today,
+            JobTypeORM.name.ilike("%Easy Apply%")
+        ).join(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id).scalar() or 0
         
-        easy_apply_counter = autofill_count + cli_count
+        if today_count > 0:
+            easy_apply_counter = int(today_count)
+            logger.info(f"Easy Apply count for candidate {candidate_id} TODAY: {easy_apply_counter}")
+        else:
+            # FALLBACK: Get most recent date's Easy Apply count
+            latest_log = db.query(
+                JobActivityLogORM.activity_date,
+                func.sum(JobActivityLogORM.activity_count).label("total")
+            ).filter(
+                JobActivityLogORM.candidate_id == candidate_id,
+                JobTypeORM.name.ilike("%Easy Apply%")
+            ).join(JobTypeORM, JobActivityLogORM.job_type_id == JobTypeORM.id).group_by(
+                JobActivityLogORM.activity_date
+            ).order_by(JobActivityLogORM.activity_date.desc()).first()
+            
+            if latest_log:
+                easy_apply_counter = int(latest_log[1])
+                logger.info(f"Easy Apply count for candidate {candidate_id} from {latest_log[0]}: {easy_apply_counter}")
+            else:
+                logger.info(f"No Easy Apply logs found for candidate {candidate_id}")
+    except Exception as counter_err:
+        logger.error(f"Failed to fetch Easy Apply counter: {str(counter_err)}", exc_info=True)
 
     classes_joined = db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate_id).scalar() or 0
 
@@ -1355,6 +1558,8 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
 
     stats["job_listings_clicked"] = int(job_listings_clicked)
     stats["outreach_counter"] = int(outreach_counter)
+    stats["daily_outreach"] = int(daily_outreach)
+    stats["weekly_outreach"] = int(weekly_outreach)
     stats["easy_apply_counter"] = int(easy_apply_counter)
 
     return stats
