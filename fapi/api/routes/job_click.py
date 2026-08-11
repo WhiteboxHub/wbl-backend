@@ -16,6 +16,7 @@ from fapi.utils.job_click_utils import (
     delete_job_click,
     track_clicks_with_cache_invalidation,
     get_today_job_click_summary,
+    get_total_job_click_summary,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,24 @@ def get_today_job_click_summary_endpoint(
     """
     **Get Job Board Clicks Today summary & daily goal status for authenticated user**
     """
+    logger.info(f"[CLICK_TRACKING] GET /candidates/job-clicks/today requested for authuser_id={user.id}")
     return get_today_job_click_summary(db, authuser_id=user.id)
+
+
+@router.get("/job-clicks/total")
+def get_total_job_click_summary_endpoint(
+    db: Session = Depends(get_db),
+    user: any = Depends(enforce_access),
+):
+    """
+    Get total all-time Job Board clicks for authenticated user
+    """
+    logger.info(
+        f"[CLICK_TRACKING] GET /candidates/job-clicks/total requested "
+        f"for authuser_id={user.id}"
+    )
+    return get_total_job_click_summary(db, authuser_id=user.id)
+
 
 
 @router.delete("/click-analytics/{click_id}")

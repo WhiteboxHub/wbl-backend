@@ -282,6 +282,32 @@
         ]
       }
     },
+    "/api/candidates/job-clicks/total": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get Total Job Click Summary Endpoint",
+        "description": "Get total all-time Job Board clicks for authenticated user",
+        "operationId": "get_total_job_click_summary_endpoint_api_candidates_job_clicks_total_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/candidates/click-analytics/{click_id}": {
       "delete": {
         "tags": [
