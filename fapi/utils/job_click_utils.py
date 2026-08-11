@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.dialects.mysql import insert
 from fapi.db.models import JobLinkClicksORM, AuthUserORM, CandidateORM, JobListingORM
 from fapi.utils.table_fingerprint import generate_version_for_model
@@ -71,32 +71,29 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
                 if not existing_job:
                     try:
                         db.execute(
-                            insert(JobListingORM).values(
-                                id=job_id,
-                                title="Job Listing",
-                                company_name="Company"
-                            ).on_duplicate_key_update(id=job_id)
+                            text(
+                                "INSERT INTO job_listing (id, title, company_name) "
+                                "VALUES (:id, 'Job Listing', 'Company') "
+                                "ON DUPLICATE KEY UPDATE id = VALUES(id)"
+                            ),
+                            {"id": job_id}
                         )
                         db.flush()
                     except Exception as job_err:
                         logger.warning(f"[CLICK_TRACKING] Failed to auto-ensure JobListing {job_id}: {job_err}")
 
-                # SQLAlchemy core insert for ON DUPLICATE KEY UPDATE support
-                stmt = insert(JobLinkClicksORM).values(
-                    authuser_id=target_authuser_id,
-                    job_listing_id=job_id,
-                    click_count=count,
-                    first_clicked_at=func.now(),
-                    last_clicked_at=func.now()
+                db.execute(
+                    text(
+                        "INSERT INTO job_link_clicks (authuser_id, job_listing_id, click_count, first_clicked_at, last_clicked_at) "
+                        "VALUES (:authuser_id, :job_listing_id, :count, NOW(), NOW()) "
+                        "ON DUPLICATE KEY UPDATE click_count = click_count + VALUES(click_count), last_clicked_at = NOW()"
+                    ),
+                    {
+                        "authuser_id": target_authuser_id,
+                        "job_listing_id": job_id,
+                        "count": count
+                    }
                 )
-
-                # Build the update clause for existing records
-                update_stmt = stmt.on_duplicate_key_update(
-                    click_count=JobLinkClicksORM.click_count + count,
-                    last_clicked_at=func.now()
-                )
-
-                db.execute(update_stmt)
                 processed_count += 1
                 logger.info(f"[CLICK_TRACKING] Successfully recorded click for user_id={authuser_id}, job_listing_id={job_id}, count={count}")
             except Exception as inner_e:
