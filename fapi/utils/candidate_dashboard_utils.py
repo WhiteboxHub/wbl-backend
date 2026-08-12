@@ -32,6 +32,7 @@ from fapi.db.models import (
     JobLinkClicksORM,
     CampaignEmailORM,
     ApplicationReportORM,
+    JobActivityLogORM,
 )
 from fapi.db.schemas import CandidateInterviewOut
 
@@ -124,11 +125,7 @@ def get_dashboard_overview(db: Session, candidate_id: int) -> Dict[str, Any]:
         "interview_stats": interview_stats,
         "interviews": [_serialize_interview_summary(i) for i in all_interviews],
         "alerts": alerts,
-
         "candidate_stats": candidate_stats,
-
-        
-
     }
 
 
@@ -206,9 +203,48 @@ def _get_candidate_stats(db: Session, candidate: CandidateORM, auth_user: Option
     except Exception:
         pass
 
+    try:
+        from fapi.db.models import CandidateMarketingORM
+        daily_outreach_count = (
+            db.query(func.sum(CandidateMarketingORM.total_outreach_count))
+            .filter(CandidateMarketingORM.candidate_id == candidate.id)
+            .scalar() or 0
+        )
+    except Exception:
+        daily_outreach_count = 0
+
+    try:
+        from fapi.db.models import AutomationWorkflowORM, AutomationWorkflowLogORM
+        
+        # Get the latest success log for weekly detailed vendor by name for this candidate
+        workflow_log = (
+            db.query(AutomationWorkflowLogORM)
+            .join(AutomationWorkflowORM, AutomationWorkflowLogORM.workflow_id == AutomationWorkflowORM.id)
+            .filter(
+                func.lower(AutomationWorkflowORM.name) == "weekly detailed vendor outreach",
+                AutomationWorkflowLogORM.status == "success",
+                or_(
+                    func.json_extract(AutomationWorkflowLogORM.parameters_used, '$.candidate_id') == candidate.id,
+                    func.json_extract(AutomationWorkflowLogORM.parameters_used, '$.candidate_id') == str(candidate.id)
+                )
+            )
+            .order_by(AutomationWorkflowLogORM.created_at.desc())
+            .first()
+        )
+        
+        complete_outreach_count = 0
+        if workflow_log and workflow_log.execution_metadata:
+            complete_outreach_count = workflow_log.execution_metadata.get("total_sent_till_now", workflow_log.execution_metadata.get("emails_sent", 0))
+    except Exception as e:
+        logger.error(f"Error fetching weekly detailed vendor outreach count: {e}")
+        complete_outreach_count = 0
+
     return {
         "job_listings_clicked": job_listings_clicked,
         "outreach_counter": outreach_counter,
+        "daily_outreach_count": int(daily_outreach_count),
+        "weekly_outreach_count": outreach_counter,
+        "complete_outreach_count": complete_outreach_count,
         "easy_apply_counter": easy_apply_counter,
         "classes_joined": db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate.id).scalar() or 0,
         "sessions_joined": db.query(func.count(CandidateSession.session_id)).filter(CandidateSession.candidate_id == candidate.id).scalar() or 0,
@@ -1322,6 +1358,8 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     ).scalar() or 0
     
     outreach_counter = max(campaign_emails_sent, marketing_outreach_count)
+    daily_outreach_count = marketing_outreach_count
+    weekly_outreach_count = campaign_emails_sent
 
     # 4. Easy apply counter
     easy_apply_counter = 0
@@ -1355,6 +1393,8 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
 
     stats["job_listings_clicked"] = int(job_listings_clicked)
     stats["outreach_counter"] = int(outreach_counter)
+    stats["daily_outreach_count"] = int(daily_outreach_count)
+    stats["weekly_outreach_count"] = int(weekly_outreach_count)
     stats["easy_apply_counter"] = int(easy_apply_counter)
 
     return stats
