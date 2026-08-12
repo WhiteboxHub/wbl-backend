@@ -60,45 +60,45 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
         processed_count = 0
         for click in clicks:
             try:
-                job_id = click.get("job_listing_id")
-                count = click.get("count", 1)
+                with db.begin_nested():
+                    job_id = click.get("job_listing_id")
+                    count = click.get("count", 1)
 
-                if not job_id:
-                    continue
+                    if not job_id:
+                        continue
 
-                # Ensure job_listing_id exists in job_listing table before inserting into job_link_clicks
-                existing_job = db.query(JobListingORM.id).filter(JobListingORM.id == job_id).first()
-                if not existing_job:
-                    try:
-                        db.execute(
-                            text(
-                                "INSERT INTO job_listing (id, title, company_name) "
-                                "VALUES (:id, 'Job Listing', 'Company') "
-                                "ON DUPLICATE KEY UPDATE id = VALUES(id)"
-                            ),
-                            {"id": job_id}
-                        )
-                        db.flush()
-                    except Exception as job_err:
-                        logger.warning(f"[CLICK_TRACKING] Failed to auto-ensure JobListing {job_id}: {job_err}")
+                    # Ensure job_listing_id exists in job_listing table before inserting into job_link_clicks
+                    existing_job = db.query(JobListingORM.id).filter(JobListingORM.id == job_id).first()
+                    if not existing_job:
+                        try:
+                            db.execute(
+                                text(
+                                    "INSERT INTO job_listing (id, title, company_name) "
+                                    "VALUES (:id, 'Job Listing', 'Company') "
+                                    "ON DUPLICATE KEY UPDATE id = VALUES(id)"
+                                ),
+                                {"id": job_id}
+                            )
+                            db.flush()
+                        except Exception as job_err:
+                            logger.warning(f"[CLICK_TRACKING] Failed to auto-ensure JobListing {job_id}: {job_err}")
 
-                db.execute(
-                    text(
-                        "INSERT INTO job_link_clicks (authuser_id, job_listing_id, click_count, first_clicked_at, last_clicked_at) "
-                        "VALUES (:authuser_id, :job_listing_id, :count, NOW(), NOW()) "
-                        "ON DUPLICATE KEY UPDATE click_count = click_count + VALUES(click_count), last_clicked_at = NOW()"
-                    ),
-                    {
-                        "authuser_id": target_authuser_id,
-                        "job_listing_id": job_id,
-                        "count": count
-                    }
-                )
-                processed_count += 1
-                logger.info(f"[CLICK_TRACKING] Successfully recorded click for user_id={authuser_id}, job_listing_id={job_id}, count={count}")
+                    db.execute(
+                        text(
+                            "INSERT INTO job_link_clicks (authuser_id, job_listing_id, click_count, first_clicked_at, last_clicked_at) "
+                            "VALUES (:authuser_id, :job_listing_id, :count, NOW(), NOW()) "
+                            "ON DUPLICATE KEY UPDATE click_count = click_count + VALUES(click_count), last_clicked_at = NOW()"
+                        ),
+                        {
+                            "authuser_id": target_authuser_id,
+                            "job_listing_id": job_id,
+                            "count": count
+                        }
+                    )
+                    processed_count += 1
+                    logger.info(f"[CLICK_TRACKING] Successfully recorded click for user_id={authuser_id}, job_listing_id={job_id}, count={count}")
             except Exception as inner_e:
-                logger.warning(f"[CLICK_TRACKING] Skipping job click error for job_id {job_id}: {str(inner_e)}")
-                db.rollback() # Rollback the single failed statement
+                logger.warning(f"[CLICK_TRACKING] Skipping job click error for job_id {click.get('job_listing_id')}: {str(inner_e)}")
                 continue
         
         db.commit()
@@ -290,7 +290,7 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     logger.info(f"[CLICK_TRACKING] Querying today clicks for authuser_id={authuser_id}, possible_ids={possible_user_ids}, today_date={today_date}")
 
     clicks_today = (
-        db.query(func.coalesce(func.sum(JobLinkClicksORM.click_count), 0))
+        db.query(func.coalesce(func.count(func.distinct(JobLinkClicksORM.job_listing_id)), 0))
         .filter(
             JobLinkClicksORM.authuser_id.in_(possible_user_ids),
             or_(
