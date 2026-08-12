@@ -95,6 +95,12 @@ async def startup_event():
         ]),
         ("candidate_interview", [
             ("duration_minutes", "INT NULL DEFAULT 60"),
+        ]),
+        ("candidate_llm_api_keys", [
+            ("status", "VARCHAR(50) NOT NULL DEFAULT 'inactive'"),
+            ("failure_reason", "TEXT NULL"),
+            ("failure_code", "VARCHAR(100) NULL"),
+            ("last_validated_at", "DATETIME NULL"),
         ])
     ]
     with engine.connect() as conn:
