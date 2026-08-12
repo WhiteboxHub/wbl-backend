@@ -130,7 +130,7 @@ def delete_click_analytics_endpoint(
     """
     **Delete a job click analytics record**
     """
-    success = delete_job_click(db, click_id, user)
+    success = delete_job_click(db, click_id)
     if not success:
         raise HTTPException(status_code=404, detail="Click record not found")
     return {"status": "success", "message": "Click record deleted"}
