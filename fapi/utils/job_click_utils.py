@@ -36,6 +36,24 @@ def track_clicks_with_cache_invalidation(
 
     return {"status": "success", "processed": processed_count}
 
+def _normalize_authuser_id(db: Session, user_id: int) -> int:
+    """
+    Ensure user_id resolves to a single valid AuthUserORM.id.
+    If user_id is a CandidateORM.id, look up the linked AuthUserORM.id by email.
+    """
+    auth_user = db.query(AuthUserORM).filter(AuthUserORM.id == user_id).first()
+    if auth_user:
+        return auth_user.id
+
+    cand = db.query(CandidateORM).filter(CandidateORM.id == user_id).first()
+    if cand and cand.email:
+        linked_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
+        if linked_user:
+            return linked_user.id
+
+    return user_id
+
+
 def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str, Any]]) -> int:
     """
     Perform a single bulk UPSERT to MySQL for a batch of clicks.
@@ -45,14 +63,7 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
         return 0
 
     # Normalize authuser_id to AuthUserORM.id if candidate_id was passed
-    target_authuser_id = authuser_id
-    auth_user = db.query(AuthUserORM.id).filter(AuthUserORM.id == authuser_id).first()
-    if not auth_user:
-        cand = db.query(CandidateORM).filter(CandidateORM.id == authuser_id).first()
-        if cand and cand.email:
-            linked_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
-            if linked_user:
-                target_authuser_id = linked_user.id
+    target_authuser_id = _normalize_authuser_id(db, authuser_id)
 
     logger.info(f"[CLICK_TRACKING] Starting bulk_upsert_job_clicks for user_id={authuser_id} (target={target_authuser_id}), clicks_count={len(clicks)}")
 
@@ -273,26 +284,14 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     today_date = datetime.now().date()
     today_utc_date = datetime.now(timezone.utc).date()
 
-    # Resolve candidate_id if authuser is linked to CandidateORM by email or ID
-    possible_user_ids = {authuser_id}
-    auth_user = db.query(AuthUserORM).filter(AuthUserORM.id == authuser_id).first()
-    if auth_user and auth_user.uname:
-        cand = db.query(CandidateORM).filter(func.lower(CandidateORM.email) == func.lower(auth_user.uname)).first()
-        if cand:
-            possible_user_ids.add(cand.id)
-    else:
-        cand = db.query(CandidateORM).filter(CandidateORM.id == authuser_id).first()
-        if cand and cand.email:
-            auth_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
-            if auth_user:
-                possible_user_ids.add(auth_user.id)
+    target_authuser_id = _normalize_authuser_id(db, authuser_id)
 
-    logger.info(f"[CLICK_TRACKING] Querying today clicks for authuser_id={authuser_id}, possible_ids={possible_user_ids}, today_date={today_date}")
+    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, today_date={today_date}")
 
     clicks_today = (
         db.query(func.coalesce(func.count(func.distinct(JobLinkClicksORM.job_listing_id)), 0))
         .filter(
-            JobLinkClicksORM.authuser_id.in_(possible_user_ids),
+            JobLinkClicksORM.authuser_id == target_authuser_id,
             or_(
                 func.date(JobLinkClicksORM.last_clicked_at) == today_date,
                 func.date(JobLinkClicksORM.last_clicked_at) == today_utc_date,
@@ -314,8 +313,8 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
         status_label = "BELOW TARGET"
         message = f"You need {remaining_clicks} more clicks to reach today's goal."
 
-    logger.info(f"[CLICK_DEBUG] GET job-clicks-today authuser_id={authuser_id}, possible_ids={possible_user_ids}, clicks_today={clicks_today}, final={job_board_clicks}")
-    logger.info(f"[CLICK_TRACKING] Today click summary for authuser_id={authuser_id}: job_board_clicks={job_board_clicks}, remaining_clicks={remaining_clicks}")
+    logger.info(f"[CLICK_DEBUG] GET job-clicks-today target_authuser_id={target_authuser_id}, clicks_today={clicks_today}, final={job_board_clicks}")
+    logger.info(f"[CLICK_TRACKING] Today click summary for target_authuser_id={target_authuser_id}: job_board_clicks={job_board_clicks}, remaining_clicks={remaining_clicks}")
 
     return {
         "job_board_clicks": job_board_clicks,
@@ -331,26 +330,15 @@ def get_total_job_click_summary(db: Session, authuser_id: int) -> dict:
     """
     Get all-time total Job Board clicks for the authenticated user across ALL dates.
     """
-    possible_user_ids = {authuser_id}
-    auth_user = db.query(AuthUserORM).filter(AuthUserORM.id == authuser_id).first()
-    if auth_user and auth_user.uname:
-        cand = db.query(CandidateORM).filter(func.lower(CandidateORM.email) == func.lower(auth_user.uname)).first()
-        if cand:
-            possible_user_ids.add(cand.id)
-    else:
-        cand = db.query(CandidateORM).filter(CandidateORM.id == authuser_id).first()
-        if cand and cand.email:
-            auth_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
-            if auth_user:
-                possible_user_ids.add(auth_user.id)
+    target_authuser_id = _normalize_authuser_id(db, authuser_id)
 
     total_clicks = (
         db.query(func.coalesce(func.sum(JobLinkClicksORM.click_count), 0))
-        .filter(JobLinkClicksORM.authuser_id.in_(possible_user_ids))
+        .filter(JobLinkClicksORM.authuser_id == target_authuser_id)
         .scalar()
     ) or 0
 
-    logger.info(f"[CLICK_TRACKING] Total all-time click summary for authuser_id={authuser_id}: total_clicks={total_clicks}")
+    logger.info(f"[CLICK_TRACKING] Total all-time click summary for target_authuser_id={target_authuser_id}: total_clicks={total_clicks}")
 
     return {
         "job_board_clicks": int(total_clicks),
