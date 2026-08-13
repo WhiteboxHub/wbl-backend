@@ -291,7 +291,11 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
         time.min,
         tzinfo=pacific_tz,
     )
-    start_of_next_day = start_of_today + timedelta(days=1)
+    start_of_next_day = datetime.combine(
+        now.date() + timedelta(days=1),
+        time.min,
+        tzinfo=pacific_tz,
+    )
 
     start_of_today_utc = (
         start_of_today
