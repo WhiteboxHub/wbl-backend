@@ -38,8 +38,9 @@ def track_clicks_with_cache_invalidation(
 
 def _normalize_authuser_id(db: Session, user_id: int) -> int:
     """
-    Ensure user_id resolves to a valid AuthUserORM.id without ambiguous guessing.
-    Prevents CandidateORM.id and AuthUserORM.id cross-user space collision.
+    Ensure user_id resolves to a valid AuthUserORM.id.
+    If user_id does not exist directly in AuthUserORM, attempt to resolve
+    as a CandidateORM.id to avoid ID space collision and silent failures.
     """
     if not user_id:
         raise ValueError("Invalid authuser_id")
@@ -49,9 +50,15 @@ def _normalize_authuser_id(db: Session, user_id: int) -> int:
         .filter(AuthUserORM.id == user_id)
         .first()
     )
-
     if auth_user:
         return auth_user.id
+
+    # Safely resolve candidate_id to AuthUserORM.id via email lookup
+    cand = db.query(CandidateORM).filter(CandidateORM.id == user_id).first()
+    if cand and cand.email:
+        linked_user = db.query(AuthUserORM.id).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
+        if linked_user:
+            return linked_user.id
 
     raise ValueError("Invalid authuser_id")
 
