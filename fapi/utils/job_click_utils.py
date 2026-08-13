@@ -280,19 +280,39 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     from datetime import datetime, time, timedelta
     from zoneinfo import ZoneInfo
 
+    pacific_tz = ZoneInfo("America/Los_Angeles")
+    utc_tz = ZoneInfo("UTC")
+
     target_authuser_id = _normalize_authuser_id(db, authuser_id)
-    now = datetime.now(ZoneInfo("America/Los_Angeles"))
-    start_of_today = datetime.combine(now.date(), time.min, tzinfo=ZoneInfo("America/Los_Angeles"))
+    now = datetime.now(pacific_tz)
+
+    start_of_today = datetime.combine(
+        now.date(),
+        time.min,
+        tzinfo=pacific_tz,
+    )
     start_of_next_day = start_of_today + timedelta(days=1)
 
-    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, range=[{start_of_today}, {start_of_next_day})")
+    start_of_today_utc = (
+        start_of_today
+        .astimezone(utc_tz)
+        .replace(tzinfo=None)
+    )
+
+    start_of_next_day_utc = (
+        start_of_next_day
+        .astimezone(utc_tz)
+        .replace(tzinfo=None)
+    )
+
+    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, range=[{start_of_today_utc}, {start_of_next_day_utc})")
 
     clicks_today = (
         db.query(func.coalesce(func.count(func.distinct(JobLinkClicksORM.job_listing_id)), 0))
         .filter(
             JobLinkClicksORM.authuser_id == target_authuser_id,
-            JobLinkClicksORM.last_clicked_at >= start_of_today,
-            JobLinkClicksORM.last_clicked_at < start_of_next_day,
+            JobLinkClicksORM.last_clicked_at >= start_of_today_utc,
+            JobLinkClicksORM.last_clicked_at < start_of_next_day_utc,
         )
         .scalar()
     ) or 0
