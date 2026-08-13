@@ -36,25 +36,45 @@ def track_clicks_with_cache_invalidation(
 
     return {"status": "success", "processed": processed_count}
 
-def _normalize_authuser_id(db: Session, user_id: int) -> int:
+def _validate_authuser_id(db: Session, authuser_id: int) -> int:
     """
-    Ensure user_id resolves to a single valid AuthUserORM.id.
-    If user_id is a CandidateORM.id, look up the linked AuthUserORM.id by email.
+    Ensure authuser_id resolves to a valid AuthUserORM.id.
     """
-    auth_user = db.query(AuthUserORM).filter(AuthUserORM.id == user_id).first()
+    if not authuser_id:
+        raise ValueError("Invalid authuser_id")
+
+    auth_user = (
+        db.query(AuthUserORM.id)
+        .filter(AuthUserORM.id == authuser_id)
+        .first()
+    )
     if auth_user:
         return auth_user.id
 
-    cand = db.query(CandidateORM).filter(CandidateORM.id == user_id).first()
+    raise ValueError("Invalid authuser_id")
+
+
+def _resolve_candidate_to_authuser_id(db: Session, candidate_id: int) -> int:
+    """
+    Safely resolve candidate_id to AuthUserORM.id via email lookup.
+    """
+    if not candidate_id:
+        raise ValueError("Invalid candidate_id")
+
+    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
     if cand and cand.email:
-        linked_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
+        linked_user = db.query(AuthUserORM.id).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
         if linked_user:
             return linked_user.id
 
-    return user_id
+    raise ValueError("Invalid candidate_id")
 
-
-def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str, Any]]) -> int:
+def bulk_upsert_job_clicks(
+    db: Session,
+    authuser_id: int = None,
+    clicks: List[Dict[str, Any]] = None,
+    candidate_id: int = None
+) -> int:
     """
     Perform a single bulk UPSERT to MySQL for a batch of clicks.
     Optimized for Service Worker flushes.
@@ -62,8 +82,16 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
     if not clicks:
         return 0
 
-    # Normalize authuser_id to AuthUserORM.id if candidate_id was passed
-    target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    try:
+        if candidate_id is not None:
+            target_authuser_id = _resolve_candidate_to_authuser_id(db, candidate_id)
+        elif authuser_id is not None:
+            target_authuser_id = _validate_authuser_id(db, authuser_id)
+        else:
+            raise ValueError("Must provide either authuser_id or candidate_id")
+    except ValueError:
+        logger.error(f"[CLICK_TRACKING] Invalid user ID in bulk upsert")
+        return 0
 
     logger.info(f"[CLICK_TRACKING] Starting bulk_upsert_job_clicks for user_id={authuser_id} (target={target_authuser_id}), clicks_count={len(clicks)}")
 
@@ -82,15 +110,16 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
                     existing_job = db.query(JobListingORM.id).filter(JobListingORM.id == job_id).first()
                     if not existing_job:
                         try:
-                            db.execute(
-                                text(
-                                    "INSERT INTO job_listing (id, title, company_name) "
-                                    "VALUES (:id, 'Job Listing', 'Company') "
-                                    "ON DUPLICATE KEY UPDATE id = VALUES(id)"
-                                ),
-                                {"id": job_id}
-                            )
-                            db.flush()
+                            with db.begin_nested():
+                                db.execute(
+                                    text(
+                                        "INSERT INTO job_listing (id, title, company_name) "
+                                        "VALUES (:id, 'Job Listing', 'Company') "
+                                        "ON DUPLICATE KEY UPDATE id = VALUES(id)"
+                                    ),
+                                    {"id": job_id}
+                                )
+                                db.flush()
                         except Exception as job_err:
                             logger.warning(f"[CLICK_TRACKING] Failed to auto-ensure JobListing {job_id}: {job_err}")
 
@@ -274,29 +303,58 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     Calculate today's job board clicks and goal status for the given authuser.
 
     Counts the number of distinct job listings (rows) whose last_clicked_at
-    falls on today's date (server local or UTC). Each row in job_link_clicks represents a unique
-    (authuser, job_listing) pair — so counting rows with last_clicked_at == today
-    gives the number of unique jobs the user has clicked today.
+    falls strictly within today's calendar day [start_of_today, start_of_next_day).
     """
-    from datetime import datetime, time, timezone
-    from sqlalchemy import or_
+    from datetime import datetime, time, timedelta
+    from zoneinfo import ZoneInfo
 
-    today_date = datetime.now().date()
-    today_utc_date = datetime.now(timezone.utc).date()
+    pacific_tz = ZoneInfo("America/Los_Angeles")
+    utc_tz = ZoneInfo("UTC")
 
-    target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    try:
+        target_authuser_id = _validate_authuser_id(db, authuser_id)
+    except ValueError:
+        return {
+            "job_board_clicks": 0,
+            "target_clicks": target_clicks,
+            "remaining_clicks": target_clicks,
+            "status": "BELOW_TARGET",
+            "status_label": "BELOW TARGET",
+            "message": f"You need {target_clicks} more clicks to reach today's goal.",
+        }
+    now = datetime.now(pacific_tz)
 
-    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, today_date={today_date}")
+    start_of_today = datetime.combine(
+        now.date(),
+        time.min,
+        tzinfo=pacific_tz,
+    )
+    start_of_next_day = datetime.combine(
+        now.date() + timedelta(days=1),
+        time.min,
+        tzinfo=pacific_tz,
+    )
+
+    start_of_today_utc = (
+        start_of_today
+        .astimezone(utc_tz)
+        .replace(tzinfo=None)
+    )
+
+    start_of_next_day_utc = (
+        start_of_next_day
+        .astimezone(utc_tz)
+        .replace(tzinfo=None)
+    )
+
+    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, range=[{start_of_today_utc}, {start_of_next_day_utc})")
 
     clicks_today = (
         db.query(func.coalesce(func.count(func.distinct(JobLinkClicksORM.job_listing_id)), 0))
         .filter(
             JobLinkClicksORM.authuser_id == target_authuser_id,
-            or_(
-                func.date(JobLinkClicksORM.last_clicked_at) == today_date,
-                func.date(JobLinkClicksORM.last_clicked_at) == today_utc_date,
-                func.date(JobLinkClicksORM.last_clicked_at) == func.current_date(),
-            )
+            JobLinkClicksORM.last_clicked_at >= start_of_today_utc,
+            JobLinkClicksORM.last_clicked_at < start_of_next_day_utc,
         )
         .scalar()
     ) or 0
@@ -330,7 +388,13 @@ def get_total_job_click_summary(db: Session, authuser_id: int) -> dict:
     """
     Get all-time total Job Board clicks for the authenticated user across ALL dates.
     """
-    target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    try:
+        target_authuser_id = _validate_authuser_id(db, authuser_id)
+    except ValueError:
+        return {
+            "job_board_clicks": 0,
+            "total_job_board_clicks": 0
+        }
 
     total_clicks = (
         db.query(func.coalesce(func.sum(JobLinkClicksORM.click_count), 0))
