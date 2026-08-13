@@ -277,11 +277,12 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     Counts the number of distinct job listings (rows) whose last_clicked_at
     falls strictly within today's calendar day [start_of_today, start_of_next_day).
     """
-    from datetime import datetime, time, timedelta, timezone
+    from datetime import datetime, time, timedelta
+    from zoneinfo import ZoneInfo
 
     target_authuser_id = _normalize_authuser_id(db, authuser_id)
-    now = datetime.now(timezone.utc)
-    start_of_today = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    now = datetime.now(ZoneInfo("America/Los_Angeles"))
+    start_of_today = datetime.combine(now.date(), time.min, tzinfo=ZoneInfo("America/Los_Angeles"))
     start_of_next_day = start_of_today + timedelta(days=1)
 
     logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, range=[{start_of_today}, {start_of_next_day})")
