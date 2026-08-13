@@ -71,8 +71,8 @@ def _resolve_candidate_to_authuser_id(db: Session, candidate_id: int) -> int:
 
 def bulk_upsert_job_clicks(
     db: Session,
-    clicks: List[Dict[str, Any]],
     authuser_id: int = None,
+    clicks: List[Dict[str, Any]] = None,
     candidate_id: int = None
 ) -> int:
     """
