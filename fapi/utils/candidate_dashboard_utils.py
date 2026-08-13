@@ -239,14 +239,14 @@ def _get_candidate_stats(db: Session, candidate: CandidateORM, auth_user: Option
         logger.error(f"Error fetching weekly detailed vendor outreach count: {e}")
         complete_outreach_count = 0
 
-    # Align outreach_counter with the max of campaign emails and marketing count
-    outreach_counter = max(outreach_counter, daily_outreach_count)
+    campaign_emails_sent = outreach_counter
+    outreach_counter = max(campaign_emails_sent, daily_outreach_count)
 
     return {
         "job_listings_clicked": job_listings_clicked,
         "outreach_counter": outreach_counter,
         "daily_outreach_count": int(daily_outreach_count),
-        "weekly_outreach_count": outreach_counter,
+        "weekly_outreach_count": campaign_emails_sent,
         "complete_outreach_count": complete_outreach_count,
         "easy_apply_counter": easy_apply_counter,
         "classes_joined": db.query(func.count(CandidateClass.recording_id)).filter(CandidateClass.candidate_id == candidate.id).scalar() or 0,
