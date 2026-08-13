@@ -87,15 +87,16 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
                     existing_job = db.query(JobListingORM.id).filter(JobListingORM.id == job_id).first()
                     if not existing_job:
                         try:
-                            db.execute(
-                                text(
-                                    "INSERT INTO job_listing (id, title, company_name) "
-                                    "VALUES (:id, 'Job Listing', 'Company') "
-                                    "ON DUPLICATE KEY UPDATE id = VALUES(id)"
-                                ),
-                                {"id": job_id}
-                            )
-                            db.flush()
+                            with db.begin_nested():
+                                db.execute(
+                                    text(
+                                        "INSERT INTO job_listing (id, title, company_name) "
+                                        "VALUES (:id, 'Job Listing', 'Company') "
+                                        "ON DUPLICATE KEY UPDATE id = VALUES(id)"
+                                    ),
+                                    {"id": job_id}
+                                )
+                                db.flush()
                         except Exception as job_err:
                             logger.warning(f"[CLICK_TRACKING] Failed to auto-ensure JobListing {job_id}: {job_err}")
 
