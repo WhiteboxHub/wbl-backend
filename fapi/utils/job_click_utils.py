@@ -344,4 +344,3 @@ def get_total_job_click_summary(db: Session, authuser_id: int) -> dict:
         "job_board_clicks": int(total_clicks),
         "total_job_board_clicks": int(total_clicks)
     }
-
