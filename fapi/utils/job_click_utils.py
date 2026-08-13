@@ -44,12 +44,16 @@ def _normalize_authuser_id(db: Session, user_id: int) -> int:
     if not user_id:
         return user_id
 
-    auth_user = db.query(AuthUserORM.id).filter(AuthUserORM.id == user_id).first()
+    auth_user = (
+        db.query(AuthUserORM.id)
+        .filter(AuthUserORM.id == user_id)
+        .first()
+    )
+
     if auth_user:
         return auth_user.id
 
-    return user_id
-
+    raise ValueError("Invalid authuser_id")
 
 def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str, Any]]) -> int:
     """
