@@ -64,7 +64,11 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
         return 0
 
     # Normalize authuser_id to AuthUserORM.id if candidate_id was passed
-    target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    try:
+        target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    except ValueError:
+        logger.error(f"[CLICK_TRACKING] Invalid authuser_id={authuser_id} in bulk upsert")
+        return 0
 
     logger.info(f"[CLICK_TRACKING] Starting bulk_upsert_job_clicks for user_id={authuser_id} (target={target_authuser_id}), clicks_count={len(clicks)}")
 
@@ -283,7 +287,17 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     pacific_tz = ZoneInfo("America/Los_Angeles")
     utc_tz = ZoneInfo("UTC")
 
-    target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    try:
+        target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    except ValueError:
+        return {
+            "job_board_clicks": 0,
+            "target_clicks": target_clicks,
+            "remaining_clicks": target_clicks,
+            "status": "BELOW_TARGET",
+            "status_label": "BELOW TARGET",
+            "message": f"You need {target_clicks} more clicks to reach today's goal.",
+        }
     now = datetime.now(pacific_tz)
 
     start_of_today = datetime.combine(
@@ -350,7 +364,13 @@ def get_total_job_click_summary(db: Session, authuser_id: int) -> dict:
     """
     Get all-time total Job Board clicks for the authenticated user across ALL dates.
     """
-    target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    try:
+        target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    except ValueError:
+        return {
+            "job_board_clicks": 0,
+            "total_job_board_clicks": 0
+        }
 
     total_clicks = (
         db.query(func.coalesce(func.sum(JobLinkClicksORM.click_count), 0))
