@@ -24,7 +24,6 @@ ALLOWED_GET_PREFIXES = {
     "/api/candidates/track-clicks-batch",
     "/api/github-classroom-repos",
     "/api/setup",
-    "/api/job_activity_logs",
 }
 
 ALLOWED_POST_PREFIXES = {
