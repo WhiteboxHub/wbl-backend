@@ -42,7 +42,7 @@ def _normalize_authuser_id(db: Session, user_id: int) -> int:
     Prevents CandidateORM.id and AuthUserORM.id cross-user space collision.
     """
     if not user_id:
-        return user_id
+        raise ValueError("Invalid authuser_id")
 
     auth_user = (
         db.query(AuthUserORM.id)
