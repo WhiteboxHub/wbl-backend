@@ -4151,6 +4151,17 @@ class JobLinkClickAnalytics(BaseModel):
     class Config:
         from_attributes = True
 
+class TodayJobClickSummary(BaseModel):
+    job_board_clicks: int
+    target_clicks: int = 30
+    remaining_clicks: int
+    status: str
+    status_label: str
+    message: str
+
+    class Config:
+        from_attributes = True
+
 
 # -------------------- CoderPad / Code Snippets --------------------
 class TestCase(BaseModel):
