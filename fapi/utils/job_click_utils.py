@@ -38,18 +38,15 @@ def track_clicks_with_cache_invalidation(
 
 def _normalize_authuser_id(db: Session, user_id: int) -> int:
     """
-    Ensure user_id resolves to a single valid AuthUserORM.id.
-    If user_id is a CandidateORM.id, look up the linked AuthUserORM.id by email.
+    Ensure user_id resolves to a valid AuthUserORM.id without ambiguous guessing.
+    Prevents CandidateORM.id and AuthUserORM.id cross-user space collision.
     """
-    auth_user = db.query(AuthUserORM).filter(AuthUserORM.id == user_id).first()
+    if not user_id:
+        return user_id
+
+    auth_user = db.query(AuthUserORM.id).filter(AuthUserORM.id == user_id).first()
     if auth_user:
         return auth_user.id
-
-    cand = db.query(CandidateORM).filter(CandidateORM.id == user_id).first()
-    if cand and cand.email:
-        linked_user = db.query(AuthUserORM).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
-        if linked_user:
-            return linked_user.id
 
     return user_id
 
@@ -274,29 +271,23 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     Calculate today's job board clicks and goal status for the given authuser.
 
     Counts the number of distinct job listings (rows) whose last_clicked_at
-    falls on today's date (server local or UTC). Each row in job_link_clicks represents a unique
-    (authuser, job_listing) pair — so counting rows with last_clicked_at == today
-    gives the number of unique jobs the user has clicked today.
+    falls strictly within today's calendar day [start_of_today, start_of_next_day).
     """
-    from datetime import datetime, time, timezone
-    from sqlalchemy import or_
-
-    today_date = datetime.now().date()
-    today_utc_date = datetime.now(timezone.utc).date()
+    from datetime import datetime, time, timedelta
 
     target_authuser_id = _normalize_authuser_id(db, authuser_id)
+    now = datetime.now()
+    start_of_today = datetime.combine(now.date(), time.min)
+    start_of_next_day = start_of_today + timedelta(days=1)
 
-    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, today_date={today_date}")
+    logger.info(f"[CLICK_TRACKING] Querying today clicks for target_authuser_id={target_authuser_id}, range=[{start_of_today}, {start_of_next_day})")
 
     clicks_today = (
         db.query(func.coalesce(func.count(func.distinct(JobLinkClicksORM.job_listing_id)), 0))
         .filter(
             JobLinkClicksORM.authuser_id == target_authuser_id,
-            or_(
-                func.date(JobLinkClicksORM.last_clicked_at) == today_date,
-                func.date(JobLinkClicksORM.last_clicked_at) == today_utc_date,
-                func.date(JobLinkClicksORM.last_clicked_at) == func.current_date(),
-            )
+            JobLinkClicksORM.last_clicked_at >= start_of_today,
+            JobLinkClicksORM.last_clicked_at < start_of_next_day,
         )
         .scalar()
     ) or 0
