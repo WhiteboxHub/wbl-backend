@@ -36,33 +36,45 @@ def track_clicks_with_cache_invalidation(
 
     return {"status": "success", "processed": processed_count}
 
-def _normalize_authuser_id(db: Session, user_id: int) -> int:
+def _validate_authuser_id(db: Session, authuser_id: int) -> int:
     """
-    Ensure user_id resolves to a valid AuthUserORM.id.
-    If user_id does not exist directly in AuthUserORM, attempt to resolve
-    as a CandidateORM.id to avoid ID space collision and silent failures.
+    Ensure authuser_id resolves to a valid AuthUserORM.id.
     """
-    if not user_id:
+    if not authuser_id:
         raise ValueError("Invalid authuser_id")
 
     auth_user = (
         db.query(AuthUserORM.id)
-        .filter(AuthUserORM.id == user_id)
+        .filter(AuthUserORM.id == authuser_id)
         .first()
     )
     if auth_user:
         return auth_user.id
 
-    # Safely resolve candidate_id to AuthUserORM.id via email lookup
-    cand = db.query(CandidateORM).filter(CandidateORM.id == user_id).first()
+    raise ValueError("Invalid authuser_id")
+
+
+def _resolve_candidate_to_authuser_id(db: Session, candidate_id: int) -> int:
+    """
+    Safely resolve candidate_id to AuthUserORM.id via email lookup.
+    """
+    if not candidate_id:
+        raise ValueError("Invalid candidate_id")
+
+    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
     if cand and cand.email:
         linked_user = db.query(AuthUserORM.id).filter(func.lower(AuthUserORM.uname) == func.lower(cand.email)).first()
         if linked_user:
             return linked_user.id
 
-    raise ValueError("Invalid authuser_id")
+    raise ValueError("Invalid candidate_id")
 
-def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str, Any]]) -> int:
+def bulk_upsert_job_clicks(
+    db: Session,
+    clicks: List[Dict[str, Any]],
+    authuser_id: int = None,
+    candidate_id: int = None
+) -> int:
     """
     Perform a single bulk UPSERT to MySQL for a batch of clicks.
     Optimized for Service Worker flushes.
@@ -70,11 +82,15 @@ def bulk_upsert_job_clicks(db: Session, authuser_id: int, clicks: List[Dict[str,
     if not clicks:
         return 0
 
-    # Normalize authuser_id to AuthUserORM.id if candidate_id was passed
     try:
-        target_authuser_id = _normalize_authuser_id(db, authuser_id)
+        if candidate_id is not None:
+            target_authuser_id = _resolve_candidate_to_authuser_id(db, candidate_id)
+        elif authuser_id is not None:
+            target_authuser_id = _validate_authuser_id(db, authuser_id)
+        else:
+            raise ValueError("Must provide either authuser_id or candidate_id")
     except ValueError:
-        logger.error(f"[CLICK_TRACKING] Invalid authuser_id={authuser_id} in bulk upsert")
+        logger.error(f"[CLICK_TRACKING] Invalid user ID in bulk upsert")
         return 0
 
     logger.info(f"[CLICK_TRACKING] Starting bulk_upsert_job_clicks for user_id={authuser_id} (target={target_authuser_id}), clicks_count={len(clicks)}")
@@ -296,7 +312,7 @@ def get_today_job_click_summary(db: Session, authuser_id: int, target_clicks: in
     utc_tz = ZoneInfo("UTC")
 
     try:
-        target_authuser_id = _normalize_authuser_id(db, authuser_id)
+        target_authuser_id = _validate_authuser_id(db, authuser_id)
     except ValueError:
         return {
             "job_board_clicks": 0,
@@ -373,7 +389,7 @@ def get_total_job_click_summary(db: Session, authuser_id: int) -> dict:
     Get all-time total Job Board clicks for the authenticated user across ALL dates.
     """
     try:
-        target_authuser_id = _normalize_authuser_id(db, authuser_id)
+        target_authuser_id = _validate_authuser_id(db, authuser_id)
     except ValueError:
         return {
             "job_board_clicks": 0,
