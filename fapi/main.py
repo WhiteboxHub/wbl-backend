@@ -51,7 +51,6 @@ async def startup_event():
         CodeExecutionLogORM,
         CoderpadQuestionORM,
         CliUsageEventORM,
-        WboxcliApplyAnalyticsORM,
         ApplicationReportORM
     )
     # Ensure all tables (including new columns) are created/updated
@@ -79,7 +78,6 @@ async def startup_event():
         CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
         CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
         CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
-        WboxcliApplyAnalyticsORM.__table__.create(bind=engine, checkfirst=True)
 
         # ATS Application Report Table
         ApplicationReportORM.__table__.create(bind=engine, checkfirst=True)

@@ -1259,15 +1259,16 @@ def get_candidate_statistics(db: Session, candidate_id: int) -> Dict[str, Any]:
     # 4. Easy apply counter
     easy_apply_counter = 0
     if authuser:
-        from fapi.db.models import ApplicationReportORM, WboxcliApplyAnalyticsORM
+        from fapi.db.models import ApplicationReportORM, CliUsageEventORM
         autofill_count = db.query(func.count(ApplicationReportORM.id)).filter(
             ApplicationReportORM.user_id == authuser.id
         ).scalar() or 0
         
-        cli_analytics = db.query(WboxcliApplyAnalyticsORM).filter(
-            WboxcliApplyAnalyticsORM.user_id == authuser.uname
-        ).first()
-        cli_count = cli_analytics.jobs_submitted if cli_analytics else 0
+        latest_apply = db.query(CliUsageEventORM).filter(
+            CliUsageEventORM.user_id == authuser.uname,
+            CliUsageEventORM.command == "apply"
+        ).order_by(CliUsageEventORM.event_ts.desc()).first()
+        cli_count = latest_apply.jobs_submitted_count if latest_apply and latest_apply.jobs_submitted_count is not None else 0
         
         easy_apply_counter = autofill_count + cli_count
 
