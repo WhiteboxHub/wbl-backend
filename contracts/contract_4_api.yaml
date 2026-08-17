@@ -25,11 +25,11 @@ endpoints:
     brief: Get last check
   - method: POST
     path: /api/ai-prep/media/upload-chunk
-    auth: owner only
+    auth: candidate JWT
     brief: Upload chunk
   - method: POST
     path: /api/ai-prep/media/assemble
-    auth: owner only
+    auth: candidate JWT
     brief: Assemble -> trigger processing
   - method: GET
     path: /api/ai-prep/assessments/{id}/processing-status
