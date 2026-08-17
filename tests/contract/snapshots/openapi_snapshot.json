@@ -226,6 +226,88 @@
         ]
       }
     },
+    "/api/candidates/job-clicks/today": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get Today Job Click Summary Endpoint",
+        "description": "**Get Job Board Clicks Today summary & daily goal status for authenticated user**",
+        "operationId": "get_today_job_click_summary_endpoint_api_candidates_job_clicks_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayJobClickSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/candidates/click-summary/today": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get Today Job Click Summary Endpoint",
+        "description": "**Get Job Board Clicks Today summary & daily goal status for authenticated user**",
+        "operationId": "get_today_job_click_summary_endpoint_api_candidates_click_summary_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodayJobClickSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/candidates/job-clicks/total": {
+      "get": {
+        "tags": [
+          "Job Link Click Tracking",
+          "Job Link Click Tracking"
+        ],
+        "summary": "Get Total Job Click Summary Endpoint",
+        "description": "Get total all-time Job Board clicks for authenticated user",
+        "operationId": "get_total_job_click_summary_endpoint_api_candidates_job_clicks_total_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/candidates/click-analytics/{click_id}": {
       "delete": {
         "tags": [
@@ -281,6 +363,9 @@
         "summary": "List Candidates",
         "operationId": "list_candidates_api_candidates_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -370,6 +455,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -439,6 +527,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -486,6 +577,9 @@
         "summary": "List Candidate Credentials",
         "operationId": "list_candidate_credentials_api_candidates_credentials_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -580,6 +674,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -625,6 +722,9 @@
         "summary": "Update Candidate Endpoint",
         "operationId": "update_candidate_endpoint_api_candidates__candidate_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -725,6 +825,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -780,6 +883,9 @@
         "summary": "Check Version Marketing",
         "operationId": "check_version_marketing_api_candidate_marketing_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -993,6 +1099,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1036,6 +1145,9 @@
         "summary": "Read All Placements",
         "operationId": "read_all_placements_api_candidate_placements_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1093,6 +1205,9 @@
         "summary": "Check Version Placements",
         "operationId": "check_version_placements_api_candidate_placements_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1175,6 +1290,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1187,6 +1305,9 @@
         "summary": "Read Placement",
         "operationId": "read_placement_api_candidate_placements__placement_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1346,6 +1467,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1372,6 +1496,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1396,6 +1523,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1492,6 +1622,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1789,6 +1922,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1842,6 +1978,9 @@
         "summary": "Delete Prep",
         "operationId": "delete_prep_api_candidate_preparation__prep_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1905,6 +2044,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -1965,6 +2107,9 @@
         "summary": "Get Candidate Suggestions",
         "operationId": "get_candidate_suggestions_api_candidates_search_names__search_term__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2163,6 +2308,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2575,6 +2723,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2619,6 +2770,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2639,6 +2793,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2665,6 +2822,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -2677,6 +2837,9 @@
         "summary": "Get Vendor",
         "operationId": "get_vendor_api_vendors__vendor_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2722,6 +2885,9 @@
         "summary": "Update Vendor Route",
         "operationId": "update_vendor_route_api_vendors__vendor_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2777,6 +2943,9 @@
         "summary": "Delete Vendor",
         "operationId": "delete_vendor_api_vendors__vendor_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2859,6 +3028,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -2871,6 +3043,9 @@
         "summary": "Get Vendor Suggestions Endpoint",
         "operationId": "get_vendor_suggestions_endpoint_api_vendors_search_names__search_term__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2916,6 +3091,9 @@
         "summary": "Get Leads Paginated",
         "operationId": "get_leads_paginated_api_leads_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3003,6 +3181,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3073,6 +3254,9 @@
         "summary": "Check Leads Version",
         "operationId": "check_leads_version_api_leads_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3398,6 +3582,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3457,6 +3644,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3523,6 +3713,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4495,6 +4688,9 @@
           },
           {
             "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -4507,6 +4703,9 @@
         "summary": "Read Batches",
         "operationId": "read_batches_api_batch_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4565,6 +4764,9 @@
         "summary": "Check Batches Version",
         "operationId": "check_batches_version_api_batch_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4633,6 +4835,9 @@
         "summary": "Read Batch",
         "operationId": "read_batch_api_batch__batch_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4782,6 +4987,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -4802,6 +5010,9 @@
         "summary": "Read Users",
         "operationId": "read_users_api_user_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4951,6 +5162,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -4973,6 +5187,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -4985,6 +5202,9 @@
         "summary": "Read User",
         "operationId": "read_user_api_user__user_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5398,6 +5618,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5454,6 +5677,9 @@
         "summary": "Check Recordings Version",
         "operationId": "check_recordings_version_api_recordings_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5688,6 +5914,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5733,6 +5962,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5755,6 +5987,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -5768,6 +6003,9 @@
         "description": "Get all batches for a specific recording",
         "operationId": "get_batches_for_recording_api_recording_batches_recording__recording_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5822,6 +6060,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5872,6 +6113,9 @@
         "description": "Get a specific recording batch mapping",
         "operationId": "get_recording_batch_api_recording_batches__recording_id___batch_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5927,6 +6171,9 @@
         "description": "Update an existing recording batch mapping",
         "operationId": "update_recording_batch_api_recording_batches__recording_id___batch_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5992,6 +6239,9 @@
         "description": "Delete a recording batch mapping",
         "operationId": "delete_recording_batch_api_recording_batches__recording_id___batch_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6064,6 +6314,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6130,6 +6383,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6142,6 +6398,9 @@
         "summary": "Get Course",
         "operationId": "get_course_api_courses__course_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6305,6 +6564,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6369,6 +6631,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6546,6 +6811,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6657,6 +6925,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6741,6 +7012,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6807,6 +7081,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6819,6 +7096,9 @@
         "summary": "Get Course Content By Id",
         "operationId": "get_course_content_by_id_api_course_contents__content_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6983,6 +7263,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -7047,6 +7330,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7750,6 +8036,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -7784,6 +8073,9 @@
         "summary": "Get Session Types",
         "operationId": "get_session_types_api_session_types_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7830,6 +8122,9 @@
         "summary": "Get Sessions",
         "operationId": "get_sessions_api_sessions_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10069,6 +10364,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -10139,6 +10437,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -10152,6 +10453,9 @@
         "description": "Get single job activity log by ID",
         "operationId": "get_job_activity_log_api_job_activity_logs__log_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10261,6 +10565,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -10306,6 +10613,9 @@
         "description": "Get all logs for specific job ID",
         "operationId": "get_logs_by_job_api_job_activity_logs_job__job_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10359,6 +10669,9 @@
         "description": "Get all logs for specific employee ID",
         "operationId": "get_logs_by_employee_api_job_activity_logs_employee__employee_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10480,6 +10793,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -10550,6 +10866,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -10563,6 +10882,9 @@
         "description": "Get single job type by ID",
         "operationId": "get_job_type_api_job_types__job_type_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10670,6 +10992,9 @@
         "description": "Delete job type",
         "operationId": "delete_job_type_api_job_types__job_type_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -11482,6 +11807,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -11878,6 +12206,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -11922,6 +12253,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -11944,6 +12278,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -11956,6 +12293,9 @@
         "summary": "Update Hr Contact Route",
         "operationId": "update_hr_contact_route_api_hr_contacts__contact_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -12011,6 +12351,9 @@
         "summary": "Delete Hr Contact",
         "operationId": "delete_hr_contact_api_hr_contacts__contact_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -12090,6 +12433,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -13346,6 +13692,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -13457,6 +13806,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_positions__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -13965,6 +14317,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -14043,6 +14398,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_email_positions__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15688,6 +16046,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -15708,6 +16069,9 @@
         "summary": "Get Potential Leads",
         "operationId": "get_potential_leads_api_potential_leads_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15782,6 +16146,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -15828,6 +16195,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -15871,6 +16241,9 @@
         "summary": "Update Existing Potential Lead",
         "operationId": "update_existing_potential_lead_api_potential_leads__lead_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15926,6 +16299,9 @@
         "summary": "Delete Existing Potential Lead",
         "operationId": "delete_existing_potential_lead_api_potential_leads__lead_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17300,6 +17676,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17322,6 +17701,9 @@
         "description": "Get automation extracts with page-based pagination and optional filters",
         "operationId": "read_automation_extracts_paginated_api_automation_extracts_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17493,6 +17875,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17514,6 +17899,9 @@
         "summary": "Read Automation Extracts",
         "operationId": "read_automation_extracts_api_automation_extracts_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17685,6 +18073,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -17764,6 +18155,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -17811,6 +18205,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -17824,6 +18221,9 @@
         "summary": "Read Automation Extract",
         "operationId": "read_automation_extract_api_automation_extracts__extract_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17870,6 +18270,9 @@
         "summary": "Update Automation Extract",
         "operationId": "update_automation_extract_api_automation_extracts__extract_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17926,6 +18329,9 @@
         "summary": "Delete Automation Extract",
         "operationId": "delete_automation_extract_api_automation_extracts__extract_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18002,6 +18408,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -18015,6 +18424,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys_paginated_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18095,6 +18507,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18589,6 +19004,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -18788,6 +19206,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19037,6 +19458,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19338,6 +19762,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -19538,6 +19965,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19771,6 +20201,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -19816,6 +20249,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -19839,6 +20275,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -19852,6 +20291,9 @@
         "summary": "Get Campaign Emails Paginated",
         "operationId": "get_campaign_emails_paginated_api_campaign_emails_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19940,6 +20382,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -19992,6 +20437,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20036,6 +20484,9 @@
         "summary": "Update Campaign Email",
         "operationId": "update_campaign_email_api_campaign_emails__record_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20092,6 +20543,9 @@
         "summary": "Delete Campaign Email",
         "operationId": "delete_campaign_email_api_campaign_emails__record_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20172,6 +20626,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -23599,6 +24056,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_email_smtp_credentials_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -27919,7 +28379,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -27933,14 +28393,14 @@
         "properties": {
           "govId": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Govid"
           },
           "resume": {
             "anyOf": [
               {
                 "type": "string",
-                "contentMediaType": "application/octet-stream"
+                "format": "binary"
               },
               {
                 "type": "null"
@@ -27959,7 +28419,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "resume_json": {
@@ -48062,6 +48522,44 @@
         ],
         "title": "TestCaseExecutionResult"
       },
+      "TodayJobClickSummary": {
+        "properties": {
+          "job_board_clicks": {
+            "type": "integer",
+            "title": "Job Board Clicks"
+          },
+          "target_clicks": {
+            "type": "integer",
+            "title": "Target Clicks",
+            "default": 30
+          },
+          "remaining_clicks": {
+            "type": "integer",
+            "title": "Remaining Clicks"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "status_label": {
+            "type": "string",
+            "title": "Status Label"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_board_clicks",
+          "remaining_clicks",
+          "status",
+          "status_label",
+          "message"
+        ],
+        "title": "TodayJobClickSummary"
+      },
       "Token": {
         "properties": {
           "access_token": {
@@ -48555,13 +49053,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
