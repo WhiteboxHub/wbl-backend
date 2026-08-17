@@ -9,17 +9,31 @@ SNAPSHOT_PATH = os.path.join(SNAPSHOT_DIR, "openapi_snapshot.json")
 
 def get_route_source_location(path: str):
     """Finds the Python function handling a path and returns its file and line number."""
-    for route in app.routes:
-        if getattr(route, "path", None) == path:
-            endpoint = getattr(route, "endpoint", None)
-            if endpoint:
-                try:
-                    file_path = inspect.getsourcefile(endpoint)
-                    line_num = inspect.getsourcelines(endpoint)[1]
-                    return f"{file_path}:{line_num}"
-                except Exception:
-                    pass
-    return "Unknown Location"
+    from fastapi.routing import APIRoute
+
+    def search_routes(routes, target_path, prefix=""):
+        for route in routes:
+            # If it is an included sub-router, recurse into it
+            if "IncludedRouter" in type(route).__name__:
+                ctx = getattr(route, "include_context", None)
+                route_prefix = getattr(ctx, "prefix", "") if ctx else ""
+                loc = search_routes(route.original_router.routes, target_path, prefix + route_prefix)
+                if loc:
+                    return loc
+            # If it is a direct route, match the full constructed path
+            elif isinstance(route, APIRoute):
+                full_path = prefix + route.path
+                if full_path == target_path:
+                    endpoint = route.endpoint
+                    try:
+                        file_path = inspect.getsourcefile(endpoint)
+                        line_num = inspect.getsourcelines(endpoint)[1]
+                        return f"{file_path}:{line_num}"
+                    except Exception:
+                        pass
+        return None
+
+    return search_routes(app.routes, path) or "Unknown Location"
 
 def test_openapi_schema_snapshot():
     """
