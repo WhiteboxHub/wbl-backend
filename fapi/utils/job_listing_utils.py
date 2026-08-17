@@ -26,16 +26,7 @@ def _apply_positions_search(query: Query, search: Optional[str]) -> Query:
 
 
 def _apply_has_apply_link_filter(query: Query) -> Query:
-    """Only return jobs that have an apply link and are from verified sources.
-
-    A job is considered to have an apply link if:
-    - ``job_url`` is set (non-null, non-empty), OR
-    - ``source_uid`` is set — the frontend synthesises a URL from it based on
-      the source (LinkedIn, TrueUp, Hiring.cafe, Jobright).
-
-    Used only for the candidate-facing Job Board; restricted to specific
-    sources: LinkedIn, TrueUp, Hiring.cafe, Jobright.
-    """
+    """Only return jobs with an automation-resolved apply URL (candidate Job Board)."""
     allowed_sources = [
         JobListingSourceEnum.linkedin,
         JobListingSourceEnum.trueup_io,
@@ -46,18 +37,8 @@ def _apply_has_apply_link_filter(query: Query) -> Query:
     return query.filter(
         and_(
             JobListingORM.source.in_(allowed_sources),
-            or_(
-                # Direct URL stored in the row
-                and_(
-                    JobListingORM.job_url.isnot(None),
-                    func.length(func.trim(JobListingORM.job_url)) > 0,
-                ),
-                # Source-based URL constructed by frontend from source_uid
-                and_(
-                    JobListingORM.source_uid.isnot(None),
-                    func.length(func.trim(JobListingORM.source_uid)) > 0,
-                ),
-            ),
+            JobListingORM.job_url.isnot(None),
+            func.length(func.trim(JobListingORM.job_url)) > 0,
         )
     )
 

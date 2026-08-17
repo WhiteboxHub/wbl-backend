@@ -66,6 +66,36 @@ def _get_active_or_latest(records: List, status_field: str = "status", active_va
     return active or records[0]
 
 
+def get_marketing_record_for_candidate(db: Session, candidate_id: int, create_if_missing: bool = True) -> Optional[CandidateMarketingORM]:
+    """Active marketing row first (newest id), else newest any status — matches upload + autofill-context."""
+    marketing = (
+        db.query(CandidateMarketingORM)
+        .filter(CandidateMarketingORM.candidate_id == candidate_id)
+        .filter(CandidateMarketingORM.status == "active")
+        .order_by(CandidateMarketingORM.id.desc())
+        .first()
+    )
+    if not marketing:
+        marketing = (
+            db.query(CandidateMarketingORM)
+            .filter(CandidateMarketingORM.candidate_id == candidate_id)
+            .order_by(CandidateMarketingORM.id.desc())
+            .first()
+        )
+    if not marketing and create_if_missing:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        if not candidate:
+            return None
+        marketing = CandidateMarketingORM(
+            candidate_id=candidate_id,
+            start_date=date.today(),
+            status="active",
+        )
+        db.add(marketing)
+        db.flush()
+    return marketing
+
+
 # ==================== DASHBOARD OVERVIEW ====================
 
 @cache_result(ttl=300, prefix="candidates")
@@ -1423,59 +1453,43 @@ async def upload_candidate_resume(db: Session, candidate_id: int, file: UploadFi
         raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX formats are accepted.")
     
     try:
-        # Get active marketing record
-        marketing_record = db.query(CandidateMarketingORM).filter(
-            CandidateMarketingORM.candidate_id == candidate_id,
-            CandidateMarketingORM.status == "active"
-        ).first()
-        
+        marketing_record = get_marketing_record_for_candidate(db, candidate_id, create_if_missing=True)
         if not marketing_record:
-            # Check if any marketing record exists
-            marketing_record = db.query(CandidateMarketingORM).filter(
-                CandidateMarketingORM.candidate_id == candidate_id
-            ).first()
-            
-        if not marketing_record:
-            # Check if candidate exists
-            candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
-            if not candidate:
-                raise HTTPException(status_code=404, detail="Candidate not found")
-            # Create a default active marketing record
-            marketing_record = CandidateMarketingORM(
-                candidate_id=candidate_id,
-                start_date=date.today(),
-                status="active"
-            )
-            db.add(marketing_record)
-            db.flush()
+            raise HTTPException(status_code=404, detail="Candidate not found")
             
         content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Resume file must be 10MB or smaller.")
+
+        marketing_record.autofill_resume = content
+        marketing_record.autofill_resume_name = filename
+        marketing_record.autofill_resume_type = file.content_type or "application/octet-stream"
         db.commit()
 
-        
-        # We need the marketing_record ID for the session_id
-        session_id = str(marketing_record.id)
         try:
             from fapi.utils.aiprep_setup_utils import process_resume_parsing
             parsed_json = process_resume_parsing(
-                content=content, 
-                filename=filename, 
-                candidate_id=candidate_id, 
-                marketing_id=marketing_record.id, 
-                db=db
+                content=content,
+                filename=filename,
+                candidate_id=candidate_id,
+                marketing_id=marketing_record.id,
+                db=db,
             )
-            
-            # Save the JSON back to the database
             marketing_record.candidate_json = parsed_json
+            db.commit()
         except Exception as e:
-            db.rollback()
             logger.error(f"Error parsing resume via LLM: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"AI parsing failed: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"AI parsing failed: {str(e)}. Your file was saved — fix your LLM key and upload again.",
+            )
 
-        # Validation passed, AI parsing successful. We intentionally do not save the binary resume to the database.
-        db.commit()
-        
-        return {"message": "Resume uploaded and parsed successfully", "filename": filename, "candidate_json": parsed_json}
+        return {
+            "message": "Resume uploaded and parsed successfully",
+            "filename": filename,
+            "candidate_json": parsed_json,
+            "session_id": str(marketing_record.id),
+        }
     except HTTPException:
         raise
     except Exception as e:

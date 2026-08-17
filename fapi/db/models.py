@@ -337,6 +337,9 @@ class CandidateMarketingORM(Base):
     resume_url = Column(String(255), nullable=True)
     move_to_placement = Column(Boolean, default=False)
     candidate_intro = Column(Text, nullable=True)
+    autofill_resume = Column(LargeBinary, nullable=True)
+    autofill_resume_name = Column(String(255), nullable=True)
+    autofill_resume_type = Column(String(100), nullable=True)
 
     # Outreach Automation Flags
     run_daily_workflow = Column(Boolean, nullable=False, server_default="0")

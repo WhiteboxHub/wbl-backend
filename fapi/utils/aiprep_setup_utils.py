@@ -595,13 +595,10 @@ def _resolve_session(db, data: SetupInit) -> int:
         result = db.query(CandidateORM.id).filter(CandidateORM.email == data.candidate_email).first()
         if result: candidate_id = result[0]
     if candidate_id:
-        result = db.query(CandidateMarketingORM.id).filter(CandidateMarketingORM.candidate_id == candidate_id).order_by(CandidateMarketingORM.id.desc()).first()
-        if result: return result[0]
-        new_cm = CandidateMarketingORM(candidate_id=candidate_id, status='active')
-        db.add(new_cm)
-        db.commit()
-        db.refresh(new_cm)
-        return new_cm.id
+        from fapi.utils.candidate_dashboard_utils import get_marketing_record_for_candidate
+        marketing = get_marketing_record_for_candidate(db, candidate_id, create_if_missing=True)
+        if marketing:
+            return marketing.id
     raise HTTPException(status_code=400, detail="Cannot resolve session from provided tokens")
 
 def _upsert_eval_login(db, marketing_id: int):
@@ -617,7 +614,8 @@ def get_resume_summary_logic(session_id: str, db):
             CandidateORM.full_name.label("name"),
             CandidateMarketingORM.email,
             CandidateMarketingORM.candidate_id,
-            CandidateMarketingORM.candidate_json.isnot(None).label("has_binary_resume")
+            CandidateMarketingORM.autofill_resume.isnot(None).label("has_binary_resume"),
+            CandidateMarketingORM.autofill_resume_name,
         ).join(CandidateORM, CandidateORM.id == CandidateMarketingORM.candidate_id).filter(
             CandidateMarketingORM.id == marketing_id
         ).first()
@@ -628,6 +626,7 @@ def get_resume_summary_logic(session_id: str, db):
         candidate_email = cand_row["email"] if cand_row and cand_row.get("email") else ""
         cid = cand_row["candidate_id"] if cand_row else None
         has_binary_resume = bool(cand_row["has_binary_resume"]) if cand_row and "has_binary_resume" in cand_row else False
+        binary_resume_filename = cand_row.get("autofill_resume_name") if cand_row else None
         raw_resume = fetch_resume_raw(db, session_id)
         has_resume = raw_resume is not None
         llm_keys = []
@@ -659,6 +658,7 @@ def get_resume_summary_logic(session_id: str, db):
             "resume_filename": resume_filename,
             "llm_keys": llm_keys,
             "has_binary_resume": has_binary_resume,
+            "binary_resume_filename": binary_resume_filename,
         }
     except Exception as e:
         logger.error("ERROR in get_resume_summary: " + str(e))

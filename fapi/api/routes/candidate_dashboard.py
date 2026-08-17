@@ -6,13 +6,14 @@ Handles all dashboard-related endpoints for candidate management
 import logging
 import os
 import shutil
+import base64
 from fastapi import APIRouter, Query, Path, HTTPException, Depends, Security, File, UploadFile, Form
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fapi.utils.auth_dependencies import get_current_user, User
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from datetime import date
-from fapi.db.models import CandidateORM, AuthUserORM
+from fapi.db.models import CandidateORM, CandidateMarketingORM, AuthUserORM
 from fapi.db.models import CandidateInterview
 from fapi.api.routes import login
 from datetime import datetime
@@ -287,6 +288,62 @@ async def upload_candidate_marketing_resume(
 ):
     from fapi.utils import candidate_dashboard_utils
     return await candidate_dashboard_utils.upload_candidate_resume(db, candidate_id, file)
+
+
+@router.get("/{candidate_id}/autofill-context")
+def get_autofill_context(
+    candidate_id: int = Path(..., description="Candidate ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    is_staff = (
+        getattr(current_user, "role", None) in ["admin", "staff"]
+        or getattr(current_user, "is_admin", False)
+        or getattr(current_user, "is_employee", False)
+    )
+    is_owner = getattr(current_user, "uname", "").lower() == (candidate.email or "").lower()
+    if not is_owner:
+        from fapi.utils.db_queries import fetch_candidate_id_and_status_by_email
+        owner_row = fetch_candidate_id_and_status_by_email(db, getattr(current_user, "uname", ""))
+        is_owner = bool(owner_row and owner_row.candidateid == candidate_id)
+    if not (is_staff or is_owner):
+        raise HTTPException(status_code=403, detail="Not authorized to access this resume")
+
+    from fapi.utils.aiprep_setup_utils import fetch_resume_raw
+    from fapi.utils.candidate_dashboard_utils import get_marketing_record_for_candidate
+
+    marketing = get_marketing_record_for_candidate(db, candidate_id, create_if_missing=False)
+    if not marketing:
+        return {
+            "candidate_id": candidate_id,
+            "session_id": None,
+            "resume_data": None,
+            "resume_file": None,
+            "resume_version": "v1",
+        }
+
+    resume_data = fetch_resume_raw(db, str(marketing.id))
+
+    resume_file = None
+    if marketing.autofill_resume:
+        resume_file = {
+            "data": f"data:{marketing.autofill_resume_type or 'application/octet-stream'};base64,{base64.b64encode(marketing.autofill_resume).decode('ascii')}",
+            "name": marketing.autofill_resume_name or "resume",
+            "type": marketing.autofill_resume_type or "application/octet-stream",
+            "size": len(marketing.autofill_resume),
+        }
+
+    return {
+        "candidate_id": candidate_id,
+        "session_id": str(marketing.id),
+        "resume_data": resume_data,
+        "resume_file": resume_file,
+        "resume_version": "v1",
+    }
 
 
 

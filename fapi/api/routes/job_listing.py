@@ -30,8 +30,13 @@ def check_version(
     return get_positions_version(db)
 
 @router.get("/", response_model=List[JobListingOut])
-def read_positions(skip: int = 0, limit: Optional[int] = None, db: Session = Depends(get_db)):
-    return job_listing_utils.get_positions(db, skip=skip, limit=limit)
+def read_positions(
+    skip: int = 0,
+    limit: Optional[int] = None,
+    require_apply_link: bool = Query(False, description="If true, only return jobs with an automation apply URL"),
+    db: Session = Depends(get_db),
+):
+    return job_listing_utils.get_positions(db, skip=skip, limit=limit, require_apply_link=require_apply_link)
 
 @router.get("/paginated", response_model=PaginatedJobListingResponse)
 def read_positions_paginated(
