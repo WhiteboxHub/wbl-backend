@@ -1,0 +1,65 @@
+endpoints:
+  - method: POST
+    path: /api/ai-prep/assessments
+    auth: candidate JWT
+    brief: Create assessment
+  - method: GET
+    path: /api/ai-prep/assessments/{id}
+    auth: owner only
+    brief: Get assessment
+  - method: PATCH
+    path: /api/ai-prep/assessments/{id}/status
+    auth: owner only
+    brief: Update status
+  - method: GET
+    path: /api/ai-prep/assessments
+    auth: candidate JWT
+    brief: List by candidate
+  - method: POST
+    path: /api/ai-prep/hardware-check
+    auth: candidate JWT
+    brief: Save device check
+  - method: GET
+    path: /api/ai-prep/hardware-check/{assessment_id}
+    auth: owner only
+    brief: Get last check
+  - method: POST
+    path: /api/ai-prep/media/upload-chunk
+    auth: candidate JWT
+    brief: Upload chunk
+  - method: POST
+    path: /api/ai-prep/media/assemble
+    auth: candidate JWT
+    brief: Assemble -> trigger processing
+  - method: GET
+    path: /api/ai-prep/assessments/{id}/processing-status
+    auth: owner only
+    brief: Poll processing state
+  - method: GET
+    path: /api/ai-prep/reports/{assessment_id}
+    auth: owner only
+    brief: Get full report
+  - method: GET
+    path: /api/ai-prep/reports/{assessment_id}/export
+    auth: owner only
+    brief: Download PDF
+  - method: GET
+    path: /api/ai-prep/questions
+    auth: candidate JWT
+    brief: List questions (filtered)
+  - method: POST
+    path: /api/ai-prep/questions
+    auth: admin
+    brief: Create question
+  - method: POST
+    path: /api/ai-prep/consents
+    auth: candidate JWT
+    brief: Record consent
+  - method: GET
+    path: /api/ai-prep/consents/{candidate_id}
+    auth: owner only
+    brief: Get consent status
+  - method: GET
+    path: /api/ai-prep/analytics/dashboard/{candidate_id}
+    auth: owner only
+    brief: Dashboard data
