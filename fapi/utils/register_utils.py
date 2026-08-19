@@ -22,7 +22,7 @@ def create_user_and_lead(db: Session, user: UserRegistration):
     uname = user.uname.lower().strip()
 
     if db.query(AuthUserORM).filter_by(uname=uname).first():
-        raise HTTPException(status_code=409, detail="User already exists. Please use a differen email")
+        raise HTTPException(status_code=409, detail="User already exists. Please use a different email")
     
     if db.query(LeadORM).filter_by(email=uname).first():
         raise HTTPException(status_code=400, detail="Lead already exists. Please use a different email.")
