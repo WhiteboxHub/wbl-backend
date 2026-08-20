@@ -21,6 +21,7 @@ from fapi.api.routes import (
     campaign_email, outreach_email, tracking, aiprep_setup, llm_providers
 )
 from fapi.api.routes import aiprep_analytics
+from fapi.ai_prep import router as ai_prep_router
 from fapi.utils.auth_dependencies import staff_or_admin_required
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
@@ -267,3 +268,4 @@ app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=[
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setup"], dependencies=[Depends(enforce_access)])
 app.include_router(llm_providers.router, prefix="/api", tags=["LLM Providers"], dependencies=[Depends(enforce_access)])
+app.include_router(ai_prep_router, prefix="/api", dependencies=[Depends(enforce_access)])

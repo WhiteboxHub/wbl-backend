@@ -365,6 +365,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -452,6 +455,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -521,6 +527,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -568,6 +577,9 @@
         "summary": "List Candidate Credentials",
         "operationId": "list_candidate_credentials_api_candidates_credentials_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -662,6 +674,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -707,6 +722,9 @@
         "summary": "Update Candidate Endpoint",
         "operationId": "update_candidate_endpoint_api_candidates__candidate_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -807,6 +825,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -862,6 +883,9 @@
         "summary": "Check Version Marketing",
         "operationId": "check_version_marketing_api_candidate_marketing_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1075,6 +1099,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1118,6 +1145,9 @@
         "summary": "Read All Placements",
         "operationId": "read_all_placements_api_candidate_placements_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1175,6 +1205,9 @@
         "summary": "Check Version Placements",
         "operationId": "check_version_placements_api_candidate_placements_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1257,6 +1290,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1269,6 +1305,9 @@
         "summary": "Read Placement",
         "operationId": "read_placement_api_candidate_placements__placement_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1428,6 +1467,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1454,6 +1496,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1478,6 +1523,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1574,6 +1622,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1871,6 +1922,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1924,6 +1978,9 @@
         "summary": "Delete Prep",
         "operationId": "delete_prep_api_candidate_preparation__prep_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1987,6 +2044,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2047,6 +2107,9 @@
         "summary": "Get Candidate Suggestions",
         "operationId": "get_candidate_suggestions_api_candidates_search_names__search_term__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2245,6 +2308,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2657,6 +2723,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2701,6 +2770,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2721,6 +2793,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2747,6 +2822,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -2759,6 +2837,9 @@
         "summary": "Get Vendor",
         "operationId": "get_vendor_api_vendors__vendor_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2804,6 +2885,9 @@
         "summary": "Update Vendor Route",
         "operationId": "update_vendor_route_api_vendors__vendor_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2859,6 +2943,9 @@
         "summary": "Delete Vendor",
         "operationId": "delete_vendor_api_vendors__vendor_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2941,6 +3028,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -2953,6 +3043,9 @@
         "summary": "Get Vendor Suggestions Endpoint",
         "operationId": "get_vendor_suggestions_endpoint_api_vendors_search_names__search_term__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2998,6 +3091,9 @@
         "summary": "Get Leads Paginated",
         "operationId": "get_leads_paginated_api_leads_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3085,6 +3181,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3155,6 +3254,9 @@
         "summary": "Check Leads Version",
         "operationId": "check_leads_version_api_leads_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3480,6 +3582,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3539,6 +3644,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3605,6 +3713,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4577,6 +4688,9 @@
           },
           {
             "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -4589,6 +4703,9 @@
         "summary": "Read Batches",
         "operationId": "read_batches_api_batch_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4647,6 +4764,9 @@
         "summary": "Check Batches Version",
         "operationId": "check_batches_version_api_batch_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4715,6 +4835,9 @@
         "summary": "Read Batch",
         "operationId": "read_batch_api_batch__batch_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4864,6 +4987,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -4884,6 +5010,9 @@
         "summary": "Read Users",
         "operationId": "read_users_api_user_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5033,6 +5162,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5055,6 +5187,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -5067,6 +5202,9 @@
         "summary": "Read User",
         "operationId": "read_user_api_user__user_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5480,6 +5618,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5536,6 +5677,9 @@
         "summary": "Check Recordings Version",
         "operationId": "check_recordings_version_api_recordings_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5770,6 +5914,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5815,6 +5962,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5837,6 +5987,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -5850,6 +6003,9 @@
         "description": "Get all batches for a specific recording",
         "operationId": "get_batches_for_recording_api_recording_batches_recording__recording_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5904,6 +6060,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5954,6 +6113,9 @@
         "description": "Get a specific recording batch mapping",
         "operationId": "get_recording_batch_api_recording_batches__recording_id___batch_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6009,6 +6171,9 @@
         "description": "Update an existing recording batch mapping",
         "operationId": "update_recording_batch_api_recording_batches__recording_id___batch_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6074,6 +6239,9 @@
         "description": "Delete a recording batch mapping",
         "operationId": "delete_recording_batch_api_recording_batches__recording_id___batch_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6146,6 +6314,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6212,6 +6383,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6224,6 +6398,9 @@
         "summary": "Get Course",
         "operationId": "get_course_api_courses__course_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6387,6 +6564,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6451,6 +6631,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6628,6 +6811,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6739,6 +6925,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6823,6 +7012,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6889,6 +7081,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6901,6 +7096,9 @@
         "summary": "Get Course Content By Id",
         "operationId": "get_course_content_by_id_api_course_contents__content_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7065,6 +7263,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -7129,6 +7330,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7832,6 +8036,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -7866,6 +8073,9 @@
         "summary": "Get Session Types",
         "operationId": "get_session_types_api_session_types_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7912,6 +8122,9 @@
         "summary": "Get Sessions",
         "operationId": "get_sessions_api_sessions_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10151,6 +10364,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -10221,6 +10437,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -10234,6 +10453,9 @@
         "description": "Get single job activity log by ID",
         "operationId": "get_job_activity_log_api_job_activity_logs__log_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10343,6 +10565,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -10388,6 +10613,9 @@
         "description": "Get all logs for specific job ID",
         "operationId": "get_logs_by_job_api_job_activity_logs_job__job_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10441,6 +10669,9 @@
         "description": "Get all logs for specific employee ID",
         "operationId": "get_logs_by_employee_api_job_activity_logs_employee__employee_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10562,6 +10793,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -10632,6 +10866,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -10645,6 +10882,9 @@
         "description": "Get single job type by ID",
         "operationId": "get_job_type_api_job_types__job_type_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10752,6 +10992,9 @@
         "description": "Delete job type",
         "operationId": "delete_job_type_api_job_types__job_type_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -11564,6 +11807,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -11960,6 +12206,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -12004,6 +12253,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -12026,6 +12278,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -12038,6 +12293,9 @@
         "summary": "Update Hr Contact Route",
         "operationId": "update_hr_contact_route_api_hr_contacts__contact_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -12093,6 +12351,9 @@
         "summary": "Delete Hr Contact",
         "operationId": "delete_hr_contact_api_hr_contacts__contact_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -12172,6 +12433,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -13428,6 +13692,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -13539,6 +13806,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_positions__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -14047,6 +14317,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -14125,6 +14398,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_email_positions__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15770,6 +16046,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -15790,6 +16069,9 @@
         "summary": "Get Potential Leads",
         "operationId": "get_potential_leads_api_potential_leads_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15864,6 +16146,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -15910,6 +16195,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -15953,6 +16241,9 @@
         "summary": "Update Existing Potential Lead",
         "operationId": "update_existing_potential_lead_api_potential_leads__lead_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -16008,6 +16299,9 @@
         "summary": "Delete Existing Potential Lead",
         "operationId": "delete_existing_potential_lead_api_potential_leads__lead_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17382,6 +17676,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17404,6 +17701,9 @@
         "description": "Get automation extracts with page-based pagination and optional filters",
         "operationId": "read_automation_extracts_paginated_api_automation_extracts_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17575,6 +17875,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17596,6 +17899,9 @@
         "summary": "Read Automation Extracts",
         "operationId": "read_automation_extracts_api_automation_extracts_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17767,6 +18073,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -17846,6 +18155,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -17893,6 +18205,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -17906,6 +18221,9 @@
         "summary": "Read Automation Extract",
         "operationId": "read_automation_extract_api_automation_extracts__extract_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17952,6 +18270,9 @@
         "summary": "Update Automation Extract",
         "operationId": "update_automation_extract_api_automation_extracts__extract_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18008,6 +18329,9 @@
         "summary": "Delete Automation Extract",
         "operationId": "delete_automation_extract_api_automation_extracts__extract_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18084,6 +18408,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -18097,6 +18424,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys_paginated_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18177,6 +18507,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18671,6 +19004,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -18870,6 +19206,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19119,6 +19458,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19420,6 +19762,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -19620,6 +19965,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19853,6 +20201,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -19898,6 +20249,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -19921,6 +20275,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -19934,6 +20291,9 @@
         "summary": "Get Campaign Emails Paginated",
         "operationId": "get_campaign_emails_paginated_api_campaign_emails_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20022,6 +20382,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20074,6 +20437,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20118,6 +20484,9 @@
         "summary": "Update Campaign Email",
         "operationId": "update_campaign_email_api_campaign_emails__record_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20174,6 +20543,9 @@
         "summary": "Delete Campaign Email",
         "operationId": "delete_campaign_email_api_campaign_emails__record_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20254,6 +20626,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -23683,6 +24058,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -24622,6 +25000,621 @@
           }
         }
       }
+    },
+    "/api/ai-prep/media/upload-chunk": {
+      "post": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Upload Chunk",
+        "description": "Uploads a single 30-second WebM media chunk.\nEnforces candidate ownership and validates assessment status is TESTING or IN_PROGRESS.\nOverwrites chunk cleanly if retried.",
+        "operationId": "upload_chunk_api_ai_prep_media_upload_chunk_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_chunk_api_ai_prep_media_upload_chunk_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/ai-prep/media/{assessment_id}/chunks-status": {
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Get Chunks Status",
+        "description": "Returns received chunk numbers, highest chunk received, and missing gap indices\nto allow the client to resume interrupted recordings without losing progress.",
+        "operationId": "get_chunks_status_api_ai_prep_media__assessment_id__chunks_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunksStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/media/assemble": {
+      "post": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Assemble Media",
+        "description": "Assembles uploaded 30s WebM chunks into full.webm, extracts 16kHz audio.wav,\ntransitions status to PROCESSING, and dispatches the Celery ML pipeline + async YouTube upload task.",
+        "operationId": "assemble_media_api_ai_prep_media_assemble_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleMediaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleMediaResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/ai-prep/media/{assessment_id}": {
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Get Media Details",
+        "description": "Retrieves media metadata and access URLs (YouTube embed or signed local stream) for an assessment.",
+        "operationId": "get_media_details_api_ai_prep_media__assessment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaFileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/media/stream/{assessment_id}": {
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Stream Local Video",
+        "description": "Streams local server video using HTTP 206 Partial Content (Range requests) for smooth playback and seeking.",
+        "operationId": "stream_local_video_api_ai_prep_media_stream__assessment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/media/candidate/{candidate_id}": {
+      "delete": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Delete Candidate Media",
+        "description": "Purges all media files for a candidate (local files + remote YouTube unlisted videos)\nfor GDPR/CCPA compliance and data deletion requests.",
+        "operationId": "delete_candidate_media_api_ai_prep_media_candidate__candidate_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/media/cleanup-expired": {
+      "post": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Media"
+        ],
+        "summary": "Trigger Cleanup Expired Media",
+        "description": "Admin-gated endpoint to manually trigger the 90-day retention cleanup\nand purge orphaned chunks older than 24 hours.",
+        "operationId": "trigger_cleanup_expired_media_api_ai_prep_media_cleanup_expired_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "retention_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 90,
+              "title": "Retention Days"
+            }
+          },
+          {
+            "name": "orphan_chunk_hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 24,
+              "title": "Orphan Chunk Hours"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/assessments/{id}/processing-status": {
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Assessments"
+        ],
+        "summary": "Get Processing Status",
+        "description": "Returns step-by-step progress for an assessment.\nSupports Server-Sent Events (SSE) streaming when stream=true or Accept includes text/event-stream.\nIncludes 15s keep-alive heartbeat pings and event-type demarcation.",
+        "operationId": "get_processing_status_api_ai_prep_assessments__id__processing_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/assessments/{id}": {
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Assessments"
+        ],
+        "summary": "Get Assessment Detail",
+        "description": "Retrieves full assessment details with assigned questions.",
+        "operationId": "get_assessment_detail_api_ai_prep_assessments__id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/assessments": {
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Assessments"
+        ],
+        "summary": "List Assessments",
+        "description": "Lists assessments for the authenticated candidate.",
+        "operationId": "list_assessments_api_ai_prep_assessments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/assessments/{id}/status": {
+      "patch": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Assessments"
+        ],
+        "summary": "Patch Assessment Status",
+        "description": "Updates assessment state transitions.\nEnforces ADR-006 no-pause rule on GENERAL_INTRO and JOB_DESCRIPTION_INTRO.",
+        "operationId": "patch_assessment_status_api_ai_prep_assessments__id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAssessmentStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/health": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "Aiprep Health",
+        "description": "Health check endpoint for AIPrep module.",
+        "operationId": "aiprep_health_api_ai_prep_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -24801,6 +25794,254 @@
         ],
         "title": "ApplicationReportOut",
         "description": "Response schema \u2014 adds DB-generated fields."
+      },
+      "AssembleMediaRequest": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "total_chunks": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Total Chunks",
+            "description": "Total number of chunks to assemble"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "total_chunks"
+        ],
+        "title": "AssembleMediaRequest"
+      },
+      "AssembleMediaResponse": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "PROCESSING"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id"
+        ],
+        "title": "AssembleMediaResponse"
+      },
+      "AssessmentListItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "assessment_type": {
+            "$ref": "#/components/schemas/AssessmentTypeEnum"
+          },
+          "assessment_mode": {
+            "$ref": "#/components/schemas/AssessmentModeEnum"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatusEnum"
+          },
+          "attempt_number": {
+            "type": "integer",
+            "title": "Attempt Number"
+          },
+          "coaching_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoachingBandEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "assessment_type",
+          "assessment_mode",
+          "status",
+          "attempt_number",
+          "created_at"
+        ],
+        "title": "AssessmentListItem"
+      },
+      "AssessmentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AssessmentListResponse"
+      },
+      "AssessmentModeEnum": {
+        "type": "string",
+        "enum": [
+          "VIDEO_AUDIO",
+          "AUDIO_ONLY"
+        ],
+        "title": "AssessmentModeEnum"
+      },
+      "AssessmentOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "candidate_id": {
+            "type": "integer",
+            "title": "Candidate Id"
+          },
+          "candidate_resume_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Resume Id"
+          },
+          "assessment_type": {
+            "$ref": "#/components/schemas/AssessmentTypeEnum"
+          },
+          "assessment_mode": {
+            "$ref": "#/components/schemas/AssessmentModeEnum"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatusEnum"
+          },
+          "attempt_number": {
+            "type": "integer",
+            "title": "Attempt Number"
+          },
+          "job_description_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description Text"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionSummaryOut"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "candidate_id",
+          "assessment_type",
+          "assessment_mode",
+          "status",
+          "attempt_number",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AssessmentOut"
+      },
+      "AssessmentStatusEnum": {
+        "type": "string",
+        "enum": [
+          "TESTING",
+          "IN_PROGRESS",
+          "PROCESSING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "AssessmentStatusEnum"
+      },
+      "AssessmentTypeEnum": {
+        "type": "string",
+        "enum": [
+          "GENERAL_INTRO",
+          "JOB_DESCRIPTION_INTRO",
+          "RECRUITER",
+          "HIRING_MANAGER",
+          "TECHNICAL",
+          "SYSTEM_DESIGN",
+          "HR"
+        ],
+        "title": "AssessmentTypeEnum"
       },
       "AuthUserCreate": {
         "properties": {
@@ -27944,7 +29185,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^password$"
+                "pattern": "password"
               },
               {
                 "type": "null"
@@ -27958,7 +29199,6 @@
           },
           "password": {
             "type": "string",
-            "format": "password",
             "title": "Password"
           },
           "scope": {
@@ -27986,7 +29226,6 @@
                 "type": "null"
               }
             ],
-            "format": "password",
             "title": "Client Secret"
           }
         },
@@ -28001,7 +29240,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -28011,18 +29250,47 @@
         ],
         "title": "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post"
       },
+      "Body_upload_chunk_api_ai_prep_media_upload_chunk_post": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "chunk_number": {
+            "type": "integer",
+            "title": "Chunk Number"
+          },
+          "total_chunks": {
+            "type": "integer",
+            "title": "Total Chunks",
+            "default": -1
+          },
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "chunk_number",
+          "file"
+        ],
+        "title": "Body_upload_chunk_api_ai_prep_media_upload_chunk_post"
+      },
       "Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post": {
         "properties": {
           "govId": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Govid"
           },
           "resume": {
             "anyOf": [
               {
                 "type": "string",
-                "contentMediaType": "application/octet-stream"
+                "format": "binary"
               },
               {
                 "type": "null"
@@ -28041,7 +29309,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "resume_json": {
@@ -32329,6 +33597,63 @@
         ],
         "title": "CheckEmailsResponse"
       },
+      "ChunkUploadResponse": {
+        "properties": {
+          "chunk_number": {
+            "type": "integer",
+            "title": "Chunk Number"
+          },
+          "storage_path": {
+            "type": "string",
+            "title": "Storage Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chunk_number",
+          "storage_path"
+        ],
+        "title": "ChunkUploadResponse"
+      },
+      "ChunksStatusResponse": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "uploaded_chunks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Uploaded Chunks"
+          },
+          "total_uploaded": {
+            "type": "integer",
+            "title": "Total Uploaded"
+          },
+          "highest_chunk_number": {
+            "type": "integer",
+            "title": "Highest Chunk Number"
+          },
+          "missing_chunks": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Missing Chunks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "uploaded_chunks",
+          "total_uploaded",
+          "highest_chunk_number",
+          "missing_chunks"
+        ],
+        "title": "ChunksStatusResponse"
+      },
       "CliApplyRunBackfillResponse": {
         "properties": {
           "updated": {
@@ -33101,6 +34426,16 @@
         ],
         "title": "CliWindowResponse",
         "description": "Response for JobCLI ``GET /positions/cli_window`` (optional time window)."
+      },
+      "CoachingBandEnum": {
+        "type": "string",
+        "enum": [
+          "EXCELLENT",
+          "STRONG",
+          "DEVELOPING",
+          "NEEDS_WORK"
+        ],
+        "title": "CoachingBandEnum"
       },
       "CodeExecutionLogOut": {
         "properties": {
@@ -37250,6 +38585,16 @@
           "message"
         ],
         "title": "DetectAndValidateOut"
+      },
+      "DifficultyLevelEnum": {
+        "type": "string",
+        "enum": [
+          "EASY",
+          "MEDIUM",
+          "HARD",
+          "EXPERT"
+        ],
+        "title": "DifficultyLevelEnum"
       },
       "DownloadPayload": {
         "properties": {
@@ -43416,6 +44761,94 @@
         ],
         "title": "MatchTypeEnum"
       },
+      "MediaFileOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "audio_file_path": {
+            "type": "string",
+            "title": "Audio File Path"
+          },
+          "video_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video File Path"
+          },
+          "video_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Url"
+          },
+          "audio_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Url"
+          },
+          "is_youtube": {
+            "type": "boolean",
+            "title": "Is Youtube",
+            "default": false
+          },
+          "youtube_video_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtube Video Id"
+          },
+          "duration_seconds": {
+            "type": "integer",
+            "title": "Duration Seconds"
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "title": "File Size Bytes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "assessment_id",
+          "audio_file_path",
+          "duration_seconds",
+          "file_size_bytes",
+          "created_at"
+        ],
+        "title": "MediaFileOut"
+      },
       "ModeOfInterviewEnum": {
         "type": "string",
         "enum": [
@@ -46729,6 +48162,66 @@
         ],
         "title": "ProviderMetadataOut"
       },
+      "QuestionCategoryEnum": {
+        "type": "string",
+        "enum": [
+          "TECHNICAL",
+          "SYSTEM_DESIGN",
+          "BEHAVIORAL",
+          "RECRUITER",
+          "HIRING_MANAGER",
+          "GENERAL"
+        ],
+        "title": "QuestionCategoryEnum"
+      },
+      "QuestionSummaryOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/DifficultyLevelEnum"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuestionCategoryEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sub_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "order_index",
+          "question_text",
+          "difficulty_level"
+        ],
+        "title": "QuestionSummaryOut"
+      },
       "Recipient": {
         "properties": {
           "email": {
@@ -48314,6 +49807,18 @@
         ],
         "title": "UpcomingBatch"
       },
+      "UpdateAssessmentStatusRequest": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatusEnum"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "UpdateAssessmentStatusRequest"
+      },
       "UploadPayload": {
         "properties": {
           "field_answers": {
@@ -48675,13 +50180,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
