@@ -1,0 +1,341 @@
+from typing import List, Optional
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.orm import Session
+
+from fapi.db.database import get_db
+from fapi.ai_prep.models import (
+    AiPrepAssessment, AiPrepHardwareCheck, AiPrepQuestionBank,
+    AiPrepAssessmentQuestion, AssessmentStatusEnum, QuestionCategoryEnum,
+    QuestionDifficultyEnum, AiPrepConsent, AiPrepReport
+)
+from fapi.ai_prep.schemas import (
+    AssessmentCreate, AssessmentResponse, AssessmentQuestionSchema,
+    AssessmentStatusUpdate, HardwareCheckCreate, HardwareCheckResponse,
+    AssessmentListResponse, QuestionBankCreate, QuestionBankResponse,
+    ConsentCreate, ConsentResponse
+)
+
+router = APIRouter(
+    prefix="/api/ai-prep",
+    tags=["AI Prep"]
+)
+
+
+# ---------------------------------------------------------------------
+# 1. POST /api/ai-prep/assessments (Create Assessment Session)
+# ---------------------------------------------------------------------
+@router.post("/assessments", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
+def create_assessment(
+    payload: AssessmentCreate,
+    candidate_id: int = Query(default=1, description="Candidate ID"),
+    db: Session = Depends(get_db)
+):
+    """Create a new practice assessment session and select matching questions."""
+    assessment = AiPrepAssessment(
+        candidate_id=candidate_id,
+        candidate_resume_id=payload.candidate_resume_id,
+        assessment_type=payload.assessment_type,
+        assessment_mode=payload.assessment_mode,
+        status=AssessmentStatusEnum.TESTING,
+        job_description_text=payload.job_description_text,
+        created_at=datetime.utcnow()
+    )
+    db.add(assessment)
+    db.commit()
+    db.refresh(assessment)
+
+    # Assign active questions from Question Bank
+    questions = db.query(AiPrepQuestionBank).filter(
+        AiPrepQuestionBank.is_active == True
+    ).limit(5).all()
+
+    for idx, q in enumerate(questions, start=1):
+        join_row = AiPrepAssessmentQuestion(
+            assessment_id=assessment.id,
+            question_id=q.id,
+            order_index=idx
+        )
+        db.add(join_row)
+
+    db.commit()
+    db.refresh(assessment)
+
+    question_schemas = [
+        AssessmentQuestionSchema(
+            id=aq.question.id,
+            order_index=aq.order_index,
+            question_text=aq.question.question_text,
+            difficulty_level=aq.question.difficulty_level
+        )
+        for aq in assessment.questions if aq.question
+    ]
+
+    return AssessmentResponse(
+        id=assessment.id,
+        candidate_id=assessment.candidate_id,
+        assessment_type=assessment.assessment_type,
+        assessment_mode=assessment.assessment_mode,
+        status=assessment.status,
+        attempt_number=assessment.attempt_number,
+        questions=question_schemas,
+        started_at=assessment.started_at,
+        completed_at=assessment.completed_at,
+        created_at=assessment.created_at
+    )
+
+
+# ---------------------------------------------------------------------
+# 2. GET /api/ai-prep/assessments/{id} (Get Session Details)
+# ---------------------------------------------------------------------
+@router.get("/assessments/{assessment_id}", response_model=AssessmentResponse)
+def get_assessment(assessment_id: int, db: Session = Depends(get_db)):
+    """Fetch details of a specific practice assessment session."""
+    assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment session {assessment_id} not found."
+        )
+
+    question_schemas = [
+        AssessmentQuestionSchema(
+            id=aq.question.id,
+            order_index=aq.order_index,
+            question_text=aq.question.question_text,
+            difficulty_level=aq.question.difficulty_level
+        )
+        for aq in assessment.questions if aq.question
+    ]
+
+    coaching_band = assessment.report.coaching_band if assessment.report else None
+
+    return AssessmentResponse(
+        id=assessment.id,
+        candidate_id=assessment.candidate_id,
+        assessment_type=assessment.assessment_type,
+        assessment_mode=assessment.assessment_mode,
+        status=assessment.status,
+        attempt_number=assessment.attempt_number,
+        questions=question_schemas,
+        started_at=assessment.started_at,
+        completed_at=assessment.completed_at,
+        created_at=assessment.created_at,
+        coaching_band=coaching_band
+    )
+
+
+# ---------------------------------------------------------------------
+# 3. PATCH /api/ai-prep/assessments/{id}/status (Update Status)
+# ---------------------------------------------------------------------
+@router.patch("/assessments/{assessment_id}/status", response_model=AssessmentResponse)
+def update_assessment_status(
+    assessment_id: int,
+    payload: AssessmentStatusUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update assessment status (e.g. TESTING -> IN_PROGRESS -> COMPLETED)."""
+    assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment session {assessment_id} not found."
+        )
+
+    assessment.status = payload.status
+    if payload.status == AssessmentStatusEnum.IN_PROGRESS and not assessment.started_at:
+        assessment.started_at = datetime.utcnow()
+    elif payload.status == AssessmentStatusEnum.COMPLETED and not assessment.completed_at:
+        assessment.completed_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(assessment)
+    return get_assessment(assessment_id=assessment_id, db=db)
+
+
+# ---------------------------------------------------------------------
+# 4. GET /api/ai-prep/assessments (List Candidate Sessions)
+# ---------------------------------------------------------------------
+@router.get("/assessments", response_model=AssessmentListResponse)
+def list_assessments(
+    candidate_id: int = Query(default=1, description="Candidate ID"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """List paginated assessment sessions for a candidate."""
+    query = db.query(AiPrepAssessment).filter(AiPrepAssessment.candidate_id == candidate_id)
+    total = query.count()
+    items_orm = query.order_by(AiPrepAssessment.created_at.desc()).offset(skip).limit(limit).all()
+
+    items = []
+    for a in items_orm:
+        question_schemas = [
+            AssessmentQuestionSchema(
+                id=aq.question.id,
+                order_index=aq.order_index,
+                question_text=aq.question.question_text,
+                difficulty_level=aq.question.difficulty_level
+            )
+            for aq in a.questions if aq.question
+        ]
+        coaching_band = a.report.coaching_band if a.report else None
+
+        items.append(
+            AssessmentResponse(
+                id=a.id,
+                candidate_id=a.candidate_id,
+                assessment_type=a.assessment_type,
+                assessment_mode=a.assessment_mode,
+                status=a.status,
+                attempt_number=a.attempt_number,
+                questions=question_schemas,
+                started_at=a.started_at,
+                completed_at=a.completed_at,
+                created_at=a.created_at,
+                coaching_band=coaching_band
+            )
+        )
+
+    return AssessmentListResponse(items=items, total=total)
+
+
+# ---------------------------------------------------------------------
+# 5. POST /api/ai-prep/hardware-check (Record Hardware Check)
+# ---------------------------------------------------------------------
+@router.post("/hardware-check", response_model=HardwareCheckResponse, status_code=status.HTTP_201_CREATED)
+def record_hardware_check(payload: HardwareCheckCreate, db: Session = Depends(get_db)):
+    """Record candidate camera, microphone, speaker, and bandwidth test results."""
+    assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == payload.assessment_id).first()
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment session {payload.assessment_id} not found."
+        )
+
+    hw_check = AiPrepHardwareCheck(
+        assessment_id=payload.assessment_id,
+        browser_info=payload.browser_info,
+        os_info=payload.os_info,
+        camera_permission=payload.camera_permission,
+        mic_permission=payload.mic_permission,
+        speaker_ok=payload.speaker_ok,
+        bandwidth_kbps=payload.bandwidth_kbps,
+        yolo_model_enabled=payload.yolo_model_enabled,
+        tested_at=datetime.utcnow()
+    )
+    db.add(hw_check)
+    db.commit()
+    db.refresh(hw_check)
+
+    return HardwareCheckResponse(
+        id=hw_check.id,
+        assessment_id=hw_check.assessment_id,
+        browser_info=hw_check.browser_info,
+        os_info=hw_check.os_info,
+        camera_permission=hw_check.camera_permission,
+        mic_permission=hw_check.mic_permission,
+        speaker_ok=hw_check.speaker_ok,
+        bandwidth_kbps=hw_check.bandwidth_kbps,
+        yolo_model_enabled=hw_check.yolo_model_enabled,
+        tested_at=hw_check.tested_at
+    )
+
+
+# ---------------------------------------------------------------------
+# 6. GET /api/ai-prep/hardware-check/{assessment_id} (Get Last Hardware Check)
+# ---------------------------------------------------------------------
+@router.get("/hardware-check/{assessment_id}", response_model=HardwareCheckResponse)
+def get_hardware_check(assessment_id: int, db: Session = Depends(get_db)):
+    """Fetch the latest hardware check for an assessment session."""
+    hw_check = db.query(AiPrepHardwareCheck).filter(
+        AiPrepHardwareCheck.assessment_id == assessment_id
+    ).order_by(AiPrepHardwareCheck.tested_at.desc()).first()
+
+    if not hw_check:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No hardware check found for assessment session {assessment_id}."
+        )
+
+    return HardwareCheckResponse(
+        id=hw_check.id,
+        assessment_id=hw_check.assessment_id,
+        browser_info=hw_check.browser_info,
+        os_info=hw_check.os_info,
+        camera_permission=hw_check.camera_permission,
+        mic_permission=hw_check.mic_permission,
+        speaker_ok=hw_check.speaker_ok,
+        bandwidth_kbps=hw_check.bandwidth_kbps,
+        yolo_model_enabled=hw_check.yolo_model_enabled,
+        tested_at=hw_check.tested_at
+    )
+
+
+# ---------------------------------------------------------------------
+# 7. POST /api/ai-prep/questions (Create Question)
+# ---------------------------------------------------------------------
+@router.post("/questions", response_model=QuestionBankResponse, status_code=status.HTTP_201_CREATED)
+def create_question(payload: QuestionBankCreate, db: Session = Depends(get_db)):
+    """Create a new question in Question Bank."""
+    q = AiPrepQuestionBank(
+        category=payload.category,
+        sub_category=payload.sub_category,
+        difficulty_level=payload.difficulty_level,
+        question_text=payload.question_text,
+        ideal_answer_rubric=payload.ideal_answer_rubric,
+        relevant_skills_json=payload.relevant_skills_json,
+        is_active=True,
+        created_at=datetime.utcnow()
+    )
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+    return q
+
+
+# ---------------------------------------------------------------------
+# 8. GET /api/ai-prep/questions (List Questions)
+# ---------------------------------------------------------------------
+@router.get("/questions", response_model=List[QuestionBankResponse])
+def list_questions(
+    category: Optional[QuestionCategoryEnum] = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """List questions in Question Bank with optional category filter."""
+    query = db.query(AiPrepQuestionBank).filter(AiPrepQuestionBank.is_active == True)
+    if category:
+        query = query.filter(AiPrepQuestionBank.category == category)
+    return query.limit(limit).all()
+
+
+# ---------------------------------------------------------------------
+# 9. POST /api/ai-prep/consents (Record Consent)
+# ---------------------------------------------------------------------
+@router.post("/consents", response_model=ConsentResponse, status_code=status.HTTP_201_CREATED)
+def record_consent(
+    payload: ConsentCreate,
+    candidate_id: int = Query(default=1, description="Candidate ID"),
+    db: Session = Depends(get_db)
+):
+    """Record user privacy & data consent."""
+    consent = AiPrepConsent(
+        candidate_id=candidate_id,
+        consent_type=payload.consent_type,
+        consented=payload.consented,
+        consented_at=datetime.utcnow()
+    )
+    db.add(consent)
+    db.commit()
+    db.refresh(consent)
+    return consent
+
+
+# ---------------------------------------------------------------------
+# 10. GET /api/ai-prep/consents/{candidate_id} (Get Consent Status)
+# ---------------------------------------------------------------------
+@router.get("/consents/{candidate_id}", response_model=List[ConsentResponse])
+def get_consents(candidate_id: int, db: Session = Depends(get_db)):
+    """Fetch consent status records for a candidate."""
+    return db.query(AiPrepConsent).filter(AiPrepConsent.candidate_id == candidate_id).all()
