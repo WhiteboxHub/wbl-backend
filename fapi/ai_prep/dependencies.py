@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 import logging
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import get_current_user
 from fapi.db.models import CandidateORM
-from fapi.ai_prep.models import AiPrepAssessmentORM
+from fapi.ai_prep.models import AiPrepAssessmentORM, AiPrepAssessment
 
 logger = logging.getLogger("wbl.ai_prep")
 
@@ -36,7 +36,7 @@ def get_candidate_id_for_user(user, db: Session) -> Optional[int]:
 
 async def get_assessment_or_403(
     assessment_id: int,
-    current_user=Depends(get_current_user),
+    current_user: Any = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> AiPrepAssessmentORM:
     """

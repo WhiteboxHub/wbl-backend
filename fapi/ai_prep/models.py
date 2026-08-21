@@ -1,5 +1,6 @@
 from datetime import datetime
 import enum
+from typing import Optional, List, Dict, Any
 from sqlalchemy import (
     Column, Integer, String, Text, Boolean, DateTime,
     ForeignKey, JSON, Numeric, BigInteger, Enum as SQLEnum, CheckConstraint, Index
@@ -50,6 +51,15 @@ class DifficultyLevelEnum(str, enum.Enum):
     EXPERT = "EXPERT"
 
 
+QuestionDifficultyEnum = DifficultyLevelEnum
+
+
+class BackgroundNoiseLevelEnum(str, enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
 class CoachingBandEnum(str, enum.Enum):
     EXCELLENT = "EXCELLENT"
     STRONG = "STRONG"
@@ -63,12 +73,6 @@ class ConsentTypeEnum(str, enum.Enum):
     TERMS_OF_SERVICE = "TERMS_OF_SERVICE"
 
 
-class BackgroundNoiseLevelEnum(str, enum.Enum):
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-
-
 class RunTypeEnum(str, enum.Enum):
     STT = "STT"
     AUDIO = "AUDIO"
@@ -78,11 +82,17 @@ class RunTypeEnum(str, enum.Enum):
     FULL = "FULL"
 
 
+AnalysisRunTypeEnum = RunTypeEnum
+
+
 class RunStatusEnum(str, enum.Enum):
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+AnalysisRunStatusEnum = RunStatusEnum
 
 
 class DeletionRequestStatusEnum(str, enum.Enum):
@@ -93,7 +103,27 @@ class DeletionRequestStatusEnum(str, enum.Enum):
 
 
 # ----------------------------------------------------------------------
-# 1. Question Bank
+# 1. Candidate Resume Table
+# ----------------------------------------------------------------------
+class CandidateResume(Base):
+    __tablename__ = "candidate_resumes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
+    resume_file_path = Column(String(512), nullable=True)
+    parsed_json = Column(JSON, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    assessments = relationship("AiPrepAssessmentORM", back_populates="candidate_resume")
+
+
+CandidateResumeORM = CandidateResume
+
+
+# ----------------------------------------------------------------------
+# 2. Question Bank
 # ----------------------------------------------------------------------
 class AiPrepQuestionBankORM(Base):
     __tablename__ = "ai_prep_question_bank"
@@ -108,21 +138,26 @@ class AiPrepQuestionBankORM(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
+    assessment_questions = relationship("AiPrepAssessmentQuestionORM", back_populates="question")
+
     __table_args__ = (
         Index("idx_qb_category_diff", "category", "difficulty_level"),
         Index("idx_qb_active", "is_active"),
     )
 
 
+AiPrepQuestionBank = AiPrepQuestionBankORM
+
+
 # ----------------------------------------------------------------------
-# 2. Assessments
+# 3. Assessments
 # ----------------------------------------------------------------------
 class AiPrepAssessmentORM(Base):
     __tablename__ = "ai_prep_assessments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="RESTRICT"), nullable=False)
-    candidate_resume_id = Column(Integer, nullable=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
+    candidate_resume_id = Column(Integer, ForeignKey("candidate_resumes.id", ondelete="SET NULL"), nullable=True)
     assessment_type = Column(SQLEnum(AssessmentTypeEnum), nullable=False)
     assessment_mode = Column(SQLEnum(AssessmentModeEnum), nullable=False, default=AssessmentModeEnum.VIDEO_AUDIO)
     status = Column(SQLEnum(AssessmentStatusEnum), nullable=False, default=AssessmentStatusEnum.TESTING)
@@ -135,6 +170,7 @@ class AiPrepAssessmentORM(Base):
 
     # Relationships
     candidate = relationship("CandidateORM", foreign_keys=[candidate_id], lazy="joined")
+    candidate_resume = relationship("CandidateResume", back_populates="assessments")
     questions = relationship("AiPrepAssessmentQuestionORM", back_populates="assessment", cascade="all, delete-orphan")
     hardware_checks = relationship("AiPrepHardwareCheckORM", back_populates="assessment", cascade="all, delete-orphan")
     media_files = relationship("AiPrepMediaFileORM", back_populates="assessment", cascade="all, delete-orphan")
@@ -152,8 +188,11 @@ class AiPrepAssessmentORM(Base):
     )
 
 
+AiPrepAssessment = AiPrepAssessmentORM
+
+
 # ----------------------------------------------------------------------
-# 3. Assessment Questions
+# 4. Assessment Questions Join Table
 # ----------------------------------------------------------------------
 class AiPrepAssessmentQuestionORM(Base):
     __tablename__ = "ai_prep_assessment_questions"
@@ -167,7 +206,7 @@ class AiPrepAssessmentQuestionORM(Base):
     feedback_text = Column(Text, nullable=True)
 
     assessment = relationship("AiPrepAssessmentORM", back_populates="questions")
-    question = relationship("AiPrepQuestionBankORM")
+    question = relationship("AiPrepQuestionBankORM", back_populates="assessment_questions")
 
     __table_args__ = (
         CheckConstraint("question_score IS NULL OR (question_score >= 0 AND question_score <= 100)", name="chk_aq_score"),
@@ -176,8 +215,11 @@ class AiPrepAssessmentQuestionORM(Base):
     )
 
 
+AiPrepAssessmentQuestion = AiPrepAssessmentQuestionORM
+
+
 # ----------------------------------------------------------------------
-# 4. Hardware / Device Checks
+# 5. Hardware Checks Table
 # ----------------------------------------------------------------------
 class AiPrepHardwareCheckORM(Base):
     __tablename__ = "ai_prep_hardware_checks"
@@ -200,16 +242,19 @@ class AiPrepHardwareCheckORM(Base):
     )
 
 
+AiPrepHardwareCheck = AiPrepHardwareCheckORM
+
+
 # ----------------------------------------------------------------------
-# 5. Media Files (Local / YouTube / GCS paths)
+# 6. Media Files Table
 # ----------------------------------------------------------------------
 class AiPrepMediaFileORM(Base):
     __tablename__ = "ai_prep_media_files"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id", ondelete="CASCADE"), nullable=False)
-    audio_file_path = Column(String(500), nullable=False)
-    video_file_path = Column(String(500), nullable=True)
+    audio_file_path = Column(String(512), nullable=False)
+    video_file_path = Column(String(512), nullable=True)
     duration_seconds = Column(Integer, nullable=False, default=0)
     file_size_bytes = Column(BigInteger, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -221,8 +266,11 @@ class AiPrepMediaFileORM(Base):
     )
 
 
+AiPrepMediaFile = AiPrepMediaFileORM
+
+
 # ----------------------------------------------------------------------
-# 6. Transcripts
+# 7. Transcripts Table
 # ----------------------------------------------------------------------
 class AiPrepTranscriptORM(Base):
     __tablename__ = "ai_prep_transcripts"
@@ -240,8 +288,11 @@ class AiPrepTranscriptORM(Base):
     )
 
 
+AiPrepTranscript = AiPrepTranscriptORM
+
+
 # ----------------------------------------------------------------------
-# 7. Vision Telemetry (consent-gated browser YOLO metrics only)
+# 8. Vision Telemetry Table
 # ----------------------------------------------------------------------
 class AiPrepVisionTelemetryORM(Base):
     __tablename__ = "ai_prep_vision_telemetry"
@@ -263,8 +314,11 @@ class AiPrepVisionTelemetryORM(Base):
     )
 
 
+AiPrepVisionTelemetry = AiPrepVisionTelemetryORM
+
+
 # ----------------------------------------------------------------------
-# 8. Audio Telemetry
+# 9. Audio Telemetry Table
 # ----------------------------------------------------------------------
 class AiPrepAudioTelemetryORM(Base):
     __tablename__ = "ai_prep_audio_telemetry"
@@ -287,8 +341,11 @@ class AiPrepAudioTelemetryORM(Base):
     )
 
 
+AiPrepAudioTelemetry = AiPrepAudioTelemetryORM
+
+
 # ----------------------------------------------------------------------
-# 9. Reports
+# 10. Reports Table
 # ----------------------------------------------------------------------
 class AiPrepReportORM(Base):
     __tablename__ = "ai_prep_reports"
@@ -316,16 +373,19 @@ class AiPrepReportORM(Base):
     )
 
 
+AiPrepReport = AiPrepReportORM
+
+
 # ----------------------------------------------------------------------
-# 10. Consents (immutable audit log)
+# 11. Privacy Consents Table (immutable audit log)
 # ----------------------------------------------------------------------
 class AiPrepConsentORM(Base):
     __tablename__ = "ai_prep_consents"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="RESTRICT"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
     consent_type = Column(SQLEnum(ConsentTypeEnum), nullable=False)
-    consented = Column(Boolean, nullable=False, default=False)
+    consented = Column(Boolean, nullable=False, default=True)
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(String(500), nullable=True)
     consented_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -336,16 +396,19 @@ class AiPrepConsentORM(Base):
     )
 
 
+AiPrepConsent = AiPrepConsentORM
+
+
 # ----------------------------------------------------------------------
-# 11. Share Grants
+# 12. Share Grants Table
 # ----------------------------------------------------------------------
 class AiPrepShareGrantORM(Base):
     __tablename__ = "ai_prep_share_grants"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id", ondelete="CASCADE"), nullable=False)
-    shared_by_candidate_id = Column(Integer, nullable=False)
-    share_token = Column(String(64), unique=True, nullable=False)
+    shared_by_candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
+    share_token = Column(String(255), unique=True, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
@@ -356,14 +419,17 @@ class AiPrepShareGrantORM(Base):
     )
 
 
+AiPrepShareGrant = AiPrepShareGrantORM
+
+
 # ----------------------------------------------------------------------
-# 12. Deletion Requests
+# 13. Deletion Requests Table
 # ----------------------------------------------------------------------
 class AiPrepDeletionRequestORM(Base):
     __tablename__ = "ai_prep_deletion_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="RESTRICT"), nullable=False)
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False)
     requested_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
     status = Column(SQLEnum(DeletionRequestStatusEnum), nullable=False, default=DeletionRequestStatusEnum.PENDING)
@@ -374,15 +440,18 @@ class AiPrepDeletionRequestORM(Base):
     )
 
 
+AiPrepDeletionRequest = AiPrepDeletionRequestORM
+
+
 # ----------------------------------------------------------------------
-# 13. Audit Events
+# 14. Audit Events Table
 # ----------------------------------------------------------------------
 class AiPrepAuditEventORM(Base):
     __tablename__ = "ai_prep_audit_events"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    candidate_id = Column(Integer, nullable=True)
-    assessment_id = Column(Integer, nullable=True)
+    candidate_id = Column(Integer, ForeignKey("candidate.id", ondelete="SET NULL"), nullable=True)
+    assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id", ondelete="SET NULL"), nullable=True)
     event_type = Column(String(100), nullable=False)
     actor_id = Column(Integer, nullable=True)
     actor_role = Column(String(50), nullable=True)
@@ -398,8 +467,11 @@ class AiPrepAuditEventORM(Base):
     )
 
 
+AiPrepAuditEvent = AiPrepAuditEventORM
+
+
 # ----------------------------------------------------------------------
-# 14. Analysis Runs (Celery Task Execution History)
+# 15. Analysis Runs Table (Celery Task Execution History)
 # ----------------------------------------------------------------------
 class AiPrepAnalysisRunORM(Base):
     __tablename__ = "ai_prep_analysis_runs"
@@ -420,3 +492,6 @@ class AiPrepAnalysisRunORM(Base):
         Index("idx_run_assessment", "assessment_id"),
         Index("idx_run_status", "status"),
     )
+
+
+AiPrepAnalysisRun = AiPrepAnalysisRunORM

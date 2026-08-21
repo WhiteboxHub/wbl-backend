@@ -12,12 +12,15 @@ from fapi.utils.auth_dependencies import get_current_user
 from fapi.ai_prep.dependencies import get_assessment_or_403, get_candidate_id_for_user
 from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
+    AiPrepQuestionBankORM,
+    AiPrepAssessmentQuestionORM,
     AssessmentStatusEnum,
     AssessmentTypeEnum,
     RunTypeEnum,
     RunStatusEnum,
 )
 from fapi.ai_prep.schemas import (
+    CreateAssessmentRequest,
     AssessmentOut,
     AssessmentListResponse,
     AssessmentListItem,
@@ -65,6 +68,52 @@ def _build_processing_status(assessment: AiPrepAssessmentORM, db: Session) -> Pr
         steps.finalize = RunStatusEnum.COMPLETED
 
     return ProcessingStatusResponse(status=assessment.status, steps=steps)
+
+
+@router.post("", response_model=AssessmentOut, status_code=status.HTTP_201_CREATED)
+async def create_assessment(
+    payload: CreateAssessmentRequest,
+    candidate_id: Optional[int] = Query(None, description="Candidate ID"),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new practice assessment session and select matching questions."""
+    resolved_cid = get_candidate_id_for_user(current_user, db) if current_user else None
+    target_cid = candidate_id if candidate_id is not None else resolved_cid
+    if target_cid is None:
+        target_cid = 1
+
+    assessment = AiPrepAssessmentORM(
+        candidate_id=target_cid,
+        candidate_resume_id=payload.candidate_resume_id,
+        assessment_type=payload.assessment_type,
+        assessment_mode=payload.assessment_mode,
+        status=AssessmentStatusEnum.TESTING,
+        job_description_text=payload.job_description_text,
+        created_at=datetime.utcnow()
+    )
+    db.add(assessment)
+    db.commit()
+    db.refresh(assessment)
+
+    # Attach active questions from Question Bank if available
+    questions = db.query(AiPrepQuestionBankORM).filter(
+        AiPrepQuestionBankORM.is_active == True
+    ).limit(5).all()
+
+    for idx, q in enumerate(questions, start=1):
+        join_row = AiPrepAssessmentQuestionORM(
+            assessment_id=assessment.id,
+            question_id=q.id,
+            order_index=idx
+        )
+        db.add(join_row)
+
+    if questions:
+        db.commit()
+        db.refresh(assessment)
+
+    return await get_assessment_detail(assessment.id, current_user, db)
 
 
 @router.get("/{id}/processing-status")
@@ -146,6 +195,8 @@ async def get_assessment_detail(
             )
         )
 
+    band = assessment.report.coaching_band if assessment.report else None
+
     return AssessmentOut(
         id=assessment.id,
         candidate_id=assessment.candidate_id,
@@ -158,6 +209,7 @@ async def get_assessment_detail(
         questions=q_summaries,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
+        coaching_band=band,
         created_at=assessment.created_at,
         updated_at=assessment.updated_at
     )

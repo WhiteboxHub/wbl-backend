@@ -3,8 +3,10 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from fapi.ai_prep.models import (
     AssessmentTypeEnum, AssessmentModeEnum, AssessmentStatusEnum,
-    CoachingBandEnum, DifficultyLevelEnum, QuestionCategoryEnum,
-    ConsentTypeEnum, RunStatusEnum
+    CoachingBandEnum, DifficultyLevelEnum, QuestionDifficultyEnum,
+    QuestionCategoryEnum, BackgroundNoiseLevelEnum, ConsentTypeEnum,
+    RunTypeEnum, RunStatusEnum, AnalysisRunTypeEnum, AnalysisRunStatusEnum,
+    DeletionRequestStatusEnum
 )
 
 
@@ -18,19 +20,28 @@ class CreateAssessmentRequest(BaseModel):
     job_description_text: Optional[str] = None
 
 
+AssessmentCreate = CreateAssessmentRequest
+
+
 class UpdateAssessmentStatusRequest(BaseModel):
     status: AssessmentStatusEnum
+
+
+AssessmentStatusUpdate = UpdateAssessmentStatusRequest
 
 
 class QuestionSummaryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    order_index: int
+    order_index: int = 1
     question_text: str
-    difficulty_level: DifficultyLevelEnum
+    difficulty_level: DifficultyLevelEnum = DifficultyLevelEnum.MEDIUM
     category: Optional[QuestionCategoryEnum] = None
     sub_category: Optional[str] = None
+
+
+AssessmentQuestionSchema = QuestionSummaryOut
 
 
 class AssessmentOut(BaseModel):
@@ -47,8 +58,12 @@ class AssessmentOut(BaseModel):
     questions: List[QuestionSummaryOut] = Field(default_factory=list)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    coaching_band: Optional[CoachingBandEnum] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+AssessmentResponse = AssessmentOut
 
 
 class AssessmentListItem(BaseModel):
@@ -111,6 +126,17 @@ class MediaFileOut(BaseModel):
     created_at: datetime
 
 
+class MediaFileCreate(BaseModel):
+    assessment_id: int
+    audio_file_path: str
+    video_file_path: Optional[str] = None
+    duration_seconds: int = 0
+    file_size_bytes: int = 0
+
+
+MediaFileResponse = MediaFileOut
+
+
 # ----------------------------------------------------------------------
 # Processing Status Schemas
 # ----------------------------------------------------------------------
@@ -142,11 +168,16 @@ class HardwareCheckRequest(BaseModel):
     yolo_model_enabled: bool = False
 
 
+HardwareCheckCreate = HardwareCheckRequest
+
+
 class HardwareCheckResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     assessment_id: int
+    browser_info: Optional[str] = None
+    os_info: Optional[str] = None
     camera_permission: bool
     mic_permission: bool
     speaker_ok: bool
@@ -159,9 +190,12 @@ class HardwareCheckResponse(BaseModel):
 # Consent Schemas
 # ----------------------------------------------------------------------
 class ConsentRequest(BaseModel):
-    candidate_id: int
+    candidate_id: Optional[int] = None
     consent_type: ConsentTypeEnum
-    consented: bool
+    consented: bool = True
+
+
+ConsentCreate = ConsentRequest
 
 
 class ConsentResponse(BaseModel):
@@ -185,13 +219,167 @@ class ReportResponse(BaseModel):
     assessment_id: int
     overall_score: int
     coaching_band: CoachingBandEnum
-    formula_explanation: str
+    formula_explanation: Optional[str] = None
     scores_breakdown_json: Dict[str, Any]
     technical_analysis_json: Dict[str, Any]
     non_technical_analysis_json: Dict[str, Any]
-    coaching_suggestions_json: Optional[List[Dict[str, Any]]] = None
-    signal_timeline_json: Optional[List[Dict[str, Any]]] = None
-    transcript_evidence_json: Optional[List[Dict[str, Any]]] = None
-    gaps_to_validate_json: Optional[List[Dict[str, Any]]] = None
-    improvements_json: Optional[List[Dict[str, Any]]] = None
+    coaching_suggestions_json: Optional[Any] = None
+    signal_timeline_json: Optional[Any] = None
+    transcript_evidence_json: Optional[Any] = None
+    gaps_to_validate_json: Optional[Any] = None
+    improvements_json: Optional[Any] = None
+    created_at: datetime
+
+
+# ----------------------------------------------------------------------
+# Question Bank Schemas
+# ----------------------------------------------------------------------
+class QuestionBankCreate(BaseModel):
+    category: QuestionCategoryEnum
+    sub_category: str
+    difficulty_level: DifficultyLevelEnum = DifficultyLevelEnum.MEDIUM
+    question_text: str
+    ideal_answer_rubric: Optional[str] = None
+    relevant_skills_json: Optional[List[str]] = None
+
+
+class QuestionBankResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    category: QuestionCategoryEnum
+    sub_category: str
+    difficulty_level: DifficultyLevelEnum
+    question_text: str
+    ideal_answer_rubric: Optional[str] = None
+    relevant_skills_json: Optional[List[str]] = None
+    is_active: bool = True
+    created_at: datetime
+
+
+# ----------------------------------------------------------------------
+# Transcript Schemas
+# ----------------------------------------------------------------------
+class TranscriptCreate(BaseModel):
+    assessment_id: int
+    transcript_text: str
+    word_timestamps_json: Optional[Dict[str, Any]] = None
+
+
+class TranscriptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    assessment_id: int
+    transcript_text: str
+    word_timestamps_json: Optional[Dict[str, Any]] = None
+    created_at: datetime
+
+
+# ----------------------------------------------------------------------
+# Vision Telemetry Schemas
+# ----------------------------------------------------------------------
+class VisionTelemetryCreate(BaseModel):
+    assessment_id: int
+    face_visible_pct: float = 0.0
+    head_nods_count: int = 0
+    frame_stability_score: float = 0.0
+    snapshots_json: Optional[List[Dict[str, Any]]] = None
+
+
+class VisionTelemetryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    assessment_id: int
+    face_visible_pct: float
+    head_nods_count: int
+    frame_stability_score: float
+    snapshots_json: Optional[List[Dict[str, Any]]] = None
+    created_at: datetime
+
+
+# ----------------------------------------------------------------------
+# Audio Telemetry Schemas
+# ----------------------------------------------------------------------
+class AudioTelemetryCreate(BaseModel):
+    assessment_id: int
+    avg_volume_db: float = 0.0
+    background_noise_level: BackgroundNoiseLevelEnum = BackgroundNoiseLevelEnum.LOW
+    clipping_detected: bool = False
+    silence_ratio_pct: float = 0.0
+    filler_words_per_min: int = 0
+    speaking_pace_wpm: int = 0
+
+
+class AudioTelemetryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    assessment_id: int
+    avg_volume_db: float
+    background_noise_level: BackgroundNoiseLevelEnum
+    clipping_detected: bool
+    silence_ratio_pct: float
+    filler_words_per_min: int
+    speaking_pace_wpm: int
+    created_at: datetime
+
+
+# ----------------------------------------------------------------------
+# Share Grant Schemas
+# ----------------------------------------------------------------------
+class ShareGrantCreate(BaseModel):
+    assessment_id: int
+    expires_in_days: int = 7
+
+
+class ShareGrantResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    assessment_id: int
+    shared_by_candidate_id: int
+    share_token: str
+    expires_at: datetime
+    created_at: datetime
+
+
+# ----------------------------------------------------------------------
+# Deletion Request Schemas
+# ----------------------------------------------------------------------
+class DeletionRequestCreate(BaseModel):
+    notes: Optional[str] = None
+
+
+class DeletionRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    candidate_id: int
+    requested_at: datetime
+    completed_at: Optional[datetime] = None
+    status: DeletionRequestStatusEnum
+    notes: Optional[str] = None
+
+
+# ----------------------------------------------------------------------
+# Analysis Run Schemas
+# ----------------------------------------------------------------------
+class AnalysisRunCreate(BaseModel):
+    assessment_id: int
+    run_type: RunTypeEnum
+
+
+class AnalysisRunResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    assessment_id: int
+    run_type: RunTypeEnum
+    status: RunStatusEnum
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    celery_task_id: Optional[str] = None
     created_at: datetime

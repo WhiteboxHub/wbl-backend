@@ -365,6 +365,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -452,6 +455,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -521,6 +527,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -568,6 +577,9 @@
         "summary": "List Candidate Credentials",
         "operationId": "list_candidate_credentials_api_candidates_credentials_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -662,6 +674,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -707,6 +722,9 @@
         "summary": "Update Candidate Endpoint",
         "operationId": "update_candidate_endpoint_api_candidates__candidate_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -807,6 +825,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -862,6 +883,9 @@
         "summary": "Check Version Marketing",
         "operationId": "check_version_marketing_api_candidate_marketing_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1075,6 +1099,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1118,6 +1145,9 @@
         "summary": "Read All Placements",
         "operationId": "read_all_placements_api_candidate_placements_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1175,6 +1205,9 @@
         "summary": "Check Version Placements",
         "operationId": "check_version_placements_api_candidate_placements_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1257,6 +1290,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1269,6 +1305,9 @@
         "summary": "Read Placement",
         "operationId": "read_placement_api_candidate_placements__placement_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1428,6 +1467,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1454,6 +1496,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -1478,6 +1523,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1574,6 +1622,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1871,6 +1922,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -1924,6 +1978,9 @@
         "summary": "Delete Prep",
         "operationId": "delete_prep_api_candidate_preparation__prep_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -1987,6 +2044,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2047,6 +2107,9 @@
         "summary": "Get Candidate Suggestions",
         "operationId": "get_candidate_suggestions_api_candidates_search_names__search_term__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2245,6 +2308,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2657,6 +2723,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2701,6 +2770,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -2721,6 +2793,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2747,6 +2822,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -2759,6 +2837,9 @@
         "summary": "Get Vendor",
         "operationId": "get_vendor_api_vendors__vendor_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2804,6 +2885,9 @@
         "summary": "Update Vendor Route",
         "operationId": "update_vendor_route_api_vendors__vendor_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2859,6 +2943,9 @@
         "summary": "Delete Vendor",
         "operationId": "delete_vendor_api_vendors__vendor_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2941,6 +3028,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -2953,6 +3043,9 @@
         "summary": "Get Vendor Suggestions Endpoint",
         "operationId": "get_vendor_suggestions_endpoint_api_vendors_search_names__search_term__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -2998,6 +3091,9 @@
         "summary": "Get Leads Paginated",
         "operationId": "get_leads_paginated_api_leads_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3085,6 +3181,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3155,6 +3254,9 @@
         "summary": "Check Leads Version",
         "operationId": "check_leads_version_api_leads_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3480,6 +3582,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -3539,6 +3644,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -3605,6 +3713,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4577,6 +4688,9 @@
           },
           {
             "OAuth2PasswordBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -4589,6 +4703,9 @@
         "summary": "Read Batches",
         "operationId": "read_batches_api_batch_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4647,6 +4764,9 @@
         "summary": "Check Batches Version",
         "operationId": "check_batches_version_api_batch_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4715,6 +4835,9 @@
         "summary": "Read Batch",
         "operationId": "read_batch_api_batch__batch_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -4864,6 +4987,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -4884,6 +5010,9 @@
         "summary": "Read Users",
         "operationId": "read_users_api_user_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5033,6 +5162,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5055,6 +5187,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -5067,6 +5202,9 @@
         "summary": "Read User",
         "operationId": "read_user_api_user__user_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5480,6 +5618,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5536,6 +5677,9 @@
         "summary": "Check Recordings Version",
         "operationId": "check_recordings_version_api_recordings_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5770,6 +5914,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5815,6 +5962,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -5837,6 +5987,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -5850,6 +6003,9 @@
         "description": "Get all batches for a specific recording",
         "operationId": "get_batches_for_recording_api_recording_batches_recording__recording_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -5904,6 +6060,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -5954,6 +6113,9 @@
         "description": "Get a specific recording batch mapping",
         "operationId": "get_recording_batch_api_recording_batches__recording_id___batch_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6009,6 +6171,9 @@
         "description": "Update an existing recording batch mapping",
         "operationId": "update_recording_batch_api_recording_batches__recording_id___batch_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6074,6 +6239,9 @@
         "description": "Delete a recording batch mapping",
         "operationId": "delete_recording_batch_api_recording_batches__recording_id___batch_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6146,6 +6314,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6212,6 +6383,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6224,6 +6398,9 @@
         "summary": "Get Course",
         "operationId": "get_course_api_courses__course_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6387,6 +6564,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6451,6 +6631,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -6628,6 +6811,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6739,6 +6925,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6823,6 +7012,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -6889,6 +7081,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -6901,6 +7096,9 @@
         "summary": "Get Course Content By Id",
         "operationId": "get_course_content_by_id_api_course_contents__content_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7065,6 +7263,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -7129,6 +7330,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7832,6 +8036,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -7866,6 +8073,9 @@
         "summary": "Get Session Types",
         "operationId": "get_session_types_api_session_types_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -7912,6 +8122,9 @@
         "summary": "Get Sessions",
         "operationId": "get_sessions_api_sessions_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10151,6 +10364,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -10221,6 +10437,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -10234,6 +10453,9 @@
         "description": "Get single job activity log by ID",
         "operationId": "get_job_activity_log_api_job_activity_logs__log_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10343,6 +10565,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -10388,6 +10613,9 @@
         "description": "Get all logs for specific job ID",
         "operationId": "get_logs_by_job_api_job_activity_logs_job__job_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10441,6 +10669,9 @@
         "description": "Get all logs for specific employee ID",
         "operationId": "get_logs_by_employee_api_job_activity_logs_employee__employee_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10562,6 +10793,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -10632,6 +10866,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -10645,6 +10882,9 @@
         "description": "Get single job type by ID",
         "operationId": "get_job_type_api_job_types__job_type_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -10752,6 +10992,9 @@
         "description": "Delete job type",
         "operationId": "delete_job_type_api_job_types__job_type_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -11564,6 +11807,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -11960,6 +12206,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -12004,6 +12253,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -12026,6 +12278,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -12038,6 +12293,9 @@
         "summary": "Update Hr Contact Route",
         "operationId": "update_hr_contact_route_api_hr_contacts__contact_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -12093,6 +12351,9 @@
         "summary": "Delete Hr Contact",
         "operationId": "delete_hr_contact_api_hr_contacts__contact_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -12172,6 +12433,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -13428,6 +13692,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -13539,6 +13806,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_positions__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -14047,6 +14317,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -14125,6 +14398,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_email_positions__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15770,6 +16046,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -15790,6 +16069,9 @@
         "summary": "Get Potential Leads",
         "operationId": "get_potential_leads_api_potential_leads_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -15864,6 +16146,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -15910,6 +16195,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -15953,6 +16241,9 @@
         "summary": "Update Existing Potential Lead",
         "operationId": "update_existing_potential_lead_api_potential_leads__lead_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -16008,6 +16299,9 @@
         "summary": "Delete Existing Potential Lead",
         "operationId": "delete_existing_potential_lead_api_potential_leads__lead_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17382,6 +17676,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17404,6 +17701,9 @@
         "description": "Get automation extracts with page-based pagination and optional filters",
         "operationId": "read_automation_extracts_paginated_api_automation_extracts_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17575,6 +17875,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -17596,6 +17899,9 @@
         "summary": "Read Automation Extracts",
         "operationId": "read_automation_extracts_api_automation_extracts_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17767,6 +18073,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "requestBody": {
@@ -17846,6 +18155,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -17893,6 +18205,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -17906,6 +18221,9 @@
         "summary": "Read Automation Extract",
         "operationId": "read_automation_extract_api_automation_extracts__extract_id__get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -17952,6 +18270,9 @@
         "summary": "Update Automation Extract",
         "operationId": "update_automation_extract_api_automation_extracts__extract_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18008,6 +18329,9 @@
         "summary": "Delete Automation Extract",
         "operationId": "delete_automation_extract_api_automation_extracts__extract_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18084,6 +18408,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -18097,6 +18424,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys_paginated_head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18177,6 +18507,9 @@
         "summary": "Check Version",
         "operationId": "check_version_api_extension_keys__head",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -18671,6 +19004,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -18870,6 +19206,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19119,6 +19458,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19420,6 +19762,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -19620,6 +19965,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -19853,6 +20201,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -19898,6 +20249,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       },
@@ -19921,6 +20275,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -19934,6 +20291,9 @@
         "summary": "Get Campaign Emails Paginated",
         "operationId": "get_campaign_emails_paginated_api_campaign_emails_paginated_get",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20022,6 +20382,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20074,6 +20437,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -20118,6 +20484,9 @@
         "summary": "Update Campaign Email",
         "operationId": "update_campaign_email_api_campaign_emails__record_id__put",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20174,6 +20543,9 @@
         "summary": "Delete Campaign Email",
         "operationId": "delete_campaign_email_api_campaign_emails__record_id__delete",
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -20254,6 +20626,9 @@
           }
         },
         "security": [
+          {
+            "HTTPBearer": []
+          },
           {
             "HTTPBearer": []
           }
@@ -23683,6 +24058,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "responses": {
@@ -24969,6 +25347,151 @@
         }
       }
     },
+    "/api/ai-prep/assessments": {
+      "post": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Assessments"
+        ],
+        "summary": "Create Assessment",
+        "description": "Create a new practice assessment session and select matching questions.",
+        "operationId": "create_assessment_api_ai_prep_assessments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Candidate ID",
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssessmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AIPrep",
+          "AIPrep Assessments"
+        ],
+        "summary": "List Assessments",
+        "description": "Lists assessments for the authenticated candidate.",
+        "operationId": "list_assessments_api_ai_prep_assessments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Candidate Id"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ai-prep/assessments/{id}/processing-status": {
       "get": {
         "tags": [
@@ -25075,85 +25598,6 @@
         }
       }
     },
-    "/api/ai-prep/assessments": {
-      "get": {
-        "tags": [
-          "AIPrep",
-          "AIPrep Assessments"
-        ],
-        "summary": "List Assessments",
-        "description": "Lists assessments for the authenticated candidate.",
-        "operationId": "list_assessments_api_ai_prep_assessments_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "candidate_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Candidate Id"
-            }
-          },
-          {
-            "name": "skip",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Skip"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/ai-prep/assessments/{id}/status": {
       "patch": {
         "tags": [
@@ -25236,6 +25680,330 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/ai-prep/hardware-check": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "Record Hardware Check",
+        "description": "Record candidate camera, microphone, speaker, and bandwidth test results.",
+        "operationId": "record_hardware_check_api_ai_prep_hardware_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HardwareCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HardwareCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/ai-prep/hardware-check/{assessment_id}": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "Get Hardware Check",
+        "description": "Fetch the latest hardware check for an assessment session.",
+        "operationId": "get_hardware_check_api_ai_prep_hardware_check__assessment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HardwareCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/questions": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "Create Question",
+        "description": "Create a new question in Question Bank.",
+        "operationId": "create_question_api_ai_prep_questions_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionBankCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionBankResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "List Questions",
+        "description": "List questions in Question Bank with optional category filter.",
+        "operationId": "list_questions_api_ai_prep_questions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/QuestionCategoryEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionBankResponse"
+                  },
+                  "title": "Response List Questions Api Ai Prep Questions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/consents": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "Record Consent",
+        "description": "Record user privacy & data consent.",
+        "operationId": "record_consent_api_ai_prep_consents_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID",
+              "default": 1,
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/consents/{candidate_id}": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "Get Consents",
+        "description": "Fetch consent status records for a candidate.",
+        "operationId": "get_consents_api_ai_prep_consents__candidate_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentResponse"
+                  },
+                  "title": "Response Get Consents Api Ai Prep Consents  Candidate Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -25617,14 +26385,31 @@
             ],
             "title": "Completed At"
           },
+          "coaching_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoachingBandEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "title": "Created At"
           },
           "updated_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Updated At"
           }
         },
@@ -25636,8 +26421,7 @@
           "assessment_mode",
           "status",
           "attempt_number",
-          "created_at",
-          "updated_at"
+          "created_at"
         ],
         "title": "AssessmentOut"
       },
@@ -28807,7 +29591,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^password$"
+                "pattern": "password"
               },
               {
                 "type": "null"
@@ -28821,7 +29605,6 @@
           },
           "password": {
             "type": "string",
-            "format": "password",
             "title": "Password"
           },
           "scope": {
@@ -28849,7 +29632,6 @@
                 "type": "null"
               }
             ],
-            "format": "password",
             "title": "Client Secret"
           }
         },
@@ -28864,7 +29646,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -28891,7 +29673,7 @@
           },
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -28907,14 +29689,14 @@
         "properties": {
           "govId": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Govid"
           },
           "resume": {
             "anyOf": [
               {
                 "type": "string",
-                "contentMediaType": "application/octet-stream"
+                "format": "binary"
               },
               {
                 "type": "null"
@@ -28933,7 +29715,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "resume_json": {
@@ -36850,6 +37632,88 @@
         "type": "object",
         "title": "CompanyUpdate"
       },
+      "ConsentRequest": {
+        "properties": {
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
+          "consent_type": {
+            "$ref": "#/components/schemas/ConsentTypeEnum"
+          },
+          "consented": {
+            "type": "boolean",
+            "title": "Consented",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "consent_type"
+        ],
+        "title": "ConsentRequest"
+      },
+      "ConsentResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "candidate_id": {
+            "type": "integer",
+            "title": "Candidate Id"
+          },
+          "consent_type": {
+            "$ref": "#/components/schemas/ConsentTypeEnum"
+          },
+          "consented": {
+            "type": "boolean",
+            "title": "Consented"
+          },
+          "consented_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Consented At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "candidate_id",
+          "consent_type",
+          "consented",
+          "consented_at"
+        ],
+        "title": "ConsentResponse"
+      },
+      "ConsentTypeEnum": {
+        "type": "string",
+        "enum": [
+          "VIDEO_ANALYTICS",
+          "DATA_RETENTION",
+          "TERMS_OF_SERVICE"
+        ],
+        "title": "ConsentTypeEnum"
+      },
       "ContactClassificationEnum": {
         "type": "string",
         "enum": [
@@ -37482,6 +38346,44 @@
         },
         "type": "object",
         "title": "CourseUpdate"
+      },
+      "CreateAssessmentRequest": {
+        "properties": {
+          "assessment_type": {
+            "$ref": "#/components/schemas/AssessmentTypeEnum"
+          },
+          "assessment_mode": {
+            "$ref": "#/components/schemas/AssessmentModeEnum",
+            "default": "VIDEO_AUDIO"
+          },
+          "candidate_resume_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Resume Id"
+          },
+          "job_description_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_type"
+        ],
+        "title": "CreateAssessmentRequest"
       },
       "DashboardMetrics": {
         "properties": {
@@ -41369,6 +42271,137 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HardwareCheckRequest": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "browser_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser Info"
+          },
+          "os_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Info"
+          },
+          "camera_permission": {
+            "type": "boolean",
+            "title": "Camera Permission",
+            "default": false
+          },
+          "mic_permission": {
+            "type": "boolean",
+            "title": "Mic Permission",
+            "default": false
+          },
+          "speaker_ok": {
+            "type": "boolean",
+            "title": "Speaker Ok",
+            "default": false
+          },
+          "bandwidth_kbps": {
+            "type": "integer",
+            "title": "Bandwidth Kbps",
+            "default": 0
+          },
+          "yolo_model_enabled": {
+            "type": "boolean",
+            "title": "Yolo Model Enabled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id"
+        ],
+        "title": "HardwareCheckRequest"
+      },
+      "HardwareCheckResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "browser_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser Info"
+          },
+          "os_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Info"
+          },
+          "camera_permission": {
+            "type": "boolean",
+            "title": "Camera Permission"
+          },
+          "mic_permission": {
+            "type": "boolean",
+            "title": "Mic Permission"
+          },
+          "speaker_ok": {
+            "type": "boolean",
+            "title": "Speaker Ok"
+          },
+          "bandwidth_kbps": {
+            "type": "integer",
+            "title": "Bandwidth Kbps"
+          },
+          "yolo_model_enabled": {
+            "type": "boolean",
+            "title": "Yolo Model Enabled"
+          },
+          "tested_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Tested At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "assessment_id",
+          "camera_permission",
+          "mic_permission",
+          "speaker_ok",
+          "bandwidth_kbps",
+          "yolo_model_enabled",
+          "tested_at"
+        ],
+        "title": "HardwareCheckResponse"
       },
       "HumanPatchIn": {
         "properties": {
@@ -47786,6 +48819,124 @@
         ],
         "title": "ProviderMetadataOut"
       },
+      "QuestionBankCreate": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/QuestionCategoryEnum"
+          },
+          "sub_category": {
+            "type": "string",
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/DifficultyLevelEnum",
+            "default": "MEDIUM"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "ideal_answer_rubric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ideal Answer Rubric"
+          },
+          "relevant_skills_json": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevant Skills Json"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "sub_category",
+          "question_text"
+        ],
+        "title": "QuestionBankCreate"
+      },
+      "QuestionBankResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "category": {
+            "$ref": "#/components/schemas/QuestionCategoryEnum"
+          },
+          "sub_category": {
+            "type": "string",
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/DifficultyLevelEnum"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "ideal_answer_rubric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ideal Answer Rubric"
+          },
+          "relevant_skills_json": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevant Skills Json"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "sub_category",
+          "difficulty_level",
+          "question_text",
+          "created_at"
+        ],
+        "title": "QuestionBankResponse"
+      },
       "QuestionCategoryEnum": {
         "type": "string",
         "enum": [
@@ -47806,14 +48957,16 @@
           },
           "order_index": {
             "type": "integer",
-            "title": "Order Index"
+            "title": "Order Index",
+            "default": 1
           },
           "question_text": {
             "type": "string",
             "title": "Question Text"
           },
           "difficulty_level": {
-            "$ref": "#/components/schemas/DifficultyLevelEnum"
+            "$ref": "#/components/schemas/DifficultyLevelEnum",
+            "default": "MEDIUM"
           },
           "category": {
             "anyOf": [
@@ -47840,9 +48993,7 @@
         "type": "object",
         "required": [
           "id",
-          "order_index",
-          "question_text",
-          "difficulty_level"
+          "question_text"
         ],
         "title": "QuestionSummaryOut"
       },
@@ -49804,13 +50955,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
