@@ -32,4 +32,5 @@ def get_assessment_or_403(
             detail="Access Denied: Candidate cannot access another candidate's assessment session."
         )
 
+
     return assessment
