@@ -31,7 +31,5 @@ def get_assessment_or_403(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access Denied: Candidate cannot access another candidate's assessment session."
         )
-
-
-
+        
     return assessment
