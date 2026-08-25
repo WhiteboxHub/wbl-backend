@@ -32,12 +32,20 @@ def create_assessment(
     db: Session = Depends(get_db)
 ):
     """Create a new practice assessment session and select matching questions."""
+    # Calculate dynamic attempt_number
+    past_count = db.query(AiPrepAssessment).filter(
+        AiPrepAssessment.candidate_id == candidate_id,
+        AiPrepAssessment.assessment_type == payload.assessment_type
+    ).count()
+    attempt_number = past_count + 1
+
     assessment = AiPrepAssessment(
         candidate_id=candidate_id,
         candidate_resume_id=payload.candidate_resume_id,
         assessment_type=payload.assessment_type,
         assessment_mode=payload.assessment_mode,
         status=AssessmentStatusEnum.TESTING,
+        attempt_number=attempt_number,
         job_description_text=payload.job_description_text,
         created_at=datetime.utcnow()
     )
@@ -45,10 +53,37 @@ def create_assessment(
     db.commit()
     db.refresh(assessment)
 
-    # Assign active questions from Question Bank
-    questions = db.query(AiPrepQuestionBank).filter(
-        AiPrepQuestionBank.is_active == True
-    ).limit(5).all()
+    # Map assessment type to question category
+    category_map = {
+        "TECHNICAL": "TECHNICAL",
+        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
+        "RECRUITER": "RECRUITER",
+        "HIRING_MANAGER": "HIRING_MANAGER",
+        "HR": "BEHAVIORAL",
+        "GENERAL_INTRO": "GENERAL",
+        "JOB_DESCRIPTION_INTRO": "GENERAL"
+    }
+    target_category = category_map.get(payload.assessment_type.name, "GENERAL")
+
+    # Map assessment type to dynamic question counts limit
+    limit_map = {
+        "GENERAL_INTRO": 5,
+        "JOB_DESCRIPTION_INTRO": 5,
+        "RECRUITER": 6,
+        "HIRING_MANAGER": 7,
+        "TECHNICAL": 8,
+        "SYSTEM_DESIGN": 4,
+        "HR": 6
+    }
+    question_limit = limit_map.get(payload.assessment_type.name, 5)
+
+    from fapi.ai_prep.crud.questions import get_random_questions_for_candidate
+    questions = get_random_questions_for_candidate(
+        db=db,
+        candidate_id=candidate_id,
+        category=target_category,
+        limit=question_limit
+    )
 
     for idx, q in enumerate(questions, start=1):
         join_row = AiPrepAssessmentQuestion(
@@ -339,3 +374,15 @@ def record_consent(
 def get_consents(candidate_id: int, db: Session = Depends(get_db)):
     """Fetch consent status records for a candidate."""
     return db.query(AiPrepConsent).filter(AiPrepConsent.candidate_id == candidate_id).all()
+
+
+# ---------------------------------------------------------------------
+# 11. GET /api/ai-prep/analytics/dashboard/{candidate_id} (Dashboard Data)
+# ---------------------------------------------------------------------
+from fapi.ai_prep.schemas import DashboardResponse
+from fapi.ai_prep.crud.analytics import get_candidate_dashboard_metrics
+
+@router.get("/analytics/dashboard/{candidate_id}", response_model=DashboardResponse)
+def get_dashboard_metrics(candidate_id: int, db: Session = Depends(get_db)):
+    """Fetch aggregated analytics data for the candidate's dashboard (Week 2)."""
+    return get_candidate_dashboard_metrics(db=db, candidate_id=candidate_id)

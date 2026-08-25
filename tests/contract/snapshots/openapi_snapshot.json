@@ -13393,6 +13393,562 @@
         }
       }
     },
+    "/api/ai-prep/assessments": {
+      "post": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Create Assessment",
+        "description": "Create a new practice assessment session and select matching questions.",
+        "operationId": "create_assessment_api_ai_prep_assessments_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID",
+              "default": 1,
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "List Assessments",
+        "description": "List paginated assessment sessions for a candidate.",
+        "operationId": "list_assessments_api_ai_prep_assessments_get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID",
+              "default": 1,
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/assessments/{assessment_id}": {
+      "get": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Get Assessment",
+        "description": "Fetch details of a specific practice assessment session.",
+        "operationId": "get_assessment_api_ai_prep_assessments__assessment_id__get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/assessments/{assessment_id}/status": {
+      "patch": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Update Assessment Status",
+        "description": "Update assessment status (e.g. TESTING -> IN_PROGRESS -> COMPLETED).",
+        "operationId": "update_assessment_status_api_ai_prep_assessments__assessment_id__status_patch",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentStatusUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/hardware-check": {
+      "post": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Record Hardware Check",
+        "description": "Record candidate camera, microphone, speaker, and bandwidth test results.",
+        "operationId": "record_hardware_check_api_ai_prep_hardware_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HardwareCheckCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HardwareCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/hardware-check/{assessment_id}": {
+      "get": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Get Hardware Check",
+        "description": "Fetch the latest hardware check for an assessment session.",
+        "operationId": "get_hardware_check_api_ai_prep_hardware_check__assessment_id__get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HardwareCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/questions": {
+      "post": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Create Question",
+        "description": "Create a new question in Question Bank.",
+        "operationId": "create_question_api_ai_prep_questions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionBankCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionBankResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "List Questions",
+        "description": "List questions in Question Bank with optional category filter.",
+        "operationId": "list_questions_api_ai_prep_questions_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/QuestionCategoryEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionBankResponse"
+                  },
+                  "title": "Response List Questions Api Ai Prep Questions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/consents": {
+      "post": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Record Consent",
+        "description": "Record user privacy & data consent.",
+        "operationId": "record_consent_api_ai_prep_consents_post",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID",
+              "default": 1,
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/consents/{candidate_id}": {
+      "get": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Get Consents",
+        "description": "Fetch consent status records for a candidate.",
+        "operationId": "get_consents_api_ai_prep_consents__candidate_id__get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentResponse"
+                  },
+                  "title": "Response Get Consents Api Ai Prep Consents  Candidate Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai-prep/analytics/dashboard/{candidate_id}": {
+      "get": {
+        "tags": [
+          "AI Prep"
+        ],
+        "summary": "Get Dashboard Metrics",
+        "description": "Fetch aggregated analytics data for the candidate's dashboard (Week 2).",
+        "operationId": "get_dashboard_metrics_api_ai_prep_analytics_dashboard__candidate_id__get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/analytics/ai-prep-report": {
       "get": {
         "tags": [
@@ -24802,6 +25358,219 @@
         "title": "ApplicationReportOut",
         "description": "Response schema \u2014 adds DB-generated fields."
       },
+      "AssessmentCreate": {
+        "properties": {
+          "assessment_type": {
+            "$ref": "#/components/schemas/AssessmentTypeEnum"
+          },
+          "assessment_mode": {
+            "$ref": "#/components/schemas/AssessmentModeEnum",
+            "default": "VIDEO_AUDIO"
+          },
+          "candidate_resume_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Resume Id"
+          },
+          "job_description_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_type"
+        ],
+        "title": "AssessmentCreate"
+      },
+      "AssessmentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AssessmentListResponse"
+      },
+      "AssessmentModeEnum": {
+        "type": "string",
+        "enum": [
+          "VIDEO_AUDIO",
+          "AUDIO_ONLY"
+        ],
+        "title": "AssessmentModeEnum"
+      },
+      "AssessmentQuestionSchema": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/QuestionDifficultyEnum"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "order_index",
+          "question_text",
+          "difficulty_level"
+        ],
+        "title": "AssessmentQuestionSchema"
+      },
+      "AssessmentResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "candidate_id": {
+            "type": "integer",
+            "title": "Candidate Id"
+          },
+          "assessment_type": {
+            "$ref": "#/components/schemas/AssessmentTypeEnum"
+          },
+          "assessment_mode": {
+            "$ref": "#/components/schemas/AssessmentModeEnum"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatusEnum"
+          },
+          "attempt_number": {
+            "type": "integer",
+            "title": "Attempt Number"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentQuestionSchema"
+            },
+            "type": "array",
+            "title": "Questions",
+            "default": []
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "coaching_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoachingBandEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "candidate_id",
+          "assessment_type",
+          "assessment_mode",
+          "status",
+          "attempt_number",
+          "created_at"
+        ],
+        "title": "AssessmentResponse"
+      },
+      "AssessmentStatusEnum": {
+        "type": "string",
+        "enum": [
+          "TESTING",
+          "IN_PROGRESS",
+          "PROCESSING",
+          "COMPLETED",
+          "FAILED"
+        ],
+        "title": "AssessmentStatusEnum"
+      },
+      "AssessmentStatusUpdate": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatusEnum"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "AssessmentStatusUpdate"
+      },
+      "AssessmentTypeEnum": {
+        "type": "string",
+        "enum": [
+          "GENERAL_INTRO",
+          "JOB_DESCRIPTION_INTRO",
+          "RECRUITER",
+          "HIRING_MANAGER",
+          "TECHNICAL",
+          "SYSTEM_DESIGN",
+          "HR"
+        ],
+        "title": "AssessmentTypeEnum"
+      },
       "AuthUserCreate": {
         "properties": {
           "uname": {
@@ -33102,6 +33871,16 @@
         "title": "CliWindowResponse",
         "description": "Response for JobCLI ``GET /positions/cli_window`` (optional time window)."
       },
+      "CoachingBandEnum": {
+        "type": "string",
+        "enum": [
+          "EXCELLENT",
+          "STRONG",
+          "DEVELOPING",
+          "NEEDS_WORK"
+        ],
+        "title": "CoachingBandEnum"
+      },
       "CodeExecutionLogOut": {
         "properties": {
           "id": {
@@ -34939,6 +35718,40 @@
         ],
         "title": "CommissionPaymentStatusEnum"
       },
+      "CommunicationTimepoint": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date"
+          },
+          "wpm": {
+            "type": "integer",
+            "title": "Wpm"
+          },
+          "filler_per_min": {
+            "type": "integer",
+            "title": "Filler Per Min"
+          },
+          "silence_pct": {
+            "type": "number",
+            "title": "Silence Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "date",
+          "wpm",
+          "filler_per_min",
+          "silence_pct"
+        ],
+        "title": "CommunicationTimepoint"
+      },
       "CompanyContactCreate": {
         "properties": {
           "company_id": {
@@ -35891,6 +36704,77 @@
         "type": "object",
         "title": "CompanyUpdate"
       },
+      "ConsentCreate": {
+        "properties": {
+          "consent_type": {
+            "$ref": "#/components/schemas/ConsentTypeEnum"
+          },
+          "consented": {
+            "type": "boolean",
+            "title": "Consented",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "consent_type"
+        ],
+        "title": "ConsentCreate"
+      },
+      "ConsentResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "candidate_id": {
+            "type": "integer",
+            "title": "Candidate Id"
+          },
+          "consent_type": {
+            "$ref": "#/components/schemas/ConsentTypeEnum"
+          },
+          "consented": {
+            "type": "boolean",
+            "title": "Consented"
+          },
+          "consented_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Consented At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "candidate_id",
+          "consent_type",
+          "consented",
+          "consented_at"
+        ],
+        "title": "ConsentResponse"
+      },
+      "ConsentTypeEnum": {
+        "type": "string",
+        "enum": [
+          "VIDEO_ANALYTICS",
+          "DATA_RETENTION",
+          "TERMS_OF_SERVICE"
+        ],
+        "title": "ConsentTypeEnum"
+      },
       "ContactClassificationEnum": {
         "type": "string",
         "enum": [
@@ -36594,6 +37478,30 @@
           "jobs_metrics"
         ],
         "title": "DashboardMetrics"
+      },
+      "DashboardResponse": {
+        "properties": {
+          "executive_summary": {
+            "$ref": "#/components/schemas/ExecutiveSummary"
+          },
+          "radar": {
+            "$ref": "#/components/schemas/RadarChartData"
+          },
+          "communication_trend": {
+            "items": {
+              "$ref": "#/components/schemas/CommunicationTimepoint"
+            },
+            "type": "array",
+            "title": "Communication Trend"
+          }
+        },
+        "type": "object",
+        "required": [
+          "executive_summary",
+          "radar",
+          "communication_trend"
+        ],
+        "title": "DashboardResponse"
       },
       "DeliveryEngine": {
         "properties": {
@@ -39792,6 +40700,47 @@
         ],
         "title": "ExecutionBundleResponse"
       },
+      "ExecutiveSummary": {
+        "properties": {
+          "total_assessments": {
+            "type": "integer",
+            "title": "Total Assessments"
+          },
+          "completed": {
+            "type": "integer",
+            "title": "Completed"
+          },
+          "latest_coaching_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CoachingBandEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "band_trend": {
+            "items": {
+              "$ref": "#/components/schemas/CoachingBandEnum"
+            },
+            "type": "array",
+            "title": "Band Trend",
+            "default": []
+          },
+          "average_overall_score": {
+            "type": "number",
+            "title": "Average Overall Score",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_assessments",
+          "completed"
+        ],
+        "title": "ExecutiveSummary"
+      },
       "ExtensionKeyBulkCreate": {
         "properties": {
           "extension_keys": {
@@ -40400,6 +41349,137 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HardwareCheckCreate": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "browser_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser Info"
+          },
+          "os_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Info"
+          },
+          "camera_permission": {
+            "type": "boolean",
+            "title": "Camera Permission",
+            "default": false
+          },
+          "mic_permission": {
+            "type": "boolean",
+            "title": "Mic Permission",
+            "default": false
+          },
+          "speaker_ok": {
+            "type": "boolean",
+            "title": "Speaker Ok",
+            "default": false
+          },
+          "bandwidth_kbps": {
+            "type": "integer",
+            "title": "Bandwidth Kbps",
+            "default": 0
+          },
+          "yolo_model_enabled": {
+            "type": "boolean",
+            "title": "Yolo Model Enabled",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id"
+        ],
+        "title": "HardwareCheckCreate"
+      },
+      "HardwareCheckResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "browser_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser Info"
+          },
+          "os_info": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Info"
+          },
+          "camera_permission": {
+            "type": "boolean",
+            "title": "Camera Permission"
+          },
+          "mic_permission": {
+            "type": "boolean",
+            "title": "Mic Permission"
+          },
+          "speaker_ok": {
+            "type": "boolean",
+            "title": "Speaker Ok"
+          },
+          "bandwidth_kbps": {
+            "type": "integer",
+            "title": "Bandwidth Kbps"
+          },
+          "yolo_model_enabled": {
+            "type": "boolean",
+            "title": "Yolo Model Enabled"
+          },
+          "tested_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Tested At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "assessment_id",
+          "camera_permission",
+          "mic_permission",
+          "speaker_ok",
+          "bandwidth_kbps",
+          "yolo_model_enabled",
+          "tested_at"
+        ],
+        "title": "HardwareCheckResponse"
       },
       "HumanPatchIn": {
         "properties": {
@@ -46728,6 +47808,182 @@
           "label"
         ],
         "title": "ProviderMetadataOut"
+      },
+      "QuestionBankCreate": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/QuestionCategoryEnum"
+          },
+          "sub_category": {
+            "type": "string",
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/QuestionDifficultyEnum",
+            "default": "MEDIUM"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "ideal_answer_rubric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ideal Answer Rubric"
+          },
+          "relevant_skills_json": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevant Skills Json"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "sub_category",
+          "question_text"
+        ],
+        "title": "QuestionBankCreate"
+      },
+      "QuestionBankResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "category": {
+            "$ref": "#/components/schemas/QuestionCategoryEnum"
+          },
+          "sub_category": {
+            "type": "string",
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/QuestionDifficultyEnum"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "ideal_answer_rubric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ideal Answer Rubric"
+          },
+          "relevant_skills_json": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevant Skills Json"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "sub_category",
+          "difficulty_level",
+          "question_text",
+          "is_active",
+          "created_at"
+        ],
+        "title": "QuestionBankResponse"
+      },
+      "QuestionCategoryEnum": {
+        "type": "string",
+        "enum": [
+          "TECHNICAL",
+          "SYSTEM_DESIGN",
+          "BEHAVIORAL",
+          "RECRUITER",
+          "HIRING_MANAGER",
+          "GENERAL"
+        ],
+        "title": "QuestionCategoryEnum"
+      },
+      "QuestionDifficultyEnum": {
+        "type": "string",
+        "enum": [
+          "EASY",
+          "MEDIUM",
+          "HARD",
+          "EXPERT"
+        ],
+        "title": "QuestionDifficultyEnum"
+      },
+      "RadarChartData": {
+        "properties": {
+          "llm_architecture": {
+            "type": "number",
+            "title": "Llm Architecture",
+            "default": 0.0
+          },
+          "rag_systems": {
+            "type": "number",
+            "title": "Rag Systems",
+            "default": 0.0
+          },
+          "ml_fundamentals": {
+            "type": "number",
+            "title": "Ml Fundamentals",
+            "default": 0.0
+          },
+          "system_design": {
+            "type": "number",
+            "title": "System Design",
+            "default": 0.0
+          },
+          "code_quality": {
+            "type": "number",
+            "title": "Code Quality",
+            "default": 0.0
+          },
+          "ai_ethics": {
+            "type": "number",
+            "title": "Ai Ethics",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "RadarChartData"
       },
       "Recipient": {
         "properties": {
