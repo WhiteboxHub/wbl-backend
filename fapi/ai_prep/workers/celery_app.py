@@ -25,6 +25,8 @@ try:
         ]
     )
 
+    from celery.schedules import crontab
+
     celery_app.conf.update(
         task_default_queue=CELERY_TASK_DEFAULT_QUEUE,
         task_serializer="json",
@@ -38,6 +40,14 @@ try:
         task_annotations={
             "fapi.ai_prep.workers.youtube_worker.upload_video_to_youtube_task": {
                 "rate_limit": "10/m"  # Throttle YouTube uploads to avoid API bursts
+            }
+        },
+        beat_schedule={
+            "cleanup-expired-media-nightly": {
+                "task": "fapi.ai_prep.workers.tasks.cleanup_expired_media_task",
+                "schedule": crontab(hour=2, minute=0),  # Runs nightly at 02:00 AM UTC
+                "args": (90, 24),  # 90-day retention for session audio, 24-hour cleanup for orphan chunks
+                "options": {"queue": CELERY_TASK_DEFAULT_QUEUE},
             }
         }
     )

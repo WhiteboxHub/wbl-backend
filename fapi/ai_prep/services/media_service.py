@@ -50,7 +50,7 @@ class MediaService:
 
     @staticmethod
     def process_chunk_upload(session_id: str, chunk_index: int, chunk_bytes: bytes) -> Dict[str, Any]:
-        """Store chunk file to local/GCS storage."""
+        """Store chunk file to local storage."""
         return {
             "status": "chunk_received",
             "session_id": session_id,

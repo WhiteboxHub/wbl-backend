@@ -31,6 +31,10 @@ class StorageBackend(abc.ABC):
         """Read and return raw bytes of stored object."""
         pass
 
+    def download_bytes(self, storage_path: str) -> bytes:
+        """Alias for read_bytes."""
+        return self.read_bytes(storage_path)
+
     @abc.abstractmethod
     def delete_file(self, storage_path: str) -> bool:
         """Delete a single file at storage_path. Return True if deleted, False otherwise."""
