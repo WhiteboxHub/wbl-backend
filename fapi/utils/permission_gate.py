@@ -24,6 +24,7 @@ ALLOWED_GET_PREFIXES = {
     "/api/candidates/track-clicks-batch",
     "/api/github-classroom-repos",
     "/api/setup",
+    "/api/ai-prep",
 }
 
 ALLOWED_POST_PREFIXES = {
@@ -31,20 +32,24 @@ ALLOWED_POST_PREFIXES = {
     "/api/interviews",
     "/api/candidate/generate-prep-token",
     "/api/setup",
+    "/api/ai-prep",
 }
 
 ALLOWED_PUT_PREFIXES = {
     "/api/interviews",
     "/api/candidates",
     "/api/setup",
+    "/api/ai-prep",
 }
 
 ALLOWED_PATCH_PREFIXES = {
     "/api/candidates/interviews",
+    "/api/ai-prep",
 }
 
 ALLOWED_DELETE_PREFIXES = {
     "/api/setup",
+    "/api/ai-prep",
 }
 
 def _is_admin(user) -> bool:

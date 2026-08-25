@@ -518,7 +518,7 @@ class CandidatePreparation(Base):
         "EmployeeORM", foreign_keys=[instructor3_id], overlaps="instructor3_employee"
     )
 
-    start_date = Column(Date, nullable=False, server_default="CURRENT_DATE")
+    start_date = Column(Date, nullable=False, default=date.today)
     status = Column(Enum("active", "inactive"),
                     nullable=False, default="active")
 
@@ -975,7 +975,7 @@ class EmailSMTPCredentialsORM(Base):
         onupdate=func.now()
     )
     current_day_sent = Column(Integer, nullable=False, server_default="0")
-    last_reset_date = Column(Date, nullable=False, server_default=func.current_date())
+    last_reset_date = Column(Date, nullable=False, default=date.today)
     is_warming_up = Column(Boolean, nullable=False, server_default="0")
     warmup_started_at = Column(DateTime, nullable=True)
     warmup_daily_limit = Column(Integer, nullable=True, server_default="5")
@@ -1711,7 +1711,7 @@ class FieldAnswerSync(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ats_type = Column(String(100), nullable=False)
     normalized_label = Column(String(255), nullable=False)
-    value = Column(String(500), nullable=False)
+    value = Column(String(255), nullable=False)
     total_success = Column(Integer, nullable=False, default=0)
     total_failure = Column(Integer, nullable=False, default=0)
     confidence = Column(DECIMAL(5, 4), nullable=False, default=0.0)
@@ -1728,7 +1728,7 @@ class LocatorSync(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ats_type = Column(String(100), nullable=False)
     purpose = Column(String(100), nullable=False)
-    selector = Column(Text, nullable=False)
+    selector = Column(String(255), nullable=False)
     selector_type = Column(String(50), default='css')
     domain_pattern = Column(String(255), nullable=True)
     total_success = Column(Integer, nullable=False, default=0)

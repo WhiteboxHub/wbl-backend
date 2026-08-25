@@ -16,6 +16,8 @@ from fapi.ai_prep.models import (
     AiPrepDeletionRequest, AiPrepAuditEvent, AiPrepAnalysisRun
 )
 
+from fapi.db.models import CandidateORM, AuthUserORM
+
 # Setup shared in-memory SQLite database with StaticPool for thread-safe unit tests
 SQLALCHEMY_DATABASE_URL = "sqlite://"
 engine = create_engine(
@@ -25,8 +27,10 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Create all 14 AI Prep tables for unit testing
+# Create all AI Prep and dependent tables for unit testing
 aiprep_tables = [
+    AuthUserORM.__table__,
+    CandidateORM.__table__,
     CandidateResume.__table__,
     AiPrepQuestionBank.__table__,
     AiPrepAssessment.__table__,
@@ -63,17 +67,36 @@ def override_get_assessment_or_403(assessment_id: int, db: Session = Depends(ove
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Assessment session {assessment_id} not found."
         )
-    return assessment
+from fapi.utils.auth_dependencies import get_current_user
+
+
+class MockUser:
+    id = 1
+    uname = "test@example.com"
+    candidate_id = 1
+    role = "candidate"
+    is_admin = True
+    is_employee = False
+
+
+def override_get_current_user():
+    return MockUser()
 
 
 app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[get_assessment_or_403] = override_get_assessment_or_403
+app.dependency_overrides[get_current_user] = override_get_current_user
 
 client = TestClient(app)
 
 
 class TestAiPrepAssessmentEngine(unittest.TestCase):
     """Unit tests for AI Prep Assessment Engine Router & Services."""
+
+    def setUp(self):
+        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_assessment_or_403] = override_get_assessment_or_403
+        app.dependency_overrides[get_current_user] = override_get_current_user
 
     def test_01_create_question_bank_item(self):
         """Test seeding a question into Question Bank."""
