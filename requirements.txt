@@ -3,6 +3,7 @@ uvicorn[standard]
 mysql-connector-python
 python-dotenv
 openai
+anthropic  # Required for AIPrep Anthropic/Claude LLM key support (llm_client.py)
 passlib
 python-jose
 # pydantic
