@@ -383,3 +383,37 @@ class AnalysisRunResponse(BaseModel):
     error_message: Optional[str] = None
     celery_task_id: Optional[str] = None
     created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# 17. Analytics Dashboard Schemas (Week 2)
+class ExecutiveSummary(BaseModel):
+    total_assessments: int
+    completed: int
+    latest_coaching_band: Optional[CoachingBandEnum] = None
+    band_trend: List[CoachingBandEnum] = []
+    average_overall_score: float = 0.0
+
+
+class RadarChartData(BaseModel):
+    llm_architecture: float = 0.0
+    rag_systems: float = 0.0
+    ml_fundamentals: float = 0.0
+    system_design: float = 0.0
+    code_quality: float = 0.0
+    ai_ethics: float = 0.0
+
+
+class CommunicationTimepoint(BaseModel):
+    assessment_id: int
+    date: datetime
+    wpm: int
+    filler_per_min: int
+    silence_pct: float
+
+
+class DashboardResponse(BaseModel):
+    executive_summary: ExecutiveSummary
+    radar: RadarChartData
+    communication_trend: List[CommunicationTimepoint]

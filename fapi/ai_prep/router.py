@@ -13,42 +13,160 @@ from fapi.ai_prep.models import (
     QuestionCategoryEnum,
     DifficultyLevelEnum,
     AiPrepConsentORM,
+    AiPrepAssessmentORM as AiPrepAssessment,
+    AiPrepAssessmentQuestionORM as AiPrepAssessmentQuestion,
+    AiPrepConsentORM as AiPrepConsent,
+    AiPrepQuestionBankORM as AiPrepQuestionBank
 )
 from fapi.ai_prep.schemas import (
-    HardwareCheckRequest,
-    HardwareCheckResponse,
-    QuestionBankCreate,
-    QuestionBankResponse,
-    ConsentRequest,
-    ConsentResponse,
+    AssessmentCreate, AssessmentResponse, AssessmentQuestionSchema,
+    AssessmentStatusUpdate, HardwareCheckCreate, HardwareCheckResponse,
+    AssessmentListResponse, QuestionBankCreate, QuestionBankResponse,
+    ConsentCreate, ConsentResponse, HardwareCheckRequest, ConsentRequest
 )
-from fapi.ai_prep.api.media_routes import router as media_router
-from fapi.ai_prep.api.assessment_routes import router as assessment_router
 
-logger = logging.getLogger("wbl.ai_prep.router")
-
-router = APIRouter(prefix="/ai-prep", tags=["AIPrep"])
-
-# Include sub-routers
-router.include_router(media_router)
-router.include_router(assessment_router)
+router = APIRouter(
+    prefix="/api/ai-prep",
+    tags=["AI Prep"]
+)
 
 
-@router.get("/health")
-async def aiprep_health():
-    """Health check endpoint for AIPrep module."""
-    from fapi.ai_prep.services.storage_service import get_storage_service
-    from fapi.ai_prep.services.youtube_service import get_youtube_service
+# ---------------------------------------------------------------------
+# 1. POST /api/ai-prep/assessments (Create Assessment Session)
+# ---------------------------------------------------------------------
+@router.post("/assessments", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
+def create_assessment(
+    payload: AssessmentCreate,
+    candidate_id: int = Query(default=1, description="Candidate ID"),
+    db: Session = Depends(get_db)
+):
+    """Create a new practice assessment session and select matching questions."""
+    # Calculate dynamic attempt_number
+    past_count = db.query(AiPrepAssessment).filter(
+        AiPrepAssessment.candidate_id == candidate_id,
+        AiPrepAssessment.assessment_type == payload.assessment_type
+    ).count()
+    attempt_number = past_count + 1
 
-    storage = get_storage_service()
-    youtube = get_youtube_service()
+    assessment = AiPrepAssessment(
+        candidate_id=candidate_id,
+        candidate_resume_id=payload.candidate_resume_id,
+        assessment_type=payload.assessment_type,
+        assessment_mode=payload.assessment_mode,
+        status=AssessmentStatusEnum.TESTING,
+        attempt_number=attempt_number,
+        job_description_text=payload.job_description_text,
+        created_at=datetime.utcnow()
+    )
+    db.add(assessment)
+    db.commit()
+    db.refresh(assessment)
 
-    return {
-        "status": "ok",
-        "storage_backend": storage.__class__.__name__,
-        "youtube_configured": youtube.is_configured(),
-        "module": "ai_prep"
+    # Map assessment type to question category
+    category_map = {
+        "TECHNICAL": "TECHNICAL",
+        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
+        "RECRUITER": "RECRUITER",
+        "HIRING_MANAGER": "HIRING_MANAGER",
+        "HR": "BEHAVIORAL",
+        "GENERAL_INTRO": "GENERAL",
+        "JOB_DESCRIPTION_INTRO": "GENERAL"
     }
+    target_category = category_map.get(payload.assessment_type.name, "GENERAL")
+
+    # Map assessment type to dynamic question counts limit
+    limit_map = {
+        "GENERAL_INTRO": 5,
+        "JOB_DESCRIPTION_INTRO": 5,
+        "RECRUITER": 6,
+        "HIRING_MANAGER": 7,
+        "TECHNICAL": 8,
+        "SYSTEM_DESIGN": 4,
+        "HR": 6
+    }
+    question_limit = limit_map.get(payload.assessment_type.name, 5)
+
+    from fapi.ai_prep.crud.questions import get_random_questions_for_candidate
+    questions = get_random_questions_for_candidate(
+        db=db,
+        candidate_id=candidate_id,
+        category=target_category,
+        limit=question_limit
+    )
+
+    for idx, q in enumerate(questions, start=1):
+        join_row = AiPrepAssessmentQuestion(
+            assessment_id=assessment.id,
+            question_id=q.id,
+            order_index=idx
+        )
+        db.add(join_row)
+
+    db.commit()
+    db.refresh(assessment)
+
+    question_schemas = [
+        AssessmentQuestionSchema(
+            id=aq.question.id,
+            order_index=aq.order_index,
+            question_text=aq.question.question_text,
+            difficulty_level=aq.question.difficulty_level
+        )
+        for aq in assessment.questions if aq.question
+    ]
+
+    return AssessmentResponse(
+        id=assessment.id,
+        candidate_id=assessment.candidate_id,
+        assessment_type=assessment.assessment_type,
+        assessment_mode=assessment.assessment_mode,
+        status=assessment.status,
+        attempt_number=assessment.attempt_number,
+        questions=question_schemas,
+        started_at=assessment.started_at,
+        completed_at=assessment.completed_at,
+        created_at=assessment.created_at
+    )
+
+
+# ---------------------------------------------------------------------
+# 2. GET /api/ai-prep/assessments/{id} (Get Session Details)
+# ---------------------------------------------------------------------
+@router.get("/assessments/{assessment_id}", response_model=AssessmentResponse)
+def get_assessment(assessment_id: int, db: Session = Depends(get_db)):
+    """Fetch details of a specific practice assessment session."""
+    assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment session {assessment_id} not found."
+        )
+
+    question_schemas = [
+        AssessmentQuestionSchema(
+            id=aq.question.id,
+            order_index=aq.order_index,
+            question_text=aq.question.question_text,
+            difficulty_level=aq.question.difficulty_level
+        )
+        for aq in assessment.questions if aq.question
+    ]
+
+    coaching_band = assessment.report.coaching_band if assessment.report else None
+
+    return AssessmentResponse(
+        id=assessment.id,
+        candidate_id=assessment.candidate_id,
+        assessment_type=assessment.assessment_type,
+        assessment_mode=assessment.assessment_mode,
+        status=assessment.status,
+        attempt_number=assessment.attempt_number,
+        questions=question_schemas,
+        started_at=assessment.started_at,
+        completed_at=assessment.completed_at,
+        created_at=assessment.created_at,
+        coaching_band=coaching_band
+    )
 
 
 # ---------------------------------------------------------------------
@@ -181,4 +299,16 @@ def record_consent(
 @router.get("/consents/{candidate_id}", response_model=List[ConsentResponse])
 def get_consents(candidate_id: int, db: Session = Depends(get_db)):
     """Fetch consent status records for a candidate."""
-    return db.query(AiPrepConsentORM).filter(AiPrepConsentORM.candidate_id == candidate_id).all()
+    return db.query(AiPrepConsent).filter(AiPrepConsent.candidate_id == candidate_id).all()
+
+
+# ---------------------------------------------------------------------
+# 11. GET /api/ai-prep/analytics/dashboard/{candidate_id} (Dashboard Data)
+# ---------------------------------------------------------------------
+from fapi.ai_prep.schemas import DashboardResponse
+from fapi.ai_prep.crud.analytics import get_candidate_dashboard_metrics
+
+@router.get("/analytics/dashboard/{candidate_id}", response_model=DashboardResponse)
+def get_dashboard_metrics(candidate_id: int, db: Session = Depends(get_db)):
+    """Fetch aggregated analytics data for the candidate's dashboard (Week 2)."""
+    return get_candidate_dashboard_metrics(db=db, candidate_id=candidate_id)
