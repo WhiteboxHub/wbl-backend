@@ -26,7 +26,7 @@ from fapi.ai_prep.schemas import (
 )
 
 router = APIRouter(
-    prefix="/api/ai-prep",
+    prefix="/ai-prep",
     tags=["AI Prep"]
 )
 
@@ -312,3 +312,9 @@ from fapi.ai_prep.crud.analytics import get_candidate_dashboard_metrics
 def get_dashboard_metrics(candidate_id: int, db: Session = Depends(get_db)):
     """Fetch aggregated analytics data for the candidate's dashboard (Week 2)."""
     return get_candidate_dashboard_metrics(db=db, candidate_id=candidate_id)
+
+
+# Include dynamic sub-routes (media uploads, processing statuses)
+from fapi.ai_prep.api import media_router, assessment_router
+router.include_router(media_router)
+router.include_router(assessment_router)
