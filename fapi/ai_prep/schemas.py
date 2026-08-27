@@ -25,6 +25,7 @@ AssessmentCreate = CreateAssessmentRequest
 
 class UpdateAssessmentStatusRequest(BaseModel):
     status: AssessmentStatusEnum
+    is_paused: bool = False
 
 
 AssessmentStatusUpdate = UpdateAssessmentStatusRequest
