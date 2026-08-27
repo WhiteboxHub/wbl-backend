@@ -198,6 +198,30 @@ class TestAiPrepAssessmentEngine(unittest.TestCase):
         self.assertEqual(get_res.status_code, 200)
         self.assertGreaterEqual(len(get_res.json()), 1)
 
+    def test_09_invalid_status_transition(self):
+        """Test W2-BE1-01: Invalid status state transitions return 400 Bad Request."""
+        create_res = client.post("/api/ai-prep/assessments?candidate_id=1", json={"assessment_type": "TECHNICAL"})
+        session_id = create_res.json()["id"]
+
+        # Attempt prohibited transition TESTING -> COMPLETED (skipping IN_PROGRESS & PROCESSING)
+        bad_patch = client.patch(f"/api/ai-prep/assessments/{session_id}/status", json={"status": "COMPLETED"})
+        self.assertEqual(bad_patch.status_code, 400)
+        self.assertIn("invalid status transition", bad_patch.json()["detail"].lower())
+
+    def test_10_no_pause_enforcement(self):
+        """Test W2-BE1-02: Pausing GENERAL_INTRO or JOB_DESCRIPTION_INTRO returns 400 Bad Request."""
+        # Create GENERAL_INTRO session
+        create_res = client.post("/api/ai-prep/assessments?candidate_id=1", json={"assessment_type": "GENERAL_INTRO"})
+        session_id = create_res.json()["id"]
+
+        # First move to IN_PROGRESS
+        client.patch(f"/api/ai-prep/assessments/{session_id}/status", json={"status": "IN_PROGRESS"})
+
+        # Attempt to pause session (should return 400 Bad Request)
+        pause_res = client.patch(f"/api/ai-prep/assessments/{session_id}/status", json={"status": "PAUSED", "is_paused": True})
+        self.assertEqual(pause_res.status_code, 400)
+        self.assertIn("pausing is disabled", pause_res.json()["detail"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()

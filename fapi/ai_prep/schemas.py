@@ -76,6 +76,7 @@ class AssessmentListItem(BaseModel):
     attempt_number: int
     coaching_band: Optional[CoachingBandEnum] = None
     created_at: datetime
+    is_paused: bool = False
 
 
 class AssessmentListResponse(BaseModel):
