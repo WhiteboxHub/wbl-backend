@@ -24,6 +24,7 @@ from fapi.ai_prep.schemas import (
     AssessmentListResponse, QuestionBankCreate, QuestionBankResponse,
     ConsentCreate, ConsentResponse, HardwareCheckRequest, ConsentRequest
 )
+from fapi.ai_prep.services.assessment_service import validate_status_transition, validate_pause_permission
 
 router = APIRouter(
     prefix="/ai-prep",
@@ -170,7 +171,88 @@ def get_assessment(assessment_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------
-# Hardware Check Endpoints
+# 3. PATCH /api/ai-prep/assessments/{id}/status (Update Status)
+# ---------------------------------------------------------------------
+@router.patch("/assessments/{assessment_id}/status", response_model=AssessmentResponse)
+def update_assessment_status(
+    assessment_id: int,
+    payload: AssessmentStatusUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update assessment status (e.g. TESTING -> IN_PROGRESS -> COMPLETED)."""
+    assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment session {assessment_id} not found."
+        )
+
+    # W2-BE1-01 Enforce strict status transition rules
+    validate_status_transition(assessment.status, payload.status)
+
+    # W2-BE1-02 Enforce server-side no-pause rule for GENERAL_INTRO and JOB_DESCRIPTION_INTRO
+    validate_pause_permission(assessment.assessment_type, payload.status, payload.is_paused)
+
+    assessment.status = payload.status
+    if payload.status == AssessmentStatusEnum.IN_PROGRESS and not assessment.started_at:
+        assessment.started_at = datetime.utcnow()
+    elif payload.status == AssessmentStatusEnum.COMPLETED and not assessment.completed_at:
+        assessment.completed_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(assessment)
+    return get_assessment(assessment_id=assessment_id, db=db)
+
+
+# ---------------------------------------------------------------------
+# 4. GET /api/ai-prep/assessments (List Candidate Sessions)
+# ---------------------------------------------------------------------
+@router.get("/assessments", response_model=AssessmentListResponse)
+def list_assessments(
+    candidate_id: int = Query(default=1, description="Candidate ID"),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """List paginated assessment sessions for a candidate."""
+    query = db.query(AiPrepAssessment).filter(AiPrepAssessment.candidate_id == candidate_id)
+    total = query.count()
+    items_orm = query.order_by(AiPrepAssessment.created_at.desc()).offset(skip).limit(limit).all()
+
+    items = []
+    for a in items_orm:
+        question_schemas = [
+            AssessmentQuestionSchema(
+                id=aq.question.id,
+                order_index=aq.order_index,
+                question_text=aq.question.question_text,
+                difficulty_level=aq.question.difficulty_level
+            )
+            for aq in a.questions if aq.question
+        ]
+        coaching_band = a.report.coaching_band if a.report else None
+
+        items.append(
+            AssessmentResponse(
+                id=a.id,
+                candidate_id=a.candidate_id,
+                assessment_type=a.assessment_type,
+                assessment_mode=a.assessment_mode,
+                status=a.status,
+                attempt_number=a.attempt_number,
+                questions=question_schemas,
+                started_at=a.started_at,
+                completed_at=a.completed_at,
+                created_at=a.created_at,
+                coaching_band=coaching_band
+            )
+        )
+
+    return AssessmentListResponse(items=items, total=total)
+
+
+# ---------------------------------------------------------------------
+# 5. POST /api/ai-prep/hardware-check (Record Hardware Check)
 # ---------------------------------------------------------------------
 @router.post("/hardware-check", response_model=HardwareCheckResponse, status_code=status.HTTP_201_CREATED)
 def record_hardware_check(payload: HardwareCheckRequest, db: Session = Depends(get_db)):

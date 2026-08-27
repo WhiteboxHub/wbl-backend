@@ -30,6 +30,7 @@ class AssessmentModeEnum(str, enum.Enum):
 class AssessmentStatusEnum(str, enum.Enum):
     TESTING = "TESTING"
     IN_PROGRESS = "IN_PROGRESS"
+    PAUSED = "PAUSED"
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
