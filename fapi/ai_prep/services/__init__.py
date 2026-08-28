@@ -16,6 +16,7 @@ from fapi.ai_prep.services.report_service import fetch_assessment_report
 from fapi.ai_prep.services.consent_service import record_candidate_consent
 from fapi.ai_prep.services.candidate_llm_key_service import get_candidate_llm_key, CandidateLLMKey
 from fapi.ai_prep.services.llm_client import call_llm
+from fapi.ai_prep.services.prompt_service import assemble_prompt
 from fapi.ai_prep.services.report_validator import validate_report_json
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "record_candidate_consent",
     "get_candidate_llm_key",
     "CandidateLLMKey",
+    "assemble_prompt",
     "call_llm",
     "validate_report_json",
 ]

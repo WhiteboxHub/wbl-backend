@@ -5,6 +5,10 @@ from fapi.ai_prep.models import RunTypeEnum, RunStatusEnum, AiPrepReportORM, Coa
 from fapi.ai_prep.crud.runs import create_analysis_run, update_analysis_run_status
 from fapi.ai_prep.services.storage_service import get_storage_service
 from fapi.db.database import SessionLocal
+from fapi.ai_prep.services.llm_client import call_llm
+from fapi.ai_prep.services.report_validator import validate_report_json
+from fapi.ai_prep.services.prompt_service import assemble_prompt
+
 
 logger = logging.getLogger("wbl.ai_prep.workers.llm")
 
@@ -36,79 +40,20 @@ def llm_analysis_task(self, assessment_id: int):
         if not assessment:
             raise ValueError(f"Assessment {assessment_id} not found")
 
-        # Report JSON structure conforming to Contract 3
-        report_data = {
-            "scores_breakdown_json": {
-                "ai_engineering": {
-                    "score": 82,
-                    "sub_scores": {
-                        "llm_knowledge": 85,
-                        "rag_understanding": 80,
-                        "evaluation_methodology": 78,
-                        "deployment_mlops": 85
-                    }
-                },
-                "core_engineering": {
-                    "score": 75,
-                    "sub_scores": {
-                        "system_design": 78,
-                        "algorithms": 72,
-                        "code_quality": 75
-                    }
-                },
-                "non_technical": {
-                    "score": 80,
-                    "sub_scores": {
-                        "communication_clarity": 82,
-                        "answer_structure": 80,
-                        "confidence": 78
-                    }
-                },
-                "business_acumen": {
-                    "score": 70,
-                    "sub_scores": {
-                        "problem_framing": 72,
-                        "stakeholder_thinking": 68
-                    }
-                }
-            },
-            "technical_analysis_json": {
-                "summary": "Demonstrated strong knowledge of transformer architectures and RAG pipelines.",
-                "strengths": ["Clear articulation of embedding retrieval", "Solid deployment understanding"],
-                "areas_for_improvement": ["Elaborate more on fine-tuning loss curves"]
-            },
-            "non_technical_analysis_json": {
-                "communication_summary": "Pacing was measured and structured.",
-                "structure_quality": "High STAR method adherence",
-                "confidence_notes": "Good vocal presence and clarity"
-            },
-            "coaching_suggestions_json": [
-                {
-                    "priority": 1,
-                    "dimension": "AI Engineering",
-                    "area": "RAG Evaluation",
-                    "suggestion": "Practice explaining RAGAS metrics in detail.",
-                    "evidence": "Mentioned accuracy but did not elaborate on context recall."
-                }
-            ],
-            "signal_timeline_json": [
-                {"question_index": 1, "energy": 80, "clarity": 85}
-            ],
-            "transcript_evidence_json": [
-                {
-                    "quote": "I designed an automated retrieval pipeline that reduced latency by 35 percent.",
-                    "timestamp_s": 1.2,
-                    "dimension": "AI Engineering",
-                    "observation": "Clear quantified impact"
-                }
-            ],
-            "gaps_to_validate_json": [
-                {"topic": "Quantization", "reason": "Not discussed in depth"}
-            ],
-            "improvements_json": [
-                {"priority": 1, "topic": "RAG Evaluation Metrics", "effort": "medium", "rationale": "High relevance for interview loop"}
-            ]
-        }
+        # 1. Assemble dynamic prompt from DB context (transcript, questions, audio metrics)
+        system_prompt, user_prompt = assemble_prompt(db, assessment_id)
+
+        # 2. Call candidate's configured LLM (GPT-4o or Claude)
+        raw_llm_output = call_llm(
+            db=db,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            assessment_id=assessment_id,
+            candidate_id=assessment.candidate_id,
+        )
+
+        # 3. Validate raw JSON output against Contract 3 schema
+        report_data = validate_report_json(raw_llm_output)
 
         # Calculate overall score per formula: (AI*0.40) + (Core*0.30) + (NonTech*0.20) + (Biz*0.10)
         sb = report_data["scores_breakdown_json"]
