@@ -13,3 +13,6 @@ temp_candidates.json
 # Google OAuth Secrets & Scripts
 client_secret.json
 get_refresh_token.py
+
+# AI Prep local media storage (dev fallback for GCS — never commit media files)
+storage/

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import os
 import re
 import tempfile
@@ -5,6 +6,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 
+from fapi.db.database import SessionLocal
 from fapi.ai_prep.config import SIGNED_URL_TTL_MINUTES
 from fapi.ai_prep.services.storage_service import get_storage_service, StorageBackend
 from fapi.ai_prep.services.ffmpeg_service import FFmpegService
@@ -267,9 +269,6 @@ class MediaService:
         2. Local heavy audio files for completed assessments older than retention_days (e.g. 90 days),
            while preserving candidate report scores, transcripts, and telemetry in the database.
         """
-        from datetime import datetime, timedelta
-        from fapi.db.database import SessionLocal
-
         session = db or SessionLocal()
         should_close = db is None
 

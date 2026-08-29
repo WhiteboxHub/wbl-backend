@@ -1,4 +1,9 @@
 import logging
+try:
+    from celery import chain
+except ImportError:
+    chain = None
+
 from fapi.ai_prep.workers.celery_app import celery_app
 from fapi.ai_prep.workers.stt_worker import stt_task
 from fapi.ai_prep.workers.audio_worker import audio_analysis_task
@@ -6,6 +11,7 @@ from fapi.ai_prep.workers.vision_worker import vision_task
 from fapi.ai_prep.workers.llm_worker import llm_analysis_task
 from fapi.ai_prep.workers.youtube_worker import upload_video_to_youtube_task
 from fapi.ai_prep.workers.finalize_worker import finalize_task
+from fapi.ai_prep.services.media_service import MediaService
 
 logger = logging.getLogger("wbl.ai_prep.workers.tasks")
 
@@ -18,7 +24,8 @@ def process_assessment(self, assessment_id: int):
     """
     logger.info("Triggering assessment processing pipeline for assessment %s", assessment_id)
     try:
-        from celery import chain
+        if chain is None:
+            raise ImportError("Celery library not installed")
         ml_pipeline = chain(
             stt_task.s(assessment_id),
             audio_analysis_task.s(assessment_id),
@@ -44,7 +51,6 @@ def cleanup_expired_media_task(self, retention_days: int = 90, orphan_chunk_hour
     and 90-day expired session media files from server storage.
     """
     logger.info("Starting periodic media lifecycle cleanup (Retention: %d days, Orphan: %d hours)", retention_days, orphan_chunk_hours)
-    from fapi.ai_prep.services.media_service import MediaService
     media_service = MediaService()
     result = media_service.cleanup_expired_media(
         retention_days=retention_days,

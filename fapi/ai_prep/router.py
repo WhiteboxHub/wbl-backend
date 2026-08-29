@@ -16,15 +16,26 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentORM as AiPrepAssessment,
     AiPrepAssessmentQuestionORM as AiPrepAssessmentQuestion,
     AiPrepConsentORM as AiPrepConsent,
-    AiPrepQuestionBankORM as AiPrepQuestionBank
+    AiPrepQuestionBankORM as AiPrepQuestionBank,
+    AiPrepDeletionRequestORM,
+    DeletionRequestStatusEnum,
+    RunTypeEnum,
+    RunStatusEnum,
 )
 from fapi.ai_prep.schemas import (
     AssessmentCreate, AssessmentResponse, AssessmentQuestionSchema,
     AssessmentStatusUpdate, HardwareCheckCreate, HardwareCheckResponse,
     AssessmentListResponse, QuestionBankCreate, QuestionBankResponse,
-    ConsentCreate, ConsentResponse, HardwareCheckRequest, ConsentRequest
+    ConsentCreate, ConsentResponse, HardwareCheckRequest, ConsentRequest,
+    DashboardResponse, ProcessingStatusResponse, ProcessingStepsStatus,
+    DeletionRequestCreate, DeletionRequestResponse
 )
 from fapi.ai_prep.services.assessment_service import validate_status_transition, validate_pause_permission
+from fapi.ai_prep.services.media_service import MediaService
+from fapi.ai_prep.crud.questions import get_random_questions_for_candidate
+from fapi.ai_prep.crud.analytics import get_candidate_dashboard_metrics
+from fapi.ai_prep.crud.runs import get_runs_by_assessment_id
+from fapi.ai_prep.api import media_router
 
 router = APIRouter(
     prefix="/ai-prep",
@@ -87,7 +98,6 @@ def create_assessment(
     }
     question_limit = limit_map.get(payload.assessment_type.name, 5)
 
-    from fapi.ai_prep.crud.questions import get_random_questions_for_candidate
     questions = get_random_questions_for_candidate(
         db=db,
         candidate_id=candidate_id,
@@ -131,11 +141,11 @@ def create_assessment(
 
 
 # ---------------------------------------------------------------------
-# 2. GET /api/ai-prep/assessments/{id} (Get Session Details)
+# 2. GET /api/ai-prep/assessments/{assessment_id} (Fetch Assessment)
 # ---------------------------------------------------------------------
 @router.get("/assessments/{assessment_id}", response_model=AssessmentResponse)
 def get_assessment(assessment_id: int, db: Session = Depends(get_db)):
-    """Fetch details of a specific practice assessment session."""
+    """Fetch assessment session details by ID."""
     assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
     if not assessment:
         raise HTTPException(
@@ -256,14 +266,7 @@ def list_assessments(
 # ---------------------------------------------------------------------
 @router.post("/hardware-check", response_model=HardwareCheckResponse, status_code=status.HTTP_201_CREATED)
 def record_hardware_check(payload: HardwareCheckRequest, db: Session = Depends(get_db)):
-    """Record candidate camera, microphone, speaker, and bandwidth test results."""
-    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == payload.assessment_id).first()
-    if not assessment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Assessment session {payload.assessment_id} not found."
-        )
-
+    """Record initial hardware and permissions check for an assessment session."""
     hw_check = AiPrepHardwareCheckORM(
         assessment_id=payload.assessment_id,
         browser_info=payload.browser_info,
@@ -278,54 +281,30 @@ def record_hardware_check(payload: HardwareCheckRequest, db: Session = Depends(g
     db.add(hw_check)
     db.commit()
     db.refresh(hw_check)
-
-    return HardwareCheckResponse(
-        id=hw_check.id,
-        assessment_id=hw_check.assessment_id,
-        browser_info=hw_check.browser_info,
-        os_info=hw_check.os_info,
-        camera_permission=hw_check.camera_permission,
-        mic_permission=hw_check.mic_permission,
-        speaker_ok=hw_check.speaker_ok,
-        bandwidth_kbps=hw_check.bandwidth_kbps,
-        yolo_model_enabled=hw_check.yolo_model_enabled,
-        tested_at=hw_check.tested_at
-    )
+    return hw_check
 
 
+# ---------------------------------------------------------------------
+# 6. GET /api/ai-prep/hardware-check/{assessment_id} (Fetch Hardware Check)
+# ---------------------------------------------------------------------
 @router.get("/hardware-check/{assessment_id}", response_model=HardwareCheckResponse)
 def get_hardware_check(assessment_id: int, db: Session = Depends(get_db)):
-    """Fetch the latest hardware check for an assessment session."""
-    hw_check = db.query(AiPrepHardwareCheckORM).filter(
-        AiPrepHardwareCheckORM.assessment_id == assessment_id
-    ).order_by(AiPrepHardwareCheckORM.tested_at.desc()).first()
-
+    """Fetch hardware check status for an assessment session."""
+    hw_check = db.query(AiPrepHardwareCheckORM).filter(AiPrepHardwareCheckORM.assessment_id == assessment_id).first()
     if not hw_check:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No hardware check found for assessment session {assessment_id}."
+            detail=f"Hardware check record for assessment {assessment_id} not found."
         )
-
-    return HardwareCheckResponse(
-        id=hw_check.id,
-        assessment_id=hw_check.assessment_id,
-        browser_info=hw_check.browser_info,
-        os_info=hw_check.os_info,
-        camera_permission=hw_check.camera_permission,
-        mic_permission=hw_check.mic_permission,
-        speaker_ok=hw_check.speaker_ok,
-        bandwidth_kbps=hw_check.bandwidth_kbps,
-        yolo_model_enabled=hw_check.yolo_model_enabled,
-        tested_at=hw_check.tested_at
-    )
+    return hw_check
 
 
 # ---------------------------------------------------------------------
-# Question Bank Endpoints
+# 7. Question Bank Endpoints
 # ---------------------------------------------------------------------
 @router.post("/questions", response_model=QuestionBankResponse, status_code=status.HTTP_201_CREATED)
 def create_question(payload: QuestionBankCreate, db: Session = Depends(get_db)):
-    """Create a new question in Question Bank."""
+    """Add a question to the Question Bank."""
     q = AiPrepQuestionBankORM(
         category=payload.category,
         sub_category=payload.sub_category,
@@ -333,8 +312,7 @@ def create_question(payload: QuestionBankCreate, db: Session = Depends(get_db)):
         question_text=payload.question_text,
         ideal_answer_rubric=payload.ideal_answer_rubric,
         relevant_skills_json=payload.relevant_skills_json,
-        is_active=True,
-        created_at=datetime.utcnow()
+        is_active=payload.is_active
     )
     db.add(q)
     db.commit()
@@ -356,7 +334,7 @@ def list_questions(
 
 
 # ---------------------------------------------------------------------
-# Consent Endpoints
+# 8. Consent Endpoints
 # ---------------------------------------------------------------------
 @router.post("/consents", response_model=ConsentResponse, status_code=status.HTTP_201_CREATED)
 def record_consent(
@@ -385,18 +363,80 @@ def get_consents(candidate_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------
-# 11. GET /api/ai-prep/analytics/dashboard/{candidate_id} (Dashboard Data)
+# 9. GET /api/ai-prep/analytics/dashboard/{candidate_id} (Dashboard Data)
 # ---------------------------------------------------------------------
-from fapi.ai_prep.schemas import DashboardResponse
-from fapi.ai_prep.crud.analytics import get_candidate_dashboard_metrics
-
 @router.get("/analytics/dashboard/{candidate_id}", response_model=DashboardResponse)
 def get_dashboard_metrics(candidate_id: int, db: Session = Depends(get_db)):
     """Fetch aggregated analytics data for the candidate's dashboard (Week 2)."""
     return get_candidate_dashboard_metrics(db=db, candidate_id=candidate_id)
 
 
-# Include dynamic sub-routes (media uploads, processing statuses)
-from fapi.ai_prep.api import media_router, assessment_router
+# ---------------------------------------------------------------------
+# 10. GET /api/ai-prep/assessments/{assessment_id}/processing-status (W2-BE1-04)
+# ---------------------------------------------------------------------
+@router.get("/assessments/{assessment_id}/processing-status", response_model=ProcessingStatusResponse)
+def get_processing_status(assessment_id: int, db: Session = Depends(get_db)):
+    """Fetch processing status and step progress for an assessment session (W2-BE1-04)."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assessment session {assessment_id} not found."
+        )
+
+    runs = get_runs_by_assessment_id(db, assessment_id)
+    steps = ProcessingStepsStatus()
+    for run in runs:
+        if run.run_type == RunTypeEnum.STT: steps.stt = run.status
+        elif run.run_type == RunTypeEnum.AUDIO: steps.audio = run.status
+        elif run.run_type == RunTypeEnum.VISION: steps.vision = run.status
+        elif run.run_type == RunTypeEnum.LLM: steps.llm = run.status
+        elif run.run_type == RunTypeEnum.YOUTUBE_UPLOAD: steps.youtube_upload = run.status
+        elif run.run_type == RunTypeEnum.FULL: steps.finalize = run.status
+
+    if assessment.status == AssessmentStatusEnum.COMPLETED:
+        steps.finalize = RunStatusEnum.COMPLETED
+
+    return ProcessingStatusResponse(status=assessment.status, steps=steps)
+
+
+# ---------------------------------------------------------------------
+# 11. POST /api/ai-prep/deletion-request (W3-BE1-03 GDPR Deletion Endpoint)
+# ---------------------------------------------------------------------
+@router.post("/deletion-request", response_model=DeletionRequestResponse, status_code=status.HTTP_201_CREATED)
+def create_deletion_request(
+    payload: DeletionRequestCreate,
+    candidate_id: int = Query(default=1, description="Candidate ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Submit a GDPR data deletion request (W3-BE1-03).
+    Creates a deletion_request row and triggers candidate data purging task.
+    """
+    target_cid = payload.candidate_id if payload.candidate_id is not None else candidate_id
+    del_req = AiPrepDeletionRequestORM(
+        candidate_id=target_cid,
+        status=DeletionRequestStatusEnum.PENDING,
+        requested_at=datetime.utcnow()
+    )
+    db.add(del_req)
+    db.commit()
+    db.refresh(del_req)
+
+    # Perform media & telemetry purging for candidate
+    try:
+        media_service = MediaService()
+        result = media_service.delete_all_media(candidate_id=target_cid, db=db)
+        del_req.status = DeletionRequestStatusEnum.COMPLETED
+        del_req.completed_at = datetime.utcnow()
+        del_req.deleted_bytes = result.get("local_files_deleted", 0) * 1024
+        db.commit()
+        db.refresh(del_req)
+    except Exception as exc:
+        logging.getLogger("wbl.ai_prep.router").error("GDPR deletion processing failed for candidate %d: %s", target_cid, exc)
+
+    return del_req
+
+
+# Include dynamic sub-routes (media uploads)
 router.include_router(media_router)
-router.include_router(assessment_router)

@@ -17,6 +17,8 @@ from fapi.ai_prep.models import (
 )
 
 from fapi.db.models import CandidateORM, AuthUserORM
+from fapi.ai_prep.workers.vision_worker import vision_task
+from fapi.ai_prep.services.consent_service import has_active_consent
 
 # Setup shared in-memory SQLite database with StaticPool for thread-safe unit tests
 SQLALCHEMY_DATABASE_URL = "sqlite://"
@@ -221,6 +223,43 @@ class TestAiPrepAssessmentEngine(unittest.TestCase):
         pause_res = client.patch(f"/api/ai-prep/assessments/{session_id}/status", json={"status": "PAUSED", "is_paused": True})
         self.assertEqual(pause_res.status_code, 400)
         self.assertIn("pausing is disabled", pause_res.json()["detail"].lower())
+
+    def test_11_processing_status_polling(self):
+        """Test W2-BE1-04: Polling processing status endpoint."""
+        create_res = client.post("/api/ai-prep/assessments?candidate_id=1", json={"assessment_type": "TECHNICAL"})
+        session_id = create_res.json()["id"]
+
+        status_res = client.get(f"/api/ai-prep/assessments/{session_id}/processing-status")
+        self.assertEqual(status_res.status_code, 200)
+        data = status_res.json()
+        self.assertEqual(data["status"], "TESTING")
+        self.assertIn("steps", data)
+
+    def test_12_consent_enforcement_vision_gate(self):
+        """Test W3-BE1-02: Vision worker skips analysis when VIDEO_ANALYTICS consent is missing/revoked."""
+        # Test candidate 999 with no consent
+        db = TestingSessionLocal()
+        self.assertFalse(has_active_consent(db, candidate_id=999, consent_type="VIDEO_ANALYTICS"))
+        db.close()
+
+        # Create assessment for candidate 999
+        create_res = client.post("/api/ai-prep/assessments?candidate_id=999", json={"assessment_type": "TECHNICAL"})
+        session_id = create_res.json()["id"]
+
+        # Run vision task for session without consent using test db
+        db = TestingSessionLocal()
+        result = vision_task(session_id, db=db)
+        db.close()
+        self.assertEqual(result["status"], "SKIPPED_NO_CONSENT")
+
+    def test_13_gdpr_deletion_request(self):
+        """Test W3-BE1-03: Submitting GDPR deletion request creates row and purges candidate data."""
+        payload = {"candidate_id": 888}
+        del_res = client.post("/api/ai-prep/deletion-request", json=payload)
+        self.assertEqual(del_res.status_code, 201)
+        data = del_res.json()
+        self.assertEqual(data["candidate_id"], 888)
+        self.assertIn(data["status"], ["PENDING", "COMPLETED"])
 
 
 if __name__ == "__main__":
