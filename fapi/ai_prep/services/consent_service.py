@@ -16,3 +16,14 @@ def record_candidate_consent(db: Session, candidate_id: int, payload: ConsentCre
     db.commit()
     db.refresh(consent)
     return consent
+
+
+def has_active_consent(db: Session, candidate_id: int, consent_type: str = "VIDEO_ANALYTICS") -> bool:
+    """W3-BE1-02: Check if candidate has active, un-revoked consent for VIDEO_ANALYTICS."""
+    consent = db.query(AiPrepConsent).filter(
+        AiPrepConsent.candidate_id == candidate_id,
+        AiPrepConsent.consent_type == consent_type,
+        AiPrepConsent.consented == True,
+        AiPrepConsent.revoked_at == None
+    ).first()
+    return consent is not None

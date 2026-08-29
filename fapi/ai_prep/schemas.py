@@ -243,6 +243,7 @@ class QuestionBankCreate(BaseModel):
     question_text: str
     ideal_answer_rubric: Optional[str] = None
     relevant_skills_json: Optional[List[str]] = None
+    is_active: bool = True
 
 
 class QuestionBankResponse(BaseModel):
@@ -419,3 +420,19 @@ class DashboardResponse(BaseModel):
     executive_summary: ExecutiveSummary
     radar: RadarChartData
     communication_trend: List[CommunicationTimepoint]
+
+
+# 18. GDPR Deletion Request Schemas (Week 3)
+class DeletionRequestCreate(BaseModel):
+    candidate_id: int
+
+
+class DeletionRequestResponse(BaseModel):
+    id: int
+    candidate_id: int
+    status: str
+    requested_at: datetime
+    completed_at: Optional[datetime] = None
+    deleted_bytes: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)

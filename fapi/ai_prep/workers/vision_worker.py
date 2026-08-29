@@ -1,4 +1,5 @@
 import logging
+from sqlalchemy.orm import Session
 from fapi.ai_prep.workers.celery_app import celery_app
 from fapi.ai_prep.models import RunTypeEnum, RunStatusEnum, AiPrepConsentORM, ConsentTypeEnum, AiPrepVisionTelemetryORM, AiPrepAssessmentORM
 from fapi.ai_prep.crud.runs import create_analysis_run, update_analysis_run_status
@@ -8,14 +9,16 @@ logger = logging.getLogger("wbl.ai_prep.workers.vision")
 
 
 @celery_app.task(bind=True, max_retries=3, queue="ai_prep")
-def vision_task(self, assessment_id: int):
+def vision_task(self, assessment_id: int, db: Session = None):
     """
     Vision Worker stub: Validates video consent and processes browser-side YOLO telemetry.
     Asserts prohibited metrics (eye_contact_pct, estimated_expression) are never processed.
     """
     logger.info("Executing Vision Task for assessment %s", assessment_id)
-    db = SessionLocal()
-    run = create_analysis_run(db, assessment_id, RunTypeEnum.VISION, celery_task_id=getattr(self.request, "id", None))
+    if db is None:
+        db = SessionLocal()
+    task_id = getattr(self.request, "id", None) if hasattr(self, "request") else None
+    run = create_analysis_run(db, assessment_id, RunTypeEnum.VISION, celery_task_id=task_id)
 
     try:
         assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()

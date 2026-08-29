@@ -35,6 +35,7 @@ from fapi.ai_prep.crud.assessments import (
     update_assessment_status,
 )
 from fapi.ai_prep.crud.runs import get_runs_by_assessment_id
+from fapi.ai_prep.crud.questions import get_random_questions_for_candidate
 
 logger = logging.getLogger("wbl.ai_prep.api.assessments")
 router = APIRouter(prefix="/assessments", tags=["AIPrep Assessments"])
@@ -96,10 +97,42 @@ async def create_assessment(
     db.commit()
     db.refresh(assessment)
 
-    # Attach active questions from Question Bank if available
-    questions = db.query(AiPrepQuestionBankORM).filter(
-        AiPrepQuestionBankORM.is_active == True
-    ).limit(5).all()
+    # Map assessment type to question category and question count limit per PRD Section 6
+    category_map = {
+        "TECHNICAL": "TECHNICAL",
+        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
+        "RECRUITER": "RECRUITER",
+        "HIRING_MANAGER": "HIRING_MANAGER",
+        "HR": "BEHAVIORAL",
+        "GENERAL_INTRO": "GENERAL",
+        "JOB_DESCRIPTION_INTRO": "GENERAL"
+    }
+    type_key = payload.assessment_type.name if hasattr(payload.assessment_type, 'name') else str(payload.assessment_type)
+    target_category = category_map.get(type_key, "GENERAL")
+
+    limit_map = {
+        "GENERAL_INTRO": 5,
+        "JOB_DESCRIPTION_INTRO": 5,
+        "RECRUITER": 6,
+        "HIRING_MANAGER": 7,
+        "TECHNICAL": 8,
+        "SYSTEM_DESIGN": 4,
+        "HR": 6
+    }
+    question_limit = limit_map.get(type_key, 5)
+
+    questions = get_random_questions_for_candidate(
+        db=db,
+        candidate_id=target_cid,
+        category=target_category,
+        limit=question_limit
+    )
+
+    # Fallback to any active questions if specific category pool is empty
+    if not questions:
+        questions = db.query(AiPrepQuestionBankORM).filter(
+            AiPrepQuestionBankORM.is_active == True
+        ).limit(question_limit).all()
 
     for idx, q in enumerate(questions, start=1):
         join_row = AiPrepAssessmentQuestionORM(
@@ -286,3 +319,17 @@ async def patch_assessment_status(
     db.refresh(assessment)
 
     return await get_assessment_detail(id, current_user, db)
+
+
+@router.get("/{id}/processing-status", response_model=ProcessingStatusResponse)
+async def get_processing_status_route(
+    id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch processing status and step progress for an assessment session (W2-BE1-04).
+    Owner or Admin only.
+    """
+    assessment = await get_assessment_or_403(id, current_user, db)
+    return _build_processing_status(assessment, db)
