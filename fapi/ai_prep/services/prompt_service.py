@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
     AiPrepTranscriptORM,
+    AiPrepVisionTelemetryORM,
     AiPrepAudioTelemetryORM,
     AssessmentTypeEnum,
 )
@@ -58,7 +59,13 @@ def assemble_prompt(db: Session, assessment_id: int) -> tuple[str, str]:
     silence_pct = float(audio.silence_ratio_pct) if (audio and audio.silence_ratio_pct) else 8.0
     avg_db = float(audio.avg_volume_db) if (audio and audio.avg_volume_db) else -18.0
     noise_level = audio.background_noise_level.value.lower() if (audio and audio.background_noise_level) else "low"
+    clipping_detected = "yes" if (audio and audio.clipping_detected) else "no"
 
+    #3.5 Fetching vision telemetry metrics
+    vision = db.query(AiPrepVisionTelemetryORM).filter(AiPrepVisionTelemetryORM.assessment_id == assessment_id).first()
+    face_visible_pct = float(vision.face_visible_pct) if (vision and vision.face_visible_pct is not None) else None
+    frame_stability = float(vision.frame_stability_score) if (vision and vision.frame_stability_score is not None) else None
+    head_nods = int(vision.head_nods_count) if (vision and vision.head_nods_count is not None) else None
     # 4. Resolve prompt module
     prompt_module = PROMPT_MODULE_MAP.get(assessment.assessment_type, general_intro)
     system_prompt = prompt_module.SYSTEM
@@ -72,6 +79,10 @@ def assemble_prompt(db: Session, assessment_id: int) -> tuple[str, str]:
         "silence_pct": silence_pct,
         "avg_db": avg_db,
         "noise_level": noise_level,
+        "clipping_detected": clipping_detected,
+        "face_visible_pct": f"{face_visible_pct}%" if face_visible_pct is not None else "unavailable",
+        "frame_stability": f"{frame_stability}" if frame_stability is not None else "unavailable",
+        "head_nods": f"{head_nods}" if head_nods is not None else "unavailable",
     }
 
     if assessment.assessment_type == AssessmentTypeEnum.JOB_DESCRIPTION_INTRO:

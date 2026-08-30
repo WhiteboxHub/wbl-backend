@@ -449,7 +449,7 @@ class TestCallLlm(unittest.TestCase):
 
     def test_unsupported_provider_raises_error(self):
         """An unknown provider_name must raise UnsupportedProviderError immediately."""
-        db, key = self._make_db_with_key("groq", "gsk_test", None)
+        db, key = self._make_db_with_key("unsupported_provider", "unsupported_key", None)
 
         from fapi.ai_prep.exceptions import UnsupportedProviderError
         with patch("fapi.ai_prep.services.llm_client.get_candidate_llm_key", return_value=key):
@@ -457,7 +457,7 @@ class TestCallLlm(unittest.TestCase):
             with self.assertRaises(UnsupportedProviderError) as ctx:
                 call_llm(db, "sys", "user", 1, 1)
 
-        self.assertEqual(ctx.exception.provider_name, "groq")
+        self.assertEqual(ctx.exception.provider_name, "unsupported_provider")
 
     # ------------------------------------------------------------------
     # CandidateLLMKeyError on auth failure
@@ -508,6 +508,10 @@ class TestPromptTemplates(unittest.TestCase):
         silence_pct=8.5,
         avg_db=-18.0,
         noise_level="low",
+        clipping_detected="no",
+        face_visible_pct="96.5%",
+        frame_stability="92.0%",
+        head_nods="12",
     )
     _DUMMY_COMMON = dict(
         questions="Q1: Tell me about yourself.",

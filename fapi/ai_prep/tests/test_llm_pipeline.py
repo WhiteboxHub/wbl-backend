@@ -9,6 +9,7 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentQuestionORM,
     AiPrepTranscriptORM,
     AiPrepAudioTelemetryORM,
+    AiPrepVisionTelemetryORM,
     AssessmentTypeEnum,
     AssessmentStatusEnum,
     CoachingBandEnum,
@@ -85,6 +86,12 @@ class TestPromptAssembly(unittest.TestCase):
             audio.silence_ratio_pct = 6.5
             audio.avg_volume_db = -16.0
             audio.background_noise_level = BackgroundNoiseLevelEnum.LOW
+            audio.clipping_detected = False
+
+            vision = MagicMock(spec=AiPrepVisionTelemetryORM)
+            vision.face_visible_pct = 95.0
+            vision.frame_stability_score = 90.0
+            vision.head_nods_count = 10
 
             def _query_side_effect(model):
                 q = MagicMock()
@@ -94,6 +101,8 @@ class TestPromptAssembly(unittest.TestCase):
                     q.filter.return_value.first.return_value = tx
                 elif model == AiPrepAudioTelemetryORM:
                     q.filter.return_value.first.return_value = audio
+                elif model == AiPrepVisionTelemetryORM:
+                    q.filter.return_value.first.return_value = vision
                 return q
 
             db.query.side_effect = _query_side_effect
@@ -172,6 +181,68 @@ class TestLlmWorker(unittest.TestCase):
         mock_call_llm.assert_called_once()
         storage.upload_bytes.assert_called_once()
         db.commit.assert_called_once()
+
+
+class TestMultiProviderLlmClient(unittest.TestCase):
+    @patch("fapi.ai_prep.services.llm_client.get_candidate_llm_key")
+    @patch("fapi.ai_prep.services.llm_client.OpenAI")
+    def test_call_llm_all_openai_compatible_providers(self, mock_openai_cls, mock_get_key):
+        """Verify call_llm dispatches correctly with appropriate base_url for all OpenAI-compatible providers."""
+        from fapi.ai_prep.services.candidate_llm_key_service import CandidateLLMKey
+        from fapi.ai_prep.services.llm_client import call_llm, _PROVIDER_CONFIGS
+
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(message=MagicMock(content='{"status": "ok"}'))]
+        mock_completion.usage = MagicMock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        mock_client.chat.completions.create.return_value = mock_completion
+
+        db = MagicMock()
+        for provider, config in _PROVIDER_CONFIGS.items():
+            mock_get_key.return_value = CandidateLLMKey(
+                provider_name=provider,
+                api_key="test-api-key",
+                model_name=None,
+            )
+
+            res = call_llm(
+                db=db,
+                system_prompt="sys prompt",
+                user_prompt="user prompt",
+                assessment_id=1,
+                candidate_id=42,
+            )
+            self.assertEqual(res, '{"status": "ok"}')
+            # Verify OpenAI client was instantiated with matching base_url
+            mock_openai_cls.assert_called_with(
+                api_key="test-api-key",
+                base_url=config["base_url"],
+                max_retries=3,
+            )
+
+    @patch("fapi.ai_prep.services.llm_client.get_candidate_llm_key")
+    def test_call_llm_unsupported_provider(self, mock_get_key):
+        """Verify UnsupportedProviderError is raised for unrecognized providers."""
+        from fapi.ai_prep.services.candidate_llm_key_service import CandidateLLMKey
+        from fapi.ai_prep.services.llm_client import call_llm
+        from fapi.ai_prep.exceptions import UnsupportedProviderError
+
+        mock_get_key.return_value = CandidateLLMKey(
+            provider_name="unknown_llm",
+            api_key="test-key",
+            model_name=None,
+        )
+
+        db = MagicMock()
+        with self.assertRaises(UnsupportedProviderError):
+            call_llm(
+                db=db,
+                system_prompt="sys",
+                user_prompt="usr",
+                assessment_id=1,
+                candidate_id=42,
+            )
 
 
 if __name__ == "__main__":

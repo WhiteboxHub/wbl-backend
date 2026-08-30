@@ -62,11 +62,15 @@ QUESTIONS ASKED:
 FULL TRANSCRIPT:
 {transcript}
 
-AUDIO METRICS:
+AUDIO & VIDEO TELEMETRY METRICS:
 - Speaking pace:          {wpm} WPM (target: 120-160)
 - Filler words per min:   {filler_per_min}
 - Silence ratio:          {silence_pct}%
 - Average volume:         {avg_db} dB
 - Background noise:       {noise_level}
+- Audio clipping:         {clipping_detected}
+- Face visible duration:  {face_visible_pct} (camera positioning quality indicator)
+- Camera stability score: {frame_stability} (recording stability indicator)
+- Head movement signals:  {head_nods} nod counts (engagement proxy indicator, explicitly not scored)
 
 """ + OUTPUT_FORMAT_SPEC

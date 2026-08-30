@@ -12,21 +12,13 @@ Rules enforced here:
 - SDK auth errors are re-raised as CandidateLLMKeyError.
 - Transient errors (429, 500, timeouts) rely on SDK max_retries=3.
 
-⚠️  DEPENDENCY NOTE
---------------------
-The ``anthropic`` package is NOT currently in requirements.txt.
-Add it before using Anthropic keys:
-
-    anthropic>=0.26.0
-
-The ``openai`` package IS already installed.
 """
 from __future__ import annotations
 
 import logging
 from typing import Optional
 
-# openai is already in requirements.txt — import at module level for testability.
+
 from openai import AuthenticationError as OpenAIAuthenticationError
 from openai import OpenAI
 from openai import PermissionDeniedError as OpenAIPermissionDeniedError
@@ -54,6 +46,37 @@ _DEFAULT_MODEL_OPENAI = "gpt-4o"
 #  llm_provider_registry.py AnthropicProvider.fallback_models[0]).
 _DEFAULT_MODEL_ANTHROPIC = "claude-3-7-sonnet-20250219"
 
+_PROVIDER_CONFIGS: dict[str, dict[str, Optional[str]]] = {
+    "openai": {
+        "base_url": None,
+        "default_model": "gpt-4o",
+    },
+    "gemini": {
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "default_model": "gemini-2.0-flash",
+    },
+    "groq": {
+        "base_url": "https://api.groq.com/openai/v1",
+        "default_model": "llama-3.3-70b-versatile",
+    },
+    "deepseek": {
+        "base_url": "https://api.deepseek.com",
+        "default_model": "deepseek-chat",
+    },
+    "mistral": {
+        "base_url": "https://api.mistral.ai/v1",
+        "default_model": "mistral-large-latest",
+    },
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "default_model": "openai/gpt-4o",
+    },
+    "xai": {
+        "base_url": "https://api.x.ai/v1",
+        "default_model": "grok-2-latest",
+    },
+}
+
 _JSON_SYSTEM_ADDENDUM = (
     "\n\nRespond with ONLY valid JSON, no markdown fences, no preamble text."
 )
@@ -64,16 +87,18 @@ _JSON_SYSTEM_ADDENDUM = (
 # ---------------------------------------------------------------------------
 
 
-def _call_openai(
+def _call_openai_compatible(
     key: CandidateLLMKey,
     system_prompt: str,
     user_prompt: str,
     assessment_id: int,
     candidate_id: int,
+    base_url: Optional[str] = None,
+    default_model: str = _DEFAULT_MODEL_OPENAI,
 ) -> tuple[str, int, int, int]:
-    """Returns (content, prompt_tokens, completion_tokens, total_tokens)."""
-    model = (key.model_name or "").strip() or _DEFAULT_MODEL_OPENAI
-    client = OpenAI(api_key=key.api_key, max_retries=3)
+    """Returns (content, prompt_tokens, completion_tokens, total_tokens) for OpenAI-compatible APIs."""
+    model = (key.model_name or "").strip() or default_model
+    client = OpenAI(api_key=key.api_key, base_url=base_url, max_retries=3)
     try:
         response = client.chat.completions.create(
             model=model,
@@ -88,7 +113,7 @@ def _call_openai(
     except (OpenAIAuthenticationError, OpenAIPermissionDeniedError) as exc:
         raise CandidateLLMKeyError(
             candidate_id=candidate_id,
-            provider_name="openai",
+            provider_name=key.provider_name,
             original_message=str(exc),
         ) from exc
 
@@ -98,6 +123,25 @@ def _call_openai(
     total_tokens = usage.total_tokens if usage else 0
     content = response.choices[0].message.content or ""
     return content, prompt_tokens, completion_tokens, total_tokens
+
+
+def _call_openai(
+    key: CandidateLLMKey,
+    system_prompt: str,
+    user_prompt: str,
+    assessment_id: int,
+    candidate_id: int,
+) -> tuple[str, int, int, int]:
+    """Backward-compatible helper for OpenAI provider."""
+    return _call_openai_compatible(
+        key=key,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        assessment_id=assessment_id,
+        candidate_id=candidate_id,
+        base_url=None,
+        default_model=_DEFAULT_MODEL_OPENAI,
+    )
 
 
 def _call_anthropic(
@@ -186,7 +230,7 @@ def call_llm(
 
     Raises:
         NoCandidateLLMKeyError:   Candidate hasn't configured a key yet.
-        UnsupportedProviderError: The stored provider is not openai/anthropic.
+        UnsupportedProviderError: The stored provider is not supported.
         CandidateLLMKeyError:     The provider SDK rejected the key (auth error).
         ImportError:              ``anthropic`` package missing (Anthropic path).
     """
@@ -195,13 +239,20 @@ def call_llm(
     provider = key.provider_name  # already normalised to lowercase
 
     try:
-        if provider == "openai":
-            content, pt, ct, tt = _call_openai(
-                key, system_prompt, user_prompt, assessment_id, candidate_id
-            )
-        elif provider == "anthropic":
+        if provider == "anthropic":
             content, pt, ct, tt = _call_anthropic(
                 key, system_prompt, user_prompt, assessment_id, candidate_id
+            )
+        elif provider in _PROVIDER_CONFIGS:
+            config = _PROVIDER_CONFIGS[provider]
+            content, pt, ct, tt = _call_openai_compatible(
+                key=key,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                assessment_id=assessment_id,
+                candidate_id=candidate_id,
+                base_url=config["base_url"],
+                default_model=config["default_model"] or _DEFAULT_MODEL_OPENAI,
             )
         else:
             raise UnsupportedProviderError(provider)
@@ -229,3 +280,4 @@ def call_llm(
         },
     )
     return content
+

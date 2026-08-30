@@ -39,6 +39,22 @@ _PROVIDER_NORM: dict[str, str] = {
     "gpt": "openai",
     "anthropic": "anthropic",
     "claude": "anthropic",  # treat "claude" as an alias for anthropic
+     # Google Gemini
+    "gemini": "gemini",
+    "google": "gemini",
+    "google gemini": "gemini",
+    # Groq
+    "groq": "groq",
+    # DeepSeek
+    "deepseek": "deepseek",
+    # Mistral
+    "mistral": "mistral",
+    "mistral ai": "mistral",
+    # OpenRouter
+    "openrouter": "openrouter",
+    # xAI / Grok
+    "xai": "xai",
+    "grok": "xai",
 }
 
 
