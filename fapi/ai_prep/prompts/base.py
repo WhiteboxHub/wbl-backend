@@ -38,10 +38,38 @@ exactly these top-level fields:
 
 {{
   "scores_breakdown_json": {{
-    "ai_engineering":    {{ "score": <int 0-100>, "sub_scores": {{ "<dimension>": <int>, ... }} }},
-    "core_engineering":  {{ "score": <int 0-100>, "sub_scores": {{ "<dimension>": <int>, ... }} }},
-    "non_technical":     {{ "score": <int 0-100>, "sub_scores": {{ "<dimension>": <int>, ... }} }},
-    "business_acumen":   {{ "score": <int 0-100>, "sub_scores": {{ "<dimension>": <int>, ... }} }}
+    "ai_engineering": {{
+      "score": <int 0-100>,
+      "sub_scores": {{
+        "llm_knowledge": <int 0-100>,
+        "rag_understanding": <int 0-100>,
+        "evaluation_methodology": <int 0-100>,
+        "deployment_mlops": <int 0-100>
+      }}
+    }},
+    "core_engineering": {{
+      "score": <int 0-100>,
+      "sub_scores": {{
+        "system_design": <int 0-100>,
+        "algorithms": <int 0-100>,
+        "code_quality": <int 0-100>
+      }}
+    }},
+    "non_technical": {{
+      "score": <int 0-100>,
+      "sub_scores": {{
+        "communication_clarity": <int 0-100>,
+        "answer_structure": <int 0-100>,
+        "confidence": <int 0-100>
+      }}
+    }},
+    "business_acumen": {{
+      "score": <int 0-100>,
+      "sub_scores": {{
+        "problem_framing": <int 0-100>,
+        "stakeholder_thinking": <int 0-100>
+      }}
+    }}
   }},
   "technical_analysis_json": {{
     "summary": "<string>",
@@ -55,22 +83,42 @@ exactly these top-level fields:
     "confidence_notes": "<string>"
   }},
   "coaching_suggestions_json": [
-    {{ "priority": <int 1-N>, "dimension": "<string>", "area": "<string>",
-      "suggestion": "<string>", "evidence": "<string>" }}
+    {{
+      "priority": <int 1-N>,
+      "dimension": "<string: must be one of: 'AI Engineering', 'Core Engineering', 'Non-Technical', 'Business Acumen'>",
+      "area": "<string>",
+      "suggestion": "<string>",
+      "evidence": "<string>"
+    }}
   ],
   "signal_timeline_json": [
-    {{ "question_index": <int>, "energy": "<string>", "clarity": "<string>" }}
+    {{
+      "question_index": <int>,
+      "energy": <int 0-100: numeric rating from 0 to 100>,
+      "clarity": <int 0-100: numeric rating from 0 to 100>
+    }}
   ],
   "transcript_evidence_json": [
-    {{ "quote": "<string>", "timestamp_s": <int|null>,
-      "dimension": "<string>", "observation": "<string>" }}
+    {{
+      "quote": "<string>",
+      "timestamp_s": <int|null>,
+      "dimension": "<string: must be one of: 'AI Engineering', 'Core Engineering', 'Non-Technical', 'Business Acumen'>",
+      "observation": "<string>"
+    }}
   ],
   "gaps_to_validate_json": [
-    {{ "topic": "<string>", "reason": "<string>" }}
+    {{
+      "topic": "<string>",
+      "reason": "<string>"
+    }}
   ],
   "improvements_json": [
-    {{ "priority": <int 1-N>, "topic": "<string>",
-      "effort": "low|medium|high", "rationale": "<string>" }}
+    {{
+      "priority": <int 1-N>,
+      "topic": "<string>",
+      "effort": "low|medium|high",
+      "rationale": "<string>"
+    }}
   ]
 }}
 

@@ -29,7 +29,8 @@ class UnsupportedProviderError(Exception):
         self.provider_name = provider_name
         super().__init__(
             f"LLM provider '{provider_name}' is not supported by the AIPrep "
-            "report generator. Supported providers: openai, anthropic."
+            "report generator. Supported providers: openai, anthropic, gemini, "
+            "groq, deepseek, mistral, openrouter, xai."
         )
 
 
