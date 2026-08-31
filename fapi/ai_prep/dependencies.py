@@ -67,3 +67,26 @@ async def get_assessment_or_403(
         )
 
     return assessment
+
+
+async def verify_dashboard_access(
+    candidate_id: int,
+    current_user: Any = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Enforce ownership checks on candidate-specific endpoints.
+    Allows admins/employees or the specific candidate.
+    """
+    is_admin = getattr(current_user, "is_admin", False) or getattr(current_user, "role", "") == "admin"
+    is_employee = getattr(current_user, "is_employee", False) or getattr(current_user, "role", "") == "employee"
+    if is_admin or is_employee:
+        return current_user
+
+    resolved_candidate_id = get_candidate_id_for_user(current_user, db)
+    if resolved_candidate_id is None or resolved_candidate_id != candidate_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this candidate's data"
+        )
+    return current_user

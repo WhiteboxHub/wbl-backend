@@ -3,15 +3,15 @@ import sys
 from sqlalchemy.orm import Session
 
 # Add the wbl-backend root to python path to import fapi
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from fapi.db.database import SessionLocal
-from fapi.ai_prep.schemas import QuestionCreate, CategoryEnum, DifficultyEnum
+from fapi.ai_prep.schemas import QuestionBankCreate, QuestionCategoryEnum, DifficultyLevelEnum
 from fapi.ai_prep.crud.questions import create_question
 
 # Base questions to build from
 BASE_QUESTIONS = {
-    CategoryEnum.TECHNICAL: [
+    QuestionCategoryEnum.TECHNICAL: [
         ("Explain the difference between Fine-Tuning and RAG. When to use which?", "llm_knowledge"),
         ("How do you evaluate an LLM application?", "evaluation_methodology"),
         ("Explain attention mechanisms in transformers.", "core_engineering"),
@@ -22,7 +22,7 @@ BASE_QUESTIONS = {
         ("Describe the process of setting up an evaluation pipeline using LLM-as-a-judge.", "evaluation_methodology"),
         ("How do you handle context window limits in large-scale document retrieval?", "rag_understanding")
     ],
-    CategoryEnum.SYSTEM_DESIGN: [
+    QuestionCategoryEnum.SYSTEM_DESIGN: [
         ("Design a scalable RAG system for 10 million PDFs.", "system_design"),
         ("Design a real-time recommendation engine using embeddings.", "system_design"),
         ("How would you architect a low-latency LLM serving infrastructure?", "deployment_mlops"),
@@ -33,7 +33,7 @@ BASE_QUESTIONS = {
         ("Design a highly available prompt-caching layer.", "system_design"),
         ("Architect a microservice for document ingestion and embedding generation.", "system_design")
     ],
-    CategoryEnum.BEHAVIORAL: [
+    QuestionCategoryEnum.BEHAVIORAL: [
         ("Tell me about a time you failed to meet a deadline.", "communication_clarity"),
         ("How do you resolve technical disagreements with senior engineers?", "stakeholder_thinking"),
         ("Describe a time you had to learn a new technology quickly.", "answer_structure"),
@@ -44,7 +44,7 @@ BASE_QUESTIONS = {
         ("How do you prioritize tech debt vs new features?", "problem_framing"),
         ("Tell me about a time you received difficult feedback.", "confidence")
     ],
-    CategoryEnum.RECRUITER: [
+    QuestionCategoryEnum.RECRUITER: [
         ("What are your salary expectations?", "confidence"),
         ("Why are you looking to leave your current role?", "communication_clarity"),
         ("What is your timeline for making a decision?", "answer_structure"),
@@ -55,7 +55,7 @@ BASE_QUESTIONS = {
         ("Where do you see your career in 5 years?", "problem_framing"),
         ("What was your favorite project in your last role?", "communication_clarity")
     ],
-    CategoryEnum.HIRING_MANAGER: [
+    QuestionCategoryEnum.HIRING_MANAGER: [
         ("Why do you want to join our specific engineering team?", "stakeholder_thinking"),
         ("What impact do you hope to make in your first 90 days?", "problem_framing"),
         ("How do you align your technical work with business goals?", "stakeholder_thinking"),
@@ -66,7 +66,7 @@ BASE_QUESTIONS = {
         ("How do you balance speed of delivery with long-term maintainability?", "problem_framing"),
         ("Tell me about a time you drove a major architectural decision.", "confidence")
     ],
-    CategoryEnum.GENERAL: [
+    QuestionCategoryEnum.GENERAL: [
         ("Please introduce yourself and your background.", "communication_clarity"),
         ("Walk me through your resume.", "answer_structure"),
         ("Why are you interested in this specific role?", "stakeholder_thinking"),
@@ -79,7 +79,7 @@ BASE_QUESTIONS = {
     ]
 }
 
-difficulties = [DifficultyEnum.EASY, DifficultyEnum.MEDIUM, DifficultyEnum.HARD, DifficultyEnum.EXPERT]
+difficulties = [DifficultyLevelEnum.EASY, DifficultyLevelEnum.MEDIUM, DifficultyLevelEnum.HARD, DifficultyLevelEnum.EXPERT]
 
 def generate_seed_questions():
     seed_data = []
@@ -95,7 +95,7 @@ def generate_seed_questions():
                 "difficulty_level": diff,
                 "question_text": q_text,
                 "ideal_answer_rubric": f"Candidate should demonstrate proficiency in {skill} with clear reasoning.",
-                "relevant_skills_json": {skill: 0.9, "communication_clarity": 0.5},
+                "relevant_skills_json": [skill, "communication_clarity"],
                 "is_active": True
             }
             seed_data.append(q_data)
@@ -110,7 +110,7 @@ def seed_database():
     try:
         count = 0
         for q_data in questions:
-            q_schema = QuestionCreate(**q_data)
+            q_schema = QuestionBankCreate(**q_data)
             create_question(db, q_schema)
             count += 1
             

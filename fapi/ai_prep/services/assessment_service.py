@@ -46,12 +46,21 @@ def validate_pause_permission(assessment_type: AssessmentTypeEnum, new_status: A
 
 def start_assessment_session(db: Session, candidate_id: int, payload: AssessmentCreate) -> AssessmentResponse:
     """Business logic for initializing a practice session and attaching bank questions."""
+    
+    # Calculate dynamic attempt_number
+    past_count = db.query(AiPrepAssessment).filter(
+        AiPrepAssessment.candidate_id == candidate_id,
+        AiPrepAssessment.assessment_type == payload.assessment_type
+    ).count()
+    attempt_number = past_count + 1
+
     assessment = AiPrepAssessment(
         candidate_id=candidate_id,
         candidate_resume_id=payload.candidate_resume_id,
         assessment_type=payload.assessment_type,
         assessment_mode=payload.assessment_mode,
         status=AssessmentStatusEnum.TESTING,
+        attempt_number=attempt_number,
         job_description_text=payload.job_description_text,
         created_at=datetime.utcnow()
     )
@@ -59,10 +68,37 @@ def start_assessment_session(db: Session, candidate_id: int, payload: Assessment
     db.commit()
     db.refresh(assessment)
 
-    # Attach active questions
-    questions = db.query(AiPrepQuestionBank).filter(
-        AiPrepQuestionBank.is_active == True
-    ).limit(5).all()
+    # Map assessment type to question category
+    category_map = {
+        "TECHNICAL": "TECHNICAL",
+        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
+        "RECRUITER": "RECRUITER",
+        "HIRING_MANAGER": "HIRING_MANAGER",
+        "HR": "BEHAVIORAL",
+        "GENERAL_INTRO": "GENERAL",
+        "JOB_DESCRIPTION_INTRO": "GENERAL"
+    }
+    target_category = category_map.get(payload.assessment_type.name, "GENERAL")
+
+    # Map assessment type to dynamic question counts limit
+    limit_map = {
+        "GENERAL_INTRO": 5,
+        "JOB_DESCRIPTION_INTRO": 5,
+        "RECRUITER": 6,
+        "HIRING_MANAGER": 7,
+        "TECHNICAL": 8,
+        "SYSTEM_DESIGN": 4,
+        "HR": 6
+    }
+    question_limit = limit_map.get(payload.assessment_type.name, 5)
+
+    from fapi.ai_prep.crud.questions import get_random_questions_for_candidate
+    questions = get_random_questions_for_candidate(
+        db=db,
+        candidate_id=candidate_id,
+        category=target_category,
+        limit=question_limit
+    )
 
     for idx, q in enumerate(questions, start=1):
         join_row = AiPrepAssessmentQuestion(
@@ -97,3 +133,4 @@ def start_assessment_session(db: Session, candidate_id: int, payload: Assessment
         completed_at=assessment.completed_at,
         created_at=assessment.created_at
     )
+
