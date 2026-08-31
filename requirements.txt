@@ -41,3 +41,6 @@ google-auth-httplib2
 pytest
 pytest-mock
 pre-commit
+openai-whisper
+librosa
+soundfile

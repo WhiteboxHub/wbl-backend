@@ -260,6 +260,11 @@ class QuestionBankResponse(BaseModel):
     created_at: datetime
 
 
+class QuestionListResponse(BaseModel):
+    items: List[QuestionBankResponse]
+    total: int
+
+
 # ----------------------------------------------------------------------
 # Transcript Schemas
 # ----------------------------------------------------------------------
@@ -390,6 +395,15 @@ class AnalysisRunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DashboardAssessment(BaseModel):
+    id: int
+    assessment_type: AssessmentTypeEnum
+    status: AssessmentStatusEnum
+    coaching_band: Optional[CoachingBandEnum] = None
+    overall_score: Optional[int] = None
+    created_at: datetime
+
+
 # 17. Analytics Dashboard Schemas (Week 2)
 class ExecutiveSummary(BaseModel):
     total_assessments: int
@@ -397,6 +411,7 @@ class ExecutiveSummary(BaseModel):
     latest_coaching_band: Optional[CoachingBandEnum] = None
     band_trend: List[CoachingBandEnum] = []
     average_overall_score: float = 0.0
+    assessments: List[DashboardAssessment] = []
 
 
 class RadarChartData(BaseModel):

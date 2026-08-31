@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
+from fapi.utils.auth_dependencies import get_current_user, admin_required
+from fapi.ai_prep.dependencies import verify_dashboard_access
 from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
     AiPrepHardwareCheckORM,
@@ -28,7 +30,7 @@ from fapi.ai_prep.schemas import (
     AssessmentListResponse, QuestionBankCreate, QuestionBankResponse,
     ConsentCreate, ConsentResponse, HardwareCheckRequest, ConsentRequest,
     DashboardResponse, ProcessingStatusResponse, ProcessingStepsStatus,
-    DeletionRequestCreate, DeletionRequestResponse
+    DeletionRequestCreate, DeletionRequestResponse, QuestionListResponse
 )
 from fapi.ai_prep.services.assessment_service import validate_status_transition, validate_pause_permission
 from fapi.ai_prep.services.media_service import MediaService
@@ -49,10 +51,15 @@ router = APIRouter(
 @router.post("/assessments", response_model=AssessmentResponse, status_code=status.HTTP_201_CREATED)
 def create_assessment(
     payload: AssessmentCreate,
-    candidate_id: int = Query(default=1, description="Candidate ID"),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new practice assessment session and select matching questions."""
+    from fapi.ai_prep.dependencies import get_candidate_id_for_user
+    candidate_id = get_candidate_id_for_user(current_user, db)
+    if not candidate_id:
+        raise HTTPException(status_code=403, detail="Candidate ID could not be resolved.")
+
     # Calculate dynamic attempt_number
     past_count = db.query(AiPrepAssessment).filter(
         AiPrepAssessment.candidate_id == candidate_id,
@@ -303,8 +310,13 @@ def get_hardware_check(assessment_id: int, db: Session = Depends(get_db)):
 # 7. Question Bank Endpoints
 # ---------------------------------------------------------------------
 @router.post("/questions", response_model=QuestionBankResponse, status_code=status.HTTP_201_CREATED)
-def create_question(payload: QuestionBankCreate, db: Session = Depends(get_db)):
-    """Add a question to the Question Bank."""
+def create_question(
+    payload: QuestionBankCreate,
+    db: Session = Depends(get_db),
+    admin_user=Depends(admin_required)
+):
+    """Add a question to the Question Bank (Admin Only)."""
+    _ = admin_user
     q = AiPrepQuestionBankORM(
         category=payload.category,
         sub_category=payload.sub_category,
@@ -320,17 +332,25 @@ def create_question(payload: QuestionBankCreate, db: Session = Depends(get_db)):
     return q
 
 
-@router.get("/questions", response_model=List[QuestionBankResponse])
+@router.get("/questions", response_model=QuestionListResponse)
 def list_questions(
     category: Optional[QuestionCategoryEnum] = Query(default=None),
+    difficulty: Optional[DifficultyLevelEnum] = Query(default=None, alias="difficulty"),
     limit: int = Query(default=20, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
-    """List questions in Question Bank with optional category filter."""
+    """List questions in Question Bank with optional category and difficulty filters."""
+    _ = current_user
     query = db.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.is_active == True)
     if category:
         query = query.filter(AiPrepQuestionBankORM.category == category)
-    return query.limit(limit).all()
+    if difficulty:
+        query = query.filter(AiPrepQuestionBankORM.difficulty_level == difficulty)
+    
+    total_count = query.count()
+    items = query.limit(limit).all()
+    return QuestionListResponse(items=items, total=total_count)
 
 
 # ---------------------------------------------------------------------
@@ -339,11 +359,20 @@ def list_questions(
 @router.post("/consents", response_model=ConsentResponse, status_code=status.HTTP_201_CREATED)
 def record_consent(
     payload: ConsentRequest,
-    candidate_id: int = Query(default=1, description="Candidate ID"),
+    current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Record user privacy & data consent."""
+    from fapi.ai_prep.dependencies import get_candidate_id_for_user
+    candidate_id = get_candidate_id_for_user(current_user, db)
+    if not candidate_id:
+        raise HTTPException(status_code=403, detail="Candidate ID could not be resolved.")
+        
     target_cid = payload.candidate_id if payload.candidate_id is not None else candidate_id
+    is_admin = getattr(current_user, "is_admin", False) or getattr(current_user, "role", "") == "admin"
+    if target_cid != candidate_id and not is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to record consent for another candidate.")
+        
     consent = AiPrepConsentORM(
         candidate_id=target_cid,
         consent_type=payload.consent_type,
@@ -357,8 +386,13 @@ def record_consent(
 
 
 @router.get("/consents/{candidate_id}", response_model=List[ConsentResponse])
-def get_consents(candidate_id: int, db: Session = Depends(get_db)):
+def get_consents(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user_access=Depends(verify_dashboard_access)
+):
     """Fetch consent status records for a candidate."""
+    _ = user_access
     return db.query(AiPrepConsent).filter(AiPrepConsent.candidate_id == candidate_id).all()
 
 
@@ -366,9 +400,21 @@ def get_consents(candidate_id: int, db: Session = Depends(get_db)):
 # 9. GET /api/ai-prep/analytics/dashboard/{candidate_id} (Dashboard Data)
 # ---------------------------------------------------------------------
 @router.get("/analytics/dashboard/{candidate_id}", response_model=DashboardResponse)
-def get_dashboard_metrics(candidate_id: int, db: Session = Depends(get_db)):
+def get_dashboard_metrics(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    from_date: Optional[datetime] = Query(None, alias="from"),
+    to_date: Optional[datetime] = Query(None, alias="to"),
+    user_access=Depends(verify_dashboard_access)
+):
     """Fetch aggregated analytics data for the candidate's dashboard (Week 2)."""
-    return get_candidate_dashboard_metrics(db=db, candidate_id=candidate_id)
+    _ = user_access
+    return get_candidate_dashboard_metrics(
+        db=db,
+        candidate_id=candidate_id,
+        from_date=from_date,
+        to_date=to_date
+    )
 
 
 # ---------------------------------------------------------------------

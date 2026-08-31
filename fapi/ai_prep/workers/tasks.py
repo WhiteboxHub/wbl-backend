@@ -27,11 +27,11 @@ def process_assessment(self, assessment_id: int):
         if chain is None:
             raise ImportError("Celery library not installed")
         ml_pipeline = chain(
-            stt_task.s(assessment_id),
-            audio_analysis_task.s(assessment_id),
-            vision_task.s(assessment_id),
-            llm_analysis_task.s(assessment_id),
-            finalize_task.s(assessment_id),
+            stt_task.si(assessment_id),
+            audio_analysis_task.si(assessment_id),
+            vision_task.si(assessment_id),
+            llm_analysis_task.si(assessment_id),
+            finalize_task.si(assessment_id),
         )
         ml_pipeline.apply_async()
 

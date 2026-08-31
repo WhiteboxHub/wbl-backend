@@ -369,6 +369,45 @@ class AiPrepReportORM(Base):
 
     assessment = relationship("AiPrepAssessmentORM", back_populates="report")
 
+    def get_normalized_radar_scores(self) -> dict:
+        def get_sub_score(scores, category, subkey, default=0.0):
+            if not isinstance(scores, dict):
+                return default
+            cat_data = scores.get(category)
+            if not isinstance(cat_data, dict):
+                return default
+            sub_scores = cat_data.get("sub_scores")
+            if not isinstance(sub_scores, dict):
+                return default
+            val = sub_scores.get(subkey)
+            if val is None:
+                return default
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return default
+
+        scores = self.scores_breakdown_json
+        if not scores:
+            return {}
+
+        ml_val = get_sub_score(scores, "core_engineering", "algorithms")
+        if ml_val == 0.0:
+            ml_val = get_sub_score(scores, "core_engineering", "ml_fundamentals")
+            
+        ethics_val = get_sub_score(scores, "ai_engineering", "ethics")
+        if ethics_val == 0.0:
+            ethics_val = get_sub_score(scores, "ai_engineering", "evaluation_methodology")
+
+        return {
+            "llm_architecture": get_sub_score(scores, "ai_engineering", "llm_knowledge"),
+            "rag_systems": get_sub_score(scores, "ai_engineering", "rag_understanding"),
+            "ml_fundamentals": ml_val,
+            "system_design": get_sub_score(scores, "core_engineering", "system_design"),
+            "code_quality": get_sub_score(scores, "core_engineering", "code_quality"),
+            "ai_ethics": ethics_val
+        }
+
     __table_args__ = (
         CheckConstraint("overall_score >= 0 AND overall_score <= 100", name="chk_rep_score"),
     )
