@@ -1,0 +1,452 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AIPrep Master JSON Contracts Suite",
+  "description": "The single consolidated JSON file containing every payload signature across API endpoints, Orchestrator boundaries, Core Engines, and LLM evaluation outputs.",
+  "definitions": {
+
+    "UI_to_API_Create_Assessment": {
+      "type": "object",
+      "properties": {
+        "candidate_id": { "type": "integer" },
+        "assessment_type": {
+          "type": "string",
+          "enum": ["INTRO", "JD_INTRO", "RECRUITER", "HIRING_MANAGER", "SYSTEM_DESIGN", "TECHNICAL"]
+        },
+        "media_type": {
+          "type": "string",
+          "enum": ["VIDEO", "AUDIO"]
+        },
+        "job_description": { "type": ["string", "null"] }
+      },
+      "required": ["candidate_id", "assessment_type", "media_type"]
+    },
+
+    "UI_to_API_Local_Media_Upload": {
+      "type": "object",
+      "description": "Multipart form-data payload uploading binary video/audio blob to local server disk storage.",
+      "properties": {
+        "assessment_id": { "type": "integer" },
+        "media_type": { "type": "string", "enum": ["VIDEO", "AUDIO"] }
+      },
+      "required": ["assessment_id", "media_type"]
+    },
+
+    "UI_to_API_Submit_Data": {
+      "type": "object",
+      "properties": {
+        "questions": { "type": "array", "items": { "type": "object" } },
+        "transcript": { "type": "object" },
+        "audio_telemetry": { "type": "object" },
+        "video_telemetry": { "type": "object" }
+      },
+      "required": ["questions", "transcript", "audio_telemetry", "video_telemetry"]
+    },
+
+    "API_Update_Media_URL": {
+      "type": "object",
+      "properties": {
+        "youtube_url": { "type": "string" }
+      },
+      "required": ["youtube_url"]
+    },
+
+    "API_Assessment_List_Response": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "integer" },
+              "assessment_type": { "type": "string" },
+              "media_type": { "type": "string" },
+              "status": { "type": "string" },
+              "created_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "total": { "type": "integer" }
+      },
+      "required": ["items", "total"]
+    },
+
+    "API_Question_Create_Request": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "enum": ["INTRO", "JD_INTRO", "RECRUITER", "HIRING_MANAGER", "SYSTEM_DESIGN", "TECHNICAL"]
+        },
+        "sub_category": { "type": ["string", "null"] },
+        "difficulty_level": {
+          "type": "string",
+          "enum": ["EASY", "MEDIUM", "HARD", "EXPERT"]
+        },
+        "question_text": { "type": "string" },
+        "is_active": { "type": "boolean" }
+      },
+      "required": ["category", "difficulty_level", "question_text"]
+    },
+
+    "API_Question_Update_Request": {
+      "type": "object",
+      "properties": {
+        "sub_category": { "type": ["string", "null"] },
+        "difficulty_level": { "type": "string" },
+        "question_text": { "type": "string" },
+        "is_active": { "type": "boolean" }
+      }
+    },
+
+    "API_Question_Response": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "category": { "type": "string" },
+        "sub_category": { "type": ["string", "null"] },
+        "difficulty_level": { "type": "string" },
+        "question_text": { "type": "string" },
+        "is_active": { "type": "boolean" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "category", "difficulty_level", "question_text", "is_active", "created_at"]
+    },
+
+    "AIPrep_Assessment_Engine_Contract": {
+      "contract_name": "ai_prep_assessment_engine_contract",
+      "version": "1.0.0",
+      "purpose": "Defines the backend contract for the AI Prep Assessment Engine. The engine contains assessment business logic only and does not access databases, APIs, LLMs, STT services, or external systems.",
+      "architecture": {
+        "request_flow": [
+          "UI",
+          "API",
+          "Assessment Orchestrator",
+          "Assessment Engine",
+          "Assessment Orchestrator",
+          "API",
+          "UI"
+        ],
+        "principle": "The Assessment Orchestrator handles external interactions and persistence. The Assessment Engine validates input, applies assessment business rules, and returns the resulting assessment state."
+      },
+      "assessment_engine": {
+        "responsibilities": [
+          "Validate assessment input",
+          "Validate the current assessment state",
+          "Apply assessment business rules",
+          "Validate assessment start conditions",
+          "Validate assessment submission conditions",
+          "Validate cancellation conditions",
+          "Validate testing results provided to the engine",
+          "Validate question and session state",
+          "Apply assessment status transitions",
+          "Return the resulting assessment state",
+          "Return validation or business-rule errors"
+        ],
+        "does_not_do": [
+          "Access the database",
+          "Call APIs",
+          "Call LLMs",
+          "Call STT services",
+          "Call external services",
+          "Perform transcript generation",
+          "Perform audio or video analysis",
+          "Persist assessment data",
+          "Generate the final assessment report"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "allowed_values": ["IN_PROGRESS", "EVALUATING", "COMPLETED", "FAILED"]
+      },
+      "operation": {
+        "type": "string",
+        "allowed_values": ["START", "SUBMIT", "CANCEL"]
+      },
+      "input_contract": {
+        "assessment": {
+          "assessment_id": { "type": "integer", "required": true },
+          "candidate_id": { "type": "integer", "required": true },
+          "assessment_type": {
+            "type": "string",
+            "required": true,
+            "allowed_values": ["INTRO", "JD_INTRO", "RECRUITER", "HIRING_MANAGER", "SYSTEM_DESIGN", "TECHNICAL"]
+          },
+          "media_type": { "type": "string", "required": true, "allowed_values": ["AUDIO", "VIDEO"] },
+          "status": {
+            "type": "string",
+            "required": true,
+            "allowed_values": ["IN_PROGRESS", "EVALUATING", "COMPLETED", "FAILED"]
+          },
+          "job_description": { "type": "string", "required": false }
+        },
+        "operation": {
+          "type": "string",
+          "required": true,
+          "allowed_values": ["START", "SUBMIT", "CANCEL"]
+        },
+        "testing": {
+          "type": "object",
+          "required": false,
+          "properties": {
+            "completed": { "type": "boolean" },
+            "passed": { "type": "boolean" }
+          }
+        },
+        "session": {
+          "type": "object",
+          "required": false,
+          "properties": {
+            "started_at": { "type": "string", "format": "datetime" },
+            "completed_at": { "type": "string", "format": "datetime" }
+          }
+        },
+        "question": {
+          "type": "object",
+          "required": false,
+          "properties": {
+            "question_id": { "type": "integer" },
+            "question_number": { "type": "integer" }
+          }
+        }
+      },
+      "output_contract": {
+        "success": { "type": "boolean", "required": true },
+        "assessment": {
+          "assessment_id": { "type": "integer", "required": true },
+          "status": {
+            "type": "string",
+            "required": true,
+            "allowed_values": ["IN_PROGRESS", "EVALUATING", "COMPLETED", "FAILED"]
+          }
+        },
+        "error": {
+          "type": "object",
+          "required": false,
+          "properties": {
+            "code": { "type": "string", "required": true },
+            "message": { "type": "string", "required": true }
+          }
+        }
+      },
+      "status_transitions": {
+        "START": { "from": ["IN_PROGRESS"], "to": "IN_PROGRESS" },
+        "SUBMIT": { "from": ["IN_PROGRESS"], "to": "EVALUATING" },
+        "CANCEL": { "from": ["IN_PROGRESS"], "to": "FAILED" },
+        "EVALUATING": { "success": "COMPLETED", "failure": "FAILED" }
+      },
+      "business_rules": {
+        "status_rules": [
+          "An assessment must be IN_PROGRESS before it can be submitted.",
+          "Submission changes the assessment status from IN_PROGRESS to EVALUATING.",
+          "Evaluation completion changes the status from EVALUATING to COMPLETED.",
+          "Evaluation failure changes the status from EVALUATING to FAILED.",
+          "A completed assessment cannot be submitted again.",
+          "A failed assessment cannot be submitted again.",
+          "An assessment cancellation is allowed only while the assessment is IN_PROGRESS."
+        ],
+        "question_rules": [
+          "Questions are selected according to the assessment question-selection rules.",
+          "A question must not be repeated until all eligible questions in the applicable category have been used.",
+          "Question retrieval and persistence are handled by the Assessment Orchestrator."
+        ]
+      }
+    },
+
+    "Orchestrator_to_Audio_Engine": {
+      "type": "object",
+      "properties": {
+        "audio_telemetry": { "type": "object" }
+      },
+      "required": ["audio_telemetry"]
+    },
+
+    "Audio_Engine_Output": {
+      "type": "object",
+      "properties": {
+        "audio_context": { "type": "string" }
+      },
+      "required": ["audio_context"]
+    },
+
+    "Orchestrator_to_Video_Engine": {
+      "type": "object",
+      "properties": {
+        "video_telemetry": { "type": "object" }
+      },
+      "required": ["video_telemetry"]
+    },
+
+    "Video_Engine_Output": {
+      "type": "object",
+      "properties": {
+        "video_context": { "type": "string" }
+      },
+      "required": ["video_context"]
+    },
+
+    "Orchestrator_to_Eval_Engine": {
+      "type": "object",
+      "properties": {
+        "audio_context": { "type": "string" },
+        "video_context": { "type": "string" },
+        "qa_context": { "type": "string" }
+      },
+      "required": ["audio_context", "qa_context"]
+    },
+
+    "Eval_Engine_Prompt_Output": {
+      "type": "object",
+      "properties": {
+        "system_prompt": { "type": "string" },
+        "user_prompt": { "type": "string" },
+        "response_format": { "type": "string" }
+      },
+      "required": ["system_prompt", "user_prompt"]
+    },
+
+    "Orchestrator_to_Scores_Engine": {
+      "type": "object",
+      "properties": {
+        "raw_llm_json_string": { "type": "string" }
+      },
+      "required": ["raw_llm_json_string"]
+    },
+
+    "Scores_Engine_Output": {
+      "type": "object",
+      "properties": {
+        "is_valid": { "type": "boolean" },
+        "parsed_report": {
+          "type": "object",
+          "properties": {
+            "audio_evaluation": { "type": "object" },
+            "video_evaluation": { "type": "object" },
+            "transcript_evaluation": { "type": "object" }
+          },
+          "required": ["audio_evaluation", "video_evaluation", "transcript_evaluation"]
+        }
+      },
+      "required": ["is_valid", "parsed_report"]
+    },
+
+    "BE3_Master_Engine_Contract": {
+      "contract_name": "AIPrep_Master_Engine_Contract",
+      "version": "2.0.0",
+      "architecture_layer": "BE3_Core_Engine",
+      "database_target": "Migration_V134_Simplified_4_Tables",
+      "input_contract": {
+        "description": "Passed from Orchestrator into Core Engine (Zero DB queries inside engine)",
+        "assessment_metadata": {
+          "assessment_id": 101,
+          "candidate_id": 42,
+          "assessment_type": "INTRO",
+          "media_type": "VIDEO",
+          "attempt_number": 1
+        },
+        "ground_truth": {
+          "job_description": "We are looking for an AI Engineer with deep experience in RAG pipelines...",
+          "resume": {
+            "parsed_json": {
+              "name": "Alex Doe",
+              "current_title": "AI Engineer",
+              "skills": ["Python", "PyTorch", "LangChain", "RAG", "FastAPI", "Docker", "Qdrant"]
+            },
+            "raw_text": "Alex Doe - AI Engineer with 4 years experience..."
+          },
+          "questions": [
+            {
+              "order_index": 1,
+              "question_text": "Tell me about yourself and your experience building production AI systems.",
+              "category": "INTRO",
+              "difficulty_level": "MEDIUM",
+              "ideal_answer_rubric": "Should articulate career arc, GenAI specialization, and end-to-end architecture ownership."
+            }
+          ]
+        },
+        "spoken_content": {
+          "transcript_text": "Hello, thank you for having me...",
+          "word_timestamps": [
+            { "word": "Hello", "start": 0.42, "end": 0.81, "probability": 0.99 }
+          ]
+        },
+        "audio_telemetry": {
+          "avg_volume_db": -18.4,
+          "mean_pitch_hz": 158.2,
+          "silence_ratio_pct": 8.5,
+          "background_noise_level": "LOW",
+          "filler_rate_per_min": 2.3,
+          "pause_count": 6,
+          "speaking_pace_wpm": 136,
+          "speaking_duration_seconds": 182.5
+        },
+        "video_telemetry": {
+          "is_video_mode": true,
+          "face_visibility_pct": 96.0,
+          "eye_contact_pct": 82.0,
+          "screen_attention_pct": 76.0,
+          "distraction_level_pct": 10.0,
+          "facial_engagement_pct": 86.0,
+          "acknowledgement_count": 8,
+          "expression_variety_pct": 80.0,
+          "posture_score": 87.0,
+          "visual_engagement_pct": 85.0
+        },
+        "llm_config": {
+          "candidate_api_key": "sk-proj-...",
+          "candidate_provider": "openai",
+          "candidate_model_name": "gpt-4o",
+          "temperature": 0.2,
+          "max_tokens": 4000
+        }
+      },
+      "output_contract": {
+        "description": "Validated by Core Engine (BE3) and returned to Orchestrator to save into ai_prep_assessment_report",
+        "audio_evaluation": {
+          "coherence": "High. Clear narrative progression...",
+          "clarity": "Articulate delivery...",
+          "fluency": "Natural cadence...",
+          "confidence": "Assertive phrasing...",
+          "pace": "Consistent tempo...",
+          "volume": "Stable recording level...",
+          "professionalism": "Professional tone..."
+        },
+        "video_evaluation": {
+          "eye_contact": "Strong gaze...",
+          "facial_engagement": "Dynamic responsiveness...",
+          "posture": "Upright centered...",
+          "expression_variety": "Natural transitions...",
+          "distraction": "Low distraction..."
+        },
+        "transcript_evaluation": {
+          "scores_breakdown": {
+            "ai_engineering": { "score": 85 },
+            "core_engineering": { "score": 80 },
+            "non_technical": { "score": 88 },
+            "business_acumen": { "score": 75 }
+          },
+          "technical_analysis": {
+            "summary": "Demonstrated solid technical depth...",
+            "strengths": ["Clear explanation..."],
+            "areas_for_improvement": ["Did not discuss guardrails..."]
+          },
+          "coaching_suggestions": [
+            {
+              "priority": 1,
+              "dimension": "AI Engineering",
+              "area": "RAG Evaluation Metrics",
+              "suggestion": "Quantify retrieval quality..."
+            }
+          ],
+          "transcript_evidence": [
+            {
+              "quote": "I implemented a hybrid search pipeline...",
+              "timestamp_s": 42.8
+            }
+          ]
+        }
+      }
+    }
+
+  }
+}
