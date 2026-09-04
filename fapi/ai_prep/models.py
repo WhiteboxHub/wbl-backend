@@ -1,7 +1,7 @@
 """
 SQLAlchemy ORM Models for AIPrep
 ================================
-Implements V134 DDL Schema (4 simplified tables):
+Implements V134 DDL Schema (4 primary tables):
 1. ai_prep_question_bank
 2. ai_prep_assessment
 3. ai_prep_assessment_data
@@ -14,45 +14,23 @@ Plus operational models for media and analysis tasks:
 import enum
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, Text, Boolean, Float, DateTime,
-    ForeignKey, Enum as SQLEnum, JSON
+    Column, Integer, BigInteger, String, Text, Boolean, Float, DateTime,
+    ForeignKey, Enum as SQLEnum, JSON, func, CheckConstraint
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from fapi.db.models import Base
 
-
-
-# ==========================================
-# Enums
-# ==========================================
-class AssessmentStatusEnum(str, enum.Enum):
-    TESTING = "TESTING"
-    IN_PROGRESS = "IN_PROGRESS"
-    EVALUATING = "EVALUATING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-
-
-class AssessmentTypeEnum(str, enum.Enum):
-    TECHNICAL = "TECHNICAL"
-    SYSTEM_DESIGN = "SYSTEM_DESIGN"
-    BEHAVIORAL = "BEHAVIORAL"
-    INTRO = "INTRO"
-    GENERAL = "GENERAL"
-
-
-class AssessmentMediaTypeEnum(str, enum.Enum):
-    VIDEO = "VIDEO"
-    AUDIO = "AUDIO"
-    VIDEO_AUDIO = "VIDEO_AUDIO"
-
-
-class AnalysisRunStatusEnum(str, enum.Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+# Import single source of truth enums from schemas
+from fapi.ai_prep.schemas import (
+    AssessmentStatusEnum,
+    AssessmentCategoryEnum,
+    AssessmentTypeEnum,
+    MediaTypeEnum,
+    AssessmentMediaTypeEnum,
+    DifficultyLevelEnum,
+    EngineOperationEnum,
+    AnalysisRunStatusEnum,
+)
 
 
 # ==========================================
@@ -64,12 +42,16 @@ class AiPrepQuestionBank(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     category = Column(String(64), nullable=False, index=True)
     subcategory = Column(String(64), nullable=True, index=True)
-    difficulty_level = Column(String(32), nullable=True)
+    sub_category = synonym("subcategory")
+    difficulty_level = Column(String(32), nullable=True, default=DifficultyLevelEnum.MEDIUM.value)
     question_text = Column(Text, nullable=False)
     relevant_skills = Column(JSON, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+
+
+AiPrepQuestionBankORM = AiPrepQuestionBank
 
 
 # ==========================================
@@ -79,24 +61,45 @@ class AiPrepAssessment(Base):
     __tablename__ = "ai_prep_assessment"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    candidate_id = Column(Integer, nullable=False, index=True)
-    assessment_type = Column(String(64), default=AssessmentTypeEnum.TECHNICAL.value, nullable=False)
-    assessment_mode = Column(String(32), default=AssessmentMediaTypeEnum.VIDEO.value, nullable=False)
+    candidate_id = Column(BigInteger, nullable=False, index=True)
+    assessment_type = Column(String(64), default=AssessmentCategoryEnum.TECHNICAL.value, nullable=False, index=True)
+    assessment_mode = Column(String(32), default=MediaTypeEnum.VIDEO.value, nullable=False)
+    media_type = synonym("assessment_mode")
     status = Column(String(32), default=AssessmentStatusEnum.IN_PROGRESS.value, nullable=False, index=True)
     job_description = Column(Text, nullable=True)
     youtube_url = Column(String(512), nullable=True)
     ip_address = Column(String(64), nullable=True)
     user_agent = Column(String(512), nullable=True)
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=True)
     completed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
 
     # Relationships
-    assessment_data = relationship("AiPrepAssessmentData", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
-    assessment_report = relationship("AiPrepAssessmentReport", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
-    media_files = relationship("AiPrepMediaFile", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
-    analysis_runs = relationship("AiPrepAnalysisRun", back_populates="assessment", cascade="all, delete-orphan")
+    assessment_data = relationship("AiPrepAssessmentData", back_populates="assessment", uselist=False, cascade="all, delete-orphan", foreign_keys="[AiPrepAssessmentData.assessment_id]")
+    assessment_report = relationship("AiPrepAssessmentReport", back_populates="assessment", uselist=False, cascade="all, delete-orphan", foreign_keys="[AiPrepAssessmentReport.assessment_id]")
+    media_files = relationship("AiPrepMediaFile", back_populates="assessment", uselist=False, cascade="all, delete-orphan", foreign_keys="[AiPrepMediaFile.assessment_id]")
+    analysis_runs = relationship("AiPrepAnalysisRun", back_populates="assessment", cascade="all, delete-orphan", foreign_keys="[AiPrepAnalysisRun.assessment_id]")
+
+    def __getitem__(self, key):
+        if hasattr(self, key):
+            val = getattr(self, key)
+            if hasattr(val, "value"):
+                return val.value
+            return val
+        raise KeyError(key)
+
+    def __contains__(self, key):
+        return hasattr(self, key)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+AiPrepAssessmentORM = AiPrepAssessment
 
 
 # ==========================================
@@ -108,14 +111,17 @@ class AiPrepAssessmentData(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     assessment_id = Column(Integer, ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     questions = Column(JSON, nullable=True)
-    transcript = Column(Text, nullable=True)
+    transcript = Column(JSON, nullable=True)
     audio_telemetry = Column(JSON, nullable=True)
     video_telemetry = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
 
     # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="assessment_data")
+    assessment = relationship("AiPrepAssessment", back_populates="assessment_data", foreign_keys=[assessment_id])
+
+
+AiPrepAssessmentDataORM = AiPrepAssessmentData
 
 
 # ==========================================
@@ -130,11 +136,14 @@ class AiPrepAssessmentReport(Base):
     video_evaluation = Column(JSON, nullable=True)
     transcript_evaluation = Column(JSON, nullable=True)
     composite_score = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
 
     # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="assessment_report")
+    assessment = relationship("AiPrepAssessment", back_populates="assessment_report", foreign_keys=[assessment_id])
+
+
+AiPrepAssessmentReportORM = AiPrepAssessmentReport
 
 
 # ==========================================
@@ -148,11 +157,11 @@ class AiPrepMediaFile(Base):
     audio_file_path = Column(String(512), nullable=True)
     video_file_path = Column(String(512), nullable=True)
     file_size_bytes = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
 
     # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="media_files")
+    assessment = relationship("AiPrepAssessment", back_populates="media_files", foreign_keys=[assessment_id])
 
 
 class AiPrepAnalysisRun(Base):
@@ -164,8 +173,8 @@ class AiPrepAnalysisRun(Base):
     status = Column(String(32), default=AnalysisRunStatusEnum.PENDING.value, nullable=False)
     celery_task_id = Column(String(128), nullable=True)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
 
     # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="analysis_runs")
+    assessment = relationship("AiPrepAssessment", back_populates="analysis_runs", foreign_keys=[assessment_id])

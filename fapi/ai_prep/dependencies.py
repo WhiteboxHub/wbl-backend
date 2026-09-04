@@ -1,24 +1,34 @@
 """
 FastAPI Dependencies for AIPrep
 ===============================
-Provides strict production-grade candidate authentication:
-- Extracts and validates candidate ID strictly from Bearer JWT Authorization token.
-- Zero test backdoors or fallback headers.
+Provides DB session injection and candidate authentication.
 """
 import os
 import logging
-from typing import Optional
-from fastapi import Header, HTTPException, status
+from typing import Optional, Generator
+from fastapi import Header, HTTPException, Depends, status
+from sqlalchemy.orm import Session
+from fapi.db.database import SessionLocal
 from jose import jwt, JWTError
+from fapi.ai_prep import crud, models
 
 logger = logging.getLogger(__name__)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Yields request-scoped database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def get_current_candidate_id(
     authorization: Optional[str] = Header(None, alias="Authorization"),
 ) -> int:
     """
-    Extracts and validates candidate ID strictly from Bearer JWT Authorization header.
+    Extracts and validates candidate ID from Bearer JWT Authorization header.
     Raises HTTP 401 Unauthorized if token is missing, invalid, or expired.
     """
     if not authorization or not authorization.startswith("Bearer "):
@@ -51,3 +61,19 @@ def get_current_candidate_id(
         )
 
 
+def get_assessment_or_403(
+    id: int,
+    candidate_id: int = Depends(get_current_candidate_id),
+    db: Session = Depends(get_db),
+) -> models.AiPrepAssessment:
+    """Enforces multi-tenant candidate security. Ensures candidate owns the requested assessment."""
+    assessment = crud.get_assessment_by_id(db, id)
+    if not assessment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found"
+        )
+    if assessment.candidate_id != candidate_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+        )
+    return assessment

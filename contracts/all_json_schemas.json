@@ -4,8 +4,11 @@
   "description": "The single consolidated JSON file containing every payload signature across API endpoints, Orchestrator boundaries, Core Engines, and LLM evaluation outputs.",
   "definitions": {
 
+    "=== SECTION 1: API ENDPOINT REQUEST & RESPONSE CONTRACTS ===": {},
+
     "UI_to_API_Create_Assessment": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] POST /api/aiprep/assessments — Request body signature.",
       "properties": {
         "candidate_id": { "type": "integer" },
         "assessment_type": {
@@ -23,7 +26,7 @@
 
     "UI_to_API_Local_Media_Upload": {
       "type": "object",
-      "description": "Multipart form-data payload uploading binary video/audio blob to local server disk storage.",
+      "description": "[API ROUTE CONTRACT] Multipart form-data payload uploading binary video/audio blob to local server disk storage.",
       "properties": {
         "assessment_id": { "type": "integer" },
         "media_type": { "type": "string", "enum": ["VIDEO", "AUDIO"] }
@@ -33,6 +36,7 @@
 
     "UI_to_API_Submit_Data": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] POST /api/aiprep/assessments/{id}/data — Submits questions, transcript, audio & video telemetry.",
       "properties": {
         "questions": { "type": "array", "items": { "type": "object" } },
         "transcript": { "type": "object" },
@@ -44,6 +48,7 @@
 
     "API_Update_Media_URL": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] PATCH /api/aiprep/assessments/{id}/media — Updates youtube_url.",
       "properties": {
         "youtube_url": { "type": "string" }
       },
@@ -52,6 +57,7 @@
 
     "API_Assessment_List_Response": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] GET /api/aiprep/assessments?candidate_id={id} — Paginated list response.",
       "properties": {
         "items": {
           "type": "array",
@@ -73,6 +79,7 @@
 
     "API_Question_Create_Request": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] POST /api/aiprep/questions — Admin question creation payload.",
       "properties": {
         "category": {
           "type": "string",
@@ -91,6 +98,7 @@
 
     "API_Question_Update_Request": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] PATCH /api/aiprep/questions/{id} — Admin question update payload.",
       "properties": {
         "sub_category": { "type": ["string", "null"] },
         "difficulty_level": { "type": "string" },
@@ -101,6 +109,7 @@
 
     "API_Question_Response": {
       "type": "object",
+      "description": "[API ROUTE CONTRACT] Admin question response schema.",
       "properties": {
         "id": { "type": "integer" },
         "category": { "type": "string" },
@@ -113,10 +122,12 @@
       "required": ["id", "category", "difficulty_level", "question_text", "is_active", "created_at"]
     },
 
+    "=== SECTION 2: CORE ENGINE 1 — ASSESSMENT ENGINE CONTRACT STARTS HERE ===": {},
+
     "AIPrep_Assessment_Engine_Contract": {
       "contract_name": "ai_prep_assessment_engine_contract",
       "version": "1.0.0",
-      "purpose": "Defines the backend contract for the AI Prep Assessment Engine. The engine contains assessment business logic only and does not access databases, APIs, LLMs, STT services, or external systems.",
+      "purpose": "[CORE ENGINE 1: ASSESSMENT ENGINE] Pure workflow state machine contract (START, SUBMIT, CANCEL rules). ZERO DB / ZERO Network Calls.",
       "architecture": {
         "request_flow": [
           "UI",
@@ -253,8 +264,11 @@
       }
     },
 
+    "=== SECTION 3: CORE ENGINE 2 — AUDIO ENGINE CONTRACTS START HERE ===": {},
+
     "Orchestrator_to_Audio_Engine": {
       "type": "object",
+      "description": "[CORE ENGINE 2: AUDIO ENGINE] Input payload passed from Orchestrator into Audio Engine.",
       "properties": {
         "audio_telemetry": { "type": "object" }
       },
@@ -263,14 +277,18 @@
 
     "Audio_Engine_Output": {
       "type": "object",
+      "description": "[CORE ENGINE 2: AUDIO ENGINE] Formatted audio context string output returned to Orchestrator.",
       "properties": {
         "audio_context": { "type": "string" }
       },
       "required": ["audio_context"]
     },
 
+    "=== SECTION 4: CORE ENGINE 3 — VIDEO PROCESSOR ENGINE CONTRACTS START HERE ===": {},
+
     "Orchestrator_to_Video_Engine": {
       "type": "object",
+      "description": "[CORE ENGINE 3: VIDEO PROCESSOR ENGINE] Input payload passed from Orchestrator into Video Processor Engine.",
       "properties": {
         "video_telemetry": { "type": "object" }
       },
@@ -279,14 +297,18 @@
 
     "Video_Engine_Output": {
       "type": "object",
+      "description": "[CORE ENGINE 3: VIDEO PROCESSOR ENGINE] Formatted video context string output returned to Orchestrator.",
       "properties": {
         "video_context": { "type": "string" }
       },
       "required": ["video_context"]
     },
 
+    "=== SECTION 5: CORE ENGINE 4 — LLM EVALUATION ENGINE CONTRACTS START HERE ===": {},
+
     "Orchestrator_to_Eval_Engine": {
       "type": "object",
+      "description": "[CORE ENGINE 4: LLM EVALUATION ENGINE] Combined context payload passed into Eval Engine.",
       "properties": {
         "audio_context": { "type": "string" },
         "video_context": { "type": "string" },
@@ -297,6 +319,7 @@
 
     "Eval_Engine_Prompt_Output": {
       "type": "object",
+      "description": "[CORE ENGINE 4: LLM EVALUATION ENGINE] System and user prompt strings output for LLM call.",
       "properties": {
         "system_prompt": { "type": "string" },
         "user_prompt": { "type": "string" },
@@ -305,8 +328,11 @@
       "required": ["system_prompt", "user_prompt"]
     },
 
+    "=== SECTION 6: CORE ENGINE 5 — SCORES ENGINE CONTRACTS START HERE ===": {},
+
     "Orchestrator_to_Scores_Engine": {
       "type": "object",
+      "description": "[CORE ENGINE 5: SCORES ENGINE] Unverified raw LLM JSON string input payload passed into Scores Engine.",
       "properties": {
         "raw_llm_json_string": { "type": "string" }
       },
@@ -315,6 +341,7 @@
 
     "Scores_Engine_Output": {
       "type": "object",
+      "description": "[CORE ENGINE 5: SCORES ENGINE] Validated report output (audio_evaluation, video_evaluation, transcript_evaluation).",
       "properties": {
         "is_valid": { "type": "boolean" },
         "parsed_report": {
@@ -329,6 +356,8 @@
       },
       "required": ["is_valid", "parsed_report"]
     },
+
+    "=== SECTION 7: MASTER ENGINE CONTRACT (BE3_Master_Engine_Contract) STARTS HERE ===": {},
 
     "BE3_Master_Engine_Contract": {
       "contract_name": "AIPrep_Master_Engine_Contract",
