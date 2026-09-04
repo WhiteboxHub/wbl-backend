@@ -7,30 +7,45 @@ import sys
 import unittest
 from unittest.mock import MagicMock
 
+# ── Mock heavy dependencies BEFORE any fapi.ai_prep imports ──────────────────
+mock_sqla = MagicMock()
+# Prevent sqlalchemy from being imported as a real module (Homebrew sandbox issue)
+for mod in [
+    "sqlalchemy",
+    "sqlalchemy.orm",
+    "sqlalchemy.dialects",
+    "sqlalchemy.dialects.mysql",
+    "sqlalchemy.exc",
+    "pymysql",
+]:
+    sys.modules.setdefault(mod, mock_sqla)
+
+mock_db_database = MagicMock()
+sys.modules.setdefault("fapi.db.database", mock_db_database)
+sys.modules.setdefault("fapi.db.models", MagicMock())
+
 import fapi.ai_prep
 
 mock_crud = MagicMock()
-mock_sqla = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 fapi.ai_prep.crud = mock_crud
-sys.modules.setdefault("sqlalchemy", mock_sqla)
-sys.modules.setdefault("sqlalchemy.orm", mock_sqla)
-sys.modules.setdefault("fapi.db.database", MagicMock())
+
+# Mock fapi.ai_prep.models to avoid sqlalchemy dialect imports
+sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
 import fastapi.dependencies.utils
-
 fastapi.dependencies.utils.ensure_multipart_is_installed = lambda: None
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from fapi.db.database import get_db
-from fapi.ai_prep.dependencies import get_current_candidate_id
+from fapi.ai_prep.dependencies import get_db, get_current_candidate_id
 from fapi.ai_prep.schemas import (
     AssessmentStatusEnum,
     AssessmentCategoryEnum,
     MediaTypeEnum,
 )
 from fapi.ai_prep.router import router
+
 
 app = FastAPI()
 app.include_router(router)
