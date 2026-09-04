@@ -279,63 +279,9 @@ def update_question(
     return question
 
 
-def get_round_robin_questions(
-    db: Session,
-    category: AssessmentCategoryEnum,
-    candidate_id: Optional[int] = None,
-    limit: int = 5,
-) -> List[AiPrepQuestionBankORM]:
-    """
-    Selects questions using a round-robin algorithm.
-    Excludes questions recently asked to the candidate in previous assessments of the same category,
-    resetting the history filter once all available questions in that category have been used.
-    """
-    all_eligible = (
-        db.query(AiPrepQuestionBankORM)
-        .filter(
-            AiPrepQuestionBankORM.category == category,
-            AiPrepQuestionBankORM.is_active.is_(True),
-        )
-        .order_by(AiPrepQuestionBankORM.id.asc())
-        .all()
-    )
-
-    if not all_eligible:
-        return []
-
-    if len(all_eligible) <= limit or not candidate_id:
-        return all_eligible[:limit]
-
-    # Fetch IDs of questions previously asked to candidate in this category
-    recent_assessments = (
-        db.query(AiPrepAssessmentORM.id)
-        .filter(
-            AiPrepAssessmentORM.candidate_id == candidate_id,
-            AiPrepAssessmentORM.assessment_type == category,
-        )
-        .subquery()
-    )
-
-    used_question_records = (
-        db.query(AiPrepAssessmentDataORM.questions)
-        .filter(AiPrepAssessmentDataORM.assessment_id.in_(recent_assessments))
-        .all()
-    )
-
-    used_question_ids = set()
-    for row in used_question_records:
-        if row.questions and isinstance(row.questions, list):
-            for q in row.questions:
-                if isinstance(q, dict) and "id" in q:
-                    used_question_ids.add(q["id"])
-                elif isinstance(q, dict) and "question_id" in q:
-                    used_question_ids.add(q["question_id"])
-
-    # Filter out recently used questions
-    unused_questions = [q for q in all_eligible if q.id not in used_question_ids]
-
-    # Round-Robin reset: if all questions have been used, reset and cycle back
-    if len(unused_questions) < limit:
-        return all_eligible[:limit]
-
-    return unused_questions[:limit]
+# Aliases for backwards compatibility across Orchestrator and Router calls
+save_assessment_data = create_or_update_assessment_data
+get_assessment_data = get_assessment_data_by_assessment_id
+save_assessment_report = create_or_update_assessment_report
+get_assessment_report = get_assessment_report_by_assessment_id
+list_questions_by_category = list_questions

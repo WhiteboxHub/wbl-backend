@@ -114,6 +114,11 @@ class QuestionBankResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class QuestionListResponse(BaseModel):
+    items: List[QuestionBankResponse] = Field(default_factory=list)
+    total: int
+
+
 # ─── Assessment Engine Domain Contracts ────────────────────────────────────────
 
 class AssessmentInfoContract(BaseModel):
@@ -224,4 +229,56 @@ class ScoresEngineOutput(BaseModel):
     is_valid: bool
     parsed_report: Optional[ParsedReportOutput] = None
     error: Optional[str] = None
+
+
+# ─── Core Engine 1: Assessment Engine Boundary Models ─────────────────────────
+
+class AssessmentStateInput(BaseModel):
+    assessment_id: int
+    candidate_id: int
+    assessment_type: AssessmentCategoryEnum
+    media_type: MediaTypeEnum
+    status: AssessmentStatusEnum
+    job_description: Optional[str] = None
+
+
+class TestingStateInput(BaseModel):
+    completed: bool = False
+    passed: bool = False
+
+
+class SessionStateInput(BaseModel):
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+class QuestionStateInput(BaseModel):
+    question_id: Optional[int] = None
+    question_number: Optional[int] = None
+
+
+class AssessmentEngineInput(BaseModel):
+    assessment: AssessmentStateInput
+    operation: EngineOperationEnum
+    testing: Optional[TestingStateInput] = None
+    session: Optional[SessionStateInput] = None
+    question: Optional[QuestionStateInput] = None
+
+
+class AssessmentEngineError(BaseModel):
+    code: str
+    message: str
+
+
+class AssessmentEngineOutput(BaseModel):
+    success: bool
+    assessment: Optional[Dict[str, Any]] = None
+    error: Optional[AssessmentEngineError] = None
+
+
+class QuestionSelectionInput(BaseModel):
+    category: AssessmentCategoryEnum
+    eligible_questions: List[Dict[str, Any]] = Field(default_factory=list)
+    used_question_ids: List[int] = Field(default_factory=list)
+
 
