@@ -6,7 +6,7 @@ Handles DB session injection and JWT candidate authentication.
 from typing import Generator
 from fastapi import Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
-from fapi.db.session import SessionLocal
+from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud, models
 
 
