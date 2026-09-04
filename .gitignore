@@ -4,6 +4,7 @@ __pycache__/
 # Environments
 .env
 venv/
+venv1/
 myenv/
 myvenv/
 node_modules
