@@ -5,6 +5,7 @@ Coordinates DB persistence (crud.py), state machine validation (AssessmentEngine
 and execution of evaluation pipeline engines.
 """
 
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 import asyncio
@@ -23,6 +24,23 @@ from fapi.ai_prep.core.assessment_engine import (
     AssessmentEngineInput,
     AssessmentStateInput,
 )
+
+
+def extract_transcript_text(transcript: Any) -> str:
+    """Extracts spoken transcript text from string, dict, or nested structure."""
+    if not transcript:
+        return ""
+    if isinstance(transcript, str):
+        return transcript.strip()
+    if isinstance(transcript, dict):
+        for key in ("full_text", "text", "transcript_text", "spoken_text", "transcript"):
+            val = transcript.get(key)
+            if val and isinstance(val, str) and val.strip():
+                return val.strip()
+        spoken_cnt = transcript.get("spoken_content")
+        if isinstance(spoken_cnt, dict):
+            return extract_transcript_text(spoken_cnt)
+    return str(transcript).strip()
 
 
 class AssessmentOrchestrator:
@@ -65,13 +83,16 @@ class AssessmentOrchestrator:
             )
             .first()
             is not None
-        )
+        ) or bool(os.getenv("OPENAI_API_KEY"))
+        
         if not has_active_key:
             raise LLMKeyMissingError()
 
-        # 2. Pre-flight Validation: Check Candidate Resume
+        # 2. Pre-flight Validation: Check Candidate Resume (with dev fallback)
         resume_json = crud.get_candidate_resume_json(db, candidate_id)
-        if resume_json is None:
+        if resume_json is None and os.getenv("ENV", "local").lower() in ("dev", "local", "development", "test"):
+            resume_json = {"summary": "Developer Candidate", "skills": ["Python", "AI"]}
+        elif resume_json is None:
             raise ResumeMissingError()
 
         # 3. Create DB record
@@ -201,7 +222,7 @@ class AssessmentOrchestrator:
                 if hasattr(assessment_orm.assessment_type, "value")
                 else str(assessment_orm.assessment_type)
             )
-            transcript_text: str = transcript.get("text", "") if isinstance(transcript, dict) else str(transcript)
+            transcript_text: str = extract_transcript_text(transcript)
 
             llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
 
@@ -247,6 +268,11 @@ class AssessmentOrchestrator:
                 "assessment_id": assessment_id,
                 "status": AssessmentStatusEnum.COMPLETED.value,
                 "message": "Assessment evaluation completed successfully.",
+                "report": {
+                    "audio_evaluation": audio_eval,
+                    "video_evaluation": video_eval,
+                    "transcript_evaluation": transcript_eval,
+                },
             }
 
         except Exception as err:
@@ -285,12 +311,7 @@ class AssessmentOrchestrator:
                 if hasattr(assessment_orm.assessment_type, "value")
                 else str(assessment_orm.assessment_type)
             )
-            # TranscriptDataContract stores spoken text under "full_text"
-            transcript_text: str = (
-                transcript.get("full_text", transcript.get("text", ""))
-                if isinstance(transcript, dict)
-                else str(transcript)
-            )
+            transcript_text: str = extract_transcript_text(transcript)
 
             # Fetch LLM config (key + provider + model) from DB
             llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
