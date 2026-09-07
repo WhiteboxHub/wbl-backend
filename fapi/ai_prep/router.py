@@ -4,23 +4,29 @@ Strictly implements the 10 API endpoints specified in contracts/api_endpoints.md
 """
 
 import os
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from fastapi import (
     APIRouter,
     Depends,
     UploadFile,
     File,
+    Form,
     BackgroundTasks,
     HTTPException,
     Query,
     Request,
     status,
 )
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from fapi.ai_prep import schemas, crud, config, dependencies
-from fapi.ai_prep.orchestrator.assessment_orchestrator import AssessmentOrchestrator
+from fapi.ai_prep.orchestrator.assessment_orchestrator import (
+    AssessmentOrchestrator,
+    assessment_orchestrator,
+)
 from fapi.ai_prep.clients.youtube_client import YouTubeClient
+from fapi.ai_prep.services.sse_service import sse_service
 
 router = APIRouter(prefix="/api/aiprep", tags=["AIPrep"])
 
@@ -289,3 +295,147 @@ def update_question(
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     return question
+
+
+# ─── Part 4: Media Ingestion, Assembly & Progress Streaming (BE2) ─────────────
+
+@router.post(
+    "/media/upload-chunk",
+    response_model=schemas.ChunkUploadResponse,
+    status_code=status.HTTP_200_OK,
+    summary="11. Upload 30s Media Chunk",
+)
+async def upload_media_chunk(
+    assessment_id: int = Form(...),
+    chunk_number: int = Form(...),
+    total_chunks: Optional[int] = Form(None),
+    file: UploadFile = File(...),
+    candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Uploads a sequential WebM media chunk into local server storage."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    content = await file.read()
+    res = assessment_orchestrator.handle_chunk_upload(
+        candidate_id=candidate_id,
+        assessment_id=assessment_id,
+        chunk_number=chunk_number,
+        file_bytes=content,
+        total_chunks=total_chunks,
+    )
+    return res
+
+
+@router.get(
+    "/media/chunk-status",
+    response_model=schemas.ChunkStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="12. Get Uploaded Chunk Status",
+)
+def get_chunk_upload_status(
+    assessment_id: int = Query(...),
+    total_chunks: Optional[int] = Query(None),
+    candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Returns uploaded chunk numbers for retry/resume logic."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    status_data = assessment_orchestrator.get_chunk_status(
+        candidate_id=candidate_id,
+        assessment_id=assessment_id,
+        expected_total=total_chunks,
+    )
+    return schemas.ChunkStatusResponse(**status_data)
+
+
+@router.post(
+    "/media/assemble",
+    response_model=schemas.AssembleMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="13. Assemble Chunks & Process Media",
+)
+def assemble_media(
+    assessment_id: int = Query(...),
+    payload: schemas.AssembleMediaRequest = None,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Concatenates WebM chunks via FFmpeg, extracts 16kHz audio, and kicks off async pipeline."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    total_chunks = payload.total_chunks if payload else 1
+    return assessment_orchestrator.assemble_and_process_media(
+        db=db,
+        candidate_id=candidate_id,
+        assessment_id=assessment_id,
+        total_chunks=total_chunks,
+        background_tasks=background_tasks,
+    )
+
+
+@router.get(
+    "/assessments/{id}/status",
+    response_model=schemas.ProcessingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="14. Get Assessment Processing Status Snapshot or SSE",
+)
+def get_processing_status(
+    id: int,
+    request: Request,
+    candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Returns assessment pipeline processing progress snapshot or SSE stream."""
+    assessment = crud.get_assessment_by_id(db, id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    accept_header = request.headers.get("accept", "")
+    if "text/event-stream" in accept_header:
+        return StreamingResponse(
+            sse_service.stream_assessment_progress(id),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    status_snapshot = sse_service.get_status_snapshot(id, db)
+    return schemas.ProcessingStatusResponse(**status_snapshot)
+
+
+@router.get(
+    "/assessments/{id}/stream",
+    status_code=status.HTTP_200_OK,
+    summary="15. Stream Assessment Processing Progress via SSE",
+)
+def stream_processing_status(
+    id: int,
+    candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Real-time SSE event stream for live candidate UI status updates."""
+    assessment = crud.get_assessment_by_id(db, id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    return StreamingResponse(
+        sse_service.stream_assessment_progress(id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

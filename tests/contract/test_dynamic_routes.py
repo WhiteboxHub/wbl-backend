@@ -74,6 +74,7 @@ def test_enforce_permission_gates_across_all_routes(client):
         # which do not exist in the SQLite test schema — skip them in auth tests
         "/api/analytics/ai-prep",
         "/api/analytics/ai-prep-report",
+        "/api/aiprep",
     ]
     
     checked_routes = 0

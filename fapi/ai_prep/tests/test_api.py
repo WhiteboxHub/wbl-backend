@@ -45,6 +45,8 @@ from fapi.ai_prep.schemas import (
     MediaTypeEnum,
 )
 from fapi.ai_prep.router import router
+import fapi.ai_prep.router
+fapi.ai_prep.router.crud = mock_crud
 
 
 app = FastAPI()
