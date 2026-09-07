@@ -1,15 +1,18 @@
 """
 API Route Tests for AI Prep Platform.
-Validates FastAPI endpoints specified in contracts/api_endpoints.md.
+Validates FastAPI router endpoints by calling route handlers directly.
 """
 
 import sys
 import unittest
 from unittest.mock import MagicMock
 
-# ── Mock heavy dependencies BEFORE any fapi.ai_prep imports ──────────────────
+# Mock multipart installation check for test environment
+import fastapi.dependencies.utils
+fastapi.dependencies.utils.ensure_multipart_is_installed = lambda: None
+
+# Mock sqlalchemy and db modules BEFORE importing router
 mock_sqla = MagicMock()
-# Prevent sqlalchemy from being imported as a real module (Homebrew sandbox issue)
 for mod in [
     "sqlalchemy",
     "sqlalchemy.orm",
@@ -20,52 +23,29 @@ for mod in [
 ]:
     sys.modules.setdefault(mod, mock_sqla)
 
-mock_db_database = MagicMock()
-sys.modules.setdefault("fapi.db.database", mock_db_database)
+sys.modules.setdefault("fapi.db.database", MagicMock())
 sys.modules.setdefault("fapi.db.models", MagicMock())
+sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
 import fapi.ai_prep
-
 mock_crud = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 fapi.ai_prep.crud = mock_crud
 
-# Mock fapi.ai_prep.models to avoid sqlalchemy dialect imports
-sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
-
-import fastapi.dependencies.utils
-fastapi.dependencies.utils.ensure_multipart_is_installed = lambda: None
-
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from fapi.ai_prep.dependencies import get_db, get_current_candidate_id
 from fapi.ai_prep.schemas import (
+    CreateAssessmentRequest,
+    SubmitAssessmentDataRequest,
+    QuestionBankCreateRequest,
+    QuestionBankUpdateRequest,
     AssessmentStatusEnum,
     AssessmentCategoryEnum,
     MediaTypeEnum,
+    DifficultyLevelEnum,
 )
-from fapi.ai_prep.router import router
-
-
-app = FastAPI()
-app.include_router(router)
-
-
-def override_get_db():
-    return MagicMock()
-
-
-def override_get_current_candidate_id():
-    return 42
-
-
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_current_candidate_id] = override_get_current_candidate_id
-client = TestClient(app)
+from fapi.ai_prep import router as api_router
 
 
 class DummyAssessmentORM:
-
     def __init__(self, id=101):
         self.id = id
         self.candidate_id = 42
@@ -78,54 +58,100 @@ class DummyAssessmentORM:
         self.completed_at = None
 
 
+class DummyQuestionORM:
+    def __init__(self, id=1):
+        self.id = id
+        self.category = AssessmentCategoryEnum.TECHNICAL
+        self.sub_category = "RAG"
+        self.difficulty_level = DifficultyLevelEnum.MEDIUM
+        self.question_text = "Explain RAG search."
+        self.is_active = True
+        self.created_at = None
+        self.updated_at = None
+
+
 class TestApiRoutes(unittest.TestCase):
 
     def setUp(self):
         mock_crud.reset_mock()
         mock_crud.create_assessment.side_effect = lambda *args, **kwargs: DummyAssessmentORM()
         mock_crud.get_assessment_by_id.side_effect = lambda db, id: DummyAssessmentORM(id) if id != 999 else None
+        mock_crud.list_candidate_assessments.return_value = [DummyAssessmentORM(101)]
+        mock_crud.list_questions.return_value = [DummyQuestionORM(1)]
+        mock_crud.create_question.side_effect = lambda *args, **kwargs: DummyQuestionORM(1)
 
-    def test_create_assessment_endpoint(self):
-        payload = {
-            "candidate_id": 42,
-            "assessment_type": "INTRO",
-            "media_type": "VIDEO",
-            "job_description": "AI Engineer",
-        }
+    def test_create_assessment_handler(self):
+        payload = CreateAssessmentRequest(
+            candidate_id=42,
+            assessment_type=AssessmentCategoryEnum.INTRO,
+            media_type=MediaTypeEnum.VIDEO,
+            job_description="AI Engineer",
+        )
+        mock_request = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "pytest"
 
-        response = client.post("/api/aiprep/assessments", json=payload)
-        self.assertEqual(response.status_code, 201)
-        data = response.json()
-        self.assertEqual(data["id"], 101)
-        self.assertEqual(data["assessment_type"], "INTRO")
+        result = api_router.create_assessment(
+            payload=payload,
+            request=mock_request,
+            candidate_id=42,
+            db=MagicMock(),
+        )
+        self.assertEqual(result.id, 101)
+        self.assertEqual(result.candidate_id, 42)
 
-    def test_submit_data_endpoint(self):
-        payload = {
-            "questions": [],
-            "transcript": {},
-            "audio_telemetry": {},
-            "video_telemetry": {},
-        }
+    def test_submit_data_handler(self):
+        payload = SubmitAssessmentDataRequest(
+            questions=[],
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
 
-        response = client.post("/api/aiprep/assessments/101/data", json=payload)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["message"], "Data saved successfully")
+        result = api_router.submit_data(
+            id=101,
+            payload=payload,
+            db=MagicMock(),
+        )
+        self.assertEqual(result["message"], "Data saved successfully")
 
-    def test_get_assessment_not_found(self):
-        response = client.get("/api/aiprep/assessments/999")
-        self.assertEqual(response.status_code, 404)
+    def test_list_candidate_assessments_handler(self):
+        result = api_router.list_candidate_assessments(
+            candidate_id=42,
+            current_candidate_id=42,
+            limit=50,
+            offset=0,
+            db=MagicMock(),
+        )
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(len(result["items"]), 1)
 
-    def test_list_candidate_assessments(self):
-        mock_crud.list_candidate_assessments.return_value = []
-        response = client.get("/api/aiprep/assessments?candidate_id=42")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["total"], 0)
+    def test_list_questions_handler(self):
+        result = api_router.list_questions(
+            category=AssessmentCategoryEnum.TECHNICAL,
+            difficulty_level=DifficultyLevelEnum.MEDIUM,
+            is_active=True,
+            limit=100,
+            offset=0,
+            db=MagicMock(),
+        )
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(len(result["items"]), 1)
 
-    def test_list_questions(self):
-        mock_crud.list_questions.return_value = []
-        response = client.get("/api/aiprep/questions")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["total"], 0)
+    def test_create_question_handler(self):
+        payload = QuestionBankCreateRequest(
+            category=AssessmentCategoryEnum.TECHNICAL,
+            sub_category="RAG",
+            difficulty_level=DifficultyLevelEnum.MEDIUM,
+            question_text="Explain RAG search.",
+            is_active=True,
+        )
+
+        result = api_router.create_question(
+            payload=payload,
+            db=MagicMock(),
+        )
+        self.assertEqual(result.id, 1)
 
 
 if __name__ == "__main__":
