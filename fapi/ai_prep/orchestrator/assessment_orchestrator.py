@@ -383,3 +383,89 @@ class AssessmentOrchestrator:
             "transcript_evaluation": report_orm.transcript_evaluation,
             "created_at": report_orm.created_at.isoformat() if getattr(report_orm, "created_at", None) else None,
         }
+
+    # ─── BE2 Media Ingestion & YouTube Upload Coordination ────────────────────
+
+    def __init__(self):
+        try:
+            from fapi.ai_prep.services.storage_service import storage_service
+            from fapi.ai_prep.services.media_service import media_service
+            from fapi.ai_prep.services.sse_service import sse_service
+            self.storage_service = storage_service
+            self.media_service = media_service
+            self.sse_service = sse_service
+        except Exception:
+            pass
+
+    def handle_chunk_upload(
+        self,
+        candidate_id: int,
+        assessment_id: int,
+        chunk_number: int,
+        file_bytes: bytes,
+        total_chunks: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Saves media chunk to local server storage."""
+        from fapi.ai_prep.services.storage_service import storage_service
+        chunk_path, file_size = storage_service.save_chunk(
+            candidate_id=candidate_id,
+            assessment_id=assessment_id,
+            chunk_number=chunk_number,
+            file_bytes=file_bytes,
+        )
+        return {
+            "chunk_number": chunk_number,
+            "status": "uploaded",
+            "storage_path": chunk_path,
+            "total_chunks": total_chunks,
+        }
+
+    def get_chunk_status(
+        self,
+        candidate_id: int,
+        assessment_id: int,
+        expected_total: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Returns uploaded and missing chunk numbers for resume/retry logic."""
+        from fapi.ai_prep.services.storage_service import storage_service
+        return storage_service.get_chunk_status(candidate_id, assessment_id, expected_total=expected_total)
+
+    def assemble_and_process_media(
+        self,
+        db: Any,
+        candidate_id: int,
+        assessment_id: int,
+        total_chunks: int,
+        background_tasks: Optional[Any] = None,
+    ) -> Any:
+        """Assembles chunks, extracts audio, records media file, and dispatches processing."""
+        from fapi.ai_prep.services.media_service import media_service
+        return media_service.assemble_and_process_media(
+            db=db,
+            candidate_id=candidate_id,
+            assessment_id=assessment_id,
+            total_chunks=total_chunks,
+            background_tasks=background_tasks,
+        )
+
+    def execute_media_pipeline(
+        self,
+        assessment_id: int,
+        local_video_path: str,
+        local_audio_path: str,
+    ) -> None:
+        """Executes full media pipeline: task logging, upload, cleanup."""
+        from fapi.ai_prep.services.media_service import media_service
+        media_service.execute_media_pipeline(
+            assessment_id=assessment_id,
+            local_video_path=local_video_path,
+            local_audio_path=local_audio_path,
+        )
+
+    def upload_to_youtube(self, assessment_id: int, video_path: str) -> Optional[str]:
+        """Direct upload of assembled video to YouTube with quota rotation."""
+        from fapi.ai_prep.services.youtube_service import youtube_service
+        return youtube_service.upload_video(assessment_id, video_path)
+
+
+assessment_orchestrator = AssessmentOrchestrator()

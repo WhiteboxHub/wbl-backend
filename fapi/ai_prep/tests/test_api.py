@@ -42,7 +42,26 @@ from fapi.ai_prep.schemas import (
     MediaTypeEnum,
     DifficultyLevelEnum,
 )
-from fapi.ai_prep import router as api_router
+from fapi.ai_prep.router import router
+import fapi.ai_prep.router
+fapi.ai_prep.router.crud = mock_crud
+
+
+app = FastAPI()
+app.include_router(router)
+
+
+def override_get_db():
+    return MagicMock()
+
+
+def override_get_current_candidate_id():
+    return 42
+
+
+app.dependency_overrides[get_db] = override_get_db
+app.dependency_overrides[get_current_candidate_id] = override_get_current_candidate_id
+client = TestClient(app)
 
 
 class DummyAssessmentORM:

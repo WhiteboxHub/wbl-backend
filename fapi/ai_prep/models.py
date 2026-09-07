@@ -25,6 +25,9 @@ from fapi.ai_prep.schemas import (
     DifficultyLevelEnum,
     MediaTypeEnum,
     AssessmentStatusEnum,
+    MediaTaskStatusEnum,
+    AnalysisRunStatusEnum,
+    TaskStatusEnum,
 )
 
 
@@ -69,7 +72,12 @@ class AiPrepQuestionBankORM(Base):
 class AiPrepAssessmentORM(Base):
     __tablename__ = "ai_prep_assessment"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+        index=True,
+    )
     candidate_id = Column(BigInteger, nullable=False, index=True)
     assessment_type = Column(
         SQLAEnum(
@@ -122,12 +130,28 @@ class AiPrepAssessmentORM(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    media_files = relationship(
+        "AiPrepMediaFileORM",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    media_task_runs = relationship(
+        "AiPrepMediaTaskRunORM",
+        back_populates="assessment",
+        cascade="all, delete-orphan",
+    )
 
 
 class AiPrepAssessmentDataORM(Base):
     __tablename__ = "ai_prep_assessment_data"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+        index=True,
+    )
     assessment_id = Column(
         BigInteger,
         ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
@@ -149,7 +173,12 @@ class AiPrepAssessmentDataORM(Base):
 class AiPrepAssessmentReportORM(Base):
     __tablename__ = "ai_prep_assessment_report"
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+        index=True,
+    )
     assessment_id = Column(
         BigInteger,
         ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
@@ -165,3 +194,58 @@ class AiPrepAssessmentReportORM(Base):
     )
 
     assessment = relationship("AiPrepAssessmentORM", back_populates="assessment_report")
+
+
+class AiPrepMediaFileORM(Base):
+    __tablename__ = "ai_prep_media_files"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    audio_file_path = Column(String(512), nullable=True)
+    video_file_path = Column(String(512), nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment = relationship("AiPrepAssessmentORM", back_populates="media_files")
+
+
+class AiPrepMediaTaskRunORM(Base):
+    __tablename__ = "ai_prep_media_task_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    task_type = Column(String(64), nullable=False)
+    status = Column(String(32), default=MediaTaskStatusEnum.PENDING.value, nullable=False)
+    celery_task_id = Column(String(128), nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    assessment = relationship("AiPrepAssessmentORM", back_populates="media_task_runs")
+
+
+# Compatibility aliases
+AiPrepQuestionBank = AiPrepQuestionBankORM
+AiPrepAssessment = AiPrepAssessmentORM
+AiPrepAssessmentData = AiPrepAssessmentDataORM
+AiPrepAssessmentReport = AiPrepAssessmentReportORM
+AiPrepMediaFile = AiPrepMediaFileORM
+AiPrepMediaTaskRun = AiPrepMediaTaskRunORM
+AiPrepAnalysisRun = AiPrepMediaTaskRunORM
+AiPrepAnalysisRunORM = AiPrepMediaTaskRunORM

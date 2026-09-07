@@ -16,7 +16,7 @@ SYSTEM_PROMPT = """\
 SECTION 1 — ROLE & CONTEXT
 ===============================================================================
 
-You are a video telemetry analysis assistant for remote interview setup.
+You are a video telemetry analysis expert for remote interview setup.
 
 Your role is to evaluate a candidate's on-camera physical setup, framing, and
 visual display alignment using only the objective video telemetry metrics

@@ -15,12 +15,15 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
     AiPrepAssessmentReportORM,
+    AiPrepMediaFileORM,
+    AiPrepMediaTaskRunORM,
 )
 from fapi.ai_prep.schemas import (
     AssessmentCategoryEnum,
     DifficultyLevelEnum,
     MediaTypeEnum,
     AssessmentStatusEnum,
+    MediaTaskStatusEnum,
 )
 
 
@@ -285,6 +288,134 @@ get_assessment_data = get_assessment_data_by_assessment_id
 save_assessment_report = create_or_update_assessment_report
 get_assessment_report = get_assessment_report_by_assessment_id
 list_questions_by_category = list_questions
+get_assessment = get_assessment_by_id
+
+
+# ─── Media Files & Media Task Runs CRUD (BE2) ─────────────────────────────────
+
+def create_media_file_record(
+    db: Session,
+    assessment_id: int,
+    video_file_path: Optional[str] = None,
+    audio_file_path: Optional[str] = None,
+    file_size_bytes: Optional[int] = None,
+) -> AiPrepMediaFileORM:
+    """Records assembled media file paths for an assessment."""
+    rec = (
+        db.query(AiPrepMediaFileORM)
+        .filter(AiPrepMediaFileORM.assessment_id == assessment_id)
+        .first()
+    )
+    if not rec:
+        rec = AiPrepMediaFileORM(
+            assessment_id=assessment_id,
+            video_file_path=video_file_path,
+            audio_file_path=audio_file_path,
+            file_size_bytes=file_size_bytes,
+        )
+        db.add(rec)
+    else:
+        if video_file_path is not None:
+            rec.video_file_path = video_file_path
+        if audio_file_path is not None:
+            rec.audio_file_path = audio_file_path
+        if file_size_bytes is not None:
+            rec.file_size_bytes = file_size_bytes
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
+create_media_file = create_media_file_record
+
+
+def get_media_file_by_assessment_id(
+    db: Session, assessment_id: int
+) -> Optional[AiPrepMediaFileORM]:
+    return (
+        db.query(AiPrepMediaFileORM)
+        .filter(AiPrepMediaFileORM.assessment_id == assessment_id)
+        .first()
+    )
+
+
+get_media_file = get_media_file_by_assessment_id
+
+
+def create_media_task_run(
+    db: Session,
+    assessment_id: int,
+    task_type: str,
+    status: str = MediaTaskStatusEnum.PENDING.value,
+    celery_task_id: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> AiPrepMediaTaskRunORM:
+    task_run = AiPrepMediaTaskRunORM(
+        assessment_id=assessment_id,
+        task_type=task_type,
+        status=status,
+        celery_task_id=celery_task_id,
+        error_message=error_message,
+    )
+    db.add(task_run)
+    db.commit()
+    db.refresh(task_run)
+    return task_run
+
+
+create_analysis_run = create_media_task_run
+
+
+def get_media_task_run(
+    db: Session, assessment_id: int, task_type: str
+) -> Optional[AiPrepMediaTaskRunORM]:
+    return (
+        db.query(AiPrepMediaTaskRunORM)
+        .filter(
+            AiPrepMediaTaskRunORM.assessment_id == assessment_id,
+            AiPrepMediaTaskRunORM.task_type == task_type,
+        )
+        .order_by(AiPrepMediaTaskRunORM.created_at.desc())
+        .first()
+    )
+
+
+get_analysis_run = get_media_task_run
+
+
+def get_media_task_runs_by_assessment_id(
+    db: Session, assessment_id: int
+) -> List[AiPrepMediaTaskRunORM]:
+    return (
+        db.query(AiPrepMediaTaskRunORM)
+        .filter(AiPrepMediaTaskRunORM.assessment_id == assessment_id)
+        .order_by(AiPrepMediaTaskRunORM.created_at.asc())
+        .all()
+    )
+
+
+get_analysis_runs = get_media_task_runs_by_assessment_id
+
+
+def update_media_task_run_status(
+    db: Session,
+    assessment_id: int,
+    task_type: str,
+    status: str,
+    error_message: Optional[str] = None,
+) -> Optional[AiPrepMediaTaskRunORM]:
+    task_run = get_media_task_run(db, assessment_id, task_type)
+    if not task_run:
+        task_run = create_media_task_run(db, assessment_id, task_type, status=status)
+    task_run.status = status
+    if error_message is not None:
+        task_run.error_message = error_message
+    db.commit()
+    db.refresh(task_run)
+    return task_run
+
+
+update_analysis_run_status = update_media_task_run_status
 
 
 # ─── Candidate Resume CRUD ────────────────────────────────────────────────────

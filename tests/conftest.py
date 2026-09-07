@@ -24,6 +24,7 @@ os.environ["MAIL_SERVER"] = "smtp.mock.com"
 os.environ["MAIL_FROM"] = "mock@mock.com"
 
 
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -115,6 +116,61 @@ def mock_redis():
     RedisClient._client = mock_client
     yield mock_client
     RedisClient._client = original_client
+
+
+# Mock the AIPrep YouTube Client so unit tests never hit live YouTube Data API
+@pytest.fixture(autouse=True)
+def mock_youtube_client_in_tests(monkeypatch):
+    try:
+        from fapi.ai_prep.clients.youtube_client import youtube_client
+        from fapi.ai_prep.clients.youtube_account_manager import youtube_account_pool, YouTubeAccount
+
+        mock_acc = YouTubeAccount(
+            account_id="test_mock_account",
+            refresh_token="mock_refresh_token",
+            client_id="mock_client_id",
+            client_secret="mock_client_secret",
+            daily_limit=9999,
+        )
+        monkeypatch.setattr(youtube_account_pool, "_accounts", [mock_acc])
+        monkeypatch.setattr(youtube_client, "has_live_credentials", lambda: True)
+        monkeypatch.setattr(youtube_client, "_upload_live_api", lambda *args, **kwargs: {
+            "video_id": "yt_test_mock_vid123",
+            "youtube_url": "https://youtube.com/watch?v=yt_test_mock_vid123",
+            "status": "unlisted",
+            "account_id": "test_mock_account",
+        })
+        monkeypatch.setattr(youtube_client, "delete_video", lambda vid: True)
+    except Exception:
+        pass
+    yield
+
+
+
+
+# Mock FFmpeg execution in unit tests if ffmpeg binary is not installed on test host
+@pytest.fixture(autouse=True)
+def mock_ffmpeg_in_tests(monkeypatch):
+    import subprocess
+    original_run = subprocess.run
+
+    def safe_subprocess_run(cmd, *args, **kwargs):
+        if isinstance(cmd, list) and cmd and ("ffmpeg" in str(cmd[0]) or "ffmpeg" in str(cmd)):
+            output_file = cmd[-1]
+            if isinstance(output_file, str) and (output_file.endswith(".wav") or "audio" in output_file):
+                with open(output_file, "wb") as f:
+                    f.write(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x80>\x00\x00\x00}\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+            res = MagicMock()
+            res.returncode = 0
+            res.stdout = b""
+            res.stderr = b""
+            return res
+        return original_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", safe_subprocess_run)
+    yield
+
+
 
 # 6. Create a Reusable API Client for our Tests
 @pytest.fixture
