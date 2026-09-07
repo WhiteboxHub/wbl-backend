@@ -442,4 +442,12 @@ def get_candidate_resume_json(db: Session, candidate_id: int) -> Optional[Dict[s
     if row is None or row.candidate_json is None:
         return None
 
+    if isinstance(row.candidate_json, str):
+        try:
+            import json
+            return json.loads(row.candidate_json)
+        except Exception:
+            return None
+
     return row.candidate_json
+
