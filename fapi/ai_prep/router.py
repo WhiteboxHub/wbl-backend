@@ -147,6 +147,17 @@ def check_candidate_llm_status(
     )
 
     if not row:
+        env_key = os.getenv("OPENAI_API_KEY")
+        if env_key:
+            return schemas.LLMKeyStatusResponse(
+                candidate_id=effective_candidate_id,
+                has_active_key=True,
+                provider="openai",
+                model="gpt-4o",
+                supports_voice=True,
+                status="VALID",
+                message="Active OpenAI key configured from environment.",
+            )
         return schemas.LLMKeyStatusResponse(
             candidate_id=effective_candidate_id,
             has_active_key=False,
