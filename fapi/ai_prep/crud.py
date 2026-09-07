@@ -105,6 +105,17 @@ def list_candidate_assessments(
     )
 
 
+def list_assessments_for_employee(
+    db: Session, candidate_id: Optional[int] = None, limit: int = 50, offset: int = 0
+) -> List[AiPrepAssessmentORM]:
+    """Retrieves all assessments for employee/admin view, optionally filtered by candidate_id."""
+    query = db.query(AiPrepAssessmentORM)
+    if candidate_id is not None:
+        query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+    return query.order_by(AiPrepAssessmentORM.created_at.desc()).offset(offset).limit(limit).all()
+
+
+
 # ─── Assessment Data (Telemetry) CRUD ──────────────────────────────────────────
 
 def create_or_update_assessment_data(

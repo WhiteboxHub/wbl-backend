@@ -121,19 +121,14 @@ def list_assessment_types():
     "/candidate/llm-status",
     response_model=schemas.LLMKeyStatusResponse,
     status_code=status.HTTP_200_OK,
-    summary="Check Candidate LLM Key Status",
+    summary="Check Candidate LLM Key Status (Candidate Self-Check)",
 )
 def check_candidate_llm_status(
-    candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin only)"),
     auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
     db: Session = Depends(dependencies.get_db),
 ):
-    """
-    Validates LLM API key status for a candidate.
-    - Candidate: can only check their own status.
-    - Employee/Admin: can check on behalf of any candidate by ID.
-    """
-    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(candidate_id, auth_ctx)
+    """Candidate checks their own active LLM key status from session."""
+    effective_candidate_id = auth_ctx["candidate_id"]
 
     from fapi.db.models import CandidateLlmApiKeyORM
 
@@ -179,25 +174,74 @@ def check_candidate_llm_status(
     )
 
 
+@router.get(
+    "/employee/candidate/{candidate_id}/llm-status",
+    response_model=schemas.LLMKeyStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Check Candidate LLM Key Status (Employee / Admin Route)",
+)
+def employee_check_candidate_llm_status(
+    candidate_id: int,
+    _employee: Dict[str, Any] = Depends(dependencies.require_employee_or_admin),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Employee or Admin checks LLM API key validity on behalf of a candidate."""
+    from fapi.db.models import CandidateLlmApiKeyORM
+
+    row = (
+        db.query(CandidateLlmApiKeyORM)
+        .filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.status == "active",
+        )
+        .order_by(
+            CandidateLlmApiKeyORM.is_default.desc(),
+            CandidateLlmApiKeyORM.updated_at.desc(),
+            CandidateLlmApiKeyORM.id.desc(),
+        )
+        .first()
+    )
+
+    if not row:
+        return schemas.LLMKeyStatusResponse(
+            candidate_id=candidate_id,
+            has_active_key=False,
+            provider=None,
+            model=None,
+            supports_voice=False,
+            status="MISSING",
+            message=f"No active LLM API key found for candidate_id={candidate_id}.",
+        )
+
+    supports_voice = bool(getattr(row, "voice_enabled", False))
+    raw_provider = getattr(row, "provider_name", None)
+    provider = str(raw_provider) if raw_provider and not hasattr(raw_provider, "_mock_name") else None
+    raw_model = getattr(row, "model_name", None)
+    model = str(raw_model) if raw_model and not hasattr(raw_model, "_mock_name") else None
+
+    return schemas.LLMKeyStatusResponse(
+        candidate_id=candidate_id,
+        has_active_key=True,
+        provider=provider,
+        model=model,
+        supports_voice=supports_voice,
+        status="VALID",
+        message="Active LLM key configured and ready.",
+    )
 
 
 @router.get(
     "/candidate/resume-status",
     response_model=schemas.ResumeStatusResponse,
     status_code=status.HTTP_200_OK,
-    summary="Check Candidate Resume Status",
+    summary="Check Candidate Resume Status (Candidate Self-Check)",
 )
 def check_candidate_resume_status(
-    candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin only)"),
     auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
     db: Session = Depends(dependencies.get_db),
 ):
-    """
-    Validates resume parsing status for a candidate.
-    - Candidate: can only check their own resume status.
-    - Employee/Admin: can check on behalf of any candidate by ID.
-    """
-    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(candidate_id, auth_ctx)
+    """Candidate checks their own resume parsing status from session."""
+    effective_candidate_id = auth_ctx["candidate_id"]
     resume_json = crud.get_candidate_resume_json(db, effective_candidate_id)
 
     if not resume_json:
@@ -214,6 +258,37 @@ def check_candidate_resume_status(
         status="VALID",
         message="Candidate resume is parsed and available.",
     )
+
+
+@router.get(
+    "/employee/candidate/{candidate_id}/resume-status",
+    response_model=schemas.ResumeStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Check Candidate Resume Status (Employee / Admin Route)",
+)
+def employee_check_candidate_resume_status(
+    candidate_id: int,
+    _employee: Dict[str, Any] = Depends(dependencies.require_employee_or_admin),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Employee or Admin checks resume parsing status on behalf of a candidate."""
+    resume_json = crud.get_candidate_resume_json(db, candidate_id)
+
+    if not resume_json:
+        return schemas.ResumeStatusResponse(
+            candidate_id=candidate_id,
+            has_resume=False,
+            status="MISSING",
+            message=f"No parsed resume found for candidate_id={candidate_id}.",
+        )
+
+    return schemas.ResumeStatusResponse(
+        candidate_id=candidate_id,
+        has_resume=True,
+        status="VALID",
+        message="Candidate resume is parsed and available.",
+    )
+
 
 
 # ─── Part 1: Assessment Execution Flow ───────────────────────────────────────
@@ -472,13 +547,19 @@ def get_assessment_report(
     }
 
 
-# ─── Part 2: Candidate Dashboard ──────────────────────────────────────────────
+# ─── Part 2: Candidate & Employee Assessment List Views ───────────────────────
 
+@router.get(
+    "/candidate/assessments",
+    response_model=schemas.AssessmentListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List Candidate Assessments (Candidate Self Route)",
+)
 @router.get(
     "/assessments",
     response_model=schemas.AssessmentListResponse,
     status_code=status.HTTP_200_OK,
-    summary="7. List Candidate Assessments",
+    summary="List Assessments (Generic Route)",
 )
 def list_candidate_assessments(
     candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin can filter, candidates see own)"),
@@ -493,6 +574,27 @@ def list_candidate_assessments(
         db, candidate_id=effective_candidate_id, limit=limit, offset=offset
     )
     return {"items": assessments, "total": len(assessments)}
+
+
+@router.get(
+    "/employee/assessments",
+    response_model=schemas.AssessmentListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List Assessments (Employee / Admin Comprehensive View)",
+)
+def employee_list_assessments(
+    candidate_id: Optional[int] = Query(None, description="Optional Candidate ID filter for employee view"),
+    _employee: Dict[str, Any] = Depends(dependencies.require_employee_or_admin),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(dependencies.get_db),
+):
+    """Employee or Admin comprehensive view listing all assessments or filtering by candidate_id."""
+    assessments = crud.list_assessments_for_employee(
+        db, candidate_id=candidate_id, limit=limit, offset=offset
+    )
+    return {"items": assessments, "total": len(assessments)}
+
 
 
 

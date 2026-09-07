@@ -128,9 +128,40 @@ class TestApiRoutes(unittest.TestCase):
         self.assertTrue(data["has_resume"])
         self.assertEqual(data["status"], "VALID")
 
-    def test_candidate_forbidden_on_other_candidate_status(self):
-        response = client.get("/api/aiprep/candidate/resume-status?candidate_id=999")
+    def test_employee_endpoints_forbidden_for_candidate(self):
+        # Default user context in test client is candidate role -> must get 403 Forbidden
+        response = client.get("/api/aiprep/employee/candidate/999/llm-status")
         self.assertEqual(response.status_code, 403)
+
+        response_resume = client.get("/api/aiprep/employee/candidate/999/resume-status")
+        self.assertEqual(response_resume.status_code, 403)
+
+        response_list = client.get("/api/aiprep/employee/assessments")
+        self.assertEqual(response_list.status_code, 403)
+
+    def test_employee_endpoints_accessible_for_employee(self):
+        def override_employee_user_context():
+            return {
+                "user_id": 1,
+                "uname": "admin@example.com",
+                "role": "admin",
+                "is_employee": True,
+                "is_admin": True,
+                "candidate_id": 1,
+            }
+        app.dependency_overrides[dependencies.get_authenticated_user_context] = override_employee_user_context
+        try:
+            mock_crud.list_assessments_for_employee.return_value = []
+            res = client.get("/api/aiprep/employee/assessments?candidate_id=42")
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.json()["total"], 0)
+
+            res_resume = client.get("/api/aiprep/employee/candidate/42/resume-status")
+            self.assertEqual(res_resume.status_code, 200)
+            self.assertEqual(res_resume.json()["candidate_id"], 42)
+        finally:
+            app.dependency_overrides[dependencies.get_authenticated_user_context] = override_get_authenticated_user_context
+
 
     def test_create_assessment_endpoint_success(self):
         fapi.ai_prep.router.assessment_orchestrator.start_assessment = MagicMock(return_value={
