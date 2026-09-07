@@ -462,3 +462,52 @@ def get_candidate_resume_json(db: Session, candidate_id: int) -> Optional[Dict[s
 
     return row.candidate_json
 
+
+# ─── Candidate LLM Configuration CRUD ─────────────────────────────────────────
+
+def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
+    """
+    Query the candidate_llm_api_keys table for the highest-priority active key.
+
+    Priority order (matching coderpad_openai_key.py pattern):
+        is_default DESC → updated_at DESC → id DESC
+
+    Returns:
+        {
+            "api_key": str,          # plain-text decrypted key
+            "provider": str,         # e.g. "openai", "gemini", "anthropic"
+            "model": str | None,     # preferred model name, may be None → client uses default
+        }
+
+    Raises:
+        ValueError: If no active key exists for this candidate.
+    """
+    from fapi.db.models import CandidateLlmApiKeyORM
+    from fapi.utils.encryption_utils import decrypt_api_key
+
+    row = (
+        db.query(CandidateLlmApiKeyORM)
+        .filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.status == "active",
+        )
+        .order_by(
+            CandidateLlmApiKeyORM.is_default.desc(),
+            CandidateLlmApiKeyORM.updated_at.desc(),
+            CandidateLlmApiKeyORM.id.desc(),
+        )
+        .first()
+    )
+
+    if row is None:
+        raise ValueError(
+            f"No active LLM API key found for candidate_id={candidate_id}. "
+            "Please add a valid API key in the AI Prep settings."
+        )
+
+    plain_key = decrypt_api_key(row.api_key)
+    return {
+        "api_key": plain_key,
+        "provider": row.provider_name,
+        "model": row.model_name,
+    }
