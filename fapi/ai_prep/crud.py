@@ -285,3 +285,30 @@ get_assessment_data = get_assessment_data_by_assessment_id
 save_assessment_report = create_or_update_assessment_report
 get_assessment_report = get_assessment_report_by_assessment_id
 list_questions_by_category = list_questions
+
+
+# ─── Candidate Resume CRUD ────────────────────────────────────────────────────
+
+def get_candidate_resume_json(db: Session, candidate_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Fetches the parsed resume JSON for a candidate from candidate_marketing.candidate_json.
+
+    The marketing record holds the structured resume (candidate_json) which is the
+    primary career reference used by the LLM transcript evaluation prompt.
+
+    Returns:
+        The candidate_json dict if found, or None if no marketing record exists.
+    """
+    from fapi.db.models import CandidateMarketingORM
+
+    row = (
+        db.query(CandidateMarketingORM)
+        .filter(CandidateMarketingORM.candidate_id == candidate_id)
+        .order_by(CandidateMarketingORM.id.desc())
+        .first()
+    )
+
+    if row is None or row.candidate_json is None:
+        return None
+
+    return row.candidate_json
