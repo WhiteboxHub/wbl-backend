@@ -282,3 +282,77 @@ class QuestionSelectionInput(BaseModel):
     used_question_ids: List[int] = Field(default_factory=list)
 
 
+# ─── Media Ingestion & Chunking Schemas (BE2) ─────────────────────────────────
+
+class MediaTaskStatusEnum(str, Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+TaskStatusEnum = MediaTaskStatusEnum
+AnalysisRunStatusEnum = MediaTaskStatusEnum
+AssessmentTypeEnum = AssessmentCategoryEnum
+AssessmentMediaTypeEnum = MediaTypeEnum
+AssessmentResponse = CreateAssessmentResponse
+
+
+class ChunkUploadResponse(BaseModel):
+    chunk_number: int
+    status: str = "uploaded"
+    storage_path: str
+    total_chunks: Optional[int] = None
+
+
+class ChunkStatusResponse(BaseModel):
+    assessment_id: int
+    total_chunks_expected: Optional[int] = None
+    uploaded_chunks_count: int
+    uploaded_chunk_numbers: List[int]
+    missing_chunk_numbers: List[int]
+    is_complete: bool
+
+
+class AssembleMediaRequest(BaseModel):
+    total_chunks: int = Field(..., ge=1, description="Total number of chunks to assemble")
+
+
+class AssembleMediaResponse(BaseModel):
+    assessment_id: int
+    status: str
+    assembled_video_path: str
+    extracted_audio_path: str
+    file_size_bytes: int
+    dispatched_tasks: List[str] = Field(default_factory=list)
+
+
+class ProcessingStatusResponse(BaseModel):
+    assessment_id: int
+    status: str
+    progress_percentage: int
+    active_step: Optional[str] = None
+    tasks: Dict[str, str] = Field(default_factory=dict)
+    youtube_url: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class MediaFileResponse(BaseModel):
+    id: int
+    assessment_id: int
+    audio_file_path: Optional[str] = None
+    video_file_path: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+
+class MediaTaskRunResponse(BaseModel):
+    id: int
+    assessment_id: int
+    task_type: str
+    status: str
+    celery_task_id: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
