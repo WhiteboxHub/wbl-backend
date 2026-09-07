@@ -182,7 +182,7 @@ def get_assessment_or_403(
 ) -> models.AiPrepAssessmentORM:
     """
     Enforces multi-tenant candidate security.
-    Candidates can only access their own assessments; staff/admin can access any.
+    Candidates can only access their own assessments; employee/admin can access any.
     """
     assessment = crud.get_assessment_by_id(db, id)
     if not assessment:
@@ -196,4 +196,22 @@ def get_assessment_or_403(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: you do not have permission to view or modify this assessment.",
         )
-    return assessment
+    return assessment
+
+
+def require_employee_or_admin(
+    auth_ctx: Dict[str, Any] = Depends(get_authenticated_user_context),
+) -> Dict[str, Any]:
+    """Ensures the caller has employee or admin privileges."""
+    is_privileged = auth_ctx.get("is_employee") or auth_ctx.get("is_admin")
+    if not is_privileged:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Employee or Admin privileges required to access employee routes",
+        )
+    return auth_ctx
+
+
+# Alias for backward compatibility
+require_staff_or_admin = require_employee_or_admin
+
