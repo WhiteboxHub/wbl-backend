@@ -7,6 +7,7 @@ and execution of evaluation pipeline engines.
 
 from datetime import datetime
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
+import asyncio
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -159,28 +160,41 @@ class AssessmentOrchestrator:
         )
 
         try:
-            # 4. Generate evaluation report
-            audio_eval = {
-                "coherence": "High",
-                "clarity": "Clear articulation",
-                "confidence": "Assertive",
-                "speaking_pace_wpm": audio_telemetry.get("speaking_pace_wpm", 135),
-            }
-            video_eval = {
-                "eye_contact_pct": video_telemetry.get("eye_contact_pct", 85.0),
-                "facial_engagement_pct": video_telemetry.get("facial_engagement_pct", 80.0),
-                "distraction_level_pct": video_telemetry.get("distraction_level_pct", 10.0),
-            }
-            transcript_eval = {
-                "scores_breakdown": {
-                    "overall_score": 85,
-                    "technical_depth": 82,
-                    "communication": 88,
-                },
-                "summary": "Demonstrated strong technical clarity and domain communication.",
-            }
+            # 4. Fetch candidate LLM config (key + provider + model) from DB
+            from fapi.ai_prep.orchestrator import llm_orchestrator
 
-            # Save report to DB
+            candidate_id: int = assessment_orm.candidate_id
+            assessment_type_str: str = (
+                assessment_orm.assessment_type.value
+                if hasattr(assessment_orm.assessment_type, "value")
+                else str(assessment_orm.assessment_type)
+            )
+            transcript_text: str = transcript.get("text", "") if isinstance(transcript, dict) else str(transcript)
+
+            llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
+
+            # Fetch candidate resume JSON (career reference for transcript prompt)
+            resume_json = crud.get_candidate_resume_json(db, candidate_id)
+
+            # 5. Run concurrent LLM evaluation pipeline (async → sync bridge)
+            eval_results = asyncio.run(
+                llm_orchestrator.run_evaluation(
+                    candidate_id=candidate_id,
+                    assessment_type=assessment_type_str,
+                    transcript_text=transcript_text,
+                    audio_telemetry=audio_telemetry,
+                    video_telemetry=video_telemetry,
+                    resume_json=resume_json,
+                    llm_config=llm_config,
+                    db=db,
+                )
+            )
+
+            transcript_eval = eval_results["transcript_evaluation"]
+            audio_eval = eval_results["audio_evaluation"]
+            video_eval = eval_results["video_evaluation"]
+
+            # 6. Save report to DB
             crud.save_assessment_report(
                 db=db,
                 assessment_id=assessment_id,
@@ -189,7 +203,7 @@ class AssessmentOrchestrator:
                 transcript_evaluation=transcript_eval,
             )
 
-            # 5. Transition to COMPLETED
+            # 7. Transition to COMPLETED
             AssessmentEngine.transition_evaluation_status(
                 assessment_id=assessment_id,
                 current_status=AssessmentStatusEnum.EVALUATING,
@@ -204,16 +218,21 @@ class AssessmentOrchestrator:
             }
 
         except Exception as err:
-            # Transition to FAILED on evaluation exception
+            # Transition to FAILED on any evaluation error
             AssessmentEngine.transition_evaluation_status(
                 assessment_id=assessment_id,
                 current_status=AssessmentStatusEnum.EVALUATING,
                 success=False,
             )
+            crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.FAILED)
+            raise
+    
     def process_assessment_evaluation(self, assessment_id: int) -> None:
         """Background task creating its own DB session to run evaluation pipeline."""
+        import asyncio
         from fapi.db.database import SessionLocal
         from fapi.ai_prep import crud
+        from fapi.ai_prep.orchestrator import llm_orchestrator
 
         db = SessionLocal()
         try:
@@ -223,36 +242,60 @@ class AssessmentOrchestrator:
             audio_telemetry = data_orm.audio_telemetry if data_orm and data_orm.audio_telemetry else {}
             video_telemetry = data_orm.video_telemetry if data_orm and data_orm.video_telemetry else {}
 
-            audio_eval = {
-                "coherence": "High",
-                "clarity": "Clear articulation",
-                "confidence": "Assertive",
-                "speaking_pace_wpm": audio_telemetry.get("speaking_pace_wpm", 135),
-            }
-            video_eval = {
-                "eye_contact_pct": video_telemetry.get("eye_contact_pct", 85.0),
-                "facial_engagement_pct": video_telemetry.get("facial_engagement_pct", 80.0),
-                "distraction_level_pct": video_telemetry.get("distraction_level_pct", 10.0),
-            }
-            transcript_eval = {
-                "scores_breakdown": {
-                    "overall_score": 85,
-                    "technical_depth": 82,
-                    "communication": 88,
-                },
-                "summary": "Demonstrated strong technical clarity and domain communication.",
-            }
+            # Retrieve assessment record to get candidate_id and assessment_type
+            assessment_orm = crud.get_assessment_by_id(db, assessment_id)
+            if not assessment_orm:
+                raise ValueError(f"Assessment ID {assessment_id} not found in background task.")
+
+            candidate_id: int = assessment_orm.candidate_id
+            assessment_type_str: str = (
+                assessment_orm.assessment_type.value
+                if hasattr(assessment_orm.assessment_type, "value")
+                else str(assessment_orm.assessment_type)
+            )
+            # TranscriptDataContract stores spoken text under "full_text"
+            transcript_text: str = (
+                transcript.get("full_text", transcript.get("text", ""))
+                if isinstance(transcript, dict)
+                else str(transcript)
+            )
+
+            # Fetch LLM config (key + provider + model) from DB
+            llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
+
+            # Fetch candidate resume JSON (career reference for transcript prompt)
+            resume_json = crud.get_candidate_resume_json(db, candidate_id)
+
+            # Run concurrent LLM evaluation pipeline (async → sync bridge)
+            eval_results = asyncio.run(
+                llm_orchestrator.run_evaluation(
+                    candidate_id=candidate_id,
+                    assessment_type=assessment_type_str,
+                    transcript_text=transcript_text,
+                    audio_telemetry=audio_telemetry,
+                    video_telemetry=video_telemetry,
+                    resume_json=resume_json,
+                    llm_config=llm_config,
+                    db=db,
+                )
+            )
 
             crud.save_assessment_report(
                 db=db,
                 assessment_id=assessment_id,
-                audio_evaluation=audio_eval,
-                video_evaluation=video_eval,
-                transcript_evaluation=transcript_eval,
+                audio_evaluation=eval_results["audio_evaluation"],
+                video_evaluation=eval_results["video_evaluation"],
+                transcript_evaluation=eval_results["transcript_evaluation"],
             )
             crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.COMPLETED)
+
+        except Exception:
+            crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.FAILED)
+            raise
+
         finally:
             db.close()
+
 
     @staticmethod
     def cancel_assessment(db: Any, assessment_id: int) -> Dict[str, Any]:
