@@ -11,7 +11,7 @@ from typing import AsyncGenerator, Dict, Any
 from sqlalchemy.orm import Session
 
 from fapi.ai_prep.config import settings
-from fapi.ai_prep.models import AiPrepAssessment, AiPrepAnalysisRun, AssessmentStatusEnum
+from fapi.ai_prep.models import AiPrepAssessment, AiPrepMediaTaskRun, AssessmentStatusEnum
 from fapi.db.database import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -33,9 +33,9 @@ class SSEService:
             }
 
         runs = (
-            db.query(AiPrepAnalysisRun)
-            .filter(AiPrepAnalysisRun.assessment_id == assessment_id)
-            .order_by(AiPrepAnalysisRun.id.asc())
+            db.query(AiPrepMediaTaskRun)
+            .filter(AiPrepMediaTaskRun.assessment_id == assessment_id)
+            .order_by(AiPrepMediaTaskRun.id.asc())
             .all()
         )
 
@@ -52,10 +52,11 @@ class SSEService:
             current_step = "FAILED"
         elif running_runs:
             progress = min(95, int(((len(completed_runs) + 0.5) / total_steps) * 100))
-            current_step = running_runs[0].run_type
+            current_step = getattr(running_runs[0], "task_type", None) or getattr(running_runs[0], "run_type", "PROCESSING")
         elif completed_runs:
             progress = min(95, int((len(completed_runs) / total_steps) * 100))
-            current_step = f"{completed_runs[-1].run_type}_COMPLETED"
+            last_type = getattr(completed_runs[-1], "task_type", None) or getattr(completed_runs[-1], "run_type", "TASK")
+            current_step = f"{last_type}_COMPLETED"
         else:
             progress = 10
             current_step = "MEDIA_ASSEMBLED"

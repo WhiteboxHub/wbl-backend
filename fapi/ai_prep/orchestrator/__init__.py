@@ -1,6 +1,6 @@
 """
 Orchestrator package for AI Prep Platform.
-Exports AssessmentOrchestrator and assessment_orchestrator singleton.
+Exports AssessmentOrchestrator.
 """
 
 from fapi.ai_prep.orchestrator.assessment_orchestrator import (

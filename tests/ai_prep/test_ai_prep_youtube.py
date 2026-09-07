@@ -70,7 +70,7 @@ class TestYouTubeService:
         assessment = AiPrepAssessment(
             candidate_id=candidate_id,
             assessment_type="TECHNICAL",
-            assessment_mode="VIDEO",
+            media_type="VIDEO",
             status="IN_PROGRESS",
         )
         db_session.add(assessment)

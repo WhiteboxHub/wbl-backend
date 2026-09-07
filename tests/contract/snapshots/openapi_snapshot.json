@@ -13393,6 +13393,854 @@
         }
       }
     },
+    "/api/aiprep/assessments": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "1. Create Assessment Session",
+        "description": "Initializes a new assessment session for a candidate.",
+        "operationId": "create_assessment_api_aiprep_assessments_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssessmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAssessmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "7. List Candidate Assessments",
+        "description": "Fetches a paginated list of assessments for a specific candidate with auth validation.",
+        "operationId": "list_candidate_assessments_api_aiprep_assessments_get",
+        "parameters": [
+          {
+            "name": "candidate_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Candidate ID filter",
+              "title": "Candidate Id"
+            },
+            "description": "Candidate ID filter"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}/upload-media": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "2. Upload Raw Media to Local Server Storage",
+        "description": "Saves raw recorded video/audio blob to local disk storage and triggers YouTube upload.",
+        "operationId": "upload_media_api_aiprep_assessments__id__upload_media_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_api_aiprep_assessments__id__upload_media_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}/data": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "3. Submit Telemetry Data",
+        "description": "Saves telemetry data (questions, transcript, audio/video telemetry) for an assessment.",
+        "operationId": "submit_data_api_aiprep_assessments__id__data_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitAssessmentDataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}/media": {
+      "patch": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "4. Update Assessment Youtube Media URL",
+        "description": "Updates the youtube_url after processing completes.",
+        "operationId": "update_media_url_api_aiprep_assessments__id__media_patch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMediaUrlRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAssessmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}/evaluate": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "5. Trigger Assessment Evaluation",
+        "description": "Changes assessment status to EVALUATING and triggers the Central Orchestrator.",
+        "operationId": "trigger_evaluation_api_aiprep_assessments__id__evaluate_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "6. Get Assessment Report & Telemetry Data",
+        "description": "Fetches full assessment details including telemetry data and evaluation report.",
+        "operationId": "get_assessment_report_api_aiprep_assessments__id__get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/questions": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "8. List Question Bank",
+        "description": "Fetches filtered list of questions for assessment engine or admin grid.",
+        "operationId": "list_questions_api_aiprep_questions_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AssessmentCategoryEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "difficulty_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DifficultyLevelEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty Level"
+            }
+          },
+          {
+            "name": "is_active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "title": "Is Active"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "9. Create Question Bank Item",
+        "description": "Adds a new question to the question bank.",
+        "operationId": "create_question_api_aiprep_questions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionBankCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionBankResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/questions/{id}": {
+      "patch": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "10. Update Question Bank Item",
+        "description": "Updates fields on an existing question (e.g. soft-delete by setting is_active=False).",
+        "operationId": "update_question_api_aiprep_questions__id__patch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionBankUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionBankResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/media/upload-chunk": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "11. Upload 30s Media Chunk",
+        "description": "Uploads a sequential WebM media chunk into local server storage.",
+        "operationId": "upload_media_chunk_api_aiprep_media_upload_chunk_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_chunk_api_aiprep_media_upload_chunk_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/media/chunk-status": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "12. Get Uploaded Chunk Status",
+        "description": "Returns uploaded chunk numbers for retry/resume logic.",
+        "operationId": "get_chunk_upload_status_api_aiprep_media_chunk_status_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "total_chunks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Total Chunks"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/media/assemble": {
+      "post": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "13. Assemble Chunks & Process Media",
+        "description": "Concatenates WebM chunks via FFmpeg, extracts 16kHz audio, and kicks off async pipeline.",
+        "operationId": "assemble_media_api_aiprep_media_assemble_post",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleMediaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleMediaResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}/status": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "14. Get Assessment Processing Status Snapshot or SSE",
+        "description": "Returns assessment pipeline processing progress snapshot or SSE stream.",
+        "operationId": "get_processing_status_api_aiprep_assessments__id__status_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessingStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{id}/stream": {
+      "get": {
+        "tags": [
+          "AIPrep"
+        ],
+        "summary": "15. Stream Assessment Processing Progress via SSE",
+        "description": "Real-time SSE event stream for live candidate UI status updates.",
+        "operationId": "stream_processing_status_api_aiprep_assessments__id__stream_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/analytics/ai-prep-report": {
       "get": {
         "tags": [
@@ -23673,6 +24521,338 @@
         }
       }
     },
+    "/api/email-smtp-credentials": {
+      "head": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Check Version",
+        "operationId": "check_version_api_email_smtp_credentials_head",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Read Email Smtp Credentials",
+        "operationId": "read_email_smtp_credentials_api_email_smtp_credentials_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Search by name",
+              "title": "Search"
+            },
+            "description": "Search by name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EmailSMTPCredentialsOut"
+                  },
+                  "title": "Response Read Email Smtp Credentials Api Email Smtp Credentials Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Create New Email Smtp Credential",
+        "operationId": "create_new_email_smtp_credential_api_email_smtp_credentials_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSMTPCredentialsCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSMTPCredentialsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email-smtp-credentials/{credential_id}": {
+      "get": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Read Email Smtp Credential",
+        "operationId": "read_email_smtp_credential_api_email_smtp_credentials__credential_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "credential_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Credential Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSMTPCredentialsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Update Existing Email Smtp Credential",
+        "operationId": "update_existing_email_smtp_credential_api_email_smtp_credentials__credential_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "credential_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Credential Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSMTPCredentialsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSMTPCredentialsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Delete Existing Email Smtp Credential",
+        "operationId": "delete_existing_email_smtp_credential_api_email_smtp_credentials__credential_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "credential_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Credential Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSMTPCredentialsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/email-smtp-credentials/{credential_id}/increment-sent": {
+      "post": {
+        "tags": [
+          "Email SMTP Credentials"
+        ],
+        "summary": "Increment Credential Sent",
+        "description": "B4: Atomically increment current_day_sent for an SMTP credential.\nResets the counter to 1 if last_reset_date < today.\nReturns updated counters so callers don't need a follow-up GET.",
+        "operationId": "increment_credential_sent_api_email_smtp_credentials__credential_id__increment_sent_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "credential_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Credential Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/setup/summary": {
       "get": {
         "tags": [
@@ -24290,567 +25470,6 @@
           }
         }
       }
-    },
-    "/api/ai-prep/assessments": {
-      "post": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Create Assessment",
-        "description": "Creates/initializes a new assessment session.",
-        "operationId": "create_assessment_api_ai_prep_assessments_post",
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAssessmentRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "List Assessments",
-        "description": "Lists all assessment practice attempts for the authenticated candidate.",
-        "operationId": "list_assessments_api_ai_prep_assessments_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentListResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/assessments/{assessment_id}": {
-      "get": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Get Assessment",
-        "description": "Fetches single assessment session details.",
-        "operationId": "get_assessment_api_ai_prep_assessments__assessment_id__get",
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/assessments/{assessment_id}/status": {
-      "patch": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Update Assessment Status",
-        "description": "Transitions assessment status.",
-        "operationId": "update_assessment_status_api_ai_prep_assessments__assessment_id__status_patch",
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAssessmentStatusRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/media/upload-chunk": {
-      "post": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Upload Media Chunk",
-        "description": "Uploads a sequential 30s WebM media chunk into local server storage.",
-        "operationId": "upload_media_chunk_api_ai_prep_media_upload_chunk_post",
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_media_chunk_api_ai_prep_media_upload_chunk_post"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkUploadResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/media/chunks-status/{assessment_id}": {
-      "get": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Get Chunks Status",
-        "description": "Inspects stored chunks to detect uploaded and missing chunks in sequence.",
-        "operationId": "get_chunks_status_api_ai_prep_media_chunks_status__assessment_id__get",
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunksStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/media/assemble": {
-      "post": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Assemble Media",
-        "description": "Validates that all chunks are present, assembles full.webm,\nextracts audio.wav, updates DB, and dispatches background processing pipeline.",
-        "operationId": "assemble_media_api_ai_prep_media_assemble_post",
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssembleMediaRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssembleMediaResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/assessments/{assessment_id}/processing-status": {
-      "get": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Get Processing Status",
-        "description": "Returns real-time processing status.\nIf 'Accept: text/event-stream' header is present, returns an SSE stream.\nOtherwise returns a single JSON snapshot.",
-        "operationId": "get_processing_status_api_ai_prep_assessments__assessment_id__processing_status_get",
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ai-prep/assessments/{assessment_id}/media": {
-      "patch": {
-        "tags": [
-          "AIPrep"
-        ],
-        "summary": "Update Assessment Media",
-        "description": "Updates the YouTube watch URL for the assessment.",
-        "operationId": "update_assessment_media_api_ai_prep_assessments__assessment_id__media_patch",
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAssessmentMediaRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -25033,20 +25652,15 @@
       },
       "AssembleMediaRequest": {
         "properties": {
-          "assessment_id": {
-            "type": "integer",
-            "title": "Assessment Id"
-          },
           "total_chunks": {
             "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "minimum": 1.0,
             "title": "Total Chunks",
-            "description": "Total expected number of chunks"
+            "description": "Total number of chunks to assemble"
           }
         },
         "type": "object",
         "required": [
-          "assessment_id",
           "total_chunks"
         ],
         "title": "AssembleMediaRequest"
@@ -25061,149 +25675,65 @@
             "type": "string",
             "title": "Status"
           },
-          "task_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Task Id"
-          },
-          "message": {
+          "assembled_video_path": {
             "type": "string",
-            "title": "Message"
+            "title": "Assembled Video Path"
+          },
+          "extracted_audio_path": {
+            "type": "string",
+            "title": "Extracted Audio Path"
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "title": "File Size Bytes"
+          },
+          "dispatched_tasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dispatched Tasks"
           }
         },
         "type": "object",
         "required": [
           "assessment_id",
           "status",
-          "message"
+          "assembled_video_path",
+          "extracted_audio_path",
+          "file_size_bytes"
         ],
         "title": "AssembleMediaResponse"
       },
-      "AssessmentListResponse": {
-        "properties": {
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AssessmentResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total",
-          "items"
-        ],
-        "title": "AssessmentListResponse"
-      },
-      "AssessmentMediaTypeEnum": {
+      "AssessmentCategoryEnum": {
         "type": "string",
         "enum": [
-          "VIDEO",
-          "AUDIO",
-          "VIDEO_AUDIO"
+          "INTRO",
+          "JD_INTRO",
+          "RECRUITER",
+          "HIRING_MANAGER",
+          "SYSTEM_DESIGN",
+          "TECHNICAL"
         ],
-        "title": "AssessmentMediaTypeEnum"
+        "title": "AssessmentCategoryEnum"
       },
-      "AssessmentResponse": {
+      "AssessmentListItem": {
         "properties": {
           "id": {
             "type": "integer",
             "title": "Id"
           },
-          "candidate_id": {
-            "type": "integer",
-            "title": "Candidate Id"
-          },
           "assessment_type": {
             "type": "string",
             "title": "Assessment Type"
           },
-          "assessment_mode": {
+          "media_type": {
             "type": "string",
-            "title": "Assessment Mode"
+            "title": "Media Type"
           },
           "status": {
             "type": "string",
             "title": "Status"
-          },
-          "job_description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Job Description"
-          },
-          "youtube_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Youtube Url"
-          },
-          "ip_address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ip Address"
-          },
-          "user_agent": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "User Agent"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
           },
           "created_at": {
             "anyOf": [
@@ -25221,35 +25751,41 @@
         "type": "object",
         "required": [
           "id",
-          "candidate_id",
           "assessment_type",
-          "assessment_mode",
+          "media_type",
           "status"
         ],
-        "title": "AssessmentResponse"
+        "title": "AssessmentListItem"
+      },
+      "AssessmentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "AssessmentListResponse"
       },
       "AssessmentStatusEnum": {
         "type": "string",
         "enum": [
-          "TESTING",
           "IN_PROGRESS",
           "EVALUATING",
-          "PROCESSING",
           "COMPLETED",
           "FAILED"
         ],
         "title": "AssessmentStatusEnum"
-      },
-      "AssessmentTypeEnum": {
-        "type": "string",
-        "enum": [
-          "TECHNICAL",
-          "SYSTEM_DESIGN",
-          "BEHAVIORAL",
-          "INTRO",
-          "GENERAL"
-        ],
-        "title": "AssessmentTypeEnum"
       },
       "AuthUserCreate": {
         "properties": {
@@ -28460,7 +28996,21 @@
         ],
         "title": "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post"
       },
-      "Body_upload_media_chunk_api_ai_prep_media_upload_chunk_post": {
+      "Body_upload_media_api_aiprep_assessments__id__upload_media_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_media_api_aiprep_assessments__id__upload_media_post"
+      },
+      "Body_upload_media_chunk_api_aiprep_media_upload_chunk_post": {
         "properties": {
           "assessment_id": {
             "type": "integer",
@@ -28493,7 +29043,7 @@
           "chunk_number",
           "file"
         ],
-        "title": "Body_upload_media_chunk_api_ai_prep_media_upload_chunk_post"
+        "title": "Body_upload_media_chunk_api_aiprep_media_upload_chunk_post"
       },
       "Body_upload_onboarding_documents_api_candidates__candidate_id__onboarding_upload_post": {
         "properties": {
@@ -32813,6 +33363,56 @@
         ],
         "title": "CheckEmailsResponse"
       },
+      "ChunkStatusResponse": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "total_chunks_expected": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Chunks Expected"
+          },
+          "uploaded_chunks_count": {
+            "type": "integer",
+            "title": "Uploaded Chunks Count"
+          },
+          "uploaded_chunk_numbers": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Uploaded Chunk Numbers"
+          },
+          "missing_chunk_numbers": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Missing Chunk Numbers"
+          },
+          "is_complete": {
+            "type": "boolean",
+            "title": "Is Complete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "uploaded_chunks_count",
+          "uploaded_chunk_numbers",
+          "missing_chunk_numbers",
+          "is_complete"
+        ],
+        "title": "ChunkStatusResponse"
+      },
       "ChunkUploadResponse": {
         "properties": {
           "chunk_number": {
@@ -32825,14 +33425,7 @@
             "default": "uploaded"
           },
           "storage_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Storage Path"
           },
           "total_chunks": {
@@ -32849,54 +33442,10 @@
         },
         "type": "object",
         "required": [
-          "chunk_number"
+          "chunk_number",
+          "storage_path"
         ],
         "title": "ChunkUploadResponse"
-      },
-      "ChunksStatusResponse": {
-        "properties": {
-          "assessment_id": {
-            "type": "integer",
-            "title": "Assessment Id"
-          },
-          "uploaded_chunks": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Uploaded Chunks"
-          },
-          "missing_chunks": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Missing Chunks"
-          },
-          "total_chunks_expected": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total Chunks Expected"
-          },
-          "is_ready_for_assembly": {
-            "type": "boolean",
-            "title": "Is Ready For Assembly"
-          }
-        },
-        "type": "object",
-        "required": [
-          "assessment_id",
-          "uploaded_chunks",
-          "missing_chunks",
-          "is_ready_for_assembly"
-        ],
-        "title": "ChunksStatusResponse"
       },
       "CliApplyRunBackfillResponse": {
         "properties": {
@@ -37095,51 +37644,15 @@
       },
       "CreateAssessmentRequest": {
         "properties": {
-          "assessment_type": {
-            "$ref": "#/components/schemas/AssessmentTypeEnum",
-            "description": "Category of assessment",
-            "default": "TECHNICAL"
-          },
-          "assessment_mode": {
-            "$ref": "#/components/schemas/AssessmentMediaTypeEnum",
-            "description": "VIDEO or AUDIO",
-            "default": "VIDEO"
-          },
           "candidate_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Id",
-            "description": "Optional candidate id override"
+            "type": "integer",
+            "title": "Candidate Id"
           },
-          "candidate_resume_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Resume Id",
-            "description": "Optional resume id"
+          "assessment_type": {
+            "$ref": "#/components/schemas/AssessmentCategoryEnum"
           },
-          "job_description_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Job Description Text",
-            "description": "Target job description"
+          "media_type": {
+            "$ref": "#/components/schemas/MediaTypeEnum"
           },
           "job_description": {
             "anyOf": [
@@ -37150,12 +37663,87 @@
                 "type": "null"
               }
             ],
-            "title": "Job Description",
-            "description": "Alias for job description"
+            "title": "Job Description"
           }
         },
         "type": "object",
+        "required": [
+          "candidate_id",
+          "assessment_type",
+          "media_type"
+        ],
         "title": "CreateAssessmentRequest"
+      },
+      "CreateAssessmentResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatusEnum",
+            "default": "IN_PROGRESS"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
+          "assessment_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentCategoryEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "media_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MediaTypeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "youtube_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtube Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "CreateAssessmentResponse"
       },
       "DashboardMetrics": {
         "properties": {
@@ -37884,6 +38472,16 @@
         ],
         "title": "DetectAndValidateOut"
       },
+      "DifficultyLevelEnum": {
+        "type": "string",
+        "enum": [
+          "EASY",
+          "MEDIUM",
+          "HARD",
+          "EXPERT"
+        ],
+        "title": "DifficultyLevelEnum"
+      },
       "DownloadPayload": {
         "properties": {
           "version": {
@@ -38506,6 +39104,118 @@
         "type": "object",
         "title": "EmailPositionUpdate"
       },
+      "EmailSMTPCredentialsCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "daily_limit": {
+            "type": "integer",
+            "title": "Daily Limit"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "current_day_sent": {
+            "type": "integer",
+            "title": "Current Day Sent",
+            "default": 0
+          },
+          "last_reset_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reset Date"
+          },
+          "is_warming_up": {
+            "type": "boolean",
+            "title": "Is Warming Up",
+            "default": false
+          },
+          "warmup_started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warmup Started At"
+          },
+          "warmup_daily_limit": {
+            "type": "integer",
+            "title": "Warmup Daily Limit",
+            "default": 5
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "is_healthy": {
+            "type": "boolean",
+            "title": "Is Healthy",
+            "default": true
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "app_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "daily_limit",
+          "password"
+        ],
+        "title": "EmailSMTPCredentialsCreate"
+      },
       "EmailSMTPCredentialsOut": {
         "properties": {
           "name": {
@@ -38634,6 +39344,170 @@
           "updated_at"
         ],
         "title": "EmailSMTPCredentialsOut"
+      },
+      "EmailSMTPCredentialsUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "app_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Password"
+          },
+          "daily_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Limit"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "current_day_sent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Day Sent"
+          },
+          "last_reset_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reset Date"
+          },
+          "is_warming_up": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Warming Up"
+          },
+          "warmup_started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warmup Started At"
+          },
+          "warmup_daily_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warmup Daily Limit"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "is_healthy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Healthy"
+          }
+        },
+        "type": "object",
+        "title": "EmailSMTPCredentialsUpdate"
       },
       "EmailTemplate": {
         "properties": {
@@ -43773,6 +44647,14 @@
         ],
         "title": "MatchTypeEnum"
       },
+      "MediaTypeEnum": {
+        "type": "string",
+        "enum": [
+          "AUDIO",
+          "VIDEO"
+        ],
+        "title": "MediaTypeEnum"
+      },
       "ModeOfInterviewEnum": {
         "type": "string",
         "enum": [
@@ -46738,6 +47620,69 @@
         "type": "object",
         "title": "PotentialLeadUpdate"
       },
+      "ProcessingStatusResponse": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "progress_percentage": {
+            "type": "integer",
+            "title": "Progress Percentage"
+          },
+          "active_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Step"
+          },
+          "tasks": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Tasks"
+          },
+          "youtube_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtube Url"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "status",
+          "progress_percentage"
+        ],
+        "title": "ProcessingStatusResponse"
+      },
       "ProjectCreate": {
         "properties": {
           "name": {
@@ -47094,6 +48039,168 @@
           "label"
         ],
         "title": "ProviderMetadataOut"
+      },
+      "QuestionBankCreateRequest": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/AssessmentCategoryEnum"
+          },
+          "sub_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "$ref": "#/components/schemas/DifficultyLevelEnum",
+            "default": "MEDIUM"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "question_text"
+        ],
+        "title": "QuestionBankCreateRequest"
+      },
+      "QuestionBankResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "sub_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "type": "string",
+            "title": "Difficulty Level"
+          },
+          "question_text": {
+            "type": "string",
+            "title": "Question Text"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "difficulty_level",
+          "question_text",
+          "is_active"
+        ],
+        "title": "QuestionBankResponse"
+      },
+      "QuestionBankUpdateRequest": {
+        "properties": {
+          "sub_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Category"
+          },
+          "difficulty_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DifficultyLevelEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "question_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Text"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "QuestionBankUpdateRequest"
+      },
+      "QuestionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionBankResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "QuestionListResponse"
       },
       "Recipient": {
         "properties": {
@@ -48275,6 +49382,35 @@
         "type": "object",
         "title": "SubjectUpdate"
       },
+      "SubmitAssessmentDataRequest": {
+        "properties": {
+          "questions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "transcript": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Transcript"
+          },
+          "audio_telemetry": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Audio Telemetry"
+          },
+          "video_telemetry": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Video Telemetry"
+          }
+        },
+        "type": "object",
+        "title": "SubmitAssessmentDataRequest"
+      },
       "SyncFromWblRequest": {
         "properties": {
           "prep_token": {
@@ -48680,7 +49816,7 @@
         ],
         "title": "UpcomingBatch"
       },
-      "UpdateAssessmentMediaRequest": {
+      "UpdateMediaUrlRequest": {
         "properties": {
           "youtube_url": {
             "type": "string",
@@ -48691,19 +49827,7 @@
         "required": [
           "youtube_url"
         ],
-        "title": "UpdateAssessmentMediaRequest"
-      },
-      "UpdateAssessmentStatusRequest": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/AssessmentStatusEnum"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "UpdateAssessmentStatusRequest"
+        "title": "UpdateMediaUrlRequest"
       },
       "UploadPayload": {
         "properties": {

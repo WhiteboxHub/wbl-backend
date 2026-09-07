@@ -4,7 +4,7 @@ AIPrep Configuration Settings (Strictly BE2)
 Zero hardcoded values. All configuration values are loaded via environment variables.
 """
 import os
-from typing import Optional
+from typing import Optional, Any
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -21,6 +21,10 @@ class AiPrepSettings(BaseSettings):
     LOCAL_STORAGE_BASE_PATH: str = Field(
         default_factory=lambda: os.getenv("AIPREP_LOCAL_STORAGE_PATH", os.path.join("storage", "ai_prep")),
         description="Root directory for local video/audio chunks and assembled media files",
+    )
+    LOCAL_STORAGE_DIR: Optional[str] = Field(
+        default=None,
+        description="Alias for LOCAL_STORAGE_BASE_PATH",
     )
     CHUNK_DURATION_SECONDS: int = Field(
         default_factory=lambda: int(os.getenv("AIPREP_CHUNK_DURATION_SECONDS", "30")),
@@ -101,6 +105,10 @@ class AiPrepSettings(BaseSettings):
         default_factory=lambda: int(os.getenv("AIPREP_SSE_PING_INTERVAL", "5")),
         description="Ping / status poll interval in seconds for SSE processing streams",
     )
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.LOCAL_STORAGE_DIR:
+            self.LOCAL_STORAGE_DIR = self.LOCAL_STORAGE_BASE_PATH
 
     class Config:
         env_prefix = "AIPREP_"

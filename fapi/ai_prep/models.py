@@ -1,180 +1,251 @@
 """
-SQLAlchemy ORM Models for AIPrep
-================================
-Implements V134 DDL Schema (4 primary tables):
-1. ai_prep_question_bank
-2. ai_prep_assessment
-3. ai_prep_assessment_data
-4. ai_prep_assessment_report
-
-Plus operational models for media and analysis tasks:
-- ai_prep_media_files
-- ai_prep_analysis_runs
+SQLAlchemy ORM Models for AI Prep Assessment Platform.
+Strictly matches Migration V134 (4 primary tables).
 """
-import enum
+
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, BigInteger, String, Text, Boolean, Float, DateTime,
-    ForeignKey, Enum as SQLEnum, JSON, func, CheckConstraint
+    Column,
+    Integer,
+    BigInteger,
+    String,
+    Text,
+    Boolean,
+    DateTime,
+    Enum as SQLAEnum,
+    ForeignKey,
+    JSON,
+    func,
+    CheckConstraint,
 )
-from sqlalchemy.orm import relationship, synonym
+from sqlalchemy.orm import relationship
 from fapi.db.models import Base
-
-# Import single source of truth enums from schemas
 from fapi.ai_prep.schemas import (
-    AssessmentStatusEnum,
     AssessmentCategoryEnum,
-    AssessmentTypeEnum,
-    MediaTypeEnum,
-    AssessmentMediaTypeEnum,
     DifficultyLevelEnum,
-    EngineOperationEnum,
+    MediaTypeEnum,
+    AssessmentStatusEnum,
+    MediaTaskStatusEnum,
     AnalysisRunStatusEnum,
+    TaskStatusEnum,
 )
 
 
-# ==========================================
-# 1. Question Bank Model
-# ==========================================
-class AiPrepQuestionBank(Base):
+class AiPrepQuestionBankORM(Base):
     __tablename__ = "ai_prep_question_bank"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    category = Column(String(64), nullable=False, index=True)
-    subcategory = Column(String(64), nullable=True, index=True)
-    sub_category = synonym("subcategory")
-    difficulty_level = Column(String(32), nullable=True, default=DifficultyLevelEnum.MEDIUM.value)
+    category = Column(
+        SQLAEnum(
+            AssessmentCategoryEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name="aiprep_category_enum",
+        ),
+        nullable=False,
+        index=True,
+    )
+    sub_category = Column(String(100), nullable=True)
+    difficulty_level = Column(
+        SQLAEnum(
+            DifficultyLevelEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name="aiprep_difficulty_enum",
+        ),
+        nullable=False,
+        default=DifficultyLevelEnum.MEDIUM,
+    )
     question_text = Column(Text, nullable=False)
-    relevant_skills = Column(JSON, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(category = 'TECHNICAL' AND sub_category IS NOT NULL) OR (category <> 'TECHNICAL' AND sub_category IS NULL)",
+            name="chk_qb_subcategory",
+        ),
+    )
 
 
-AiPrepQuestionBankORM = AiPrepQuestionBank
-
-
-# ==========================================
-# 2. Assessment Session Model
-# ==========================================
-class AiPrepAssessment(Base):
+class AiPrepAssessmentORM(Base):
     __tablename__ = "ai_prep_assessment"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+        index=True,
+    )
     candidate_id = Column(BigInteger, nullable=False, index=True)
-    assessment_type = Column(String(64), default=AssessmentCategoryEnum.TECHNICAL.value, nullable=False, index=True)
-    assessment_mode = Column(String(32), default=MediaTypeEnum.VIDEO.value, nullable=False)
-    media_type = synonym("assessment_mode")
-    status = Column(String(32), default=AssessmentStatusEnum.IN_PROGRESS.value, nullable=False, index=True)
+    assessment_type = Column(
+        SQLAEnum(
+            AssessmentCategoryEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name="aiprep_assessment_type_enum",
+        ),
+        nullable=False,
+        index=True,
+    )
+    media_type = Column(
+        SQLAEnum(
+            MediaTypeEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name="aiprep_media_type_enum",
+        ),
+        nullable=False,
+    )
+    status = Column(
+        SQLAEnum(
+            AssessmentStatusEnum,
+            values_callable=lambda x: [e.value for e in x],
+            name="aiprep_status_enum",
+        ),
+        nullable=False,
+        default=AssessmentStatusEnum.IN_PROGRESS,
+        index=True,
+    )
     job_description = Column(Text, nullable=True)
-    youtube_url = Column(String(512), nullable=True)
-    ip_address = Column(String(64), nullable=True)
-    user_agent = Column(String(512), nullable=True)
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    youtube_url = Column(Text, nullable=True)
 
     # Relationships
-    assessment_data = relationship("AiPrepAssessmentData", back_populates="assessment", uselist=False, cascade="all, delete-orphan", foreign_keys="[AiPrepAssessmentData.assessment_id]")
-    assessment_report = relationship("AiPrepAssessmentReport", back_populates="assessment", uselist=False, cascade="all, delete-orphan", foreign_keys="[AiPrepAssessmentReport.assessment_id]")
-    media_files = relationship("AiPrepMediaFile", back_populates="assessment", uselist=False, cascade="all, delete-orphan", foreign_keys="[AiPrepMediaFile.assessment_id]")
-    analysis_runs = relationship("AiPrepAnalysisRun", back_populates="assessment", cascade="all, delete-orphan", foreign_keys="[AiPrepAnalysisRun.assessment_id]")
+    assessment_data = relationship(
+        "AiPrepAssessmentDataORM",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    assessment_report = relationship(
+        "AiPrepAssessmentReportORM",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    media_files = relationship(
+        "AiPrepMediaFileORM",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    media_task_runs = relationship(
+        "AiPrepMediaTaskRunORM",
+        back_populates="assessment",
+        cascade="all, delete-orphan",
+    )
 
-    def __getitem__(self, key):
-        if hasattr(self, key):
-            val = getattr(self, key)
-            if hasattr(val, "value"):
-                return val.value
-            return val
-        raise KeyError(key)
 
-    def __contains__(self, key):
-        return hasattr(self, key)
-
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-
-AiPrepAssessmentORM = AiPrepAssessment
-
-
-# ==========================================
-# 3. Assessment Data Model (Telemetry/Input)
-# ==========================================
-class AiPrepAssessmentData(Base):
+class AiPrepAssessmentDataORM(Base):
     __tablename__ = "ai_prep_assessment_data"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    assessment_id = Column(Integer, ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+        index=True,
+    )
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
     questions = Column(JSON, nullable=True)
     transcript = Column(JSON, nullable=True)
     audio_telemetry = Column(JSON, nullable=True)
     video_telemetry = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
-    # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="assessment_data", foreign_keys=[assessment_id])
-
-
-AiPrepAssessmentDataORM = AiPrepAssessmentData
+    assessment = relationship("AiPrepAssessmentORM", back_populates="assessment_data")
 
 
-# ==========================================
-# 4. Assessment Report Model (LLM Output)
-# ==========================================
-class AiPrepAssessmentReport(Base):
+class AiPrepAssessmentReportORM(Base):
     __tablename__ = "ai_prep_assessment_report"
 
-    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    assessment_id = Column(Integer, ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+        index=True,
+    )
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
     audio_evaluation = Column(JSON, nullable=True)
     video_evaluation = Column(JSON, nullable=True)
     transcript_evaluation = Column(JSON, nullable=True)
-    composite_score = Column(Float, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
-    # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="assessment_report", foreign_keys=[assessment_id])
-
-
-AiPrepAssessmentReportORM = AiPrepAssessmentReport
+    assessment = relationship("AiPrepAssessmentORM", back_populates="assessment_report")
 
 
-# ==========================================
-# Operational Support Models
-# ==========================================
-class AiPrepMediaFile(Base):
+class AiPrepMediaFileORM(Base):
     __tablename__ = "ai_prep_media_files"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    assessment_id = Column(Integer, ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
     audio_file_path = Column(String(512), nullable=True)
     video_file_path = Column(String(512), nullable=True)
     file_size_bytes = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
-    # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="media_files", foreign_keys=[assessment_id])
+    assessment = relationship("AiPrepAssessmentORM", back_populates="media_files")
 
 
-class AiPrepAnalysisRun(Base):
-    __tablename__ = "ai_prep_analysis_runs"
+class AiPrepMediaTaskRunORM(Base):
+    __tablename__ = "ai_prep_media_task_runs"
 
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
-    assessment_id = Column(Integer, ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"), nullable=False, index=True)
-    run_type = Column(String(64), nullable=False)
-    status = Column(String(32), default=AnalysisRunStatusEnum.PENDING.value, nullable=False)
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    task_type = Column(String(64), nullable=False)
+    status = Column(String(32), default=MediaTaskStatusEnum.PENDING.value, nullable=False)
     celery_task_id = Column(String(128), nullable=True)
     error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
 
-    # Relationship
-    assessment = relationship("AiPrepAssessment", back_populates="analysis_runs", foreign_keys=[assessment_id])
+    assessment = relationship("AiPrepAssessmentORM", back_populates="media_task_runs")
+
+
+# Compatibility aliases
+AiPrepQuestionBank = AiPrepQuestionBankORM
+AiPrepAssessment = AiPrepAssessmentORM
+AiPrepAssessmentData = AiPrepAssessmentDataORM
+AiPrepAssessmentReport = AiPrepAssessmentReportORM
+AiPrepMediaFile = AiPrepMediaFileORM
+AiPrepMediaTaskRun = AiPrepMediaTaskRunORM
+AiPrepAnalysisRun = AiPrepMediaTaskRunORM
+AiPrepAnalysisRunORM = AiPrepMediaTaskRunORM

@@ -1,127 +1,75 @@
 """
-AIPrep Pure Database Access Layer (CRUD)
-=========================================
-Isolates all SQL/ORM database operations for AIPrep.
+CRUD — Database Access Layer for AI Prep Assessment Platform.
+
+All database queries (db.query) are strictly isolated here.
+Engines and Orchestrators must use these functions rather than making raw queries directly.
 """
+
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from fapi.ai_prep.models import (
-    AiPrepAssessment,
-    AiPrepAssessmentORM,
-    AiPrepAssessmentData,
-    AiPrepAssessmentDataORM,
-    AiPrepAssessmentReport,
-    AiPrepAssessmentReportORM,
-    AiPrepQuestionBank,
     AiPrepQuestionBankORM,
-    AiPrepMediaFile,
-    AiPrepAnalysisRun,
-    AssessmentStatusEnum,
+    AiPrepAssessmentORM,
+    AiPrepAssessmentDataORM,
+    AiPrepAssessmentReportORM,
+    AiPrepMediaFileORM,
+    AiPrepMediaTaskRunORM,
+)
+from fapi.ai_prep.schemas import (
     AssessmentCategoryEnum,
     DifficultyLevelEnum,
     MediaTypeEnum,
-    AnalysisRunStatusEnum,
+    AssessmentStatusEnum,
+    MediaTaskStatusEnum,
 )
-from fapi.ai_prep.schemas import CreateAssessmentRequest
 
 
-# =====================================================================
-# 1. Assessment Operations
-# =====================================================================
-def get_assessment(db: Session, assessment_id: int) -> Optional[AiPrepAssessment]:
-    """Fetches single assessment session by ID."""
-    return db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
-
-
-get_assessment_by_id = get_assessment
-
-
-def get_assessment_by_id_and_candidate(
-    db: Session, assessment_id: int, candidate_id: int
-) -> Optional[AiPrepAssessment]:
-    """Fetches assessment session verifying candidate ownership."""
-    return (
-        db.query(AiPrepAssessment)
-        .filter(
-            AiPrepAssessment.id == assessment_id,
-            AiPrepAssessment.candidate_id == candidate_id,
-        )
-        .first()
-    )
-
+# ─── Assessment CRUD ──────────────────────────────────────────────────────────
 
 def create_assessment(
     db: Session,
     candidate_id: int,
-    obj_in: Optional[Any] = None,
-    assessment_type: Optional[Any] = None,
-    media_type: Optional[Any] = None,
-    assessment_mode: Optional[Any] = None,
+    assessment_type: AssessmentCategoryEnum,
+    media_type: MediaTypeEnum,
     job_description: Optional[str] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
-) -> AiPrepAssessment:
-    """Creates a new assessment session."""
-    if obj_in is not None:
-        if isinstance(obj_in, CreateAssessmentRequest) or hasattr(obj_in, "assessment_type"):
-            assessment_type_val = (
-                obj_in.assessment_type.value
-                if hasattr(obj_in.assessment_type, "value")
-                else str(obj_in.assessment_type)
-            )
-            mode = getattr(obj_in, "assessment_mode", None) or getattr(obj_in, "media_type", None) or "VIDEO"
-            assessment_mode_val = mode.value if hasattr(mode, "value") else str(mode)
-            jd_text = getattr(obj_in, "job_description", None) or getattr(obj_in, "job_description_text", None)
-        elif isinstance(obj_in, dict):
-            assessment_type_val = obj_in.get("assessment_type", "TECHNICAL")
-            assessment_mode_val = obj_in.get("assessment_mode") or obj_in.get("media_type") or "VIDEO"
-            jd_text = obj_in.get("job_description") or obj_in.get("job_description_text")
-        else:
-            assessment_type_val = str(obj_in)
-            assessment_mode_val = "VIDEO"
-            jd_text = job_description
-    else:
-        type_val = assessment_type or "TECHNICAL"
-        assessment_type_val = type_val.value if hasattr(type_val, "value") else str(type_val)
-        mode = media_type or assessment_mode or "VIDEO"
-        assessment_mode_val = mode.value if hasattr(mode, "value") else str(mode)
-        jd_text = job_description
-
-    db_obj = AiPrepAssessment(
+) -> AiPrepAssessmentORM:
+    """Creates a new assessment record with IN_PROGRESS status."""
+    assessment = AiPrepAssessmentORM(
         candidate_id=candidate_id,
-        assessment_type=assessment_type_val,
-        assessment_mode=assessment_mode_val,
-        status=AssessmentStatusEnum.IN_PROGRESS.value,
-        job_description=jd_text,
+        assessment_type=assessment_type,
+        media_type=media_type,
+        status=AssessmentStatusEnum.IN_PROGRESS,
+        job_description=job_description,
         ip_address=ip_address,
         user_agent=user_agent,
         started_at=datetime.utcnow(),
     )
-    db.add(db_obj)
+    db.add(assessment)
     db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    db.refresh(assessment)
+    return assessment
+
+
+def get_assessment_by_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentORM]:
+    """Retrieves an assessment record by primary key."""
+    return db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
 
 
 def update_assessment_status(
-    db: Session, assessment_id: int, status: Any
-) -> Optional[AiPrepAssessment]:
-    """Updates status and completed_at timestamp if terminal."""
-    assessment = get_assessment(db, assessment_id)
+    db: Session, assessment_id: int, status: AssessmentStatusEnum
+) -> Optional[AiPrepAssessmentORM]:
+    """Updates the status of an assessment record."""
+    assessment = get_assessment_by_id(db, assessment_id)
     if not assessment:
         return None
 
-    status_val = status.value if hasattr(status, "value") else str(status)
-    assessment.status = status_val
-    if status_val in {
-        AssessmentStatusEnum.COMPLETED.value,
-        AssessmentStatusEnum.FAILED.value,
-        "COMPLETED",
-        "FAILED",
-    }:
+    assessment.status = status
+    if status in (AssessmentStatusEnum.COMPLETED, AssessmentStatusEnum.FAILED):
         assessment.completed_at = datetime.utcnow()
 
     db.commit()
@@ -129,11 +77,11 @@ def update_assessment_status(
     return assessment
 
 
-def update_assessment_media_url(
+def update_assessment_youtube_url(
     db: Session, assessment_id: int, youtube_url: str
-) -> Optional[AiPrepAssessment]:
-    """Updates YouTube watch URL for assessment session."""
-    assessment = get_assessment(db, assessment_id)
+) -> Optional[AiPrepAssessmentORM]:
+    """Updates the youtube_url field on an assessment record."""
+    assessment = get_assessment_by_id(db, assessment_id)
     if not assessment:
         return None
 
@@ -143,145 +91,39 @@ def update_assessment_media_url(
     return assessment
 
 
-update_assessment_youtube_url = update_assessment_media_url
-
-
-def list_assessments_by_candidate(
+def list_candidate_assessments(
     db: Session, candidate_id: int, limit: int = 50, offset: int = 0
-) -> List[AiPrepAssessment]:
-    """Retrieves paginated assessment history for candidate."""
+) -> List[AiPrepAssessmentORM]:
+    """Retrieves a paginated list of assessments for a specific candidate."""
     return (
-        db.query(AiPrepAssessment)
-        .filter(AiPrepAssessment.candidate_id == candidate_id)
-        .order_by(AiPrepAssessment.created_at.desc())
+        db.query(AiPrepAssessmentORM)
+        .filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+        .order_by(AiPrepAssessmentORM.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
 
 
-list_candidate_assessments = list_assessments_by_candidate
+# ─── Assessment Data (Telemetry) CRUD ──────────────────────────────────────────
 
-
-# =====================================================================
-# 2. Media & Analysis Task Runs (BE2 Operational)
-# =====================================================================
-def create_media_file(
-    db: Session,
-    assessment_id: int,
-    audio_file_path: Optional[str] = None,
-    video_file_path: Optional[str] = None,
-    file_size_bytes: Optional[int] = None,
-) -> AiPrepMediaFile:
-    """Creates or updates operational media file record."""
-    media = (
-        db.query(AiPrepMediaFile)
-        .filter(AiPrepMediaFile.assessment_id == assessment_id)
-        .first()
-    )
-    if not media:
-        media = AiPrepMediaFile(
-            assessment_id=assessment_id,
-            audio_file_path=audio_file_path,
-            video_file_path=video_file_path,
-            file_size_bytes=file_size_bytes,
-        )
-        db.add(media)
-    else:
-        if audio_file_path:
-            media.audio_file_path = audio_file_path
-        if video_file_path:
-            media.video_file_path = video_file_path
-        if file_size_bytes:
-            media.file_size_bytes = file_size_bytes
-
-    db.commit()
-    db.refresh(media)
-    return media
-
-
-def get_media_file_by_assessment(
-    db: Session, assessment_id: int
-) -> Optional[AiPrepMediaFile]:
-    """Gets media file record for assessment."""
-    return (
-        db.query(AiPrepMediaFile)
-        .filter(AiPrepMediaFile.assessment_id == assessment_id)
-        .first()
-    )
-
-
-def create_analysis_run(
-    db: Session,
-    assessment_id: int,
-    run_type: str,
-    status: str = AnalysisRunStatusEnum.PENDING.value,
-    celery_task_id: Optional[str] = None,
-) -> AiPrepAnalysisRun:
-    """Creates a tracking run for an asynchronous worker task."""
-    run = AiPrepAnalysisRun(
-        assessment_id=assessment_id,
-        run_type=run_type,
-        status=status,
-        celery_task_id=celery_task_id,
-    )
-    db.add(run)
-    db.commit()
-    db.refresh(run)
-    return run
-
-
-def update_analysis_run_status(
-    db: Session,
-    run_id: int,
-    status: str,
-    error_message: Optional[str] = None,
-) -> Optional[AiPrepAnalysisRun]:
-    """Updates status and error information on an async task run."""
-    run = db.query(AiPrepAnalysisRun).filter(AiPrepAnalysisRun.id == run_id).first()
-    if not run:
-        return None
-
-    run.status = status
-    if error_message:
-        run.error_message = error_message
-    db.commit()
-    db.refresh(run)
-    return run
-
-
-def get_analysis_runs_by_assessment(
-    db: Session, assessment_id: int
-) -> List[AiPrepAnalysisRun]:
-    """Lists all task analysis runs for an assessment."""
-    return (
-        db.query(AiPrepAnalysisRun)
-        .filter(AiPrepAnalysisRun.assessment_id == assessment_id)
-        .order_by(AiPrepAnalysisRun.created_at.asc())
-        .all()
-    )
-
-
-# =====================================================================
-# 3. Assessment Data (Telemetry) CRUD
-# =====================================================================
 def create_or_update_assessment_data(
     db: Session,
     assessment_id: int,
     questions: Optional[List[Dict[str, Any]]] = None,
-    transcript: Optional[Any] = None,
+    transcript: Optional[Dict[str, Any]] = None,
     audio_telemetry: Optional[Dict[str, Any]] = None,
     video_telemetry: Optional[Dict[str, Any]] = None,
-) -> AiPrepAssessmentData:
+) -> AiPrepAssessmentDataORM:
     """Creates or updates telemetry assessment data for an assessment session."""
     data_record = (
-        db.query(AiPrepAssessmentData)
-        .filter(AiPrepAssessmentData.assessment_id == assessment_id)
+        db.query(AiPrepAssessmentDataORM)
+        .filter(AiPrepAssessmentDataORM.assessment_id == assessment_id)
         .first()
     )
 
     if not data_record:
-        data_record = AiPrepAssessmentData(
+        data_record = AiPrepAssessmentDataORM(
             assessment_id=assessment_id,
             questions=questions,
             transcript=transcript,
@@ -304,48 +146,39 @@ def create_or_update_assessment_data(
     return data_record
 
 
-save_assessment_data = create_or_update_assessment_data
-
-
 def get_assessment_data_by_assessment_id(
     db: Session, assessment_id: int
-) -> Optional[AiPrepAssessmentData]:
+) -> Optional[AiPrepAssessmentDataORM]:
     """Retrieves assessment telemetry data for a given assessment session."""
     return (
-        db.query(AiPrepAssessmentData)
-        .filter(AiPrepAssessmentData.assessment_id == assessment_id)
+        db.query(AiPrepAssessmentDataORM)
+        .filter(AiPrepAssessmentDataORM.assessment_id == assessment_id)
         .first()
     )
 
 
-get_assessment_data = get_assessment_data_by_assessment_id
+# ─── Assessment Report CRUD ───────────────────────────────────────────────────
 
-
-# =====================================================================
-# 4. Assessment Report CRUD
-# =====================================================================
 def create_or_update_assessment_report(
     db: Session,
     assessment_id: int,
     audio_evaluation: Optional[Dict[str, Any]] = None,
     video_evaluation: Optional[Dict[str, Any]] = None,
     transcript_evaluation: Optional[Dict[str, Any]] = None,
-    composite_score: Optional[float] = None,
-) -> AiPrepAssessmentReport:
+) -> AiPrepAssessmentReportORM:
     """Creates or updates evaluation report data for an assessment session."""
     report_record = (
-        db.query(AiPrepAssessmentReport)
-        .filter(AiPrepAssessmentReport.assessment_id == assessment_id)
+        db.query(AiPrepAssessmentReportORM)
+        .filter(AiPrepAssessmentReportORM.assessment_id == assessment_id)
         .first()
     )
 
     if not report_record:
-        report_record = AiPrepAssessmentReport(
+        report_record = AiPrepAssessmentReportORM(
             assessment_id=assessment_id,
             audio_evaluation=audio_evaluation,
             video_evaluation=video_evaluation,
             transcript_evaluation=transcript_evaluation,
-            composite_score=composite_score,
         )
         db.add(report_record)
     else:
@@ -355,49 +188,38 @@ def create_or_update_assessment_report(
             report_record.video_evaluation = video_evaluation
         if transcript_evaluation is not None:
             report_record.transcript_evaluation = transcript_evaluation
-        if composite_score is not None:
-            report_record.composite_score = composite_score
 
     db.commit()
     db.refresh(report_record)
     return report_record
 
 
-save_assessment_report = create_or_update_assessment_report
-
-
 def get_assessment_report_by_assessment_id(
     db: Session, assessment_id: int
-) -> Optional[AiPrepAssessmentReport]:
+) -> Optional[AiPrepAssessmentReportORM]:
     """Retrieves evaluation report data for a given assessment session."""
     return (
-        db.query(AiPrepAssessmentReport)
-        .filter(AiPrepAssessmentReport.assessment_id == assessment_id)
+        db.query(AiPrepAssessmentReportORM)
+        .filter(AiPrepAssessmentReportORM.assessment_id == assessment_id)
         .first()
     )
 
 
-get_assessment_report = get_assessment_report_by_assessment_id
+# ─── Question Bank CRUD & Round-Robin ─────────────────────────────────────────
 
-
-# =====================================================================
-# 5. Question Bank CRUD & Filtering
-# =====================================================================
 def create_question(
     db: Session,
-    category: Any,
-    difficulty_level: Any = DifficultyLevelEnum.MEDIUM,
-    question_text: str = "",
+    category: AssessmentCategoryEnum,
+    difficulty_level: DifficultyLevelEnum,
+    question_text: str,
     sub_category: Optional[str] = None,
     is_active: bool = True,
-) -> AiPrepQuestionBank:
+) -> AiPrepQuestionBankORM:
     """Adds a new question to the question bank."""
-    cat_val = category.value if hasattr(category, "value") else str(category)
-    diff_val = difficulty_level.value if hasattr(difficulty_level, "value") else str(difficulty_level)
-    question = AiPrepQuestionBank(
-        category=cat_val,
-        subcategory=sub_category,
-        difficulty_level=diff_val,
+    question = AiPrepQuestionBankORM(
+        category=category,
+        sub_category=sub_category,
+        difficulty_level=difficulty_level,
         question_text=question_text,
         is_active=is_active,
     )
@@ -407,55 +229,49 @@ def create_question(
     return question
 
 
-def get_question_by_id(db: Session, question_id: int) -> Optional[AiPrepQuestionBank]:
+def get_question_by_id(db: Session, question_id: int) -> Optional[AiPrepQuestionBankORM]:
     """Retrieves a question by primary key."""
-    return db.query(AiPrepQuestionBank).filter(AiPrepQuestionBank.id == question_id).first()
+    return db.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.id == question_id).first()
 
 
 def list_questions(
     db: Session,
-    category: Optional[Any] = None,
-    difficulty_level: Optional[Any] = None,
+    category: Optional[AssessmentCategoryEnum] = None,
+    difficulty_level: Optional[DifficultyLevelEnum] = None,
     is_active: Optional[bool] = True,
     limit: int = 100,
     offset: int = 0,
-) -> List[AiPrepQuestionBank]:
+) -> List[AiPrepQuestionBankORM]:
     """Retrieves questions with optional filtering by category and difficulty."""
-    query = db.query(AiPrepQuestionBank)
+    query = db.query(AiPrepQuestionBankORM)
 
     if category is not None:
-        cat_val = category.value if hasattr(category, "value") else str(category)
-        query = query.filter(AiPrepQuestionBank.category == cat_val)
+        query = query.filter(AiPrepQuestionBankORM.category == category)
     if difficulty_level is not None:
-        diff_val = difficulty_level.value if hasattr(difficulty_level, "value") else str(difficulty_level)
-        query = query.filter(AiPrepQuestionBank.difficulty_level == diff_val)
+        query = query.filter(AiPrepQuestionBankORM.difficulty_level == difficulty_level)
     if is_active is not None:
-        query = query.filter(AiPrepQuestionBank.is_active == is_active)
+        query = query.filter(AiPrepQuestionBankORM.is_active == is_active)
 
-    return query.order_by(AiPrepQuestionBank.id.asc()).offset(offset).limit(limit).all()
-
-
-list_questions_by_category = list_questions
+    return query.order_by(AiPrepQuestionBankORM.id.asc()).offset(offset).limit(limit).all()
 
 
 def update_question(
     db: Session,
     question_id: int,
     sub_category: Optional[str] = None,
-    difficulty_level: Optional[Any] = None,
+    difficulty_level: Optional[DifficultyLevelEnum] = None,
     question_text: Optional[str] = None,
     is_active: Optional[bool] = None,
-) -> Optional[AiPrepQuestionBank]:
+) -> Optional[AiPrepQuestionBankORM]:
     """Updates fields on an existing question bank record."""
     question = get_question_by_id(db, question_id)
     if not question:
         return None
 
     if sub_category is not None:
-        question.subcategory = sub_category
+        question.sub_category = sub_category
     if difficulty_level is not None:
-        diff_val = difficulty_level.value if hasattr(difficulty_level, "value") else str(difficulty_level)
-        question.difficulty_level = diff_val
+        question.difficulty_level = difficulty_level
     if question_text is not None:
         question.question_text = question_text
     if is_active is not None:
@@ -464,3 +280,139 @@ def update_question(
     db.commit()
     db.refresh(question)
     return question
+
+
+# Aliases for backwards compatibility across Orchestrator and Router calls
+save_assessment_data = create_or_update_assessment_data
+get_assessment_data = get_assessment_data_by_assessment_id
+save_assessment_report = create_or_update_assessment_report
+get_assessment_report = get_assessment_report_by_assessment_id
+list_questions_by_category = list_questions
+get_assessment = get_assessment_by_id
+
+
+# ─── Media Files & Media Task Runs CRUD (BE2) ─────────────────────────────────
+
+def create_media_file_record(
+    db: Session,
+    assessment_id: int,
+    video_file_path: Optional[str] = None,
+    audio_file_path: Optional[str] = None,
+    file_size_bytes: Optional[int] = None,
+) -> AiPrepMediaFileORM:
+    """Records assembled media file paths for an assessment."""
+    rec = (
+        db.query(AiPrepMediaFileORM)
+        .filter(AiPrepMediaFileORM.assessment_id == assessment_id)
+        .first()
+    )
+    if not rec:
+        rec = AiPrepMediaFileORM(
+            assessment_id=assessment_id,
+            video_file_path=video_file_path,
+            audio_file_path=audio_file_path,
+            file_size_bytes=file_size_bytes,
+        )
+        db.add(rec)
+    else:
+        if video_file_path is not None:
+            rec.video_file_path = video_file_path
+        if audio_file_path is not None:
+            rec.audio_file_path = audio_file_path
+        if file_size_bytes is not None:
+            rec.file_size_bytes = file_size_bytes
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
+create_media_file = create_media_file_record
+
+
+def get_media_file_by_assessment_id(
+    db: Session, assessment_id: int
+) -> Optional[AiPrepMediaFileORM]:
+    return (
+        db.query(AiPrepMediaFileORM)
+        .filter(AiPrepMediaFileORM.assessment_id == assessment_id)
+        .first()
+    )
+
+
+get_media_file = get_media_file_by_assessment_id
+
+
+def create_media_task_run(
+    db: Session,
+    assessment_id: int,
+    task_type: str,
+    status: str = MediaTaskStatusEnum.PENDING.value,
+    celery_task_id: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> AiPrepMediaTaskRunORM:
+    task_run = AiPrepMediaTaskRunORM(
+        assessment_id=assessment_id,
+        task_type=task_type,
+        status=status,
+        celery_task_id=celery_task_id,
+        error_message=error_message,
+    )
+    db.add(task_run)
+    db.commit()
+    db.refresh(task_run)
+    return task_run
+
+
+create_analysis_run = create_media_task_run
+
+
+def get_media_task_run(
+    db: Session, assessment_id: int, task_type: str
+) -> Optional[AiPrepMediaTaskRunORM]:
+    return (
+        db.query(AiPrepMediaTaskRunORM)
+        .filter(
+            AiPrepMediaTaskRunORM.assessment_id == assessment_id,
+            AiPrepMediaTaskRunORM.task_type == task_type,
+        )
+        .order_by(AiPrepMediaTaskRunORM.created_at.desc())
+        .first()
+    )
+
+
+get_analysis_run = get_media_task_run
+
+
+def get_media_task_runs_by_assessment_id(
+    db: Session, assessment_id: int
+) -> List[AiPrepMediaTaskRunORM]:
+    return (
+        db.query(AiPrepMediaTaskRunORM)
+        .filter(AiPrepMediaTaskRunORM.assessment_id == assessment_id)
+        .order_by(AiPrepMediaTaskRunORM.created_at.asc())
+        .all()
+    )
+
+
+get_analysis_runs = get_media_task_runs_by_assessment_id
+
+
+def update_media_task_run_status(
+    db: Session,
+    assessment_id: int,
+    task_type: str,
+    status: str,
+    error_message: Optional[str] = None,
+) -> Optional[AiPrepMediaTaskRunORM]:
+    task_run = get_media_task_run(db, assessment_id, task_type)
+    if not task_run:
+        task_run = create_media_task_run(db, assessment_id, task_type, status=status)
+    task_run.status = status
+    if error_message is not None:
+        task_run.error_message = error_message
+    db.commit()
+    db.refresh(task_run)
+    return task_run
+
+
+update_analysis_run_status = update_media_task_run_status

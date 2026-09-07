@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 # ── Mock heavy dependencies BEFORE any fapi.ai_prep imports ──────────────────
 mock_sqla = MagicMock()
+# Prevent sqlalchemy from being imported as a real module (Homebrew sandbox issue)
 for mod in [
     "sqlalchemy",
     "sqlalchemy.orm",
@@ -29,6 +30,7 @@ mock_crud = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 fapi.ai_prep.crud = mock_crud
 
+# Mock fapi.ai_prep.models to avoid sqlalchemy dialect imports
 sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
 import fastapi.dependencies.utils
@@ -43,6 +45,8 @@ from fapi.ai_prep.schemas import (
     MediaTypeEnum,
 )
 from fapi.ai_prep.router import router
+import fapi.ai_prep.router
+fapi.ai_prep.router.crud = mock_crud
 
 
 app = FastAPI()
@@ -79,17 +83,9 @@ class DummyAssessmentORM:
 class TestApiRoutes(unittest.TestCase):
 
     def setUp(self):
-        fapi.ai_prep.crud = mock_crud
-        sys.modules["fapi.ai_prep.crud"] = mock_crud
         mock_crud.reset_mock()
-        mock_crud.create_assessment.side_effect = lambda *args, **kwargs: DummyAssessmentORM(101)
+        mock_crud.create_assessment.side_effect = lambda *args, **kwargs: DummyAssessmentORM()
         mock_crud.get_assessment_by_id.side_effect = lambda db, id: DummyAssessmentORM(id) if id != 999 else None
-        mock_crud.get_assessment.side_effect = lambda db, id: DummyAssessmentORM(id) if id != 999 else None
-        mock_crud.get_assessment_by_id_and_candidate.side_effect = lambda db, id, cid: DummyAssessmentORM(id) if id != 999 else None
-        mock_crud.list_questions_by_category.return_value = []
-        mock_crud.list_questions.return_value = []
-        mock_crud.list_candidate_assessments.return_value = []
-        mock_crud.list_assessments_by_candidate.return_value = []
 
     def test_create_assessment_endpoint(self):
         payload = {
@@ -122,11 +118,13 @@ class TestApiRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_list_candidate_assessments(self):
+        mock_crud.list_candidate_assessments.return_value = []
         response = client.get("/api/aiprep/assessments?candidate_id=42")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 0)
 
     def test_list_questions(self):
+        mock_crud.list_questions.return_value = []
         response = client.get("/api/aiprep/questions")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 0)

@@ -65,20 +65,18 @@ class DummyReportORM:
 class TestAssessmentOrchestrator(unittest.TestCase):
 
     def setUp(self):
-        fapi.ai_prep.crud = mock_crud
-        sys.modules["fapi.ai_prep.crud"] = mock_crud
-        mock_crud.reset_mock()
+        fapi.ai_prep.crud.reset_mock()
         self.mock_db = MagicMock()
         self.dummy_assessment = DummyAssessmentORM()
         self.dummy_questions = [
             DummyQuestionORM(1, AssessmentCategoryEnum.INTRO, DifficultyLevelEnum.EASY, "Tell me about yourself"),
             DummyQuestionORM(2, AssessmentCategoryEnum.INTRO, DifficultyLevelEnum.MEDIUM, "Why this role?"),
         ]
-        mock_crud.create_assessment.return_value = self.dummy_assessment
-        mock_crud.get_assessment_by_id.return_value = self.dummy_assessment
+        fapi.ai_prep.crud.create_assessment.return_value = self.dummy_assessment
+        fapi.ai_prep.crud.get_assessment_by_id.return_value = self.dummy_assessment
 
     def test_start_assessment_workflow(self):
-        mock_crud.list_questions_by_category.return_value = self.dummy_questions
+        fapi.ai_prep.crud.list_questions_by_category.return_value = self.dummy_questions
 
         result = AssessmentOrchestrator.start_assessment(
             db=self.mock_db,
@@ -92,7 +90,7 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         self.assertEqual(result["candidate_id"], 42)
         self.assertEqual(result["status"], "IN_PROGRESS")
         self.assertEqual(len(result["questions"]), 1)
-        mock_crud.create_assessment.assert_called_once()
+        fapi.ai_prep.crud.create_assessment.assert_called_once()
 
     def test_submit_assessment_workflow(self):
         submit_res = AssessmentOrchestrator.submit_assessment(
@@ -105,18 +103,18 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         )
 
         self.assertEqual(submit_res["status"], "COMPLETED")
-        mock_crud.save_assessment_data.assert_called_once()
-        mock_crud.save_assessment_report.assert_called_once()
+        fapi.ai_prep.crud.save_assessment_data.assert_called_once()
+        fapi.ai_prep.crud.save_assessment_report.assert_called_once()
 
     def test_cancel_assessment_workflow(self):
         cancel_res = AssessmentOrchestrator.cancel_assessment(self.mock_db, 101)
 
         self.assertEqual(cancel_res["status"], "FAILED")
-        mock_crud.update_assessment_status.assert_called_with(self.mock_db, 101, AssessmentStatusEnum.FAILED)
+        fapi.ai_prep.crud.update_assessment_status.assert_called_with(self.mock_db, 101, AssessmentStatusEnum.FAILED)
 
     def test_rejects_resubmit_on_completed_assessment(self):
         completed_assessment = DummyAssessmentORM(status=AssessmentStatusEnum.COMPLETED)
-        mock_crud.get_assessment_by_id.return_value = completed_assessment
+        fapi.ai_prep.crud.get_assessment_by_id.return_value = completed_assessment
 
         with self.assertRaises(ValueError) as ctx:
             AssessmentOrchestrator.submit_assessment(
@@ -130,7 +128,7 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         self.assertIn("Submission rejected", str(ctx.exception))
 
     def test_get_assessment_details(self):
-        mock_crud.get_assessment_data.return_value = DummyDataORM()
+        fapi.ai_prep.crud.get_assessment_data.return_value = DummyDataORM()
 
         details = AssessmentOrchestrator.get_assessment_details(self.mock_db, 101)
 
@@ -139,7 +137,7 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         self.assertIsNotNone(details["submitted_data"])
 
     def test_get_assessment_report(self):
-        mock_crud.get_assessment_report.return_value = DummyReportORM(assessment_id=101)
+        fapi.ai_prep.crud.get_assessment_report.return_value = DummyReportORM(assessment_id=101)
 
         report = AssessmentOrchestrator.get_assessment_report(self.mock_db, 101)
 

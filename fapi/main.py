@@ -21,11 +21,12 @@ from fapi.api.routes import (
     campaign_email, outreach_email, tracking, aiprep_setup, llm_providers
 )
 from fapi.api.routes import aiprep_analytics
+from fapi.ai_prep.router import router as aiprep_router
 from fapi.utils.auth_dependencies import staff_or_admin_required
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
 import asyncio
 from fapi.core.redis_client import redis_client
-from fapi.db.database import SessionLocal, engine, get_db
+from fapi.db.database import SessionLocal, engine
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -34,6 +35,8 @@ from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
+import logging
+import traceback
 
 app = FastAPI(title="WBL Backend")
 app.state.limiter = limiter
@@ -41,6 +44,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 from fastapi.responses import JSONResponse
+import logging
 logger = logging.getLogger("wbl")
 
 
@@ -94,86 +98,92 @@ async def startup_event():
             ("duration_minutes", "INT NULL DEFAULT 60"),
         ]),
         ("candidate_llm_api_keys", [
-            ("custom_anthropic_api_key", "VARCHAR(512) NULL"),
-            ("custom_google_api_key", "VARCHAR(512) NULL"),
-            ("custom_openai_api_key", "VARCHAR(512) NULL"),
-            ("custom_model_routing", "JSON NULL"),
-            ("active_provider", "VARCHAR(64) NULL DEFAULT 'SYSTEM_DEFAULT'"),
-        ]),
-        ("ai_prep_assessment", [
-            ("youtube_url", "VARCHAR(512) NULL"),
-            ("ip_address", "VARCHAR(64) NULL"),
-            ("user_agent", "VARCHAR(512) NULL"),
-        ]),
+            ("status", "VARCHAR(50) NOT NULL DEFAULT 'inactive'"),
+            ("failure_reason", "TEXT NULL"),
+            ("failure_code", "VARCHAR(100) NULL"),
+            ("last_validated_at", "DATETIME NULL"),
+        ])
     ]
     with engine.connect() as conn:
-        for table, cols in cm_cols:
-            for col_name, col_type in cols:
-                try:
-                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
-                    conn.commit()
-                except Exception:
-                    pass  # Column already exists
+        for tbl, cols in cm_cols:
+            try:
+                existing = [row[0] for row in conn.execute(text(f"SHOW COLUMNS FROM {tbl}"))]
+                for col_name, col_type in cols:
+                    if col_name not in existing:
+                        conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+            except Exception as e:
+                logger.info(f"Column sync check error for {tbl}: {e}")
 
-    
+    # Ensure user_id column exists in application_report (for older DB schemas)
     try:
-        import threading
-        from fapi.utils.outreach_email_task import start_outreach_email_scheduler
-        from fapi.utils.daily_report_email_task import start_marketing_report_scheduler
-        t1 = threading.Thread(target=start_outreach_email_scheduler, daemon=True)
-        t1.start()
-        t2 = threading.Thread(target=start_marketing_report_scheduler, daemon=True)
-        t2.start()
-    except Exception:
-        pass
+        with engine.connect() as conn:
+            getattr(conn, "execute")(text("ALTER TABLE application_report ADD COLUMN user_id INT NULL"))
+            conn.commit()
+    except Exception as e:
+        logger.info(f"user_id column in application_report may already exist or failed to add: {e}")
+    # Coderpad Tables
+    try:
+        CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
+        CodeExecutionLogORM.__table__.create(bind=engine, checkfirst=True)
+        CoderpadQuestionORM.__table__.create(bind=engine, checkfirst=True)
+        CliUsageEventORM.__table__.create(bind=engine, checkfirst=True)
+        WboxcliApplyAnalyticsORM.__table__.create(bind=engine, checkfirst=True)
 
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
-    "https://test.whitebox-learning.com",
-    "https://whitebox-learning.com",
-    "http://test.whitebox-learning.com",
-    "http://whitebox-learning.com",
-    "https://marketing.whitebox-learning.com",
-    "https://lms.whitebox-learning.com",
-    "https://admin.whitebox-learning.com",
-    "https://hr.whitebox-learning.com",
-    "https://agent.whitebox-learning.com",
-    "https://app.whitebox-learning.com",
-    "https://candidate.whitebox-learning.com",
-    "https://www.whitebox-learning.com",
-    "https://wbl-dev.whitebox-learning.com"
-]
+        # ATS Application Report Table
+        ApplicationReportORM.__table__.create(bind=engine, checkfirst=True)
+        logger.info("CoderPad, CLI analytics, and ATS report tables checked/created successfully.")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize database tables: {e}")
+
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    pass  # Upstash Redis is HTTP-based; no persistent connection to close
+
+@app.get("/api/redis-health", tags=["Health"])
+async def redis_health():
+    client = redis_client.get_client()
+    if client:
+        try:
+            client.ping()
+            return {"status": "connected", "message": "Redis is up and running"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    return {"status": "disconnected", "message": "Redis client not initialized"}
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origin_regex=".*",  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
 )
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello World"}
-
-@app.get("/api/health")
-def health_check(db=Depends(get_db)):
+@app.middleware("http")
+async def log_exceptions(request: Request, call_next):
     try:
-        db.execute(text("SELECT 1"))
-        return {"status": "ok", "database": "connected"}
-    except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "error", "database": str(e)}
-        )
+        response = await call_next(request)
+        return response
+    except Exception:
+        logger.error("Unhandled exception during request: %s %s",
+                     request.method, request.url)
+        logger.error(traceback.format_exc())
+        raise
 
-@app.get("/redis/ping")
-def redis_ping():
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.get("/redis-test")
+def redis_test():
+    from fapi.core.redis_client import redis_client
     client = redis_client.get_client()
     client.set("ping", "pong", ex=60)
     return {"value": client.get("ping")}
@@ -221,6 +231,7 @@ app.include_router(sync_cli.router, prefix="/api", tags=["JobCLI Sync"])
 app.include_router(cli_analytics.router, prefix="/api", tags=["WboxCLI Analytics"])
 app.include_router(tracking.router, prefix="/api", tags=["ATS Reporting"])
 app.include_router(aiprep_analytics.router, prefix="/api")
+app.include_router(aiprep_router)
 
 @app.get("/api/analytics/ai-prep-report", tags=["AI Prep Analytics"])
 def get_ai_prep_report_alias(db=Depends(get_db), current_user=Depends(staff_or_admin_required)):
@@ -258,7 +269,3 @@ app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=[
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setup"], dependencies=[Depends(enforce_access)])
 app.include_router(llm_providers.router, prefix="/api", tags=["LLM Providers"], dependencies=[Depends(enforce_access)])
-
-# AI Prep Module Router
-from fapi.ai_prep.router import router as ai_prep_router
-app.include_router(ai_prep_router)

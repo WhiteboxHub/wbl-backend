@@ -17,7 +17,7 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.services.storage_service import storage_service
 from fapi.ai_prep.services.youtube_service import youtube_service
-from fapi.ai_prep.models import AiPrepAssessment, AiPrepMediaFile, AssessmentStatusEnum, AnalysisRunStatusEnum
+from fapi.ai_prep.models import AiPrepAssessment, AiPrepMediaFile, AssessmentStatusEnum, MediaTaskStatusEnum, AnalysisRunStatusEnum
 from fapi.ai_prep.exceptions import AssessmentNotFoundError, MediaAssemblyError, AllYouTubeQuotasExhaustedError
 
 logger = logging.getLogger(__name__)
@@ -172,16 +172,16 @@ class MediaService:
         """
         logger.info("Starting background assessment processing for assessment %s", assessment_id)
         db = SessionLocal()
-        run = crud.create_analysis_run(
+        run = crud.create_media_task_run(
             db=db,
             assessment_id=assessment_id,
-            run_type="YOUTUBE_UPLOAD",
-            status=AnalysisRunStatusEnum.RUNNING.value,
+            task_type="YOUTUBE_UPLOAD",
+            status=MediaTaskStatusEnum.RUNNING.value,
         )
 
         try:
             result = self.execute_youtube_upload_and_cleanup(assessment_id, db)
-            crud.update_analysis_run_status(db, run.id, AnalysisRunStatusEnum.COMPLETED.value)
+            crud.update_media_task_run_status(db, run.id, MediaTaskStatusEnum.COMPLETED.value)
 
             # Mark assessment as COMPLETED
             assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
@@ -194,12 +194,12 @@ class MediaService:
         except AllYouTubeQuotasExhaustedError as quota_exc:
             msg = f"All YouTube account quotas exhausted. Upload queued until quota reset: {str(quota_exc)}"
             logger.warning("Assessment %s: %s", assessment_id, msg)
-            crud.update_analysis_run_status(db, run.id, AnalysisRunStatusEnum.PENDING.value, error_message=msg)
+            crud.update_media_task_run_status(db, run.id, MediaTaskStatusEnum.PENDING.value, error_message=msg)
             return {"assessment_id": assessment_id, "status": "PENDING", "error": msg}
         except Exception as exc:
             error_msg = f"Background media pipeline error: {str(exc)}"
             logger.error("Failed background processing for assessment %s: %s", assessment_id, error_msg)
-            crud.update_analysis_run_status(db, run.id, AnalysisRunStatusEnum.FAILED.value, error_message=error_msg)
+            crud.update_media_task_run_status(db, run.id, MediaTaskStatusEnum.FAILED.value, error_message=error_msg)
             assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
             if assessment:
                 assessment.status = AssessmentStatusEnum.FAILED.value
