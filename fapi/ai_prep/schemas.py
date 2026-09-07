@@ -48,8 +48,49 @@ class EngineOperationEnum(str, Enum):
 
 # ─── API Endpoint Requests & Responses ────────────────────────────────────────
 
-class CreateAssessmentRequest(BaseModel):
+class AssessmentTypeItem(BaseModel):
+    type: str
+    title: str
+    category: str
+    description: str
+    supported_media: List[str] = Field(default_factory=lambda: ["AUDIO", "VIDEO"])
+    is_active: bool = True
+    questions_count: int = 1
+    icon: Optional[str] = None
+    difficulty_levels: List[str] = Field(default_factory=lambda: ["EASY", "MEDIUM", "HARD"])
+
+
+class AssessmentTypeListResponse(BaseModel):
+    items: List[AssessmentTypeItem] = Field(default_factory=list)
+    total: int
+
+
+class LLMKeyStatusResponse(BaseModel):
     candidate_id: int
+    has_active_key: bool
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    supports_voice: bool = False
+    status: str  # "VALID", "INACTIVE", "MISSING", "FAILURE"
+    message: str
+
+
+class ResumeStatusResponse(BaseModel):
+    candidate_id: int
+    has_resume: bool
+    status: str  # "VALID", "MISSING"
+    message: str
+    last_updated: Optional[str] = None
+
+
+class AssessmentErrorDetail(BaseModel):
+    error_code: str
+    detail: str
+    missing_requirements: Optional[List[str]] = None
+
+
+class CreateAssessmentRequest(BaseModel):
+    candidate_id: Optional[int] = None
     assessment_type: AssessmentCategoryEnum
     media_type: MediaTypeEnum
     job_description: Optional[str] = None
@@ -63,6 +104,21 @@ class CreateAssessmentResponse(BaseModel):
     assessment_type: Optional[AssessmentCategoryEnum] = None
     media_type: Optional[MediaTypeEnum] = None
     youtube_url: Optional[str] = None
+    questions: Optional[List[Dict[str, Any]]] = None
+
+
+class SubmitAssessmentRequest(BaseModel):
+    questions: List[Dict[str, Any]] = Field(default_factory=list)
+    transcript: Dict[str, Any] = Field(default_factory=dict)
+    audio_telemetry: Dict[str, Any] = Field(default_factory=dict)
+    video_telemetry: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SubmitAssessmentResponse(BaseModel):
+    assessment_id: int
+    status: str
+    message: str
+    report: Optional[Dict[str, Any]] = None
 
 
 class SubmitAssessmentDataRequest(BaseModel):

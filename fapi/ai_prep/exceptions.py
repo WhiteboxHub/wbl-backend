@@ -59,3 +59,25 @@ class MediaStorageError(AIPrepBaseException):
 class AssessmentNotFoundError(AIPrepBaseException):
     """Raised when assessment ID does not exist."""
     pass
+
+
+class LLMKeyMissingError(AIPrepBaseException):
+    """Raised when candidate does not have an active LLM API key."""
+    def __init__(self, message: str = "No active LLM API key found for this candidate. Please configure an API key in settings before starting."):
+        self.error_code = "LLM_KEY_NOT_CONFIGURED"
+        super().__init__(message)
+
+
+class ResumeMissingError(AIPrepBaseException):
+    """Raised when candidate does not have a parsed resume uploaded."""
+    def __init__(self, message: str = "No parsed resume found for this candidate. Please upload your resume before starting an assessment."):
+        self.error_code = "RESUME_NOT_FOUND"
+        super().__init__(message)
+
+
+class AssessmentOperationError(AIPrepBaseException):
+    """Raised when an assessment state machine operation is rejected."""
+    def __init__(self, message: str, error_code: str = "OPERATION_REJECTED"):
+        self.error_code = error_code
+        super().__init__(message)
+
