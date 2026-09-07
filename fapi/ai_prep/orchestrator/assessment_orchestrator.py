@@ -49,8 +49,32 @@ class AssessmentOrchestrator:
         3. Retrieves questions from question bank using non-repetition rules.
         """
         from fapi.ai_prep import crud
+        from fapi.ai_prep.exceptions import (
+            LLMKeyMissingError,
+            ResumeMissingError,
+            AssessmentOperationError,
+        )
+        from fapi.db.models import CandidateLlmApiKeyORM
 
-        # 1. Create DB record
+        # 1. Pre-flight Validation: Check active LLM API key
+        has_active_key = (
+            db.query(CandidateLlmApiKeyORM.id)
+            .filter(
+                CandidateLlmApiKeyORM.candidate_id == candidate_id,
+                CandidateLlmApiKeyORM.status == "active",
+            )
+            .first()
+            is not None
+        )
+        if not has_active_key:
+            raise LLMKeyMissingError()
+
+        # 2. Pre-flight Validation: Check Candidate Resume
+        resume_json = crud.get_candidate_resume_json(db, candidate_id)
+        if resume_json is None:
+            raise ResumeMissingError()
+
+        # 3. Create DB record
         assessment_orm = crud.create_assessment(
             db=db,
             candidate_id=candidate_id,
@@ -61,7 +85,7 @@ class AssessmentOrchestrator:
             user_agent=user_agent,
         )
 
-        # 2. Validate start operation with AssessmentEngine
+        # 4. Validate start operation with AssessmentEngine
         engine_input = AssessmentEngineInput(
             assessment=AssessmentStateInput(
                 assessment_id=assessment_orm.id,
@@ -75,7 +99,9 @@ class AssessmentOrchestrator:
         )
         engine_result = AssessmentEngine.execute_operation(engine_input)
         if not engine_result.success:
-            raise ValueError(f"Assessment start rejected: {engine_result.error.message}")
+            raise AssessmentOperationError(
+                f"Assessment start rejected: {engine_result.error.message if engine_result.error else 'Invalid state'}"
+            )
 
         # 3. Select questions for this assessment
         eligible_questions = crud.list_questions_by_category(db, category=assessment_type)
@@ -89,14 +115,20 @@ class AssessmentOrchestrator:
             for q in eligible_questions
         ]
 
-        # For INTRO / JD_INTRO assessments, select exactly 1 question ("Tell me about yourself")
+        # Select questions dynamically based on assessment category and eligible pool
+        target_count = (
+            1
+            if assessment_type in (AssessmentCategoryEnum.INTRO, AssessmentCategoryEnum.JD_INTRO)
+            else len(question_dicts)
+        )
         selected_questions = []
         used_ids = []
-        for _ in range(min(1, len(question_dicts))):
+        for _ in range(min(target_count, len(question_dicts))):
             next_q = AssessmentEngine.select_next_question(question_dicts, used_ids)
             if next_q and next_q["id"] not in used_ids:
                 selected_questions.append(next_q)
                 used_ids.append(next_q["id"])
+
 
         return {
             "id": assessment_orm.id,

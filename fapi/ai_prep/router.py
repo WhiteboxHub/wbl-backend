@@ -31,34 +31,307 @@ from fapi.ai_prep.services.sse_service import sse_service
 router = APIRouter(prefix="/api/aiprep", tags=["AIPrep"])
 
 
+# ─── Part 0: Assessment Types Metadata & Candidate Status ─────────────────────
+
+ASSESSMENT_TYPES_CATALOG = [
+    schemas.AssessmentTypeItem(
+        type="INTRO",
+        title="Intro Assessment",
+        category="Behavioral",
+        description="Evaluate basic self-introduction, communication clarity, and background presentation.",
+        supported_media=["AUDIO", "VIDEO"],
+        is_active=True,
+        questions_count=1,
+        icon="user-voice",
+        difficulty_levels=["EASY", "MEDIUM"],
+    ),
+    schemas.AssessmentTypeItem(
+        type="JD_INTRO",
+        title="JD Walkthrough",
+        category="Role Match",
+        description="Walk through specific job requirements, match relevant experience, and explain job alignment.",
+        supported_media=["AUDIO", "VIDEO"],
+        is_active=True,
+        questions_count=1,
+        icon="briefcase",
+        difficulty_levels=["MEDIUM", "HARD"],
+    ),
+    schemas.AssessmentTypeItem(
+        type="RECRUITER",
+        title="Recruiter Screen",
+        category="Screening",
+        description="Simulated first-round recruiter screening interview focusing on background and availability.",
+        supported_media=["AUDIO", "VIDEO"],
+        is_active=True,
+        questions_count=5,
+        icon="users",
+        difficulty_levels=["EASY", "MEDIUM"],
+    ),
+    schemas.AssessmentTypeItem(
+        type="TECHNICAL",
+        title="Technical Assessment",
+        category="Technical",
+        description="Deep-dive technical questions covering software engineering, algorithms, and domain knowledge.",
+        supported_media=["AUDIO", "VIDEO"],
+        is_active=True,
+        questions_count=5,
+        icon="code",
+        difficulty_levels=["MEDIUM", "HARD", "EXPERT"],
+    ),
+    schemas.AssessmentTypeItem(
+        type="HIRING_MANAGER",
+        title="Hiring Manager Round",
+        category="Leadership",
+        description="Scenario-based questions assessing technical leadership, problem solving, and cultural fit.",
+        supported_media=["AUDIO", "VIDEO"],
+        is_active=True,
+        questions_count=5,
+        icon="user-check",
+        difficulty_levels=["MEDIUM", "HARD"],
+    ),
+    schemas.AssessmentTypeItem(
+        type="SYSTEM_DESIGN",
+        title="System Design",
+        category="Architecture",
+        description="End-to-end distributed system design, trade-off analysis, scalability, and architecture.",
+        supported_media=["AUDIO", "VIDEO"],
+        is_active=True,
+        questions_count=3,
+        icon="cpu",
+        difficulty_levels=["HARD", "EXPERT"],
+    ),
+]
+
+
+@router.get(
+    "/assessment-types",
+    response_model=schemas.AssessmentTypeListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="0. List Assessment Types Metadata (Hardcoded Catalog)",
+)
+def list_assessment_types():
+    """Returns assessment categories, descriptions, and media options without altering DB schema."""
+    return schemas.AssessmentTypeListResponse(
+        items=ASSESSMENT_TYPES_CATALOG,
+        total=len(ASSESSMENT_TYPES_CATALOG),
+    )
+
+
+@router.get(
+    "/candidate/llm-status",
+    response_model=schemas.LLMKeyStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Check Candidate LLM Key Status",
+)
+def check_candidate_llm_status(
+    candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin only)"),
+    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
+    db: Session = Depends(dependencies.get_db),
+):
+    """
+    Validates LLM API key status for a candidate.
+    - Candidate: can only check their own status.
+    - Employee/Admin: can check on behalf of any candidate by ID.
+    """
+    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(candidate_id, auth_ctx)
+
+    from fapi.db.models import CandidateLlmApiKeyORM
+
+    row = (
+        db.query(CandidateLlmApiKeyORM)
+        .filter(
+            CandidateLlmApiKeyORM.candidate_id == effective_candidate_id,
+            CandidateLlmApiKeyORM.status == "active",
+        )
+        .order_by(
+            CandidateLlmApiKeyORM.is_default.desc(),
+            CandidateLlmApiKeyORM.updated_at.desc(),
+            CandidateLlmApiKeyORM.id.desc(),
+        )
+        .first()
+    )
+
+    if not row:
+        return schemas.LLMKeyStatusResponse(
+            candidate_id=effective_candidate_id,
+            has_active_key=False,
+            provider=None,
+            model=None,
+            supports_voice=False,
+            status="MISSING",
+            message="No active LLM API key configured for candidate.",
+        )
+
+    supports_voice = bool(getattr(row, "voice_enabled", False))
+    raw_provider = getattr(row, "provider_name", None)
+    provider = str(raw_provider) if raw_provider and not hasattr(raw_provider, "_mock_name") else None
+    raw_model = getattr(row, "model_name", None)
+    model = str(raw_model) if raw_model and not hasattr(raw_model, "_mock_name") else None
+
+    return schemas.LLMKeyStatusResponse(
+        candidate_id=effective_candidate_id,
+        has_active_key=True,
+        provider=provider,
+        model=model,
+        supports_voice=supports_voice,
+        status="VALID",
+        message="Active LLM key configured and ready.",
+    )
+
+
+
+
+@router.get(
+    "/candidate/resume-status",
+    response_model=schemas.ResumeStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Check Candidate Resume Status",
+)
+def check_candidate_resume_status(
+    candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin only)"),
+    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
+    db: Session = Depends(dependencies.get_db),
+):
+    """
+    Validates resume parsing status for a candidate.
+    - Candidate: can only check their own resume status.
+    - Employee/Admin: can check on behalf of any candidate by ID.
+    """
+    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(candidate_id, auth_ctx)
+    resume_json = crud.get_candidate_resume_json(db, effective_candidate_id)
+
+    if not resume_json:
+        return schemas.ResumeStatusResponse(
+            candidate_id=effective_candidate_id,
+            has_resume=False,
+            status="MISSING",
+            message="No parsed resume found for candidate. Please upload a resume in settings.",
+        )
+
+    return schemas.ResumeStatusResponse(
+        candidate_id=effective_candidate_id,
+        has_resume=True,
+        status="VALID",
+        message="Candidate resume is parsed and available.",
+    )
+
+
 # ─── Part 1: Assessment Execution Flow ───────────────────────────────────────
 
 @router.post(
     "/assessments",
     response_model=schemas.CreateAssessmentResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="1. Create Assessment Session",
+    summary="1. Create Assessment Session with Pre-flight Validation",
 )
 def create_assessment(
     payload: schemas.CreateAssessmentRequest,
     request: Request,
-    candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
     db: Session = Depends(dependencies.get_db),
 ):
-    """Initializes a new assessment session for a candidate."""
+    """Initializes a new assessment session with pre-flight LLM key and resume checks."""
+    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(payload.candidate_id, auth_ctx)
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
-    assessment = crud.create_assessment(
-        db=db,
-        candidate_id=payload.candidate_id or candidate_id,
-        assessment_type=payload.assessment_type,
-        media_type=payload.media_type,
-        job_description=payload.job_description,
-        ip_address=ip_address,
-        user_agent=user_agent,
-    )
-    return assessment
+    from fapi.ai_prep.exceptions import LLMKeyMissingError, ResumeMissingError, AssessmentOperationError
+
+    try:
+        assessment_dict = assessment_orchestrator.start_assessment(
+            db=db,
+            candidate_id=effective_candidate_id,
+            assessment_type=payload.assessment_type,
+            media_type=payload.media_type,
+            job_description=payload.job_description,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return schemas.CreateAssessmentResponse(**assessment_dict)
+    except LLMKeyMissingError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": e.error_code,
+                "detail": str(e),
+                "missing_requirements": ["LLM_API_KEY"],
+            },
+        )
+    except ResumeMissingError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": e.error_code,
+                "detail": str(e),
+                "missing_requirements": ["RESUME"],
+            },
+        )
+    except AssessmentOperationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": e.error_code, "detail": str(e)},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "INTERNAL_ERROR", "detail": str(e)},
+        )
+
+
+@router.post(
+    "/assessments/{id}/submit",
+    response_model=schemas.SubmitAssessmentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="1b. Submit Assessment & Trigger Evaluation",
+)
+@router.put(
+    "/assessments/{id}/submit",
+    response_model=schemas.SubmitAssessmentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="1b. Submit Assessment (PUT alias)",
+)
+def submit_assessment(
+    id: int,
+    payload: schemas.SubmitAssessmentRequest,
+    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
+    db: Session = Depends(dependencies.get_db),
+):
+    """
+    Submits assessment recording/telemetry, evaluates via LLM Orchestrator & Analytics,
+    and updates report to COMPLETED.
+    """
+    dependencies.get_assessment_or_403(id, auth_ctx=auth_ctx, db=db)
+
+    try:
+        res = assessment_orchestrator.submit_assessment(
+            db=db,
+            assessment_id=id,
+            questions=payload.questions,
+            transcript=payload.transcript,
+            audio_telemetry=payload.audio_telemetry,
+            video_telemetry=payload.video_telemetry,
+        )
+        return schemas.SubmitAssessmentResponse(
+            assessment_id=id,
+            status=res.get("status", "COMPLETED"),
+            message=res.get("message", "Assessment evaluation completed successfully."),
+            report=res.get("report"),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "SUBMISSION_ERROR", "detail": str(e)},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "EVALUATION_FAILED", "detail": str(e)},
+        )
+
 
 
 @router.post(
@@ -169,12 +442,11 @@ def trigger_evaluation(
 )
 def get_assessment_report(
     id: int,
+    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
     db: Session = Depends(dependencies.get_db),
 ):
     """Fetches full assessment details including telemetry data and evaluation report."""
-    assessment = crud.get_assessment_by_id(db, id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    assessment = dependencies.get_assessment_or_403(id, auth_ctx=auth_ctx, db=db)
 
     data = crud.get_assessment_data_by_assessment_id(db, id)
     report = crud.get_assessment_report_by_assessment_id(db, id)
@@ -209,18 +481,19 @@ def get_assessment_report(
     summary="7. List Candidate Assessments",
 )
 def list_candidate_assessments(
-    candidate_id: int = Query(..., description="Candidate ID filter"),
-    current_candidate_id: int = Depends(dependencies.get_current_candidate_id),
+    candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin can filter, candidates see own)"),
+    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(dependencies.get_db),
 ):
     """Fetches a paginated list of assessments for a specific candidate with auth validation."""
-    effective_candidate_id = candidate_id or current_candidate_id
+    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(candidate_id, auth_ctx)
     assessments = crud.list_candidate_assessments(
         db, candidate_id=effective_candidate_id, limit=limit, offset=offset
     )
     return {"items": assessments, "total": len(assessments)}
+
 
 
 # ─── Part 3: Question Bank Admin ──────────────────────────────────────────────

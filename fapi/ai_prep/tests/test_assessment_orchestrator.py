@@ -74,6 +74,7 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         ]
         fapi.ai_prep.crud.create_assessment.return_value = self.dummy_assessment
         fapi.ai_prep.crud.get_assessment_by_id.return_value = self.dummy_assessment
+        fapi.ai_prep.crud.get_candidate_resume_json.return_value = {"skills": ["Python"]}
 
     def test_start_assessment_workflow(self):
         fapi.ai_prep.crud.list_questions_by_category.return_value = self.dummy_questions
@@ -93,6 +94,19 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         fapi.ai_prep.crud.create_assessment.assert_called_once()
 
     def test_submit_assessment_workflow(self):
+        from unittest.mock import AsyncMock
+        from fapi.ai_prep.orchestrator import llm_orchestrator
+        llm_orchestrator.get_candidate_llm_config = MagicMock(return_value={
+            "api_key": "test_key",
+            "provider": "openai",
+            "model": "gpt-4o",
+        })
+        llm_orchestrator.run_evaluation = AsyncMock(return_value={
+            "transcript_evaluation": {"score": 85},
+            "audio_evaluation": {"score": 90},
+            "video_evaluation": {"score": 88},
+        })
+
         submit_res = AssessmentOrchestrator.submit_assessment(
             db=self.mock_db,
             assessment_id=101,
@@ -102,9 +116,11 @@ class TestAssessmentOrchestrator(unittest.TestCase):
             video_telemetry={"eye_contact_pct": 88.0},
         )
 
+
         self.assertEqual(submit_res["status"], "COMPLETED")
         fapi.ai_prep.crud.save_assessment_data.assert_called_once()
         fapi.ai_prep.crud.save_assessment_report.assert_called_once()
+
 
     def test_cancel_assessment_workflow(self):
         cancel_res = AssessmentOrchestrator.cancel_assessment(self.mock_db, 101)
