@@ -84,17 +84,70 @@ class TestApiRoutesExhaustive(unittest.TestCase):
         mock_crud.reset_mock()
         mock_crud.create_assessment.side_effect = lambda *args, **kwargs: DummyAssessmentORM()
         mock_crud.get_assessment_by_id.side_effect = lambda db, id: DummyAssessmentORM(id) if id != 999 else None
-        mock_crud.list_candidate_assessments.return_value = [DummyAssessmentORM(101)]
-        mock_crud.list_questions.return_value = [DummyQuestionORM(1)]
-        mock_crud.create_question.side_effect = lambda *args, **kwargs: DummyQuestionORM(1)
-        mock_crud.update_question.side_effect = lambda db, question_id, **kwargs: DummyQuestionORM(question_id) if question_id != 999 else None
-        mock_crud.update_assessment_youtube_url.side_effect = lambda db, assessment_id, url: DummyAssessmentORM(assessment_id) if assessment_id != 999 else None
-        mock_crud.get_assessment_data_by_assessment_id.return_value = MagicMock(questions=[], transcript={}, audio_telemetry={}, video_telemetry={})
-        mock_crud.get_assessment_report_by_assessment_id.return_value = MagicMock(audio_evaluation={}, video_evaluation={}, transcript_evaluation={})
-        
-        # Mock orchestrator behavior
-        api_router.assessment_orchestrator = MagicMock()
-        api_router.assessment_orchestrator.start_assessment.return_value = {
+        mock_crud.get_candidate_resume_json.return_value = {"skills": ["Python", "FastAPI"]}
+        mock_crud.list_questions_by_category.return_value = []
+
+    def test_get_assessment_types_endpoint(self):
+        response = client.get("/api/aiprep/assessment-types")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreaterEqual(data["total"], 6)
+        types = [item["type"] for item in data["items"]]
+        self.assertIn("INTRO", types)
+        self.assertIn("TECHNICAL", types)
+        self.assertIn("SYSTEM_DESIGN", types)
+
+    def test_candidate_llm_status_endpoint(self):
+        response = client.get("/api/aiprep/candidate/llm-status")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["candidate_id"], 42)
+
+    def test_candidate_resume_status_endpoint(self):
+        response = client.get("/api/aiprep/candidate/resume-status")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["candidate_id"], 42)
+        self.assertTrue(data["has_resume"])
+        self.assertEqual(data["status"], "VALID")
+
+    def test_employee_endpoints_forbidden_for_candidate(self):
+        # Default user context in test client is candidate role -> must get 403 Forbidden
+        response = client.get("/api/aiprep/employee/candidate/999/llm-status")
+        self.assertEqual(response.status_code, 403)
+
+        response_resume = client.get("/api/aiprep/employee/candidate/999/resume-status")
+        self.assertEqual(response_resume.status_code, 403)
+
+        response_list = client.get("/api/aiprep/employee/assessments")
+        self.assertEqual(response_list.status_code, 403)
+
+    def test_employee_endpoints_accessible_for_employee(self):
+        def override_employee_user_context():
+            return {
+                "user_id": 1,
+                "uname": "admin@example.com",
+                "role": "admin",
+                "is_employee": True,
+                "is_admin": True,
+                "candidate_id": 1,
+            }
+        app.dependency_overrides[dependencies.get_authenticated_user_context] = override_employee_user_context
+        try:
+            mock_crud.list_assessments_for_employee.return_value = []
+            res = client.get("/api/aiprep/employee/assessments?candidate_id=42")
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.json()["total"], 0)
+
+            res_resume = client.get("/api/aiprep/employee/candidate/42/resume-status")
+            self.assertEqual(res_resume.status_code, 200)
+            self.assertEqual(res_resume.json()["candidate_id"], 42)
+        finally:
+            app.dependency_overrides[dependencies.get_authenticated_user_context] = override_get_authenticated_user_context
+
+
+    def test_create_assessment_endpoint_success(self):
+        fapi.ai_prep.router.assessment_orchestrator.start_assessment = MagicMock(return_value={
             "id": 101,
             "candidate_id": 42,
             "status": "IN_PROGRESS",
