@@ -140,11 +140,14 @@ class MediaService:
 
         return {
             "assessment_id": assessment_id,
-            "status": AssessmentStatusEnum.PROCESSING.value,
+            "status": AssessmentStatusEnum.EVALUATING.value,
             "task_id": task_id,
             "video_path": assembled_video_path,
+            "assembled_video_path": assembled_video_path,
             "audio_path": audio_path,
+            "extracted_audio_path": audio_path,
             "file_size_bytes": file_size,
+            "dispatched_tasks": [task_id],
             "message": "Media assembled and evaluation pipeline dispatched",
         }
 
@@ -162,9 +165,11 @@ class MediaService:
         """
         # Validate chunk sequence via VideoProcessorEngine
         chunk_status = self.storage.get_chunk_status(candidate_id, assessment_id, expected_total=total_chunks)
+        start_index = 0 if 0 in chunk_status.get("uploaded_chunks", []) else 1
         validation = self.video_engine.validate_chunks(
             existing_chunks=chunk_status.get("uploaded_chunks", []),
             total_expected=total_chunks,
+            start_index=start_index,
         )
         if not validation["is_valid"]:
             raise MissingChunksError(
