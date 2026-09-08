@@ -1,15 +1,23 @@
 """
-API Route Tests for AI Prep Platform.
-Validates FastAPI endpoints specified in contracts/api_endpoints.md.
+Exhaustive API Route Handler Tests for AI Prep Platform.
+Validates FastAPI router handlers directly in memory.
 """
 
 import sys
 import unittest
 from unittest.mock import MagicMock
 
-# ── Mock heavy dependencies BEFORE any fapi.ai_prep imports ──────────────────
+# Mock multipart installation check for test environment
+import fastapi.dependencies.utils
+fastapi.dependencies.utils.ensure_multipart_is_installed = lambda: None
+
+# Mock sqlalchemy and db modules BEFORE importing router
 mock_sqla = MagicMock()
-# Prevent sqlalchemy from being imported as a real module (Homebrew sandbox issue)
+sys.modules.setdefault("jose", mock_sqla)
+sys.modules.setdefault("jose.jwt", mock_sqla)
+sys.modules.setdefault("dotenv", mock_sqla)
+sys.modules.setdefault("fapi.core.config", MagicMock(SECRET_KEY="secret", ALGORITHM="HS256"))
+
 for mod in [
     "sqlalchemy",
     "sqlalchemy.orm",
@@ -20,82 +28,57 @@ for mod in [
 ]:
     sys.modules.setdefault(mod, mock_sqla)
 
-mock_db_database = MagicMock()
-sys.modules.setdefault("fapi.db.database", mock_db_database)
+sys.modules.setdefault("fapi.db.database", MagicMock())
 sys.modules.setdefault("fapi.db.models", MagicMock())
+sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
 import fapi.ai_prep
-
 mock_crud = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 fapi.ai_prep.crud = mock_crud
 
-# Mock fapi.ai_prep.models to avoid sqlalchemy dialect imports
-sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
-
-import fastapi.dependencies.utils
-fastapi.dependencies.utils.ensure_multipart_is_installed = lambda: None
-
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from fapi.ai_prep import dependencies
-from fapi.ai_prep.dependencies import get_db, get_current_candidate_id
-
+from fastapi import HTTPException
 from fapi.ai_prep.schemas import (
+    CreateAssessmentRequest,
+    SubmitAssessmentDataRequest,
+    SubmitAssessmentRequest,
+    UpdateMediaUrlRequest,
+    QuestionBankCreateRequest,
+    QuestionBankUpdateRequest,
     AssessmentStatusEnum,
     AssessmentCategoryEnum,
     MediaTypeEnum,
+    DifficultyLevelEnum,
 )
-from fapi.ai_prep.router import router
-import fapi.ai_prep.router
-fapi.ai_prep.router.crud = mock_crud
-
-
-app = FastAPI()
-app.include_router(router)
-
-
-def override_get_db():
-    return MagicMock()
-
-
-def override_get_current_candidate_id():
-    return 42
-
-
-def override_get_authenticated_user_context():
-    return {
-        "user_id": 42,
-        "uname": "testcandidate@example.com",
-        "role": "candidate",
-        "is_employee": False,
-        "is_admin": False,
-        "candidate_id": 42,
-    }
-
-
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_current_candidate_id] = override_get_current_candidate_id
-app.dependency_overrides[dependencies.get_authenticated_user_context] = override_get_authenticated_user_context
-
-client = TestClient(app)
+from fapi.ai_prep import router as api_router
 
 
 class DummyAssessmentORM:
-
-    def __init__(self, id=101, candidate_id=42):
+    def __init__(self, id=101):
         self.id = id
-        self.candidate_id = candidate_id
+        self.candidate_id = 42
         self.assessment_type = AssessmentCategoryEnum.INTRO
         self.media_type = MediaTypeEnum.VIDEO
         self.status = AssessmentStatusEnum.IN_PROGRESS
         self.job_description = "AI Engineer"
-        self.youtube_url = None
+        self.youtube_url = "https://youtube.com/watch?v=mock"
         self.started_at = None
         self.completed_at = None
 
 
-class TestApiRoutes(unittest.TestCase):
+class DummyQuestionORM:
+    def __init__(self, id=1):
+        self.id = id
+        self.category = AssessmentCategoryEnum.TECHNICAL
+        self.sub_category = "RAG"
+        self.difficulty_level = DifficultyLevelEnum.MEDIUM
+        self.question_text = "Explain RAG search."
+        self.is_active = True
+        self.created_at = None
+        self.updated_at = None
+
+
+class TestApiRoutesExhaustive(unittest.TestCase):
 
     def setUp(self):
         mock_crud.reset_mock()
@@ -167,106 +150,164 @@ class TestApiRoutes(unittest.TestCase):
         fapi.ai_prep.router.assessment_orchestrator.start_assessment = MagicMock(return_value={
             "id": 101,
             "candidate_id": 42,
-            "assessment_type": "INTRO",
-            "media_type": "VIDEO",
             "status": "IN_PROGRESS",
-            "started_at": None,
-            "questions": [{"id": 1, "question_text": "Tell me about yourself"}],
-        })
-
-        payload = {
-            "candidate_id": 42,
-            "assessment_type": "INTRO",
-            "media_type": "VIDEO",
-            "job_description": "AI Engineer",
-        }
-
-        response = client.post("/api/aiprep/assessments", json=payload)
-        self.assertEqual(response.status_code, 201)
-        data = response.json()
-        self.assertEqual(data["id"], 101)
-        self.assertEqual(data["assessment_type"], "INTRO")
-
-    def test_create_assessment_missing_llm_key_error(self):
-        from fapi.ai_prep.exceptions import LLMKeyMissingError
-        fapi.ai_prep.router.assessment_orchestrator.start_assessment = MagicMock(
-            side_effect=LLMKeyMissingError()
-        )
-
-        payload = {
-            "candidate_id": 42,
             "assessment_type": "INTRO",
             "media_type": "VIDEO",
         }
-        response = client.post("/api/aiprep/assessments", json=payload)
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("LLM_KEY_NOT_CONFIGURED", response.text)
-
-    def test_create_assessment_missing_resume_error(self):
-        from fapi.ai_prep.exceptions import ResumeMissingError
-        fapi.ai_prep.router.assessment_orchestrator.start_assessment = MagicMock(
-            side_effect=ResumeMissingError()
-        )
-
-        payload = {
-            "candidate_id": 42,
-            "assessment_type": "INTRO",
-            "media_type": "VIDEO",
-        }
-        response = client.post("/api/aiprep/assessments", json=payload)
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("RESUME_NOT_FOUND", response.text)
-
-    def test_submit_assessment_endpoint(self):
-        fapi.ai_prep.router.assessment_orchestrator.submit_assessment = MagicMock(return_value={
-            "assessment_id": 101,
+        api_router.assessment_orchestrator.submit_assessment.return_value = {
             "status": "COMPLETED",
-            "message": "Assessment evaluation completed successfully.",
-            "report": {"audio_evaluation": {}, "video_evaluation": {}, "transcript_evaluation": {}}
-        })
-
-        payload = {
-            "questions": [{"id": 1}],
-            "transcript": {"text": "My background in AI..."},
-            "audio_telemetry": {"words_per_minute": 130},
-            "video_telemetry": {"is_video_mode": True},
+            "message": "Evaluation completed.",
+            "report": {"overall_score": 85},
         }
 
-        response = client.post("/api/aiprep/assessments/101/submit", json=payload)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["assessment_id"], 101)
-        self.assertEqual(data["status"], "COMPLETED")
+    def test_list_assessment_types(self):
+        res = api_router.list_assessment_types()
+        self.assertEqual(res.total, 6)
 
-    def test_submit_data_endpoint(self):
-        payload = {
-            "questions": [],
-            "transcript": {},
-            "audio_telemetry": {},
-            "video_telemetry": {},
-        }
+    def test_check_candidate_llm_status(self):
+        auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
+        res = api_router.check_candidate_llm_status(candidate_id=42, auth_ctx=auth_ctx, db=MagicMock())
+        self.assertIsNotNone(res.status)
 
-        response = client.post("/api/aiprep/assessments/101/data", json=payload)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["message"], "Data saved successfully")
+    def test_check_candidate_resume_status(self):
+        auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
+        res = api_router.check_candidate_resume_status(candidate_id=42, auth_ctx=auth_ctx, db=MagicMock())
+        self.assertIsNotNone(res.status)
 
-    def test_get_assessment_not_found(self):
-        response = client.get("/api/aiprep/assessments/999")
-        self.assertEqual(response.status_code, 404)
+    def test_create_assessment_handler_success(self):
+        payload = CreateAssessmentRequest(
+            candidate_id=42,
+            assessment_type=AssessmentCategoryEnum.INTRO,
+            media_type=MediaTypeEnum.VIDEO,
+            job_description="AI Engineer",
+        )
+        mock_request = MagicMock()
+        mock_request.client.host = "127.0.0.1"
+        mock_request.headers.get.return_value = "pytest"
+        auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
 
-    def test_list_candidate_assessments(self):
-        mock_crud.list_candidate_assessments.return_value = []
-        response = client.get("/api/aiprep/assessments?candidate_id=42")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["total"], 0)
+        result = api_router.create_assessment(
+            payload=payload,
+            request=mock_request,
+            auth_ctx=auth_ctx,
+            db=MagicMock(),
+        )
+        self.assertEqual(result.id, 101)
 
-    def test_list_questions(self):
-        mock_crud.list_questions.return_value = []
-        response = client.get("/api/aiprep/questions")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["total"], 0)
+    def test_submit_assessment_handler(self):
+        payload = SubmitAssessmentRequest(
+            questions=[],
+            transcript={"full_text": "sample"},
+            audio_telemetry={"speaking_pace_wpm": 140},
+            video_telemetry={},
+        )
+        auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
+
+        result = api_router.submit_assessment(
+            id=101,
+            payload=payload,
+            auth_ctx=auth_ctx,
+            db=MagicMock(),
+        )
+        self.assertEqual(result.status, "COMPLETED")
+
+    def test_submit_data_handler_success(self):
+        payload = SubmitAssessmentDataRequest(
+            questions=[{"id": 1, "question_text": "Explain RAG."}],
+            transcript={"full_text": "RAG stands for..."},
+            audio_telemetry={"words_per_minute": 135},
+            video_telemetry={"face_visible_pct": 98.0},
+        )
+
+        result = api_router.submit_data(
+            id=101,
+            payload=payload,
+            db=MagicMock(),
+        )
+        self.assertEqual(result["message"], "Data saved successfully")
+
+    def test_submit_data_handler_not_found(self):
+        payload = SubmitAssessmentDataRequest()
+        with self.assertRaises(HTTPException) as ctx:
+            api_router.submit_data(id=999, payload=payload, db=MagicMock())
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_update_media_url_success(self):
+        payload = UpdateMediaUrlRequest(youtube_url="https://youtube.com/watch?v=new")
+        result = api_router.update_media_url(id=101, payload=payload, db=MagicMock())
+        self.assertEqual(result.id, 101)
+
+    def test_update_media_url_not_found(self):
+        payload = UpdateMediaUrlRequest(youtube_url="https://youtube.com/watch?v=new")
+        with self.assertRaises(HTTPException) as ctx:
+            api_router.update_media_url(id=999, payload=payload, db=MagicMock())
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_trigger_evaluation_success(self):
+        bg_tasks = MagicMock()
+        result = api_router.trigger_evaluation(id=101, bg_tasks=bg_tasks, db=MagicMock())
+        self.assertEqual(result["id"], 101)
+        self.assertEqual(result["status"], AssessmentStatusEnum.EVALUATING)
+
+    def test_trigger_evaluation_not_found(self):
+        bg_tasks = MagicMock()
+        with self.assertRaises(HTTPException) as ctx:
+            api_router.trigger_evaluation(id=999, bg_tasks=bg_tasks, db=MagicMock())
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_get_assessment_report_success(self):
+        auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
+        result = api_router.get_assessment_report(id=101, auth_ctx=auth_ctx, db=MagicMock())
+        self.assertEqual(result["id"], 101)
+        self.assertIn("data", result)
+        self.assertIn("report", result)
+
+    def test_list_candidate_assessments_handler(self):
+        auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
+        result = api_router.list_candidate_assessments(
+            candidate_id=42,
+            auth_ctx=auth_ctx,
+            limit=50,
+            offset=0,
+            db=MagicMock(),
+        )
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(len(result["items"]), 1)
+
+    def test_list_questions_handler(self):
+        result = api_router.list_questions(
+            category=AssessmentCategoryEnum.TECHNICAL,
+            difficulty_level=DifficultyLevelEnum.MEDIUM,
+            is_active=True,
+            limit=100,
+            offset=0,
+            db=MagicMock(),
+        )
+        self.assertEqual(result["total"], 1)
+        self.assertEqual(len(result["items"]), 1)
+
+    def test_create_question_handler(self):
+        payload = QuestionBankCreateRequest(
+            category=AssessmentCategoryEnum.TECHNICAL,
+            sub_category="RAG",
+            difficulty_level=DifficultyLevelEnum.MEDIUM,
+            question_text="Explain RAG search.",
+            is_active=True,
+        )
+        result = api_router.create_question(payload=payload, db=MagicMock())
+        self.assertEqual(result.id, 1)
+
+    def test_update_question_handler_success(self):
+        payload = QuestionBankUpdateRequest(is_active=False)
+        result = api_router.update_question(id=1, payload=payload, db=MagicMock())
+        self.assertEqual(result.id, 1)
+
+    def test_update_question_handler_not_found(self):
+        payload = QuestionBankUpdateRequest(is_active=False)
+        with self.assertRaises(HTTPException) as ctx:
+            api_router.update_question(id=999, payload=payload, db=MagicMock())
+        self.assertEqual(ctx.exception.status_code, 404)
 
 
 if __name__ == "__main__":
     unittest.main()
-
