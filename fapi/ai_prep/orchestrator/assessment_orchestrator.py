@@ -285,7 +285,7 @@ class AssessmentOrchestrator:
         2. engine → build and return report response payload
         """
         # 1. DB: Fetch report record
-        report_orm = crud.get_assessment_report(db, assessment_id)
+        report_orm = crud.get_assessment_report_by_assessment_id(db, assessment_id)
         if not report_orm:
             return None
 

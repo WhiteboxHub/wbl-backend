@@ -12,11 +12,40 @@ import asyncio
 import getpass
 import os
 import sys
+import unittest
+from unittest.mock import patch, AsyncMock
 
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
-from fapi.ai_prep.clients.llm_client import test_llm_connection, detect_provider_from_key
+from fapi.ai_prep.clients.llm_client import test_llm_connection as run_test_llm_connection, detect_provider_from_key
+
+
+class TestLLMConnection(unittest.TestCase):
+
+    def test_detect_provider_from_key(self):
+        self.assertEqual(detect_provider_from_key("sk-proj-12345"), "openai")
+        self.assertEqual(detect_provider_from_key("AIzaSy12345"), "gemini")
+        self.assertEqual(detect_provider_from_key("gsk_12345"), "groq")
+        self.assertEqual(detect_provider_from_key("sk-ant-12345"), "anthropic")
+
+    @patch("fapi.ai_prep.clients.llm_client._execute_http_post", new_callable=AsyncMock)
+    def test_mock_llm_connection_diagnostic(self, mock_post):
+        mock_post.return_value = (
+            {
+                "choices": [{"message": {"content": "Hello, world!"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            },
+            {
+                "x-ratelimit-remaining-tokens": "1000",
+                "x-ratelimit-limit-tokens": "5000",
+                "x-ratelimit-remaining-requests": "100",
+                "x-ratelimit-reset-requests": "1s",
+            },
+        )
+        res = asyncio.run(run_test_llm_connection(api_key="sk-proj-fakekey", provider="openai"))
+        self.assertEqual(res["provider"], "openai")
+        self.assertEqual(res["response_text"], "Hello, world!")
 
 
 async def run_diagnostic():
@@ -47,7 +76,7 @@ async def run_diagnostic():
     print("[3] Connecting to LLM API over the internet...")
 
     try:
-        diag = await test_llm_connection(api_key=api_key, provider=provider)
+        diag = await run_test_llm_connection(api_key=api_key, provider=provider)
     except Exception as err:
         print("\n❌ CONNECTION FAILED:")
         print(f"   Error Type   : {type(err).__name__}")
@@ -98,3 +127,4 @@ async def run_diagnostic():
 
 if __name__ == "__main__":
     asyncio.run(run_diagnostic())
+
