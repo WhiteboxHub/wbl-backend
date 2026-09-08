@@ -33,9 +33,16 @@ sys.modules.setdefault("fapi.db.models", MagicMock())
 sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
 import fapi.ai_prep
+_real_crud = sys.modules.get("fapi.ai_prep.crud")
 mock_crud = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 fapi.ai_prep.crud = mock_crud
+
+
+def tearDownModule():
+    if _real_crud is not None:
+        sys.modules["fapi.ai_prep.crud"] = _real_crud
+        fapi.ai_prep.crud = _real_crud
 
 from fastapi import HTTPException
 from fapi.ai_prep.schemas import (
@@ -50,7 +57,33 @@ from fapi.ai_prep.schemas import (
     MediaTypeEnum,
     DifficultyLevelEnum,
 )
-from fapi.ai_prep import router as api_router
+from fastapi import HTTPException, FastAPI
+from fastapi.testclient import TestClient
+from fapi.ai_prep import router as api_router, dependencies
+
+app = FastAPI()
+app.include_router(api_router.router)
+
+
+def override_get_authenticated_user_context():
+    return {
+        "user_id": 42,
+        "uname": "test@example.com",
+        "role": "candidate",
+        "is_employee": False,
+        "is_admin": False,
+        "candidate_id": 42,
+    }
+
+
+def override_get_db():
+    return MagicMock()
+
+
+app.dependency_overrides[dependencies.get_authenticated_user_context] = override_get_authenticated_user_context
+app.dependency_overrides[dependencies.get_db] = override_get_db
+
+client = TestClient(app)
 
 
 class DummyAssessmentORM:
@@ -81,11 +114,27 @@ class DummyQuestionORM:
 class TestApiRoutesExhaustive(unittest.TestCase):
 
     def setUp(self):
+        fapi.ai_prep.router.crud = mock_crud
+        fapi.ai_prep.dependencies.crud = mock_crud
         mock_crud.reset_mock()
         mock_crud.create_assessment.side_effect = lambda *args, **kwargs: DummyAssessmentORM()
         mock_crud.get_assessment_by_id.side_effect = lambda db, id: DummyAssessmentORM(id) if id != 999 else None
         mock_crud.get_candidate_resume_json.return_value = {"skills": ["Python", "FastAPI"]}
         mock_crud.list_questions_by_category.return_value = []
+        mock_crud.update_assessment_youtube_url.side_effect = lambda db, id, url: DummyAssessmentORM(id) if id != 999 else None
+        mock_crud.list_candidate_assessments.return_value = [DummyAssessmentORM(101)]
+        mock_crud.list_questions.return_value = [DummyQuestionORM(1)]
+        mock_crud.create_question.side_effect = lambda *args, **kwargs: DummyQuestionORM(1)
+        def mock_update_q(db, *args, **kwargs):
+            qid = kwargs.get("question_id") or (args[0] if args else 1)
+            return DummyQuestionORM(qid) if qid != 999 else None
+
+        def mock_get_q(db, *args, **kwargs):
+            qid = kwargs.get("question_id") or (args[0] if args else 1)
+            return DummyQuestionORM(qid) if qid != 999 else None
+
+        mock_crud.update_question.side_effect = mock_update_q
+        mock_crud.get_question_by_id.side_effect = mock_get_q
 
     def test_get_assessment_types_endpoint(self):
         response = client.get("/api/aiprep/assessment-types")
@@ -153,7 +202,7 @@ class TestApiRoutesExhaustive(unittest.TestCase):
             "status": "IN_PROGRESS",
             "assessment_type": "INTRO",
             "media_type": "VIDEO",
-        }
+        })
         api_router.assessment_orchestrator.submit_assessment.return_value = {
             "status": "COMPLETED",
             "message": "Evaluation completed.",
@@ -166,12 +215,12 @@ class TestApiRoutesExhaustive(unittest.TestCase):
 
     def test_check_candidate_llm_status(self):
         auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
-        res = api_router.check_candidate_llm_status(candidate_id=42, auth_ctx=auth_ctx, db=MagicMock())
+        res = api_router.check_candidate_llm_status(auth_ctx=auth_ctx, db=MagicMock())
         self.assertIsNotNone(res.status)
 
     def test_check_candidate_resume_status(self):
         auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
-        res = api_router.check_candidate_resume_status(candidate_id=42, auth_ctx=auth_ctx, db=MagicMock())
+        res = api_router.check_candidate_resume_status(auth_ctx=auth_ctx, db=MagicMock())
         self.assertIsNotNone(res.status)
 
     def test_create_assessment_handler_success(self):
@@ -202,6 +251,11 @@ class TestApiRoutesExhaustive(unittest.TestCase):
             video_telemetry={},
         )
         auth_ctx = {"candidate_id": 42, "is_employee": False, "is_admin": False}
+        api_router.assessment_orchestrator.submit_assessment = MagicMock(return_value={
+            "assessment_id": 101,
+            "status": "COMPLETED",
+            "message": "Assessment evaluation completed successfully.",
+        })
 
         result = api_router.submit_assessment(
             id=101,

@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import asyncio
 import logging
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -36,42 +36,9 @@ def get_candidate_llm_config(db: Any, candidate_id: int) -> Dict[str, Any]:
     Fetches the decrypted candidate LLM configuration via the crud layer.
     Isolates orchestrator from raw DB queries according to system architecture rules.
     """
-    from fapi.db.models import CandidateLlmApiKeyORM
-    from fapi.utils.encryption_utils import decrypt_api_key
+    from fapi.ai_prep import crud
+    return crud.get_candidate_llm_config(db, candidate_id)
 
-    row = (
-        db.query(CandidateLlmApiKeyORM)
-        .filter(
-            CandidateLlmApiKeyORM.candidate_id == candidate_id,
-            CandidateLlmApiKeyORM.status == "active",
-        )
-        .order_by(
-            CandidateLlmApiKeyORM.is_default.desc(),
-            CandidateLlmApiKeyORM.updated_at.desc(),
-            CandidateLlmApiKeyORM.id.desc(),
-        )
-        .first()
-    )
-
-    if row is None:
-        env_key = os.getenv("OPENAI_API_KEY")
-        if env_key:
-            return {
-                "api_key": env_key,
-                "provider": "openai",
-                "model": "gpt-4o",
-            }
-        raise ValueError(
-            f"No active LLM API key found for candidate_id={candidate_id}. "
-            "Please add a valid API key in the AI Prep settings."
-        )
-
-    plain_key = decrypt_api_key(row.api_key)
-    return {
-        "api_key": plain_key,
-        "provider": row.provider_name,
-        "model": row.model_name,  # may be None → llm_client will use provider default
-    }
 
 
 # =============================================================================
@@ -215,12 +182,14 @@ async def run_evaluation(
         candidate_id, assessment_type, is_video_mode,
     )
 
+    can_eval_audio: bool = eval_engine.has_evaluable_audio(audio_telemetry)
+
     transcript_prompt = eval_engine.build_prompt(
         assessment_type=assessment_type,
         transcript_text=transcript_text,
         resume_json=resume_json,
     )
-    audio_prompt = eval_engine.build_audio_prompt(audio_telemetry)
+    audio_prompt = eval_engine.build_audio_prompt(audio_telemetry) if can_eval_audio else None
 
     video_prompt: Optional[Dict[str, str]] = None
     if is_video_mode:
@@ -228,20 +197,21 @@ async def run_evaluation(
 
     # ── 2. Dispatch concurrent LLM calls ─────────────────────────────────────
 
-    num_calls = 3 if is_video_mode else 2
-    logger.info("[LLMOrchestrator] Dispatching %d concurrent LLM call(s).", num_calls)
+    call_labels: List[str] = ["transcript_eval"]
+    coroutines = [
+        _invoke_llm(
+            call_label="transcript_eval",
+            system_prompt=transcript_prompt["system_prompt"],
+            user_prompt=transcript_prompt["user_prompt"],
+            api_key=api_key,
+            provider=provider,
+            model=model,
+        )
+    ]
 
-    if is_video_mode:
-        # 3 parallel calls: transcript + audio + video
-        transcript_raw, audio_raw, video_raw = await asyncio.gather(
-            _invoke_llm(
-                call_label="transcript_eval",
-                system_prompt=transcript_prompt["system_prompt"],
-                user_prompt=transcript_prompt["user_prompt"],
-                api_key=api_key,
-                provider=provider,
-                model=model,
-            ),
+    if can_eval_audio and audio_prompt:
+        call_labels.append("audio_eval")
+        coroutines.append(
             _invoke_llm(
                 call_label="audio_eval",
                 system_prompt=audio_prompt["system_prompt"],
@@ -249,7 +219,18 @@ async def run_evaluation(
                 api_key=api_key,
                 provider=provider,
                 model=model,
-            ),
+            )
+        )
+    else:
+        logger.info(
+            "[LLMOrchestrator] Candidate=%d: No audio speech recorded or duration <= 0s. "
+            "Skipping audio LLM API call to save 100%% of audio evaluation tokens.",
+            candidate_id,
+        )
+
+    if is_video_mode and video_prompt:
+        call_labels.append("video_eval")
+        coroutines.append(
             _invoke_llm(
                 call_label="video_eval",
                 system_prompt=video_prompt["system_prompt"],
@@ -257,39 +238,39 @@ async def run_evaluation(
                 api_key=api_key,
                 provider=provider,
                 model=model,
-            ),
+            )
         )
-    else:
-        # 2 parallel calls: transcript + audio (video skipped for audio-only sessions)
-        transcript_raw, audio_raw = await asyncio.gather(
-            _invoke_llm(
-                call_label="transcript_eval",
-                system_prompt=transcript_prompt["system_prompt"],
-                user_prompt=transcript_prompt["user_prompt"],
-                api_key=api_key,
-                provider=provider,
-                model=model,
-            ),
-            _invoke_llm(
-                call_label="audio_eval",
-                system_prompt=audio_prompt["system_prompt"],
-                user_prompt=audio_prompt["user_prompt"],
-                api_key=api_key,
-                provider=provider,
-                model=model,
-            ),
-        )
-        video_raw = None
+
+    logger.info("[LLMOrchestrator] Dispatching %d concurrent LLM call(s): %s", len(coroutines), call_labels)
+
+    raw_results = await asyncio.gather(*coroutines)
+    results_map: Dict[str, str] = dict(zip(call_labels, raw_results))
 
     # ── 3. Validate all responses ─────────────────────────────────────────────
 
     logger.info("[LLMOrchestrator] Validating LLM responses...")
 
-    transcript_eval = _validate_response("transcript_eval", transcript_raw)
-    audio_eval = _validate_response("audio_eval", audio_raw)
+    transcript_eval = _validate_response("transcript_eval", results_map["transcript_eval"])
+
+    if can_eval_audio and "audio_eval" in results_map:
+        audio_eval = _validate_response("audio_eval", results_map["audio_eval"])
+    else:
+        duration = 0.0
+        if audio_telemetry and isinstance(audio_telemetry, dict):
+            raw_dur = (
+                audio_telemetry.get("speaking_duration_seconds")
+                or audio_telemetry.get("duration")
+                or 0.0
+            )
+            try:
+                duration = float(raw_dur)
+            except (ValueError, TypeError):
+                duration = 0.0
+        audio_eval = eval_engine.build_insufficient_audio_evaluation(speaking_duration=duration)
+
     video_eval = (
-        _validate_response("video_eval", video_raw)
-        if video_raw is not None
+        _validate_response("video_eval", results_map["video_eval"])
+        if is_video_mode and "video_eval" in results_map
         else None
     )
 

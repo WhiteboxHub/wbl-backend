@@ -1,53 +1,36 @@
 """
 Assessment Orchestrator Implementation for AI Prep Platform.
-The central workflow coordinator ('brain of the system').
-Coordinates DB persistence (crud.py), state machine validation (AssessmentEngine),
-and execution of evaluation pipeline engines.
+Thin Coordination Layer ('brain of the system').
+Sequences calls between DB persistence (crud.py), business engine (AssessmentEngine),
+and AI evaluation pipeline (llm_orchestrator.py). ZERO business logic lives here.
 """
 
-import os
-from datetime import datetime
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
 import asyncio
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
+from fapi.db.database import SessionLocal
+from fapi.db.models import CandidateLlmApiKeyORM
+from fapi.ai_prep import crud
 from fapi.ai_prep.schemas import (
     AssessmentCategoryEnum,
     MediaTypeEnum,
     AssessmentStatusEnum,
-    EngineOperationEnum,
 )
-from fapi.ai_prep.core.assessment_engine import (
-    AssessmentEngine,
-    AssessmentEngineInput,
-    AssessmentStateInput,
-)
+from fapi.ai_prep.core.assessment_engine import AssessmentEngine
+from fapi.ai_prep.orchestrator import llm_orchestrator
+from fapi.ai_prep.services.storage_service import storage_service
+from fapi.ai_prep.services.media_service import media_service
+from fapi.ai_prep.services.youtube_service import youtube_service
 
-
-def extract_transcript_text(transcript: Any) -> str:
-    """Extracts spoken transcript text from string, dict, or nested structure."""
-    if not transcript:
-        return ""
-    if isinstance(transcript, str):
-        return transcript.strip()
-    if isinstance(transcript, dict):
-        for key in ("full_text", "text", "transcript_text", "spoken_text", "transcript"):
-            val = transcript.get(key)
-            if val and isinstance(val, str) and val.strip():
-                return val.strip()
-        spoken_cnt = transcript.get("spoken_content")
-        if isinstance(spoken_cnt, dict):
-            return extract_transcript_text(spoken_cnt)
-    return str(transcript).strip()
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 class AssessmentOrchestrator:
     """
-    Assessment Orchestrator (Workflow Coordinator).
-    Translates API request intents into database actions, state machine checks,
-    question selections, and core engine invocations.
+    Thin Coordination Layer — orchestrates CRUD + Engine + LLM Orchestrator.
+    Contains ZERO business logic. All decisions, validations, pre-flight checks,
+    question selections, and response payload formatting are delegated to AssessmentEngine.
     """
 
     @staticmethod
@@ -62,19 +45,13 @@ class AssessmentOrchestrator:
     ) -> Dict[str, Any]:
         """
         Workflow: Start Assessment
-        1. Creates new assessment record in DB via crud.create_assessment.
-        2. Validates start operation via AssessmentEngine.
-        3. Retrieves questions from question bank using non-repetition rules.
+        1. crud   → check active LLM key & candidate resume pre-flight status
+        2. engine → validate pre-flight conditions (raises exception if missing)
+        3. crud   → create new assessment record in DB
+        4. crud   → fetch eligible questions from DB
+        5. engine → validate START operation, select questions, build start response payload
         """
-        from fapi.ai_prep import crud
-        from fapi.ai_prep.exceptions import (
-            LLMKeyMissingError,
-            ResumeMissingError,
-            AssessmentOperationError,
-        )
-        from fapi.db.models import CandidateLlmApiKeyORM
-
-        # 1. Pre-flight Validation: Check active LLM API key
+        # 1. DB: Retrieve pre-flight requirement states
         has_active_key = (
             db.query(CandidateLlmApiKeyORM.id)
             .filter(
@@ -83,19 +60,16 @@ class AssessmentOrchestrator:
             )
             .first()
             is not None
-        ) or bool(os.getenv("OPENAI_API_KEY"))
-        
-        if not has_active_key:
-            raise LLMKeyMissingError()
-
-        # 2. Pre-flight Validation: Check Candidate Resume (with dev fallback)
+        )
         resume_json = crud.get_candidate_resume_json(db, candidate_id)
-        if resume_json is None and os.getenv("ENV", "local").lower() in ("dev", "local", "development", "test"):
-            resume_json = {"summary": "Developer Candidate", "skills": ["Python", "AI"]}
-        elif resume_json is None:
-            raise ResumeMissingError()
 
-        # 3. Create DB record
+        # 2. Engine: Validate pre-flight conditions
+        AssessmentEngine.validate_preflight(
+            has_active_key=has_active_key,
+            has_resume=(resume_json is not None),
+        )
+
+        # 3. DB: Create assessment record
         assessment_orm = crud.create_assessment(
             db=db,
             candidate_id=candidate_id,
@@ -106,60 +80,14 @@ class AssessmentOrchestrator:
             user_agent=user_agent,
         )
 
-        # 4. Validate start operation with AssessmentEngine
-        engine_input = AssessmentEngineInput(
-            assessment=AssessmentStateInput(
-                assessment_id=assessment_orm.id,
-                candidate_id=assessment_orm.candidate_id,
-                assessment_type=assessment_orm.assessment_type,
-                media_type=assessment_orm.media_type,
-                status=assessment_orm.status,
-                job_description=assessment_orm.job_description,
-            ),
-            operation=EngineOperationEnum.START,
-        )
-        engine_result = AssessmentEngine.execute_operation(engine_input)
-        if not engine_result.success:
-            raise AssessmentOperationError(
-                f"Assessment start rejected: {engine_result.error.message if engine_result.error else 'Invalid state'}"
-            )
-
-        # 3. Select questions for this assessment
+        # 4. DB: Fetch eligible questions from question bank
         eligible_questions = crud.list_questions_by_category(db, category=assessment_type)
-        question_dicts = [
-            {
-                "id": q.id,
-                "category": q.category.value if hasattr(q.category, "value") else str(q.category),
-                "difficulty_level": q.difficulty_level.value if hasattr(q.difficulty_level, "value") else str(q.difficulty_level),
-                "question_text": q.question_text,
-            }
-            for q in eligible_questions
-        ]
 
-        # Select questions dynamically based on assessment category and eligible pool
-        target_count = (
-            1
-            if assessment_type in (AssessmentCategoryEnum.INTRO, AssessmentCategoryEnum.JD_INTRO)
-            else len(question_dicts)
+        # 5. Engine: Execute start assessment business logic & build response payload
+        return AssessmentEngine.start_assessment(
+            assessment_orm=assessment_orm,
+            eligible_questions=eligible_questions,
         )
-        selected_questions = []
-        used_ids = []
-        for _ in range(min(target_count, len(question_dicts))):
-            next_q = AssessmentEngine.select_next_question(question_dicts, used_ids)
-            if next_q and next_q["id"] not in used_ids:
-                selected_questions.append(next_q)
-                used_ids.append(next_q["id"])
-
-
-        return {
-            "id": assessment_orm.id,
-            "candidate_id": assessment_orm.candidate_id,
-            "assessment_type": assessment_orm.assessment_type.value if hasattr(assessment_orm.assessment_type, "value") else str(assessment_orm.assessment_type),
-            "media_type": assessment_orm.media_type.value if hasattr(assessment_orm.media_type, "value") else str(assessment_orm.media_type),
-            "status": assessment_orm.status.value if hasattr(assessment_orm.status, "value") else str(assessment_orm.status),
-            "started_at": assessment_orm.started_at.isoformat() if getattr(assessment_orm, "started_at", None) else None,
-            "questions": selected_questions,
-        }
 
     @staticmethod
     def submit_assessment(
@@ -172,37 +100,27 @@ class AssessmentOrchestrator:
     ) -> Dict[str, Any]:
         """
         Workflow: Submit Assessment
-        1. Retrieves assessment record from DB.
-        2. Validates SUBMIT operation with AssessmentEngine (must be IN_PROGRESS).
-        3. Updates status to EVALUATING and saves submitted data (telemetry/transcript).
-        4. Runs evaluation pipeline (or builds default report structure).
-        5. Saves report to DB and transitions status to COMPLETED (or FAILED on error).
+        1. crud   → fetch assessment record
+        2. engine → validate SUBMIT operation and extract transcript/type info
+        3. crud   → persist status change to EVALUATING + save telemetry data
+        4. crud   → fetch LLM config + resume JSON
+        5. llm    → run evaluation pipeline
+        6. crud   → persist evaluation report + mark COMPLETED (or FAILED)
+        7. engine → build completion response
         """
-        from fapi.ai_prep import crud
-
+        # 1. DB: Fetch assessment record
         assessment_orm = crud.get_assessment_by_id(db, assessment_id)
         if not assessment_orm:
             raise ValueError(f"Assessment ID {assessment_id} not found.")
 
-        # 1. State machine transition check
-        engine_input = AssessmentEngineInput(
-            assessment=AssessmentStateInput(
-                assessment_id=assessment_orm.id,
-                candidate_id=assessment_orm.candidate_id,
-                assessment_type=assessment_orm.assessment_type,
-                media_type=assessment_orm.media_type,
-                status=assessment_orm.status,
-            ),
-            operation=EngineOperationEnum.SUBMIT,
+        # 2. Engine: Validate operation and prepare submission parameters
+        prep = AssessmentEngine.submit_assessment(
+            assessment_orm=assessment_orm,
+            transcript=transcript,
         )
-        engine_result = AssessmentEngine.execute_operation(engine_input)
-        if not engine_result.success:
-            raise ValueError(f"Submission rejected: {engine_result.error.message}")
 
-        # 2. Update status to EVALUATING
+        # 3. DB: Persist status change and submitted data
         crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.EVALUATING)
-
-        # 3. Save submitted data payload
         crud.save_assessment_data(
             db=db,
             assessment_id=assessment_id,
@@ -213,28 +131,16 @@ class AssessmentOrchestrator:
         )
 
         try:
-            # 4. Fetch candidate LLM config (key + provider + model) from DB
-            from fapi.ai_prep.orchestrator import llm_orchestrator
+            # 4. DB: Fetch LLM config and candidate resume JSON
+            llm_config = llm_orchestrator.get_candidate_llm_config(db, assessment_orm.candidate_id)
+            resume_json = crud.get_candidate_resume_json(db, assessment_orm.candidate_id)
 
-            candidate_id: int = assessment_orm.candidate_id
-            assessment_type_str: str = (
-                assessment_orm.assessment_type.value
-                if hasattr(assessment_orm.assessment_type, "value")
-                else str(assessment_orm.assessment_type)
-            )
-            transcript_text: str = extract_transcript_text(transcript)
-
-            llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
-
-            # Fetch candidate resume JSON (career reference for transcript prompt)
-            resume_json = crud.get_candidate_resume_json(db, candidate_id)
-
-            # 5. Run concurrent LLM evaluation pipeline (async → sync bridge)
+            # 5. LLM Orchestrator: Run evaluation pipeline
             eval_results = asyncio.run(
                 llm_orchestrator.run_evaluation(
-                    candidate_id=candidate_id,
-                    assessment_type=assessment_type_str,
-                    transcript_text=transcript_text,
+                    candidate_id=assessment_orm.candidate_id,
+                    assessment_type=prep["assessment_type_str"],
+                    transcript_text=prep["transcript_text"],
                     audio_telemetry=audio_telemetry,
                     video_telemetry=video_telemetry,
                     resume_json=resume_json,
@@ -243,20 +149,14 @@ class AssessmentOrchestrator:
                 )
             )
 
-            transcript_eval = eval_results["transcript_evaluation"]
-            audio_eval = eval_results["audio_evaluation"]
-            video_eval = eval_results["video_evaluation"]
-
-            # 6. Save report to DB
+            # 6. DB: Persist evaluation report & transition status to COMPLETED
             crud.save_assessment_report(
                 db=db,
                 assessment_id=assessment_id,
-                audio_evaluation=audio_eval,
-                video_evaluation=video_eval,
-                transcript_evaluation=transcript_eval,
+                audio_evaluation=eval_results["audio_evaluation"],
+                video_evaluation=eval_results["video_evaluation"],
+                transcript_evaluation=eval_results["transcript_evaluation"],
             )
-
-            # 7. Transition to COMPLETED
             AssessmentEngine.transition_evaluation_status(
                 assessment_id=assessment_id,
                 current_status=AssessmentStatusEnum.EVALUATING,
@@ -264,19 +164,10 @@ class AssessmentOrchestrator:
             )
             crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.COMPLETED)
 
-            return {
-                "assessment_id": assessment_id,
-                "status": AssessmentStatusEnum.COMPLETED.value,
-                "message": "Assessment evaluation completed successfully.",
-                "report": {
-                    "audio_evaluation": audio_eval,
-                    "video_evaluation": video_eval,
-                    "transcript_evaluation": transcript_eval,
-                },
-            }
+            # 7. Engine: Build final completion response
+            return AssessmentEngine.build_completion_response(assessment_id)
 
-        except Exception as err:
-            # Transition to FAILED on any evaluation error
+        except Exception:
             AssessmentEngine.transition_evaluation_status(
                 assessment_id=assessment_id,
                 current_status=AssessmentStatusEnum.EVALUATING,
@@ -284,55 +175,52 @@ class AssessmentOrchestrator:
             )
             crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.FAILED)
             raise
-    
-    def process_assessment_evaluation(self, assessment_id: int) -> None:
-        """Background task creating its own DB session to run evaluation pipeline."""
-        import asyncio
-        from fapi.db.database import SessionLocal
-        from fapi.ai_prep import crud
-        from fapi.ai_prep.orchestrator import llm_orchestrator
 
+    def process_assessment_evaluation(self, assessment_id: int) -> None:
+        """
+        Workflow: Background Evaluation Task (own DB session).
+        Called by FastAPI BackgroundTasks after media upload.
+
+        1. crud   → open own DB session, fetch assessment + telemetry data
+        2. engine → prepare background evaluation parameters
+        3. crud   → fetch LLM config + candidate resume JSON
+        4. llm    → run evaluation pipeline
+        5. crud   → persist report + mark COMPLETED (or FAILED on error)
+        """
         db = SessionLocal()
         try:
-            data_orm = crud.get_assessment_data(db, assessment_id)
-            questions = data_orm.questions if data_orm and data_orm.questions else []
-            transcript = data_orm.transcript if data_orm and data_orm.transcript else {}
-            audio_telemetry = data_orm.audio_telemetry if data_orm and data_orm.audio_telemetry else {}
-            video_telemetry = data_orm.video_telemetry if data_orm and data_orm.video_telemetry else {}
-
-            # Retrieve assessment record to get candidate_id and assessment_type
+            # 1. DB: Fetch assessment & telemetry data
             assessment_orm = crud.get_assessment_by_id(db, assessment_id)
             if not assessment_orm:
                 raise ValueError(f"Assessment ID {assessment_id} not found in background task.")
 
-            candidate_id: int = assessment_orm.candidate_id
-            assessment_type_str: str = (
-                assessment_orm.assessment_type.value
-                if hasattr(assessment_orm.assessment_type, "value")
-                else str(assessment_orm.assessment_type)
+            data_orm = crud.get_assessment_data(db, assessment_id)
+
+            # 2. Engine: Extract & prepare parameters for background evaluation
+            eval_prep = AssessmentEngine.process_assessment_evaluation(
+                assessment_orm=assessment_orm,
+                data_orm=data_orm,
             )
-            transcript_text: str = extract_transcript_text(transcript)
 
-            # Fetch LLM config (key + provider + model) from DB
-            llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
+            # 3. DB: Fetch LLM config and candidate resume
+            llm_config = llm_orchestrator.get_candidate_llm_config(db, assessment_orm.candidate_id)
+            resume_json = crud.get_candidate_resume_json(db, assessment_orm.candidate_id)
 
-            # Fetch candidate resume JSON (career reference for transcript prompt)
-            resume_json = crud.get_candidate_resume_json(db, candidate_id)
-
-            # Run concurrent LLM evaluation pipeline (async → sync bridge)
+            # 4. LLM Orchestrator: Run evaluation pipeline
             eval_results = asyncio.run(
                 llm_orchestrator.run_evaluation(
-                    candidate_id=candidate_id,
-                    assessment_type=assessment_type_str,
-                    transcript_text=transcript_text,
-                    audio_telemetry=audio_telemetry,
-                    video_telemetry=video_telemetry,
+                    candidate_id=assessment_orm.candidate_id,
+                    assessment_type=eval_prep["assessment_type_str"],
+                    transcript_text=eval_prep["transcript_text"],
+                    audio_telemetry=eval_prep["audio_telemetry"],
+                    video_telemetry=eval_prep["video_telemetry"],
                     resume_json=resume_json,
                     llm_config=llm_config,
                     db=db,
                 )
             )
 
+            # 5. DB: Save report & mark COMPLETED
             crud.save_assessment_report(
                 db=db,
                 assessment_id=assessment_id,
@@ -349,106 +237,66 @@ class AssessmentOrchestrator:
         finally:
             db.close()
 
-
     @staticmethod
     def cancel_assessment(db: Any, assessment_id: int) -> Dict[str, Any]:
         """
         Workflow: Cancel Assessment
-        Validates cancellation with AssessmentEngine and updates status to FAILED.
+        1. crud   → fetch assessment record
+        2. engine → validate CANCEL operation and build payload
+        3. crud   → persist FAILED status
         """
-        from fapi.ai_prep import crud
-
+        # 1. DB: Fetch assessment record
         assessment_orm = crud.get_assessment_by_id(db, assessment_id)
         if not assessment_orm:
             raise ValueError(f"Assessment ID {assessment_id} not found.")
 
-        engine_input = AssessmentEngineInput(
-            assessment=AssessmentStateInput(
-                assessment_id=assessment_orm.id,
-                candidate_id=assessment_orm.candidate_id,
-                assessment_type=assessment_orm.assessment_type,
-                media_type=assessment_orm.media_type,
-                status=assessment_orm.status,
-            ),
-            operation=EngineOperationEnum.CANCEL,
-        )
-        engine_result = AssessmentEngine.execute_operation(engine_input)
-        if not engine_result.success:
-            raise ValueError(f"Cancellation rejected: {engine_result.error.message}")
+        # 2. Engine: Validate cancel operation and build response payload
+        cancel_response = AssessmentEngine.cancel_assessment(assessment_orm)
 
+        # 3. DB: Persist status change
         crud.update_assessment_status(db, assessment_id, AssessmentStatusEnum.FAILED)
 
-        return {
-            "assessment_id": assessment_id,
-            "status": AssessmentStatusEnum.FAILED.value,
-            "message": "Assessment cancelled successfully.",
-        }
+        return cancel_response
 
     @staticmethod
     def get_assessment_details(db: Any, assessment_id: int) -> Optional[Dict[str, Any]]:
         """
-        Retrieves assessment metadata and submitted telemetry data.
+        Workflow: Get Assessment Details
+        1. crud   → fetch assessment record + submitted data
+        2. engine → build and return details response payload
         """
-        from fapi.ai_prep import crud
-
+        # 1. DB: Fetch record and data
         assessment_orm = crud.get_assessment_by_id(db, assessment_id)
         if not assessment_orm:
             return None
-
         data_orm = crud.get_assessment_data(db, assessment_id)
 
-        return {
-            "id": assessment_orm.id,
-            "candidate_id": assessment_orm.candidate_id,
-            "assessment_type": assessment_orm.assessment_type.value if hasattr(assessment_orm.assessment_type, "value") else str(assessment_orm.assessment_type),
-            "media_type": assessment_orm.media_type.value if hasattr(assessment_orm.media_type, "value") else str(assessment_orm.media_type),
-            "status": assessment_orm.status.value if hasattr(assessment_orm.status, "value") else str(assessment_orm.status),
-            "job_description": assessment_orm.job_description,
-            "youtube_url": assessment_orm.youtube_url,
-            "started_at": assessment_orm.started_at.isoformat() if getattr(assessment_orm, "started_at", None) else None,
-            "completed_at": assessment_orm.completed_at.isoformat() if getattr(assessment_orm, "completed_at", None) else None,
-            "submitted_data": {
-                "questions": data_orm.questions if data_orm else None,
-                "transcript": data_orm.transcript if data_orm else None,
-                "audio_telemetry": data_orm.audio_telemetry if data_orm else None,
-                "video_telemetry": data_orm.video_telemetry if data_orm else None,
-            }
-            if data_orm
-            else None,
-        }
+        # 2. Engine: Build details response payload
+        return AssessmentEngine.get_assessment_details(
+            assessment_orm=assessment_orm,
+            data_orm=data_orm,
+        )
 
     @staticmethod
     def get_assessment_report(db: Any, assessment_id: int) -> Optional[Dict[str, Any]]:
         """
-        Retrieves evaluation report for a completed assessment.
+        Workflow: Get Assessment Report
+        1. crud   → fetch evaluation report record
+        2. engine → build and return report response payload
         """
-        from fapi.ai_prep import crud
-
-        report_orm = crud.get_assessment_report(db, assessment_id)
+        # 1. DB: Fetch report record
+        report_orm = crud.get_assessment_report_by_assessment_id(db, assessment_id)
         if not report_orm:
             return None
 
-        return {
-            "id": report_orm.id,
-            "assessment_id": report_orm.assessment_id,
-            "audio_evaluation": report_orm.audio_evaluation,
-            "video_evaluation": report_orm.video_evaluation,
-            "transcript_evaluation": report_orm.transcript_evaluation,
-            "created_at": report_orm.created_at.isoformat() if getattr(report_orm, "created_at", None) else None,
-        }
+        # 2. Engine: Build report response payload
+        return AssessmentEngine.get_assessment_report(report_orm)
 
     # ─── BE2 Media Ingestion & YouTube Upload Coordination ────────────────────
 
     def __init__(self):
-        try:
-            from fapi.ai_prep.services.storage_service import storage_service
-            from fapi.ai_prep.services.media_service import media_service
-            from fapi.ai_prep.services.sse_service import sse_service
-            self.storage_service = storage_service
-            self.media_service = media_service
-            self.sse_service = sse_service
-        except Exception:
-            pass
+        self.storage_service = storage_service
+        self.media_service = media_service
 
     def handle_chunk_upload(
         self,
@@ -459,7 +307,6 @@ class AssessmentOrchestrator:
         total_chunks: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Saves media chunk to local server storage."""
-        from fapi.ai_prep.services.storage_service import storage_service
         chunk_path, file_size = storage_service.save_chunk(
             candidate_id=candidate_id,
             assessment_id=assessment_id,
@@ -480,7 +327,6 @@ class AssessmentOrchestrator:
         expected_total: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Returns uploaded and missing chunk numbers for resume/retry logic."""
-        from fapi.ai_prep.services.storage_service import storage_service
         return storage_service.get_chunk_status(candidate_id, assessment_id, expected_total=expected_total)
 
     def assemble_and_process_media(
@@ -492,7 +338,6 @@ class AssessmentOrchestrator:
         background_tasks: Optional[Any] = None,
     ) -> Any:
         """Assembles chunks, extracts audio, records media file, and dispatches processing."""
-        from fapi.ai_prep.services.media_service import media_service
         return media_service.assemble_and_process_media(
             db=db,
             candidate_id=candidate_id,
@@ -508,7 +353,6 @@ class AssessmentOrchestrator:
         local_audio_path: str,
     ) -> None:
         """Executes full media pipeline: task logging, upload, cleanup."""
-        from fapi.ai_prep.services.media_service import media_service
         media_service.execute_media_pipeline(
             assessment_id=assessment_id,
             local_video_path=local_video_path,
@@ -517,7 +361,6 @@ class AssessmentOrchestrator:
 
     def upload_to_youtube(self, assessment_id: int, video_path: str) -> Optional[str]:
         """Direct upload of assembled video to YouTube with quota rotation."""
-        from fapi.ai_prep.services.youtube_service import youtube_service
         return youtube_service.upload_video(assessment_id, video_path)
 
 

@@ -3,16 +3,8 @@ Unit Tests for Assessment Orchestrator.
 Mocks dependencies to allow pure python execution without external system library requirements.
 """
 
-import sys
 import unittest
-from unittest.mock import MagicMock
-
-# Mock crud and database dependencies before loading orchestrator
-mock_crud = MagicMock()
-sys.modules["fapi.ai_prep.crud"] = mock_crud
-
-import fapi.ai_prep
-fapi.ai_prep.crud = mock_crud
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from fapi.ai_prep.schemas import (
     AssessmentCategoryEnum,
@@ -65,19 +57,20 @@ class DummyReportORM:
 class TestAssessmentOrchestrator(unittest.TestCase):
 
     def setUp(self):
-        fapi.ai_prep.crud.reset_mock()
         self.mock_db = MagicMock()
         self.dummy_assessment = DummyAssessmentORM()
         self.dummy_questions = [
             DummyQuestionORM(1, AssessmentCategoryEnum.INTRO, DifficultyLevelEnum.EASY, "Tell me about yourself"),
             DummyQuestionORM(2, AssessmentCategoryEnum.INTRO, DifficultyLevelEnum.MEDIUM, "Why this role?"),
         ]
-        fapi.ai_prep.crud.create_assessment.return_value = self.dummy_assessment
-        fapi.ai_prep.crud.get_assessment_by_id.return_value = self.dummy_assessment
-        fapi.ai_prep.crud.get_candidate_resume_json.return_value = {"skills": ["Python"]}
 
-    def test_start_assessment_workflow(self):
-        fapi.ai_prep.crud.list_questions_by_category.return_value = self.dummy_questions
+    @patch("fapi.ai_prep.crud.get_candidate_resume_json")
+    @patch("fapi.ai_prep.crud.list_questions_by_category")
+    @patch("fapi.ai_prep.crud.create_assessment")
+    def test_start_assessment_workflow(self, mock_create, mock_list_q, mock_resume):
+        mock_create.return_value = self.dummy_assessment
+        mock_list_q.return_value = self.dummy_questions
+        mock_resume.return_value = {"skills": ["Python"]}
 
         result = AssessmentOrchestrator.start_assessment(
             db=self.mock_db,
@@ -91,21 +84,26 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         self.assertEqual(result["candidate_id"], 42)
         self.assertEqual(result["status"], "IN_PROGRESS")
         self.assertEqual(len(result["questions"]), 1)
-        fapi.ai_prep.crud.create_assessment.assert_called_once()
+        mock_create.assert_called_once()
 
-    def test_submit_assessment_workflow(self):
-        from unittest.mock import AsyncMock
-        from fapi.ai_prep.orchestrator import llm_orchestrator
-        llm_orchestrator.get_candidate_llm_config = MagicMock(return_value={
-            "api_key": "test_key",
-            "provider": "openai",
-            "model": "gpt-4o",
-        })
-        llm_orchestrator.run_evaluation = AsyncMock(return_value={
+    @patch("fapi.ai_prep.crud.save_assessment_report")
+    @patch("fapi.ai_prep.crud.save_assessment_data")
+    @patch("fapi.ai_prep.crud.update_assessment_status")
+    @patch("fapi.ai_prep.crud.get_candidate_resume_json")
+    @patch("fapi.ai_prep.crud.get_assessment_by_id")
+    @patch("fapi.ai_prep.orchestrator.llm_orchestrator.get_candidate_llm_config")
+    @patch("fapi.ai_prep.orchestrator.llm_orchestrator.run_evaluation", new_callable=AsyncMock)
+    def test_submit_assessment_workflow(
+        self, mock_run_eval, mock_get_cfg, mock_get_by_id, mock_resume, mock_update_status, mock_save_data, mock_save_report
+    ):
+        mock_get_by_id.return_value = self.dummy_assessment
+        mock_get_cfg.return_value = {"api_key": "test_key", "provider": "openai", "model": "gpt-4o"}
+        mock_resume.return_value = {"skills": ["Python"]}
+        mock_run_eval.return_value = {
             "transcript_evaluation": {"score": 85},
             "audio_evaluation": {"score": 90},
             "video_evaluation": {"score": 88},
-        })
+        }
 
         submit_res = AssessmentOrchestrator.submit_assessment(
             db=self.mock_db,
@@ -116,21 +114,24 @@ class TestAssessmentOrchestrator(unittest.TestCase):
             video_telemetry={"eye_contact_pct": 88.0},
         )
 
-
         self.assertEqual(submit_res["status"], "COMPLETED")
-        fapi.ai_prep.crud.save_assessment_data.assert_called_once()
-        fapi.ai_prep.crud.save_assessment_report.assert_called_once()
+        mock_save_data.assert_called_once()
+        mock_save_report.assert_called_once()
 
+    @patch("fapi.ai_prep.crud.update_assessment_status")
+    @patch("fapi.ai_prep.crud.get_assessment_by_id")
+    def test_cancel_assessment_workflow(self, mock_get_by_id, mock_update_status):
+        mock_get_by_id.return_value = self.dummy_assessment
 
-    def test_cancel_assessment_workflow(self):
         cancel_res = AssessmentOrchestrator.cancel_assessment(self.mock_db, 101)
 
         self.assertEqual(cancel_res["status"], "FAILED")
-        fapi.ai_prep.crud.update_assessment_status.assert_called_with(self.mock_db, 101, AssessmentStatusEnum.FAILED)
+        mock_update_status.assert_called_with(self.mock_db, 101, AssessmentStatusEnum.FAILED)
 
-    def test_rejects_resubmit_on_completed_assessment(self):
+    @patch("fapi.ai_prep.crud.get_assessment_by_id")
+    def test_rejects_resubmit_on_completed_assessment(self, mock_get_by_id):
         completed_assessment = DummyAssessmentORM(status=AssessmentStatusEnum.COMPLETED)
-        fapi.ai_prep.crud.get_assessment_by_id.return_value = completed_assessment
+        mock_get_by_id.return_value = completed_assessment
 
         with self.assertRaises(ValueError) as ctx:
             AssessmentOrchestrator.submit_assessment(
@@ -143,8 +144,11 @@ class TestAssessmentOrchestrator(unittest.TestCase):
             )
         self.assertIn("Submission rejected", str(ctx.exception))
 
-    def test_get_assessment_details(self):
-        fapi.ai_prep.crud.get_assessment_data.return_value = DummyDataORM()
+    @patch("fapi.ai_prep.crud.get_assessment_data")
+    @patch("fapi.ai_prep.crud.get_assessment_by_id")
+    def test_get_assessment_details(self, mock_get_by_id, mock_get_data):
+        mock_get_by_id.return_value = self.dummy_assessment
+        mock_get_data.return_value = DummyDataORM()
 
         details = AssessmentOrchestrator.get_assessment_details(self.mock_db, 101)
 
@@ -152,8 +156,9 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         self.assertEqual(details["id"], 101)
         self.assertIsNotNone(details["submitted_data"])
 
-    def test_get_assessment_report(self):
-        fapi.ai_prep.crud.get_assessment_report.return_value = DummyReportORM(assessment_id=101)
+    @patch("fapi.ai_prep.crud.get_assessment_report_by_assessment_id")
+    def test_get_assessment_report(self, mock_get_report):
+        mock_get_report.return_value = DummyReportORM(assessment_id=101)
 
         report = AssessmentOrchestrator.get_assessment_report(self.mock_db, 101)
 
