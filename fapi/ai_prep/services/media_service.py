@@ -3,6 +3,7 @@ AIPrep Media Service
 ====================
 Coordinates:
 - Storage operations (chunks, assembly, audio extraction)
+- Video Processor Engine integrity checks & preflight validation
 - YouTube unlisted upload workflow with local storage cleanup
 - Background media processing & evaluation pipeline
 - GDPR media purges
@@ -17,8 +18,14 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.services.storage_service import storage_service
 from fapi.ai_prep.services.youtube_service import youtube_service
+from fapi.ai_prep.core.video_processor_engine import video_processor_engine
 from fapi.ai_prep.models import AiPrepAssessment, AiPrepMediaFile, AssessmentStatusEnum, MediaTaskStatusEnum, AnalysisRunStatusEnum
-from fapi.ai_prep.exceptions import AssessmentNotFoundError, MediaAssemblyError, AllYouTubeQuotasExhaustedError
+from fapi.ai_prep.exceptions import (
+    AssessmentNotFoundError,
+    MediaAssemblyError,
+    MissingChunksError,
+    AllYouTubeQuotasExhaustedError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +36,7 @@ class MediaService:
     def __init__(self):
         self.storage = storage_service
         self.youtube = youtube_service
+        self.video_engine = video_processor_engine
 
     def upload_chunk(
         self,
@@ -74,7 +82,8 @@ class MediaService:
     ) -> Dict[str, Any]:
         """
         Assembles all uploaded chunks into full.webm, extracts audio.wav,
-        records media file in database, and updates assessment status to EVALUATING.
+        verifies media integrity via VideoProcessorEngine, records in DB,
+        and updates assessment status to EVALUATING.
         """
         # 1. Sequential concatenation of all chunks
         assembled_video_path = self.storage.assemble_chunks(
@@ -83,10 +92,28 @@ class MediaService:
             total_chunks=total_chunks,
         )
 
-        # 2. Extract 16kHz mono audio.wav
+        # 2. Verify assembled video container integrity via VideoProcessorEngine
+        video_verification = self.video_engine.verify_assembled_video(assembled_video_path)
+        if not video_verification["is_valid"]:
+            logger.warning(
+                "Assembled video verification warning for assessment %s: %s",
+                assessment_id,
+                video_verification.get("error"),
+            )
+
+        # 3. Extract 16kHz mono audio.wav
         audio_path = self.storage.extract_audio(assembled_video_path)
 
-        # 3. Record in database
+        # 4. Verify extracted audio integrity via VideoProcessorEngine
+        audio_verification = self.video_engine.verify_audio_file(audio_path)
+        if not audio_verification["is_valid"]:
+            logger.warning(
+                "Extracted audio verification warning for assessment %s: %s",
+                assessment_id,
+                audio_verification.get("error"),
+            )
+
+        # 5. Record in database
         file_size = os.path.getsize(assembled_video_path) if os.path.exists(assembled_video_path) else 0
         media_record = db.query(AiPrepMediaFile).filter(AiPrepMediaFile.assessment_id == assessment_id).first()
         if not media_record:
@@ -102,7 +129,7 @@ class MediaService:
             media_record.video_file_path = assembled_video_path
             media_record.file_size_bytes = file_size
 
-        # 4. Update assessment status to EVALUATING
+        # 6. Update assessment status to EVALUATING
         assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
         if assessment:
             assessment.status = AssessmentStatusEnum.EVALUATING.value
@@ -121,14 +148,50 @@ class MediaService:
             "message": "Media assembled and evaluation pipeline dispatched",
         }
 
+    def assemble_and_process_media(
+        self,
+        db: Session,
+        candidate_id: int,
+        assessment_id: int,
+        total_chunks: int,
+        background_tasks: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """
+        Validates chunk sequence via VideoProcessorEngine, assembles video,
+        extracts audio, and dispatches background processing.
+        """
+        # Validate chunk sequence via VideoProcessorEngine
+        chunk_status = self.storage.get_chunk_status(candidate_id, assessment_id, expected_total=total_chunks)
+        validation = self.video_engine.validate_chunks(
+            existing_chunks=chunk_status.get("uploaded_chunks", []),
+            total_expected=total_chunks,
+        )
+        if not validation["is_valid"]:
+            raise MissingChunksError(
+                missing_chunks=validation.get("missing_chunks", []),
+                total_chunks=total_chunks,
+            )
+
+        res = self.assemble_and_extract_audio(
+            candidate_id=candidate_id,
+            assessment_id=assessment_id,
+            total_chunks=total_chunks,
+            db=db,
+        )
+
+        if background_tasks:
+            background_tasks.add_task(self.process_assessment_background, assessment_id)
+
+        return res
+
     def execute_youtube_upload_and_cleanup(
         self,
         assessment_id: int,
         db: Session,
     ) -> Dict[str, Any]:
         """
-        Uploads assembled video to YouTube as Unlisted, sets youtube_url in DB,
-        and deletes local full.webm from server storage.
+        Uploads assembled video to YouTube as Unlisted with VideoProcessorEngine preflight checks,
+        sets youtube_url in DB, and deletes local full.webm from server storage.
         """
         assessment = db.query(AiPrepAssessment).filter(AiPrepAssessment.id == assessment_id).first()
         if not assessment:
@@ -138,11 +201,21 @@ class MediaService:
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Assembled video file not found at: {video_path}")
 
-        # Upload to YouTube
-        upload_result = self.youtube.upload_video(
+        # Pre-flight readiness check via VideoProcessorEngine
+        preflight = self.video_engine.inspect_youtube_upload(
             video_path=video_path,
             title=f"AIPrep Assessment #{assessment_id}",
             description=f"Candidate {assessment.candidate_id} Practice Assessment",
+            assessment_id=assessment_id,
+        )
+        if not preflight["ready_for_upload"]:
+            raise MediaAssemblyError(preflight.get("error", "Video pre-flight inspection failed."))
+
+        # Upload to YouTube
+        upload_result = self.youtube.upload_video(
+            video_path=video_path,
+            title=preflight["sanitized_title"],
+            description=preflight["sanitized_description"],
             assessment_id=assessment_id,
         )
 
@@ -163,6 +236,15 @@ class MediaService:
             "video_id": upload_result.get("video_id"),
             "local_file_deleted": True,
         }
+
+    def execute_media_pipeline(
+        self,
+        assessment_id: int,
+        local_video_path: Optional[str] = None,
+        local_audio_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Executes full media pipeline synchronously or asynchronously."""
+        return self.process_assessment_background(assessment_id)
 
     def process_assessment_background(self, assessment_id: int) -> Dict[str, Any]:
         """

@@ -80,7 +80,7 @@ class TestYouTubeService:
 
         video_path = storage_service.get_assembled_video_path(candidate_id, aid)
         with open(video_path, "wb") as f:
-            f.write(b"Simulated_Assembled_Video_Bytes")
+            f.write(b"\x1a\x45\xdf\xa3" + b"Simulated_Assembled_Video_Bytes" * 20)
 
         assert os.path.exists(video_path)
 
