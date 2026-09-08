@@ -33,9 +33,16 @@ sys.modules.setdefault("fapi.db.models", MagicMock())
 sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
 import fapi.ai_prep
+_real_crud = sys.modules.get("fapi.ai_prep.crud")
 mock_crud = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 fapi.ai_prep.crud = mock_crud
+
+
+def tearDownModule():
+    if _real_crud is not None:
+        sys.modules["fapi.ai_prep.crud"] = _real_crud
+        fapi.ai_prep.crud = _real_crud
 
 from fastapi import HTTPException
 from fapi.ai_prep.schemas import (
@@ -107,6 +114,8 @@ class DummyQuestionORM:
 class TestApiRoutesExhaustive(unittest.TestCase):
 
     def setUp(self):
+        fapi.ai_prep.router.crud = mock_crud
+        fapi.ai_prep.dependencies.crud = mock_crud
         mock_crud.reset_mock()
         mock_crud.create_assessment.side_effect = lambda *args, **kwargs: DummyAssessmentORM()
         mock_crud.get_assessment_by_id.side_effect = lambda db, id: DummyAssessmentORM(id) if id != 999 else None
