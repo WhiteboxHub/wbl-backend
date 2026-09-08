@@ -215,12 +215,14 @@ async def run_evaluation(
         candidate_id, assessment_type, is_video_mode,
     )
 
+    can_eval_audio: bool = eval_engine.has_evaluable_audio(audio_telemetry)
+
     transcript_prompt = eval_engine.build_prompt(
         assessment_type=assessment_type,
         transcript_text=transcript_text,
         resume_json=resume_json,
     )
-    audio_prompt = eval_engine.build_audio_prompt(audio_telemetry)
+    audio_prompt = eval_engine.build_audio_prompt(audio_telemetry) if can_eval_audio else None
 
     video_prompt: Optional[Dict[str, str]] = None
     if is_video_mode:
@@ -228,20 +230,21 @@ async def run_evaluation(
 
     # ── 2. Dispatch concurrent LLM calls ─────────────────────────────────────
 
-    num_calls = 3 if is_video_mode else 2
-    logger.info("[LLMOrchestrator] Dispatching %d concurrent LLM call(s).", num_calls)
+    call_labels: List[str] = ["transcript_eval"]
+    coroutines = [
+        _invoke_llm(
+            call_label="transcript_eval",
+            system_prompt=transcript_prompt["system_prompt"],
+            user_prompt=transcript_prompt["user_prompt"],
+            api_key=api_key,
+            provider=provider,
+            model=model,
+        )
+    ]
 
-    if is_video_mode:
-        # 3 parallel calls: transcript + audio + video
-        transcript_raw, audio_raw, video_raw = await asyncio.gather(
-            _invoke_llm(
-                call_label="transcript_eval",
-                system_prompt=transcript_prompt["system_prompt"],
-                user_prompt=transcript_prompt["user_prompt"],
-                api_key=api_key,
-                provider=provider,
-                model=model,
-            ),
+    if can_eval_audio and audio_prompt:
+        call_labels.append("audio_eval")
+        coroutines.append(
             _invoke_llm(
                 call_label="audio_eval",
                 system_prompt=audio_prompt["system_prompt"],
@@ -249,7 +252,18 @@ async def run_evaluation(
                 api_key=api_key,
                 provider=provider,
                 model=model,
-            ),
+            )
+        )
+    else:
+        logger.info(
+            "[LLMOrchestrator] Candidate=%d: No audio speech recorded or duration <= 0s. "
+            "Skipping audio LLM API call to save 100%% of audio evaluation tokens.",
+            candidate_id,
+        )
+
+    if is_video_mode and video_prompt:
+        call_labels.append("video_eval")
+        coroutines.append(
             _invoke_llm(
                 call_label="video_eval",
                 system_prompt=video_prompt["system_prompt"],
@@ -257,39 +271,28 @@ async def run_evaluation(
                 api_key=api_key,
                 provider=provider,
                 model=model,
-            ),
+            )
         )
-    else:
-        # 2 parallel calls: transcript + audio (video skipped for audio-only sessions)
-        transcript_raw, audio_raw = await asyncio.gather(
-            _invoke_llm(
-                call_label="transcript_eval",
-                system_prompt=transcript_prompt["system_prompt"],
-                user_prompt=transcript_prompt["user_prompt"],
-                api_key=api_key,
-                provider=provider,
-                model=model,
-            ),
-            _invoke_llm(
-                call_label="audio_eval",
-                system_prompt=audio_prompt["system_prompt"],
-                user_prompt=audio_prompt["user_prompt"],
-                api_key=api_key,
-                provider=provider,
-                model=model,
-            ),
-        )
-        video_raw = None
+
+    logger.info("[LLMOrchestrator] Dispatching %d concurrent LLM call(s): %s", len(coroutines), call_labels)
+
+    raw_results = await asyncio.gather(*coroutines)
+    results_map: Dict[str, str] = dict(zip(call_labels, raw_results))
 
     # ── 3. Validate all responses ─────────────────────────────────────────────
 
     logger.info("[LLMOrchestrator] Validating LLM responses...")
 
-    transcript_eval = _validate_response("transcript_eval", transcript_raw)
-    audio_eval = _validate_response("audio_eval", audio_raw)
+    transcript_eval = _validate_response("transcript_eval", results_map["transcript_eval"])
+
+    if can_eval_audio and "audio_eval" in results_map:
+        audio_eval = _validate_response("audio_eval", results_map["audio_eval"])
+    else:
+        audio_eval = None
+
     video_eval = (
-        _validate_response("video_eval", video_raw)
-        if video_raw is not None
+        _validate_response("video_eval", results_map["video_eval"])
+        if is_video_mode and "video_eval" in results_map
         else None
     )
 

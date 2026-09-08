@@ -141,6 +141,107 @@ class EvalEngine:
             "response_format": "json_object",
         }
 
+    @staticmethod
+    def has_evaluable_audio(audio_telemetry: Optional[Dict[str, Any]]) -> bool:
+        """
+        Determines whether the provided audio telemetry contains measurable speech activity.
+        If speech duration <= 0 or telemetry is empty, returns False to skip LLM token consumption.
+        """
+        if not audio_telemetry or not isinstance(audio_telemetry, dict):
+            return False
+
+        duration = audio_telemetry.get("speaking_duration_seconds")
+        if duration is None:
+            duration = audio_telemetry.get("duration") or audio_telemetry.get("total_audio_duration_seconds", 0)
+        try:
+            duration_val = float(duration)
+        except (ValueError, TypeError):
+            duration_val = 0.0
+
+        if duration_val <= 0:
+            return False
+
+        has_pace = float(audio_telemetry.get("speaking_pace_wpm") or audio_telemetry.get("words_per_minute") or audio_telemetry.get("wpm") or 0) > 0
+        has_volume = audio_telemetry.get("avg_volume_db") is not None and float(audio_telemetry.get("avg_volume_db", -20.0)) != -20.0
+        has_silence = audio_telemetry.get("silence_ratio_pct") is not None or audio_telemetry.get("silence_ratio") is not None
+
+        return duration_val > 0 and (has_pace or has_volume or has_silence)
+
+    @staticmethod
+    def build_insufficient_audio_evaluation(speaking_duration: float = 0.0) -> Dict[str, Any]:
+        """
+        Generates deterministic, contract-compliant INSUFFICIENT_DATA audio evaluation payload.
+        Used when no audio recording or 0-second speech is detected, saving 100% of LLM tokens.
+        """
+        return {
+            "audio_evaluation": {
+                "summary": {
+                    "overall_readiness": "INSUFFICIENT_DATA",
+                    "confidence_in_reading": "LOW",
+                    "confidence_rationale": "You provided a speaking duration of 0 seconds, which is insufficient for reliable telemetry evaluation.",
+                    "executive_summary": "The audio telemetry indicates no measurable speech activity, resulting in insufficient data for evaluation.",
+                    "primary_vocal_strength": None,
+                    "primary_vocal_gap": None,
+                },
+                "factors": {
+                    "confidence_vocal_presence": {
+                        "status": "INSUFFICIENT_DATA",
+                        "reliability": "UNRELIABLE",
+                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "observation": "You did not provide any measurable speech activity, making it impossible to assess vocal presence.",
+                    },
+                    "fluency": {
+                        "status": "INSUFFICIENT_DATA",
+                        "reliability": "UNRELIABLE",
+                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "observation": "You did not provide any measurable speech activity, making it impossible to assess fluency.",
+                    },
+                    "pace": {
+                        "status": "INSUFFICIENT_DATA",
+                        "reliability": "UNRELIABLE",
+                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "wpm_recorded": 0,
+                        "observation": "You did not provide any measurable speech activity, making it impossible to assess pace.",
+                    },
+                    "volume": {
+                        "status": "INSUFFICIENT_DATA",
+                        "reliability": "UNRELIABLE",
+                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "avg_volume_db": -20.0,
+                        "observation": "You did not provide any measurable speech activity, making it impossible to assess volume.",
+                    },
+                    "filler_word_usage": {
+                        "status": "INSUFFICIENT_DATA",
+                        "reliability": "UNRELIABLE",
+                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "filler_rate_per_min": 0.0,
+                        "observation": "You did not provide any measurable speech activity, making it impossible to assess filler word usage.",
+                    },
+                    "pausing": {
+                        "status": "INSUFFICIENT_DATA",
+                        "reliability": "UNRELIABLE",
+                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "silence_ratio_pct": 0.0,
+                        "pause_count": 0,
+                        "observation": "You did not provide any measurable speech activity, making it impossible to assess pausing.",
+                    },
+                },
+                "recording_environment_context": {
+                    "background_noise_level": "LOW",
+                    "clipping_detected": False,
+                    "speaking_duration_seconds": float(speaking_duration),
+                    "noise_impact_observation": "The absence of speech activity means ambient conditions did not influence telemetry reliability.",
+                },
+                "key_findings": [
+                    {
+                        "factor": "Confidence",
+                        "finding": "No speech activity was detected.",
+                        "why_it_matters": "Without speech activity, it is impossible to evaluate communication effectiveness or presence.",
+                    }
+                ],
+            }
+        }
+
     def build_video_prompt(self, video_telemetry: Dict[str, Any]) -> Dict[str, str]:
         """
         Builds and formats the system and user prompts for universal video composure evaluation.

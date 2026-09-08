@@ -107,32 +107,32 @@ class TestAssessmentOrchestrator(unittest.TestCase):
         fapi.ai_prep.crud.create_assessment.assert_called_once()
 
     def test_submit_assessment_workflow(self):
-        from unittest.mock import AsyncMock
+        from unittest.mock import AsyncMock, patch
         from fapi.ai_prep.orchestrator import llm_orchestrator
-        llm_orchestrator.get_candidate_llm_config = MagicMock(return_value={
+
+        with patch.object(llm_orchestrator, "get_candidate_llm_config", return_value={
             "api_key": "test_key",
             "provider": "openai",
             "model": "gpt-4o",
-        })
-        llm_orchestrator.run_evaluation = AsyncMock(return_value={
-            "transcript_evaluation": {"score": 85},
-            "audio_evaluation": {"score": 90},
-            "video_evaluation": {"score": 88},
-        })
+        }), patch.object(llm_orchestrator, "run_evaluation", new_callable=AsyncMock) as mock_eval:
+            mock_eval.return_value = {
+                "transcript_evaluation": {"score": 85},
+                "audio_evaluation": {"score": 90},
+                "video_evaluation": {"score": 88},
+            }
 
-        submit_res = AssessmentOrchestrator.submit_assessment(
-            db=self.mock_db,
-            assessment_id=101,
-            questions=[],
-            transcript={"text": "Hello world"},
-            audio_telemetry={"speaking_pace_wpm": 140},
-            video_telemetry={"eye_contact_pct": 88.0},
-        )
+            submit_res = AssessmentOrchestrator.submit_assessment(
+                db=self.mock_db,
+                assessment_id=101,
+                questions=[],
+                transcript={"text": "Hello world"},
+                audio_telemetry={"speaking_pace_wpm": 140},
+                video_telemetry={"eye_contact_pct": 88.0},
+            )
 
-
-        self.assertEqual(submit_res["status"], "COMPLETED")
-        fapi.ai_prep.crud.save_assessment_data.assert_called_once()
-        fapi.ai_prep.crud.save_assessment_report.assert_called_once()
+            self.assertEqual(submit_res["status"], "COMPLETED")
+            fapi.ai_prep.crud.save_assessment_data.assert_called_once()
+            fapi.ai_prep.crud.save_assessment_report.assert_called_once()
 
 
     def test_cancel_assessment_workflow(self):
