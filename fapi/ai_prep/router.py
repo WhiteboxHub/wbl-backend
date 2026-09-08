@@ -733,12 +733,29 @@ def get_chunk_upload_status(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
+    effective_candidate_id = assessment.candidate_id
     status_data = assessment_orchestrator.get_chunk_status(
-        candidate_id=candidate_id,
+        candidate_id=effective_candidate_id,
         assessment_id=assessment_id,
         expected_total=total_chunks,
     )
-    return schemas.ChunkStatusResponse(**status_data)
+    uploaded = status_data.get("uploaded_chunks", [])
+    missing = status_data.get("missing_chunks", [])
+    is_ready = status_data.get("is_ready_for_assembly", False)
+    total = status_data.get("total_chunks", total_chunks)
+
+    return schemas.ChunkStatusResponse(
+        assessment_id=assessment_id,
+        total_chunks=total,
+        total_chunks_expected=total,
+        uploaded_chunks=uploaded,
+        uploaded_chunks_count=len(uploaded),
+        uploaded_chunk_numbers=uploaded,
+        missing_chunks=missing,
+        missing_chunk_numbers=missing,
+        is_complete=is_ready,
+        is_ready_for_assembly=is_ready,
+    )
 
 
 @router.post(
@@ -759,14 +776,45 @@ def assemble_media(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    total_chunks = payload.total_chunks if payload else 1
-    return assessment_orchestrator.assemble_and_process_media(
-        db=db,
-        candidate_id=candidate_id,
-        assessment_id=assessment_id,
-        total_chunks=total_chunks,
-        background_tasks=background_tasks,
+    from fapi.ai_prep.exceptions import (
+        MissingChunksError,
+        MediaAssemblyError,
+        ChunkValidationError,
+        AudioExtractionError,
     )
+
+    try:
+        effective_candidate_id = assessment.candidate_id
+        total_chunks = payload.total_chunks if payload else 1
+        return assessment_orchestrator.assemble_and_process_media(
+            db=db,
+            candidate_id=effective_candidate_id,
+            assessment_id=assessment_id,
+            total_chunks=total_chunks,
+            background_tasks=background_tasks,
+        )
+    except MissingChunksError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "MISSING_CHUNKS",
+                "detail": str(e),
+                "missing_chunks": e.missing_chunks,
+                "total_chunks": e.total_chunks,
+            },
+        )
+    except (MediaAssemblyError, AudioExtractionError, ChunkValidationError, ValueError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "ASSEMBLY_ERROR", "detail": str(e)},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "INTERNAL_ERROR", "detail": str(e)},
+        )
 
 
 @router.get(

@@ -32,17 +32,8 @@ sys.modules.setdefault("fapi.db.database", MagicMock())
 sys.modules.setdefault("fapi.db.models", MagicMock())
 sys.modules.setdefault("fapi.ai_prep.models", MagicMock())
 
-import fapi.ai_prep
-_real_crud = sys.modules.get("fapi.ai_prep.crud")
+import fapi.ai_prep.crud
 mock_crud = MagicMock()
-sys.modules["fapi.ai_prep.crud"] = mock_crud
-fapi.ai_prep.crud = mock_crud
-
-
-def tearDownModule():
-    if _real_crud is not None:
-        sys.modules["fapi.ai_prep.crud"] = _real_crud
-        fapi.ai_prep.crud = _real_crud
 
 from fastapi import HTTPException
 from fapi.ai_prep.schemas import (

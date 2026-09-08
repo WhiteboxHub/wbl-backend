@@ -363,11 +363,15 @@ class ChunkUploadResponse(BaseModel):
 
 class ChunkStatusResponse(BaseModel):
     assessment_id: int
+    total_chunks: Optional[int] = None
     total_chunks_expected: Optional[int] = None
-    uploaded_chunks_count: int
-    uploaded_chunk_numbers: List[int]
-    missing_chunk_numbers: List[int]
-    is_complete: bool
+    uploaded_chunks: List[int] = Field(default_factory=list)
+    uploaded_chunks_count: int = 0
+    uploaded_chunk_numbers: List[int] = Field(default_factory=list)
+    missing_chunks: List[int] = Field(default_factory=list)
+    missing_chunk_numbers: List[int] = Field(default_factory=list)
+    is_complete: bool = False
+    is_ready_for_assembly: bool = False
 
 
 class AssembleMediaRequest(BaseModel):

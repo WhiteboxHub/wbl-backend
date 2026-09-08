@@ -115,14 +115,23 @@ class StorageService:
         missing_chunks: List[int] = []
 
         if expected_total is not None and expected_total > 0:
-            all_expected = set(range(expected_total))
             uploaded_set = set(uploaded_chunks)
-            missing_chunks = sorted(list(all_expected - uploaded_set))
-            is_ready = len(missing_chunks) == 0 and len(uploaded_chunks) == expected_total
+            all_expected_0 = set(range(expected_total))
+            all_expected_1 = set(range(1, expected_total + 1))
+
+            if 0 not in uploaded_set and (1 in uploaded_set or len(uploaded_set) > 0):
+                # 1-indexed convention (1..N)
+                missing_chunks = sorted(list(all_expected_1 - uploaded_set))
+                is_ready = len(missing_chunks) == 0 and len(uploaded_chunks) == expected_total
+            else:
+                # 0-indexed convention (0..N-1)
+                missing_chunks = sorted(list(all_expected_0 - uploaded_set))
+                is_ready = len(missing_chunks) == 0 and len(uploaded_chunks) == expected_total
         else:
             if uploaded_chunks:
+                start_idx = 0 if 0 in uploaded_chunks else 1
                 max_chunk = max(uploaded_chunks)
-                full_range = set(range(max_chunk + 1))
+                full_range = set(range(start_idx, max_chunk + 1))
                 missing_chunks = sorted(list(full_range - set(uploaded_chunks)))
             is_ready = len(missing_chunks) == 0 and len(uploaded_chunks) > 0
 
@@ -143,6 +152,7 @@ class StorageService:
         """
         Sequentially concatenates all chunks into full.webm.
         Validates all chunks are present before assembling.
+        Supports both 0-indexed (0..N-1) and 1-indexed (1..N) chunks.
         """
         if total_chunks <= 0:
             raise MediaAssemblyError("total_chunks must be greater than 0")
@@ -155,10 +165,11 @@ class StorageService:
             )
 
         assembled_path = self.get_assembled_video_path(candidate_id, assessment_id)
+        start_idx = 0 if os.path.exists(self.get_chunk_file_path(candidate_id, assessment_id, 0)) else 1
 
         try:
             with open(assembled_path, "wb") as outfile:
-                for i in range(total_chunks):
+                for i in range(start_idx, start_idx + total_chunks):
                     chunk_path = self.get_chunk_file_path(candidate_id, assessment_id, i)
                     if not os.path.exists(chunk_path):
                         raise MissingChunksError(missing_chunks=[i], total_chunks=total_chunks)

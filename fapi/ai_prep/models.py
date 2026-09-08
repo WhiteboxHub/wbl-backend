@@ -209,11 +209,9 @@ class AiPrepMediaFileORM(Base):
     )
     audio_file_path = Column(String(512), nullable=True)
     video_file_path = Column(String(512), nullable=True)
-    file_size_bytes = Column(Integer, nullable=True)
+    duration_seconds = Column(Integer, nullable=False, default=0)
+    file_size_bytes = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(
-        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
-    )
 
     assessment = relationship("AiPrepAssessmentORM", back_populates="media_files")
 
