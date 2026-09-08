@@ -15,6 +15,7 @@ Architecture rule:
 
 from __future__ import annotations
 
+import os
 import asyncio
 import logging
 from typing import Any, Dict, Optional, TYPE_CHECKING
@@ -35,9 +36,42 @@ def get_candidate_llm_config(db: Any, candidate_id: int) -> Dict[str, Any]:
     Fetches the decrypted candidate LLM configuration via the crud layer.
     Isolates orchestrator from raw DB queries according to system architecture rules.
     """
-    from fapi.ai_prep import crud
-    return crud.get_candidate_llm_config(db, candidate_id)
+    from fapi.db.models import CandidateLlmApiKeyORM
+    from fapi.utils.encryption_utils import decrypt_api_key
 
+    row = (
+        db.query(CandidateLlmApiKeyORM)
+        .filter(
+            CandidateLlmApiKeyORM.candidate_id == candidate_id,
+            CandidateLlmApiKeyORM.status == "active",
+        )
+        .order_by(
+            CandidateLlmApiKeyORM.is_default.desc(),
+            CandidateLlmApiKeyORM.updated_at.desc(),
+            CandidateLlmApiKeyORM.id.desc(),
+        )
+        .first()
+    )
+
+    if row is None:
+        env_key = os.getenv("OPENAI_API_KEY")
+        if env_key:
+            return {
+                "api_key": env_key,
+                "provider": "openai",
+                "model": "gpt-4o",
+            }
+        raise ValueError(
+            f"No active LLM API key found for candidate_id={candidate_id}. "
+            "Please add a valid API key in the AI Prep settings."
+        )
+
+    plain_key = decrypt_api_key(row.api_key)
+    return {
+        "api_key": plain_key,
+        "provider": row.provider_name,
+        "model": row.model_name,  # may be None → llm_client will use provider default
+    }
 
 
 # =============================================================================

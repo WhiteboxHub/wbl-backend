@@ -167,14 +167,33 @@ class EvalEngine:
 
     def _sanitize_audio_telemetry(self, raw_audio: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extracts, validates, and normalizes the 9 acoustic telemetry values with safe fallbacks.
+        Extracts, validates, and normalizes the 9 acoustic telemetry values with safe fallbacks and alias keys.
         """
-        pace = raw_audio.get("speaking_pace_wpm", 0)
+        pace = raw_audio.get("speaking_pace_wpm")
+        if pace is None:
+            pace = raw_audio.get("words_per_minute")
+        if pace is None:
+            pace = raw_audio.get("wpm", 0)
+
         vol = raw_audio.get("avg_volume_db", -20.0)
         pitch = raw_audio.get("mean_pitch_hz", 150.0)
-        silence = raw_audio.get("silence_ratio_pct", 0.0)
-        fillers = raw_audio.get("filler_rate_per_min", 0.0)
-        pauses = raw_audio.get("pause_count", 0)
+
+        silence = raw_audio.get("silence_ratio_pct")
+        if silence is None:
+            raw_sil = raw_audio.get("silence_ratio")
+            if raw_sil is not None:
+                silence = raw_sil * 100.0 if float(raw_sil) <= 1.0 else raw_sil
+            else:
+                silence = 0.0
+
+        fillers = raw_audio.get("filler_rate_per_min")
+        if fillers is None:
+            fillers = raw_audio.get("filler_rate", 0.0)
+
+        pauses = raw_audio.get("pause_count")
+        if pauses is None:
+            pauses = raw_audio.get("pauses", 0)
+
         duration = raw_audio.get("speaking_duration_seconds", 0.0)
         noise = raw_audio.get("background_noise_level", "LOW")
         clipping = raw_audio.get("clipping_detected", False)

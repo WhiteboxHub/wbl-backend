@@ -5,7 +5,13 @@ Zero hardcoded values. All configuration values are loaded via environment varia
 """
 import os
 from typing import Optional, Any
-from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    try:
+        from pydantic import BaseSettings
+    except ImportError:
+        from pydantic import BaseModel as BaseSettings
 from pydantic import Field
 
 
