@@ -11,6 +11,18 @@ from unittest.mock import MagicMock
 mock_crud = MagicMock()
 sys.modules["fapi.ai_prep.crud"] = mock_crud
 
+mock_llm = MagicMock()
+sys.modules["fapi.ai_prep.orchestrator.llm_orchestrator"] = mock_llm
+
+mock_storage = MagicMock()
+sys.modules["fapi.ai_prep.services.storage_service"] = mock_storage
+
+mock_media = MagicMock()
+sys.modules["fapi.ai_prep.services.media_service"] = mock_media
+
+mock_youtube = MagicMock()
+sys.modules["fapi.ai_prep.services.youtube_service"] = mock_youtube
+
 import fapi.ai_prep
 fapi.ai_prep.crud = mock_crud
 
@@ -21,6 +33,7 @@ from fapi.ai_prep.schemas import (
     AssessmentStatusEnum,
 )
 from fapi.ai_prep.orchestrator.assessment_orchestrator import AssessmentOrchestrator
+
 
 
 class DummyAssessmentORM:
