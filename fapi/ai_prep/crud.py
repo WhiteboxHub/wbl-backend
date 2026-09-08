@@ -193,12 +193,9 @@ def create_or_update_assessment_report(
         )
         db.add(report_record)
     else:
-        if audio_evaluation is not None:
-            report_record.audio_evaluation = audio_evaluation
-        if video_evaluation is not None:
-            report_record.video_evaluation = video_evaluation
-        if transcript_evaluation is not None:
-            report_record.transcript_evaluation = transcript_evaluation
+        report_record.audio_evaluation = audio_evaluation
+        report_record.video_evaluation = video_evaluation
+        report_record.transcript_evaluation = transcript_evaluation
 
     db.commit()
     db.refresh(report_record)
@@ -461,6 +458,34 @@ def get_candidate_resume_json(db: Session, candidate_id: int) -> Optional[Dict[s
             return None
 
     return row.candidate_json
+
+
+def save_candidate_resume_json(
+    db: Session, candidate_id: int, resume_json: Dict[str, Any]
+) -> Any:
+    """Saves or updates candidate_json in CandidateMarketingORM for a candidate."""
+    from datetime import datetime
+    from fapi.db.models import CandidateMarketingORM
+
+    row = (
+        db.query(CandidateMarketingORM)
+        .filter(CandidateMarketingORM.candidate_id == candidate_id)
+        .order_by(CandidateMarketingORM.id.desc())
+        .first()
+    )
+    if not row:
+        row = CandidateMarketingORM(
+            candidate_id=candidate_id,
+            candidate_json=resume_json,
+            start_date=datetime.utcnow().date(),
+            status="active",
+        )
+        db.add(row)
+    else:
+        row.candidate_json = resume_json
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 # ─── Candidate LLM Configuration CRUD ─────────────────────────────────────────
