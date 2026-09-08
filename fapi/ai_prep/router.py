@@ -21,6 +21,15 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from fapi.ai_prep import schemas, crud, config, dependencies
+from fapi.ai_prep.dependencies import (
+    get_current_user,
+    get_db,
+    staff_or_admin_required,
+    require_employee_or_admin,
+    get_current_candidate_id,
+    get_assessment_or_403,
+    resolve_candidate_id_with_auth,
+)
 from fapi.ai_prep.orchestrator.assessment_orchestrator import (
     AssessmentOrchestrator,
     assessment_orchestrator,
@@ -109,7 +118,9 @@ ASSESSMENT_TYPES_CATALOG = [
     status_code=status.HTTP_200_OK,
     summary="0. List Assessment Types Metadata (Hardcoded Catalog)",
 )
-def list_assessment_types():
+def list_assessment_types(
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+):
     """Returns assessment categories, descriptions, and media options without altering DB schema."""
     return schemas.AssessmentTypeListResponse(
         items=ASSESSMENT_TYPES_CATALOG,
@@ -124,8 +135,8 @@ def list_assessment_types():
     summary="Check Candidate LLM Key Status (Candidate Self-Check)",
 )
 def check_candidate_llm_status(
-    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Candidate checks their own active LLM key status from session."""
     effective_candidate_id = auth_ctx["candidate_id"]
@@ -193,8 +204,8 @@ def check_candidate_llm_status(
 )
 def employee_check_candidate_llm_status(
     candidate_id: int,
-    _employee: Dict[str, Any] = Depends(dependencies.require_employee_or_admin),
-    db: Session = Depends(dependencies.get_db),
+    _employee: Dict[str, Any] = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
 ):
     """Employee or Admin checks LLM API key validity on behalf of a candidate."""
     from fapi.db.models import CandidateLlmApiKeyORM
@@ -248,8 +259,8 @@ def employee_check_candidate_llm_status(
     summary="Check Candidate Resume Status (Candidate Self-Check)",
 )
 def check_candidate_resume_status(
-    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Candidate checks their own resume parsing status from session."""
     effective_candidate_id = auth_ctx["candidate_id"]
@@ -279,8 +290,8 @@ def check_candidate_resume_status(
 )
 def employee_check_candidate_resume_status(
     candidate_id: int,
-    _employee: Dict[str, Any] = Depends(dependencies.require_employee_or_admin),
-    db: Session = Depends(dependencies.get_db),
+    _employee: Dict[str, Any] = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
 ):
     """Employee or Admin checks resume parsing status on behalf of a candidate."""
     resume_json = crud.get_candidate_resume_json(db, candidate_id)
@@ -314,11 +325,11 @@ def employee_check_candidate_resume_status(
 def create_assessment(
     payload: schemas.CreateAssessmentRequest,
     request: Request,
-    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Initializes a new assessment session with pre-flight LLM key and resume checks."""
-    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(payload.candidate_id, auth_ctx)
+    effective_candidate_id = resolve_candidate_id_with_auth(payload.candidate_id, auth_ctx)
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
 
@@ -382,14 +393,14 @@ def create_assessment(
 def submit_assessment(
     id: int,
     payload: schemas.SubmitAssessmentRequest,
-    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Submits assessment recording/telemetry, evaluates via LLM Orchestrator & Analytics,
     and updates report to COMPLETED.
     """
-    dependencies.get_assessment_or_403(id, auth_ctx=auth_ctx, db=db)
+    get_assessment_or_403(id, auth_ctx=auth_ctx, db=db)
 
     try:
         res = assessment_orchestrator.submit_assessment(
@@ -430,7 +441,8 @@ async def upload_media(
     id: int,
     file: UploadFile = File(...),
     bg_tasks: BackgroundTasks = BackgroundTasks(),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Saves raw recorded video/audio blob to local disk storage and triggers YouTube upload."""
     assessment = crud.get_assessment_by_id(db, id)
@@ -462,7 +474,8 @@ async def upload_media(
 def submit_data(
     id: int,
     payload: schemas.SubmitAssessmentDataRequest,
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Saves telemetry data (questions, transcript, audio/video telemetry) for an assessment."""
     assessment = crud.get_assessment_by_id(db, id)
@@ -489,7 +502,8 @@ def submit_data(
 def update_media_url(
     id: int,
     payload: schemas.UpdateMediaUrlRequest,
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Updates the youtube_url after processing completes."""
     assessment = crud.update_assessment_youtube_url(db, id, payload.youtube_url)
@@ -506,7 +520,8 @@ def update_media_url(
 def trigger_evaluation(
     id: int,
     bg_tasks: BackgroundTasks,
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Changes assessment status to EVALUATING and triggers the Central Orchestrator."""
     assessment = crud.get_assessment_by_id(db, id)
@@ -529,11 +544,11 @@ def trigger_evaluation(
 )
 def get_assessment_report(
     id: int,
-    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Fetches full assessment details including telemetry data and evaluation report."""
-    assessment = dependencies.get_assessment_or_403(id, auth_ctx=auth_ctx, db=db)
+    assessment = get_assessment_or_403(id, auth_ctx=auth_ctx, db=db)
 
     data = crud.get_assessment_data_by_assessment_id(db, id)
     report = crud.get_assessment_report_by_assessment_id(db, id)
@@ -575,13 +590,13 @@ def get_assessment_report(
 )
 def list_candidate_assessments(
     candidate_id: Optional[int] = Query(None, description="Candidate ID filter (employees/admin can filter, candidates see own)"),
-    auth_ctx: Dict[str, Any] = Depends(dependencies.get_authenticated_user_context),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(dependencies.get_db),
+    db: Session = Depends(get_db),
 ):
     """Fetches a paginated list of assessments for a specific candidate with auth validation."""
-    effective_candidate_id = dependencies.resolve_candidate_id_with_auth(candidate_id, auth_ctx)
+    effective_candidate_id = resolve_candidate_id_with_auth(candidate_id, auth_ctx)
     assessments = crud.list_candidate_assessments(
         db, candidate_id=effective_candidate_id, limit=limit, offset=offset
     )
@@ -596,10 +611,10 @@ def list_candidate_assessments(
 )
 def employee_list_assessments(
     candidate_id: Optional[int] = Query(None, description="Optional Candidate ID filter for employee view"),
-    _employee: Dict[str, Any] = Depends(dependencies.require_employee_or_admin),
+    _employee: Dict[str, Any] = Depends(staff_or_admin_required),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(dependencies.get_db),
+    db: Session = Depends(get_db),
 ):
     """Employee or Admin comprehensive view listing all assessments or filtering by candidate_id."""
     assessments = crud.list_assessments_for_employee(
@@ -624,7 +639,8 @@ def list_questions(
     is_active: Optional[bool] = True,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Fetches filtered list of questions for assessment engine or admin grid."""
     questions = crud.list_questions(
@@ -646,7 +662,8 @@ def list_questions(
 )
 def create_question(
     payload: schemas.QuestionBankCreateRequest,
-    db: Session = Depends(dependencies.get_db),
+    _employee: Dict[str, Any] = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
 ):
     """Adds a new question to the question bank."""
     return crud.create_question(
@@ -668,7 +685,8 @@ def create_question(
 def update_question(
     id: int,
     payload: schemas.QuestionBankUpdateRequest,
-    db: Session = Depends(dependencies.get_db),
+    _employee: Dict[str, Any] = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
 ):
     """Updates fields on an existing question (e.g. soft-delete by setting is_active=False)."""
     question = crud.update_question(
@@ -697,14 +715,15 @@ async def upload_media_chunk(
     chunk_number: int = Form(...),
     total_chunks: Optional[int] = Form(None),
     file: UploadFile = File(...),
-    candidate_id: int = Depends(dependencies.get_current_candidate_id),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Uploads a sequential WebM media chunk into local server storage."""
     assessment = crud.get_assessment_by_id(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
+    candidate_id = auth_ctx["candidate_id"]
     content = await file.read()
     res = assessment_orchestrator.handle_chunk_upload(
         candidate_id=candidate_id,
@@ -725,8 +744,8 @@ async def upload_media_chunk(
 def get_chunk_upload_status(
     assessment_id: int = Query(...),
     total_chunks: Optional[int] = Query(None),
-    candidate_id: int = Depends(dependencies.get_current_candidate_id),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Returns uploaded chunk numbers for retry/resume logic."""
     assessment = crud.get_assessment_by_id(db, assessment_id)
@@ -768,8 +787,8 @@ def assemble_media(
     assessment_id: int = Query(...),
     payload: schemas.AssembleMediaRequest = None,
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    candidate_id: int = Depends(dependencies.get_current_candidate_id),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Concatenates WebM chunks via FFmpeg, extracts 16kHz audio, and kicks off async pipeline."""
     assessment = crud.get_assessment_by_id(db, assessment_id)
@@ -826,8 +845,8 @@ def assemble_media(
 def get_processing_status(
     id: int,
     request: Request,
-    candidate_id: int = Depends(dependencies.get_current_candidate_id),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Returns assessment pipeline processing progress snapshot or SSE stream."""
     assessment = crud.get_assessment_by_id(db, id)
@@ -857,8 +876,8 @@ def get_processing_status(
 )
 def stream_processing_status(
     id: int,
-    candidate_id: int = Depends(dependencies.get_current_candidate_id),
-    db: Session = Depends(dependencies.get_db),
+    auth_ctx: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Real-time SSE event stream for live candidate UI status updates."""
     assessment = crud.get_assessment_by_id(db, id)
@@ -874,3 +893,4 @@ def stream_processing_status(
             "X-Accel-Buffering": "no",
         },
     )
+

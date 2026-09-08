@@ -12,38 +12,63 @@ from pydantic import BaseModel, Field
 
 # ─── Domain Enums ─────────────────────────────────────────────────────────────
 
-class AssessmentCategoryEnum(str, Enum):
-    INTRO = "INTRO"
-    JD_INTRO = "JD_INTRO"
-    RECRUITER = "RECRUITER"
-    HIRING_MANAGER = "HIRING_MANAGER"
-    SYSTEM_DESIGN = "SYSTEM_DESIGN"
-    TECHNICAL = "TECHNICAL"
+AssessmentCategoryEnum = Enum(
+    "AssessmentCategoryEnum",
+    {
+        "INTRO": "INTRO",
+        "JD_INTRO": "JD_INTRO",
+        "RECRUITER": "RECRUITER",
+        "HIRING_MANAGER": "HIRING_MANAGER",
+        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
+        "TECHNICAL": "TECHNICAL",
+    },
+    type=str,
+)
 
 
-class DifficultyLevelEnum(str, Enum):
-    EASY = "EASY"
-    MEDIUM = "MEDIUM"
-    HARD = "HARD"
-    EXPERT = "EXPERT"
+DifficultyLevelEnum = Enum(
+    "DifficultyLevelEnum",
+    {
+        "EASY": "EASY",
+        "MEDIUM": "MEDIUM",
+        "HARD": "HARD",
+        "EXPERT": "EXPERT",
+    },
+    type=str,
+)
 
 
-class MediaTypeEnum(str, Enum):
-    AUDIO = "AUDIO"
-    VIDEO = "VIDEO"
+MediaTypeEnum = Enum(
+    "MediaTypeEnum",
+    {
+        "AUDIO": "AUDIO",
+        "VIDEO": "VIDEO",
+    },
+    type=str,
+)
 
 
-class AssessmentStatusEnum(str, Enum):
-    IN_PROGRESS = "IN_PROGRESS"
-    EVALUATING = "EVALUATING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+AssessmentStatusEnum = Enum(
+    "AssessmentStatusEnum",
+    {
+        "IN_PROGRESS": "IN_PROGRESS",
+        "EVALUATING": "EVALUATING",
+        "COMPLETED": "COMPLETED",
+        "FAILED": "FAILED",
+    },
+    type=str,
+)
 
 
-class EngineOperationEnum(str, Enum):
-    START = "START"
-    SUBMIT = "SUBMIT"
-    CANCEL = "CANCEL"
+EngineOperationEnum = Enum(
+    "EngineOperationEnum",
+    {
+        "START": "START",
+        "SUBMIT": "SUBMIT",
+        "CANCEL": "CANCEL",
+    },
+    type=str,
+)
 
 
 # ─── API Endpoint Requests & Responses ────────────────────────────────────────
@@ -340,11 +365,16 @@ class QuestionSelectionInput(BaseModel):
 
 # ─── Media Ingestion & Chunking Schemas (BE2) ─────────────────────────────────
 
-class MediaTaskStatusEnum(str, Enum):
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+MediaTaskStatusEnum = Enum(
+     "MediaTaskStatusEnum",
+     {
+         "PENDING": "PENDING",
+         "PROCESSING": "PROCESSING",
+         "COMPLETED": "COMPLETED",
+         "FAILED": "FAILED",
+     },
+     type=str,
+ )
 
 
 TaskStatusEnum = MediaTaskStatusEnum

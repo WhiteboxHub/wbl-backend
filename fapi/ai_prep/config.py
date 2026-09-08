@@ -50,7 +50,7 @@ class AiPrepSettings(BaseSettings):
         default_factory=lambda: (
             os.getenv("FFMPEG_PATH")
             or __import__("shutil").which("ffmpeg")
-            or (getattr(__import__("imageio_ffmpeg", fromlist=["get_ffmpeg_exe"]), "get_ffmpeg_exe", lambda: "ffmpeg"))()
+            or "ffmpeg"
         ),
         description="Path or binary name for ffmpeg executable",
     )
