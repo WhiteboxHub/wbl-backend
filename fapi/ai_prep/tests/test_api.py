@@ -17,9 +17,9 @@ from fapi.ai_prep.models import (
 )
 
 # In-memory SQLite for isolated test execution
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+sqlite_test_db_url = "sqlite:///:memory:"
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    sqlite_test_db_url,
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )

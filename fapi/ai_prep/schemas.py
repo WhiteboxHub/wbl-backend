@@ -11,44 +11,63 @@ from pydantic import BaseModel, Field
 # Enums
 # ---------------------------------------------------------------------------
 
-class AssessmentCategoryEnum(str, Enum):
-    INTRO = "INTRO"
-    JD_INTRO = "JD_INTRO"
-    RECRUITER = "RECRUITER"
-    HIRING_MANAGER = "HIRING_MANAGER"
-    SYSTEM_DESIGN = "SYSTEM_DESIGN"
-    TECHNICAL = "TECHNICAL"
-
+AssessmentCategoryEnum = Enum(
+    "AssessmentCategoryEnum",
+    {
+        "INTRO": "INTRO",
+        "JD_INTRO": "JD_INTRO",
+        "RECRUITER": "RECRUITER",
+        "HIRING_MANAGER": "HIRING_MANAGER",
+        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
+        "TECHNICAL": "TECHNICAL",
+    },
+    type=str,
+)
 
 AssessmentTypeEnum = AssessmentCategoryEnum
 
-
-class MediaTypeEnum(str, Enum):
-    VIDEO = "VIDEO"
-    AUDIO = "AUDIO"
-
+MediaTypeEnum = Enum(
+    "MediaTypeEnum",
+    {
+        "VIDEO": "VIDEO",
+        "AUDIO": "AUDIO",
+    },
+    type=str,
+)
 
 AssessmentMediaTypeEnum = MediaTypeEnum
 
+AssessmentStatusEnum = Enum(
+    "AssessmentStatusEnum",
+    {
+        "IN_PROGRESS": "IN_PROGRESS",
+        "EVALUATING": "EVALUATING",
+        "COMPLETED": "COMPLETED",
+        "FAILED": "FAILED",
+    },
+    type=str,
+)
 
-class AssessmentStatusEnum(str, Enum):
-    IN_PROGRESS = "IN_PROGRESS"
-    EVALUATING = "EVALUATING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+DifficultyLevelEnum = Enum(
+    "DifficultyLevelEnum",
+    {
+        "EASY": "EASY",
+        "MEDIUM": "MEDIUM",
+        "HARD": "HARD",
+        "EXPERT": "EXPERT",
+    },
+    type=str,
+)
 
-
-class DifficultyLevelEnum(str, Enum):
-    EASY = "EASY"
-    MEDIUM = "MEDIUM"
-    HARD = "HARD"
-    EXPERT = "EXPERT"
-
-
-class EngineOperationEnum(str, Enum):
-    START = "START"
-    SUBMIT = "SUBMIT"
-    CANCEL = "CANCEL"
+EngineOperationEnum = Enum(
+    "EngineOperationEnum",
+    {
+        "START": "START",
+        "SUBMIT": "SUBMIT",
+        "CANCEL": "CANCEL",
+    },
+    type=str,
+)
 
 
 # ---------------------------------------------------------------------------
