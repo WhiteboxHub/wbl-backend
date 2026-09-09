@@ -966,7 +966,8 @@ async def upload_raw_media(
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
     os.makedirs(assessment_dir, exist_ok=True)
-    dest_path = os.path.join(assessment_dir, f"raw_{file.filename}")
+    safe_filename = os.path.basename(file.filename or "media.webm")
+    dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
 
     content = await file.read()
     with open(dest_path, "wb") as f:
@@ -1115,7 +1116,7 @@ def list_questions_from_bank(
     is_active: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: AuthUserORM = Depends(get_current_user),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Fetches questions dynamically from ai_prep_questions DB table."""

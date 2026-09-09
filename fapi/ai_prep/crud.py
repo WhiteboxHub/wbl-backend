@@ -386,6 +386,10 @@ def list_questions(
         query = db.query(AiPrepQuestionORM)
         if category:
             query = query.filter(AiPrepQuestionORM.category == category)
+        if difficulty_level:
+            query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+        if is_active is not None:
+            query = query.filter(AiPrepQuestionORM.is_active == is_active)
         total = query.count()
 
     items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
