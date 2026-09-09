@@ -88,66 +88,64 @@ router = APIRouter(tags=["AI Prep Tool"])
 
 STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR", "./storage/aiprep")
 
-# ---------------------------------------------------------------------------
-# In-Memory Hardcoded Assessment Types Catalog
-# ---------------------------------------------------------------------------
-
-HARDCODED_ASSESSMENT_TYPES = [
-    {
-        "id": 1,
-        "code": "INTRO",
-        "title": "Intro Assessment",
-        "description": "Standard introductory background, soft skills, and career narrative assessment.",
-        "category": "GENERAL",
-        "time_estimate_mins": 4,
-        "is_active": True,
-    },
-    {
-        "id": 2,
-        "code": "JD_INTRO",
-        "title": "JD Intro Assessment",
-        "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
-        "category": "ROLE_SPECIFIC",
-        "time_estimate_mins": 4,
-        "is_active": True,
-    },
-    {
-        "id": 3,
-        "code": "RECRUITER",
-        "title": "Recruiter Screen",
-        "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
-        "category": "SCREENING",
-        "time_estimate_mins": 10,
-        "is_active": True,
-    },
-    {
-        "id": 4,
-        "code": "HIRING_MANAGER",
-        "title": "Hiring Manager Round",
-        "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
-        "category": "MANAGEMENT",
-        "time_estimate_mins": 15,
-        "is_active": True,
-    },
-    {
-        "id": 5,
-        "code": "SYSTEM_DESIGN",
-        "title": "System Design",
-        "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
-        "category": "TECHNICAL",
-        "time_estimate_mins": 25,
-        "is_active": True,
-    },
-    {
-        "id": 6,
-        "code": "TECHNICAL",
-        "title": "Technical Assessment",
-        "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
-        "category": "TECHNICAL",
-        "time_estimate_mins": 30,
-        "is_active": True,
-    },
-]
+def get_default_assessment_types() -> List[Dict[str, Any]]:
+    """Returns in-memory catalog of standard assessment types."""
+    return [
+        {
+            "id": 1,
+            "code": "INTRO",
+            "title": "Intro Assessment",
+            "description": "Standard introductory background, soft skills, and career narrative assessment.",
+            "category": "GENERAL",
+            "time_estimate_mins": 4,
+            "is_active": True,
+        },
+        {
+            "id": 2,
+            "code": "JD_INTRO",
+            "title": "JD Intro Assessment",
+            "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
+            "category": "ROLE_SPECIFIC",
+            "time_estimate_mins": 4,
+            "is_active": True,
+        },
+        {
+            "id": 3,
+            "code": "RECRUITER",
+            "title": "Recruiter Screen",
+            "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
+            "category": "SCREENING",
+            "time_estimate_mins": 10,
+            "is_active": True,
+        },
+        {
+            "id": 4,
+            "code": "HIRING_MANAGER",
+            "title": "Hiring Manager Round",
+            "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
+            "category": "MANAGEMENT",
+            "time_estimate_mins": 15,
+            "is_active": True,
+        },
+        {
+            "id": 5,
+            "code": "SYSTEM_DESIGN",
+            "title": "System Design",
+            "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
+            "category": "TECHNICAL",
+            "time_estimate_mins": 25,
+            "is_active": True,
+        },
+        {
+            "id": 6,
+            "code": "TECHNICAL",
+            "title": "Technical Assessment",
+            "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
+            "category": "TECHNICAL",
+            "time_estimate_mins": 30,
+            "is_active": True,
+        },
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1060,9 +1058,10 @@ def list_available_assessment_types(
     current_user: AuthUserORM = Depends(get_current_user),
 ):
     """Fetches all active assessment types from the hardcoded catalog."""
+    catalog = get_default_assessment_types()
     return AssessmentTypeListResponse(
-        items=[AssessmentTypeResponse(**t) for t in HARDCODED_ASSESSMENT_TYPES],
-        total=len(HARDCODED_ASSESSMENT_TYPES),
+        items=[AssessmentTypeResponse(**t) for t in catalog],
+        total=len(catalog),
     )
 
 
@@ -1079,8 +1078,9 @@ def create_new_assessment_type(
     _staff: AuthUserORM = Depends(staff_or_admin_required),
 ):
     """Admin endpoint to create a new assessment type in catalog."""
+    catalog = get_default_assessment_types()
     new_item = type_in.dict()
-    new_item["id"] = len(HARDCODED_ASSESSMENT_TYPES) + 1
+    new_item["id"] = len(catalog) + 1
     return AssessmentTypeResponse(**new_item)
 
 

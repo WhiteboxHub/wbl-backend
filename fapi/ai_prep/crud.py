@@ -25,122 +25,116 @@ from fapi.db.models import (
 
 logger = logging.getLogger(__name__)
 
-# Hardcoded standard assessment types catalog (in-memory)
-HARDCODED_ASSESSMENT_TYPES = [
-    {
-        "id": 1,
-        "code": "INTRO",
-        "title": "Intro Assessment",
-        "description": "Standard introductory background, soft skills, and career narrative assessment.",
-        "category": "GENERAL",
-        "time_estimate_mins": 4,
-        "is_active": True,
-    },
-    {
-        "id": 2,
-        "code": "JD_INTRO",
-        "title": "JD Intro Assessment",
-        "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
-        "category": "ROLE_SPECIFIC",
-        "time_estimate_mins": 4,
-        "is_active": True,
-    },
-    {
-        "id": 3,
-        "code": "RECRUITER",
-        "title": "Recruiter Screen",
-        "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
-        "category": "SCREENING",
-        "time_estimate_mins": 10,
-        "is_active": True,
-    },
-    {
-        "id": 4,
-        "code": "HIRING_MANAGER",
-        "title": "Hiring Manager Round",
-        "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
-        "category": "MANAGEMENT",
-        "time_estimate_mins": 15,
-        "is_active": True,
-    },
-    {
-        "id": 5,
-        "code": "SYSTEM_DESIGN",
-        "title": "System Design",
-        "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
-        "category": "TECHNICAL",
-        "time_estimate_mins": 25,
-        "is_active": True,
-    },
-    {
-        "id": 6,
-        "code": "TECHNICAL",
-        "title": "Technical Assessment",
-        "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
-        "category": "TECHNICAL",
-        "time_estimate_mins": 30,
-        "is_active": True,
-    },
-]
-
-# Standard introductory fallback questions
-DEFAULT_QUESTIONS = [
-    {
-        "category": "INTRO",
-        "sub_category": "Background & Overview",
-        "difficulty_level": "MEDIUM",
-        "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
-        "ideal_answer_rubric": "Articulate career arc, GenAI specialization, system architectures built, and end-to-end project ownership.",
-    },
-    {
-        "category": "JD_INTRO",
-        "sub_category": "Role & Stack Alignment",
-        "difficulty_level": "MEDIUM",
-        "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
-        "ideal_answer_rubric": "Directly map past technical projects and libraries to the job responsibilities and required technologies.",
-    },
-    {
-        "category": "RECRUITER",
-        "sub_category": "Career Transitions",
-        "difficulty_level": "MEDIUM",
-        "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
-        "ideal_answer_rubric": "Clear explanation of career choices, continuous learning, and positive team culture alignment.",
-    },
-    {
-        "category": "HIRING_MANAGER",
-        "sub_category": "Ownership & Impact",
-        "difficulty_level": "HARD",
-        "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
-        "ideal_answer_rubric": "Structured STAR response detailing leadership, cross-functional collaboration, technical pivot, and business metrics achieved.",
-    },
-    {
-        "category": "SYSTEM_DESIGN",
-        "sub_category": "AI Architecture",
-        "difficulty_level": "HARD",
-        "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
-        "ideal_answer_rubric": "Detail vector databases, chunking strategies, embedding retrieval, re-ranking, LLM latency budgets, and fallback mechanisms.",
-    },
-    {
-        "category": "TECHNICAL",
-        "sub_category": "Agentic AI",
-        "difficulty_level": "HARD",
-        "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks. When would you choose one over the other?",
-        "ideal_answer_rubric": "Compare reasoning traces, token overhead, tool-calling loops, latency, and determinism in production environments.",
-    },
-]
-
-
-# ---------------------------------------------------------------------------
-# Assessment Types (Hardcoded Catalog)
-# ---------------------------------------------------------------------------
-
 def list_assessment_types() -> List[Dict[str, Any]]:
     """Returns the hardcoded assessment types catalog."""
-    return HARDCODED_ASSESSMENT_TYPES
+    return [
+        {
+            "id": 1,
+            "code": "INTRO",
+            "title": "Intro Assessment",
+            "description": "Standard introductory background, soft skills, and career narrative assessment.",
+            "category": "GENERAL",
+            "time_estimate_mins": 4,
+            "is_active": True,
+        },
+        {
+            "id": 2,
+            "code": "JD_INTRO",
+            "title": "JD Intro Assessment",
+            "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
+            "category": "ROLE_SPECIFIC",
+            "time_estimate_mins": 4,
+            "is_active": True,
+        },
+        {
+            "id": 3,
+            "code": "RECRUITER",
+            "title": "Recruiter Screen",
+            "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
+            "category": "SCREENING",
+            "time_estimate_mins": 10,
+            "is_active": True,
+        },
+        {
+            "id": 4,
+            "code": "HIRING_MANAGER",
+            "title": "Hiring Manager Round",
+            "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
+            "category": "MANAGEMENT",
+            "time_estimate_mins": 15,
+            "is_active": True,
+        },
+        {
+            "id": 5,
+            "code": "SYSTEM_DESIGN",
+            "title": "System Design",
+            "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
+            "category": "TECHNICAL",
+            "time_estimate_mins": 25,
+            "is_active": True,
+        },
+        {
+            "id": 6,
+            "code": "TECHNICAL",
+            "title": "Technical Assessment",
+            "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
+            "category": "TECHNICAL",
+            "time_estimate_mins": 30,
+            "is_active": True,
+        },
+    ]
+
+
+def get_default_questions() -> List[Dict[str, Any]]:
+    """Standard introductory fallback questions."""
+    return [
+        {
+            "category": "INTRO",
+            "sub_category": "Background & Overview",
+            "difficulty_level": "MEDIUM",
+            "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
+            "ideal_answer_rubric": "Articulate career arc, GenAI specialization, system architectures built, and end-to-end project ownership.",
+        },
+        {
+            "category": "JD_INTRO",
+            "sub_category": "Role & Stack Alignment",
+            "difficulty_level": "MEDIUM",
+            "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
+            "ideal_answer_rubric": "Directly map past technical projects and libraries to the job responsibilities and required technologies.",
+        },
+        {
+            "category": "RECRUITER",
+            "sub_category": "Career Transitions",
+            "difficulty_level": "MEDIUM",
+            "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
+            "ideal_answer_rubric": "Clear explanation of career choices, continuous learning, and positive team culture alignment.",
+        },
+        {
+            "category": "HIRING_MANAGER",
+            "sub_category": "Ownership & Impact",
+            "difficulty_level": "HARD",
+            "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
+            "ideal_answer_rubric": "Structured STAR response detailing leadership, cross-functional collaboration, technical pivot, and business metrics achieved.",
+        },
+        {
+            "category": "SYSTEM_DESIGN",
+            "sub_category": "AI Architecture",
+            "difficulty_level": "HARD",
+            "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
+            "ideal_answer_rubric": "Detail vector databases, chunking strategies, embedding retrieval, re-ranking, LLM latency budgets, and fallback mechanisms.",
+        },
+        {
+            "category": "TECHNICAL",
+            "sub_category": "Agentic AI",
+            "difficulty_level": "HARD",
+            "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks. When would you choose one over the other?",
+            "ideal_answer_rubric": "Compare reasoning traces, token overhead, tool-calling loops, latency, and determinism in production environments.",
+        },
+    ]
 
 
 def get_assessment_type_by_code(code: str) -> Optional[Dict[str, Any]]:
-    for t in HARDCODED_ASSESSMENT_TYPES:
+    for t in list_assessment_types():
         if t["code"].upper() == code.upper():
             return t
     return None
