@@ -25526,8 +25526,7 @@
       "put": {
         "tags": [
           "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate"
+          "AI Prep Tool"
         ],
         "summary": "Candidate: Submit & Evaluate (PUT)",
         "description": "Saves telemetry if provided and transitions status to EVALUATING.",
@@ -25587,6 +25586,111 @@
             }
           }
         }
+      }
+    },
+    "/api/aiprep/assessment-types": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Catalog: List Assessment Types",
+        "description": "Fetches all active assessment types from the catalog.",
+        "operationId": "list_available_assessment_types_api_aiprep_assessment_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTypeListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Create Assessment Type",
+        "description": "Admin endpoint to create a new assessment type in catalog.",
+        "operationId": "create_new_assessment_type_api_aiprep_assessment_types_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentTypeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTypeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/aiprep/candidate/assessment-types": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Candidate: List Available Assessment Types",
+        "description": "Fetches all active assessment types from the catalog.",
+        "operationId": "list_available_assessment_types_api_aiprep_candidate_assessment_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTypeListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/aiprep/candidates/{candidate_id}/llm-keys": {
@@ -26137,237 +26241,6 @@
         }
       }
     },
-    "/api/aiprep/media/upload-chunk": {
-      "post": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Upload 30s WebM Chunk",
-        "description": "Uploads sequential WebM media chunk to server storage directory.",
-        "operationId": "upload_media_chunk_api_aiprep_media_upload_chunk_post",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_media_chunk_api_aiprep_media_upload_chunk_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkUploadResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/aiprep/media/chunk-status": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Query Chunk Upload Status",
-        "description": "Dynamically reads disk storage to check uploaded vs missing chunk numbers.",
-        "operationId": "get_chunk_upload_status_api_aiprep_media_chunk_status_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "total_chunks",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Total Chunks"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/media/assemble": {
-      "post": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Assemble Chunks & Process",
-        "description": "Concatenates WebM chunks and launches evaluation.",
-        "operationId": "assemble_media_chunks_api_aiprep_media_assemble_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/AssembleMediaRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssembleMediaResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/media/upload": {
-      "post": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
-        "operationId": "upload_raw_media_api_aiprep_media_upload_post",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_raw_media_api_aiprep_media_upload_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LocalMediaUploadResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/aiprep/media/storage-info": {
       "get": {
         "tags": [
@@ -26414,180 +26287,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StorageInfoResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/aiprep/assessments/{assessment_id}/status": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Progress: Assessment Processing Status Snapshot",
-        "description": "Returns assessment pipeline processing progress snapshot dynamically from DB.",
-        "operationId": "get_assessment_processing_status_api_aiprep_assessments__assessment_id__status_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessingStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/assessments/{assessment_id}/stream": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Progress: Real-Time SSE Status Stream",
-        "description": "Real-time SSE event stream for live UI progress updates.",
-        "operationId": "stream_assessment_processing_sse_api_aiprep_assessments__assessment_id__stream_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/assessment-types": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Admin & Catalog"
-        ],
-        "summary": "Catalog: List Assessment Types",
-        "description": "Fetches all active assessment types from the hardcoded catalog.",
-        "operationId": "list_available_assessment_types_api_aiprep_assessment_types_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentTypeListResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Admin & Catalog"
-        ],
-        "summary": "Create Assessment Type",
-        "description": "Admin endpoint to create a new assessment type in catalog.",
-        "operationId": "create_new_assessment_type_api_aiprep_assessment_types_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssessmentTypeCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentTypeResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -26961,6 +26660,335 @@
                 "schema": {
                   "$ref": "#/components/schemas/QuestionResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/media/upload-chunk": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Upload 30s WebM Chunk",
+        "description": "Uploads sequential WebM media chunk to server storage directory.",
+        "operationId": "upload_media_chunk_api_aiprep_media_upload_chunk_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_chunk_api_aiprep_media_upload_chunk_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/aiprep/media/chunk-status": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Query Chunk Upload Status",
+        "description": "Dynamically reads disk storage to check uploaded vs missing chunk numbers.",
+        "operationId": "get_chunk_upload_status_api_aiprep_media_chunk_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "total_chunks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Total Chunks"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/media/assemble": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Assemble Chunks & Process",
+        "description": "Concatenates WebM chunks and launches evaluation.",
+        "operationId": "assemble_media_chunks_api_aiprep_media_assemble_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AssembleMediaRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleMediaResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/media/upload": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Direct Single Media Upload",
+        "description": "Uploads single binary media file directly to disk storage.",
+        "operationId": "upload_raw_media_api_aiprep_media_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_raw_media_api_aiprep_media_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalMediaUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/status": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Progress: Assessment Processing Status Snapshot",
+        "description": "Returns assessment pipeline processing progress snapshot dynamically from DB.",
+        "operationId": "get_assessment_processing_status_api_aiprep_assessments__assessment_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessingStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/stream": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Progress: Real-Time SSE Status Stream",
+        "description": "Real-time SSE event stream for live UI progress updates.",
+        "operationId": "stream_assessment_processing_sse_api_aiprep_assessments__assessment_id__stream_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -27880,8 +27908,7 @@
       "put": {
         "tags": [
           "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Candidate"
+          "AI Prep Tool"
         ],
         "summary": "Candidate: Submit & Evaluate (PUT)",
         "description": "Saves telemetry if provided and transitions status to EVALUATING.",
@@ -27941,6 +27968,111 @@
             }
           }
         }
+      }
+    },
+    "/aiprep/assessment-types": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Catalog: List Assessment Types",
+        "description": "Fetches all active assessment types from the catalog.",
+        "operationId": "list_available_assessment_types_aiprep_assessment_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTypeListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Create Assessment Type",
+        "description": "Admin endpoint to create a new assessment type in catalog.",
+        "operationId": "create_new_assessment_type_aiprep_assessment_types_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentTypeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTypeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/aiprep/candidate/assessment-types": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Candidate: List Available Assessment Types",
+        "description": "Fetches all active assessment types from the catalog.",
+        "operationId": "list_available_assessment_types_aiprep_candidate_assessment_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTypeListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/aiprep/candidates/{candidate_id}/llm-keys": {
@@ -28491,237 +28623,6 @@
         }
       }
     },
-    "/aiprep/media/upload-chunk": {
-      "post": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Upload 30s WebM Chunk",
-        "description": "Uploads sequential WebM media chunk to server storage directory.",
-        "operationId": "upload_media_chunk_aiprep_media_upload_chunk_post",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_media_chunk_aiprep_media_upload_chunk_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkUploadResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/aiprep/media/chunk-status": {
-      "get": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Query Chunk Upload Status",
-        "description": "Dynamically reads disk storage to check uploaded vs missing chunk numbers.",
-        "operationId": "get_chunk_upload_status_aiprep_media_chunk_status_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          },
-          {
-            "name": "total_chunks",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Total Chunks"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/aiprep/media/assemble": {
-      "post": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Assemble Chunks & Process",
-        "description": "Concatenates WebM chunks and launches evaluation.",
-        "operationId": "assemble_media_chunks_aiprep_media_assemble_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/AssembleMediaRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssembleMediaResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/aiprep/media/upload": {
-      "post": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
-        "operationId": "upload_raw_media_aiprep_media_upload_post",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_raw_media_aiprep_media_upload_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LocalMediaUploadResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/aiprep/media/storage-info": {
       "get": {
         "tags": [
@@ -28768,180 +28669,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StorageInfoResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/aiprep/assessments/{assessment_id}/status": {
-      "get": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Progress: Assessment Processing Status Snapshot",
-        "description": "Returns assessment pipeline processing progress snapshot dynamically from DB.",
-        "operationId": "get_assessment_processing_status_aiprep_assessments__assessment_id__status_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessingStatusResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/aiprep/assessments/{assessment_id}/stream": {
-      "get": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Media & Streaming"
-        ],
-        "summary": "Progress: Real-Time SSE Status Stream",
-        "description": "Real-time SSE event stream for live UI progress updates.",
-        "operationId": "stream_assessment_processing_sse_aiprep_assessments__assessment_id__stream_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/aiprep/assessment-types": {
-      "get": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Admin & Catalog"
-        ],
-        "summary": "Catalog: List Assessment Types",
-        "description": "Fetches all active assessment types from the hardcoded catalog.",
-        "operationId": "list_available_assessment_types_aiprep_assessment_types_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentTypeListResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "AI Prep Tool Alias",
-          "AI Prep Tool",
-          "AI Prep - Admin & Catalog"
-        ],
-        "summary": "Create Assessment Type",
-        "description": "Admin endpoint to create a new assessment type in catalog.",
-        "operationId": "create_new_assessment_type_aiprep_assessment_types_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssessmentTypeCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentTypeResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -29315,6 +29042,335 @@
                 "schema": {
                   "$ref": "#/components/schemas/QuestionResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/media/upload-chunk": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Upload 30s WebM Chunk",
+        "description": "Uploads sequential WebM media chunk to server storage directory.",
+        "operationId": "upload_media_chunk_aiprep_media_upload_chunk_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_media_chunk_aiprep_media_upload_chunk_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/aiprep/media/chunk-status": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Query Chunk Upload Status",
+        "description": "Dynamically reads disk storage to check uploaded vs missing chunk numbers.",
+        "operationId": "get_chunk_upload_status_aiprep_media_chunk_status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "total_chunks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Total Chunks"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/media/assemble": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Assemble Chunks & Process",
+        "description": "Concatenates WebM chunks and launches evaluation.",
+        "operationId": "assemble_media_chunks_aiprep_media_assemble_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AssembleMediaRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleMediaResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/media/upload": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Media: Direct Single Media Upload",
+        "description": "Uploads single binary media file directly to disk storage.",
+        "operationId": "upload_raw_media_aiprep_media_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_raw_media_aiprep_media_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalMediaUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/aiprep/assessments/{assessment_id}/status": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Progress: Assessment Processing Status Snapshot",
+        "description": "Returns assessment pipeline processing progress snapshot dynamically from DB.",
+        "operationId": "get_assessment_processing_status_aiprep_assessments__assessment_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessingStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/assessments/{assessment_id}/stream": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Progress: Real-Time SSE Status Stream",
+        "description": "Real-time SSE event stream for live UI progress updates.",
+        "operationId": "stream_assessment_processing_sse_aiprep_assessments__assessment_id__stream_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -51007,8 +51063,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               }
             ],
             "title": "Amount"
@@ -51034,7 +51089,6 @@
           },
           "amount": {
             "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)",
             "title": "Amount"
           },
           "id": {
@@ -51143,8 +51197,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               }
             ],
             "title": "Installment Amount"
@@ -51191,7 +51244,6 @@
           },
           "installment_amount": {
             "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)",
             "title": "Installment Amount"
           },
           "scheduled_date": {
@@ -51241,8 +51293,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -51284,8 +51335,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -51343,8 +51393,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -51448,8 +51497,7 @@
           "deposit_amount": {
             "anyOf": [
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -51571,8 +51619,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+                "type": "string"
               },
               {
                 "type": "null"
