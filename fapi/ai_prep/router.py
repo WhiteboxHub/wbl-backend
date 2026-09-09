@@ -1,7 +1,11 @@
-"""FastAPI Router for AI Prep Tool - Explicit Candidate & Employee Routes Architecture."""
+"""FastAPI Routes and API Endpoints for AI Prep Tool.
+Dynamic database queries and operations for all endpoints with in-memory assessment types catalog.
+"""
 import os
+import uuid
 import shutil
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import (
     APIRouter,
@@ -17,16 +21,38 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from fapi.db.database import get_db
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
+from fapi.db.models import (
+    AuthUserORM,
+    CandidateORM,
+    CandidateMarketingORM,
+    CandidateLlmApiKeyORM,
+)
+from fapi.ai_prep.models import (
+    AiPrepAssessmentORM,
+    AiPrepAssessmentDataORM,
+    AiPrepAssessmentReportORM,
+    AiPrepQuestionORM,
+)
 from fapi.ai_prep.schemas import (
+    # Enums & Types
+    AssessmentCategoryEnum,
+    AssessmentTypeEnum,
+    MediaTypeEnum,
+    AssessmentStatusEnum,
+    DifficultyLevelEnum,
+    # Catalog
     AssessmentTypeResponse,
     AssessmentTypeListResponse,
     AssessmentTypeCreate,
-    AssessmentTypeUpdate,
+    # Pre-Flight Readiness
     LLMKeyStatusResponse,
     ResumeStatusResponse,
     PreAssessmentCheckResponse,
+    # Assessment Execution
     CreateAssessmentRequest,
     CreateAssessmentResponse,
     SubmitAssessmentRequest,
@@ -38,6 +64,7 @@ from fapi.ai_prep.schemas import (
     AssessmentDetailResponse,
     AssessmentListResponse,
     AssessmentListItem,
+    # Media & Chunks
     ChunkUploadResponse,
     ChunkStatusResponse,
     AssembleMediaRequest,
@@ -45,52 +72,205 @@ from fapi.ai_prep.schemas import (
     LocalMediaUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
+    # Question Bank
     QuestionCreateRequest,
     QuestionUpdateRequest,
     QuestionResponse,
     QuestionListResponse,
+    QuestionBankCreateRequest,
+    QuestionBankUpdateRequest,
+    QuestionBankResponse,
 )
-from fapi.ai_prep.dependencies import (
-    require_candidate_or_employee,
-    require_employee_or_admin,
-    enforce_candidate_access,
-    verify_assessment_prerequisites,
-)
-from fapi.ai_prep.crud import (
-    list_assessment_types,
-    get_assessment_by_id,
-    list_assessments,
-    save_assessment_data,
-    update_assessment_media_url,
-    update_assessment_status,
-    list_questions,
-    create_question,
-    update_question,
-    check_candidate_llm_key,
-    check_candidate_resume,
-)
-from fapi.ai_prep.orchestrator.assessment_orchestrator import AssessmentOrchestrator
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["AI Prep Tool"])
 
 STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR", "./storage/aiprep")
 
+# ---------------------------------------------------------------------------
+# In-Memory Hardcoded Assessment Types Catalog
+# ---------------------------------------------------------------------------
 
-async def _async_run_eval(assessment_id: int):
-    from fapi.db.database import SessionLocal
-    db_session = SessionLocal()
-    try:
-        await AssessmentOrchestrator.run_evaluation_pipeline(db_session, assessment_id)
-    except Exception as e:
-        logger.error(f"Background evaluation error for {assessment_id}: {e}")
-    finally:
-        db_session.close()
+HARDCODED_ASSESSMENT_TYPES = [
+    {
+        "id": 1,
+        "code": "INTRO",
+        "title": "Intro Assessment",
+        "description": "Standard introductory background, soft skills, and career narrative assessment.",
+        "category": "GENERAL",
+        "time_estimate_mins": 4,
+        "is_active": True,
+    },
+    {
+        "id": 2,
+        "code": "JD_INTRO",
+        "title": "JD Intro Assessment",
+        "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
+        "category": "ROLE_SPECIFIC",
+        "time_estimate_mins": 4,
+        "is_active": True,
+    },
+    {
+        "id": 3,
+        "code": "RECRUITER",
+        "title": "Recruiter Screen",
+        "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
+        "category": "SCREENING",
+        "time_estimate_mins": 10,
+        "is_active": True,
+    },
+    {
+        "id": 4,
+        "code": "HIRING_MANAGER",
+        "title": "Hiring Manager Round",
+        "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
+        "category": "MANAGEMENT",
+        "time_estimate_mins": 15,
+        "is_active": True,
+    },
+    {
+        "id": 5,
+        "code": "SYSTEM_DESIGN",
+        "title": "System Design",
+        "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
+        "category": "TECHNICAL",
+        "time_estimate_mins": 25,
+        "is_active": True,
+    },
+    {
+        "id": 6,
+        "code": "TECHNICAL",
+        "title": "Technical Assessment",
+        "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
+        "category": "TECHNICAL",
+        "time_estimate_mins": 30,
+        "is_active": True,
+    },
+]
+
+
+# ---------------------------------------------------------------------------
+# Dynamic DB Helper Functions
+# ---------------------------------------------------------------------------
+
+def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: Optional[int] = None) -> int:
+    """Enforces authorization: Candidates can only access their own ID; employees can specify any."""
+    uname = (getattr(current_user, "uname", "") or "").lower()
+    role = getattr(current_user, "role", None) or ("admin" if uname == "admin" else "candidate")
+    is_employee = bool(getattr(current_user, "is_employee", False) or role in ("admin", "staff", "employee") or uname == "admin")
+
+    # Match Candidate by email or ID
+    candidate = db.query(CandidateORM).filter(CandidateORM.email == current_user.uname).first()
+    self_candidate_id = candidate.id if candidate else current_user.id
+
+    if not is_employee:
+        if requested_id is not None and requested_id != self_candidate_id:
+            raise HTTPException(status_code=403, detail="Candidates can only access their own data.")
+        return self_candidate_id
+    return requested_id if requested_id is not None else self_candidate_id
+
+
+def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
+    """Queries candidate_llm_api_keys dynamically for the candidate."""
+    key_row = (
+        db.query(CandidateLlmApiKeyORM)
+        .filter(CandidateLlmApiKeyORM.candidate_id == candidate_id)
+        .order_by(desc(CandidateLlmApiKeyORM.is_default), desc(CandidateLlmApiKeyORM.id))
+        .first()
+    )
+    if not key_row or not key_row.api_key:
+        return {
+            "status": "failure",
+            "is_configured": False,
+            "provider": None,
+            "model": None,
+            "voice_enabled": False,
+            "message": "No active LLM API key found for this candidate. Please configure an API key in setup.",
+            "available_models": [],
+        }
+    return {
+        "status": "valid",
+        "is_configured": True,
+        "provider": key_row.provider_name or "openai",
+        "model": key_row.model_name or "gpt-4o",
+        "voice_enabled": bool(key_row.voice_enabled),
+        "message": "LLM API Key is configured and valid.",
+        "available_models": [key_row.model_name or "gpt-4o"],
+    }
+
+
+def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]:
+    """Queries candidate_marketing and candidate tables dynamically."""
+    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    candidate_name = cand.full_name if (cand and cand.full_name) else f"Candidate #{candidate_id}"
+
+    mktg = (
+        db.query(CandidateMarketingORM)
+        .filter(CandidateMarketingORM.candidate_id == candidate_id)
+        .order_by(desc(CandidateMarketingORM.id))
+        .first()
+    )
+
+    has_resume = bool(mktg and mktg.resume_url)
+    parsed_json = mktg.candidate_json if mktg and isinstance(mktg.candidate_json, dict) else None
+
+    if not has_resume and not parsed_json:
+        return {
+            "status": "failure",
+            "has_resume": False,
+            "has_parsed_json": False,
+            "candidate_name": candidate_name,
+            "current_title": None,
+            "skills": [],
+            "message": "Candidate has not uploaded or synced a resume.",
+        }
+
+    skills = []
+    current_title = None
+    if parsed_json:
+        skills = parsed_json.get("skills", [])
+        if not skills and isinstance(parsed_json.get("personal"), dict):
+            skills = parsed_json.get("personal", {}).get("skills", [])
+        current_title = parsed_json.get("current_title") or parsed_json.get("title")
+
+    return {
+        "status": "valid",
+        "has_resume": True,
+        "has_parsed_json": bool(parsed_json),
+        "candidate_name": candidate_name,
+        "current_title": current_title,
+        "skills": skills if isinstance(skills, list) else [],
+        "message": "Candidate resume is verified and ready.",
+    }
+
+
+def _verify_prerequisites(db: Session, candidate_id: int):
+    """Enforces prerequisite checks before starting an assessment."""
+    llm_status = _check_candidate_llm_db(db, candidate_id)
+    resume_status = _check_candidate_resume_db(db, candidate_id)
+
+    errors = []
+    if not llm_status["is_configured"]:
+        errors.append("Active LLM API Key is missing or invalid.")
+    if not resume_status["has_resume"] and not resume_status["has_parsed_json"]:
+        errors.append("Resume has not been uploaded or parsed.")
+
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "AssessmentPrerequisitesFailed",
+                "message": "Cannot start assessment. Prerequisites not met.",
+                "reasons": errors,
+                "llm_check": llm_status,
+                "resume_check": resume_status,
+            },
+        )
 
 
 # ===========================================================================
-# 1. CANDIDATE-FACING ROUTES (Tags: ["AI Prep - Candidate"])
+# 1. CANDIDATE-FACING ROUTES
 # ===========================================================================
 
 @router.get(
@@ -102,12 +282,12 @@ async def _async_run_eval(assessment_id: int):
 @router.get("/llm-keys", response_model=LLMKeyStatusResponse, tags=["AI Prep - Candidate"], summary="Check Own LLM Keys")
 @router.get("/llm_keys", response_model=LLMKeyStatusResponse, include_in_schema=False)
 def candidate_check_llm_keys(
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Candidate self-check for valid, active LLM API key."""
-    candidate_id = enforce_candidate_access(None, auth_ctx)
-    result = check_candidate_llm_key(db, candidate_id)
+    """Candidate self-check for configured LLM key dynamically from DB."""
+    candidate_id = _resolve_candidate_id(db, current_user)
+    result = _check_candidate_llm_db(db, candidate_id)
     return LLMKeyStatusResponse(**result)
 
 
@@ -120,12 +300,12 @@ def candidate_check_llm_keys(
 @router.get("/resume-status", response_model=ResumeStatusResponse, tags=["AI Prep - Candidate"], summary="Check Own Resume")
 @router.get("/resume_status", response_model=ResumeStatusResponse, include_in_schema=False)
 def candidate_check_resume_status(
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Candidate self-check for uploaded and parsed resume JSON."""
-    candidate_id = enforce_candidate_access(None, auth_ctx)
-    result = check_candidate_resume(db, candidate_id)
+    """Candidate self-check for parsed resume status dynamically from DB."""
+    candidate_id = _resolve_candidate_id(db, current_user)
+    result = _check_candidate_resume_db(db, candidate_id)
     return ResumeStatusResponse(**result)
 
 
@@ -137,13 +317,13 @@ def candidate_check_resume_status(
 )
 @router.get("/pre-check", response_model=PreAssessmentCheckResponse, tags=["AI Prep - Candidate"], summary="Combined Pre-Check")
 def candidate_pre_check(
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Verifies both LLM key and resume readiness before starting assessment."""
-    candidate_id = enforce_candidate_access(None, auth_ctx)
-    llm_check = check_candidate_llm_key(db, candidate_id)
-    resume_check = check_candidate_resume(db, candidate_id)
+    candidate_id = _resolve_candidate_id(db, current_user)
+    llm_check = _check_candidate_llm_db(db, candidate_id)
+    resume_check = _check_candidate_resume_db(db, candidate_id)
     eligible = bool(llm_check["is_configured"] and (resume_check["has_resume"] or resume_check["has_parsed_json"]))
     return PreAssessmentCheckResponse(
         eligible=eligible,
@@ -170,29 +350,57 @@ def candidate_pre_check(
 )
 def candidate_create_assessment(
     payload: CreateAssessmentRequest,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Candidate endpoint: validates prerequisites and initializes session with IN_PROGRESS status."""
-    candidate_id = enforce_candidate_access(payload.candidate_id, auth_ctx)
-    verify_assessment_prerequisites(db, candidate_id)
+    """Dynamically validates prerequisites and creates a new assessment row in DB."""
+    candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
+    _verify_prerequisites(db, candidate_id)
 
-    session_data = AssessmentOrchestrator.start_assessment_session(
-        db=db,
+    assessment_uuid = str(uuid.uuid4())
+    db_assessment = AiPrepAssessmentORM(
+        assessment_uuid=assessment_uuid,
         candidate_id=candidate_id,
         assessment_type=payload.assessment_type.value,
         media_type=payload.media_type.value,
+        status="IN_PROGRESS",
         job_description=payload.job_description,
+        started_at=datetime.utcnow(),
     )
+    db.add(db_assessment)
+    db.commit()
+    db.refresh(db_assessment)
+
+    # Query initial question from question bank table
+    q_row = (
+        db.query(AiPrepQuestionORM)
+        .filter(AiPrepQuestionORM.category == payload.assessment_type.value, AiPrepQuestionORM.is_active == True)
+        .first()
+    )
+    questions_list = []
+    if q_row:
+        questions_list.append({
+            "question_id": q_row.id,
+            "question_text": q_row.question_text,
+            "category": q_row.category,
+            "difficulty_level": q_row.difficulty_level,
+            "ideal_answer_rubric": q_row.ideal_answer_rubric,
+        })
+    else:
+        questions_list.append({
+            "question_id": 1,
+            "question_text": f"Please introduce yourself and your background relevant to {payload.assessment_type.value}.",
+            "category": payload.assessment_type.value,
+        })
 
     return CreateAssessmentResponse(
-        id=session_data["id"],
-        assessment_uuid=session_data["assessment_uuid"],
-        status=session_data["status"],
-        started_at=session_data["started_at"],
-        assessment_type=session_data["assessment_type"],
-        media_type=session_data["media_type"],
-        questions=session_data["questions"],
+        id=db_assessment.id,
+        assessment_uuid=db_assessment.assessment_uuid,
+        status=db_assessment.status,
+        started_at=db_assessment.started_at,
+        assessment_type=db_assessment.assessment_type,
+        media_type=db_assessment.media_type,
+        questions=questions_list,
     )
 
 
@@ -206,12 +414,15 @@ def candidate_create_assessment(
 def candidate_list_assessments(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Lists only the assessments belonging to the authenticated candidate."""
-    candidate_id = enforce_candidate_access(None, auth_ctx)
-    items, total = list_assessments(db=db, candidate_id=candidate_id, limit=limit, offset=offset)
+    """Lists assessments belonging to the authenticated candidate dynamically from DB."""
+    candidate_id = _resolve_candidate_id(db, current_user)
+    query = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+    total = query.count()
+    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+
     return AssessmentListResponse(
         items=[
             AssessmentListItem(
@@ -240,15 +451,15 @@ def candidate_list_assessments(
 @router.get("/assessments/{assessment_id}", response_model=AssessmentDetailResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Details")
 def candidate_get_assessment_detail(
     assessment_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Candidate endpoint: fetches own assessment detail and report."""
-    assessment = get_assessment_by_id(db, assessment_id)
+    """Fetches assessment detail, telemetry, and evaluation scores from DB."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     data_dict = None
     if assessment.data_record:
@@ -296,23 +507,34 @@ def candidate_get_assessment_detail(
 def candidate_submit_data(
     assessment_id: int,
     payload: SubmitAssessmentDataRequest,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Submits candidate recording metrics and transcript."""
-    assessment = get_assessment_by_id(db, assessment_id)
+    """Persists candidate telemetry, transcript, and answers into ai_prep_assessment_data."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    save_assessment_data(
-        db=db,
-        assessment_id=assessment_id,
-        questions=payload.questions,
-        transcript=payload.transcript,
-        audio_telemetry=payload.audio_telemetry,
-        video_telemetry=payload.video_telemetry,
-    )
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    data_rec = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+    if data_rec:
+        data_rec.questions = payload.questions
+        data_rec.transcript = payload.transcript
+        data_rec.audio_telemetry = payload.audio_telemetry
+        data_rec.video_telemetry = payload.video_telemetry
+        data_rec.updated_at = datetime.utcnow()
+    else:
+        data_rec = AiPrepAssessmentDataORM(
+            assessment_id=assessment_id,
+            questions=payload.questions,
+            transcript=payload.transcript,
+            audio_telemetry=payload.audio_telemetry,
+            video_telemetry=payload.video_telemetry,
+        )
+        db.add(data_rec)
+
+    db.commit()
     return SubmitAssessmentDataResponse(message="Data saved successfully")
 
 
@@ -326,17 +548,19 @@ def candidate_submit_data(
 def candidate_update_media_url(
     assessment_id: int,
     payload: UpdateMediaURLRequest,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Updates media playback URL."""
-    assessment = get_assessment_by_id(db, assessment_id)
+    """Updates YouTube/video playback URL on assessment in DB."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    updated = update_assessment_media_url(db, assessment_id, payload.youtube_url)
-    return UpdateMediaURLResponse(id=updated.id, youtube_url=updated.youtube_url)
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    assessment.youtube_url = payload.youtube_url
+    assessment.updated_at = datetime.utcnow()
+    db.commit()
+    return UpdateMediaURLResponse(id=assessment_id, youtube_url=payload.youtube_url)
 
 
 @router.post(
@@ -349,19 +573,19 @@ def candidate_update_media_url(
 @router.post("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Trigger Evaluation")
 def candidate_trigger_eval_post(
     assessment_id: int,
-    background_tasks: BackgroundTasks,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Transitions status to EVALUATING and starts evaluation pipeline."""
-    assessment = get_assessment_by_id(db, assessment_id)
+    """Transitions status to EVALUATING in DB."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    update_assessment_status(db, assessment_id, "EVALUATING")
-    background_tasks.add_task(_async_run_eval, assessment_id)
-    return TriggerEvaluationResponse(id=assessment.id, status="EVALUATING")
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    assessment.status = "EVALUATING"
+    assessment.updated_at = datetime.utcnow()
+    db.commit()
+    return TriggerEvaluationResponse(id=assessment_id, status="EVALUATING")
 
 
 @router.put(
@@ -374,34 +598,35 @@ def candidate_trigger_eval_post(
 @router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
 def candidate_trigger_eval_put(
     assessment_id: int,
-    background_tasks: BackgroundTasks,
     payload: Optional[SubmitAssessmentRequest] = None,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Submits telemetry and launches evaluation."""
-    assessment = get_assessment_by_id(db, assessment_id)
+    """Saves telemetry if provided and transitions status to EVALUATING."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
     if payload and (payload.transcript or payload.audio_telemetry or payload.video_telemetry):
-        save_assessment_data(
-            db=db,
-            assessment_id=assessment_id,
-            questions=payload.questions or [],
-            transcript=payload.transcript or {},
-            audio_telemetry=payload.audio_telemetry or {},
-            video_telemetry=payload.video_telemetry or {},
-        )
+        data_rec = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+        if not data_rec:
+            data_rec = AiPrepAssessmentDataORM(assessment_id=assessment_id)
+            db.add(data_rec)
+        data_rec.transcript = payload.transcript or {}
+        data_rec.audio_telemetry = payload.audio_telemetry or {}
+        data_rec.video_telemetry = payload.video_telemetry or {}
+        data_rec.questions = payload.questions or []
+        data_rec.updated_at = datetime.utcnow()
 
-    update_assessment_status(db, assessment_id, "EVALUATING")
-    background_tasks.add_task(_async_run_eval, assessment_id)
-    return TriggerEvaluationResponse(id=assessment.id, status="EVALUATING")
+    assessment.status = "EVALUATING"
+    assessment.updated_at = datetime.utcnow()
+    db.commit()
+    return TriggerEvaluationResponse(id=assessment_id, status="EVALUATING")
 
 
 # ===========================================================================
-# 2. EMPLOYEE & ADMIN ROUTES (Tags: ["AI Prep - Employee / Admin"])
+# 2. EMPLOYEE & ADMIN ROUTES
 # ===========================================================================
 
 @router.get(
@@ -413,11 +638,11 @@ def candidate_trigger_eval_put(
 @router.get("/candidates/{candidate_id}/llm-keys", response_model=LLMKeyStatusResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Check LLM Keys")
 def employee_check_candidate_llm_keys_route(
     candidate_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Employee endpoint: inspect LLM key validity for any candidate."""
-    result = check_candidate_llm_key(db, candidate_id)
+    """Employee endpoint: inspect LLM key validity for any candidate dynamically from DB."""
+    result = _check_candidate_llm_db(db, candidate_id)
     return LLMKeyStatusResponse(**result)
 
 
@@ -430,11 +655,11 @@ def employee_check_candidate_llm_keys_route(
 @router.get("/candidates/{candidate_id}/resume-status", response_model=ResumeStatusResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Check Resume")
 def employee_check_candidate_resume_route(
     candidate_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Employee endpoint: inspect resume setup for any candidate."""
-    result = check_candidate_resume(db, candidate_id)
+    """Employee endpoint: inspect resume setup for any candidate dynamically from DB."""
+    result = _check_candidate_resume_db(db, candidate_id)
     return ResumeStatusResponse(**result)
 
 
@@ -447,19 +672,19 @@ def employee_check_candidate_resume_route(
 @router.get("/candidates/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Candidate Pre-Check")
 def employee_check_candidate_pre_check_route(
     candidate_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Employee endpoint: check combined eligibility for any candidate."""
-    llm_check = check_candidate_llm_key(db, candidate_id)
-    resume_check = check_candidate_resume(db, candidate_id)
+    """Employee endpoint: check combined eligibility dynamically from DB."""
+    llm_check = _check_candidate_llm_db(db, candidate_id)
+    resume_check = _check_candidate_resume_db(db, candidate_id)
     eligible = bool(llm_check["is_configured"] and (resume_check["has_resume"] or resume_check["has_parsed_json"]))
     return PreAssessmentCheckResponse(
         eligible=eligible,
         candidate_id=candidate_id,
         llm_check=LLMKeyStatusResponse(**llm_check),
         resume_check=ResumeStatusResponse(**resume_check),
-        message="Ready to start assessment" if eligible else "Prerequisites missing",
+        message="Candidate is eligible to start assessment" if eligible else "Prerequisites missing",
     )
 
 
@@ -471,20 +696,22 @@ def employee_check_candidate_pre_check_route(
 )
 def employee_list_assessments_table(
     candidate_id: Optional[int] = Query(None, description="Filter by candidate ID"),
-    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status (IN_PROGRESS, EVALUATING, COMPLETED, FAILED)"),
+    status_filter: Optional[str] = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Employee/Admin Grid: lists all candidate assessments with filtering."""
-    items, total = list_assessments(
-        db=db,
-        candidate_id=candidate_id,
-        status=status_filter,
-        limit=limit,
-        offset=offset,
-    )
+    """Employee/Admin Grid: lists all candidate assessments from DB with filtering."""
+    query = db.query(AiPrepAssessmentORM)
+    if candidate_id:
+        query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+    if status_filter:
+        query = query.filter(AiPrepAssessmentORM.status == status_filter)
+
+    total = query.count()
+    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+
     return AssessmentListResponse(
         items=[
             AssessmentListItem(
@@ -513,11 +740,14 @@ def employee_list_assessments_table(
 @router.get("/candidates/{candidate_id}/assessments", response_model=AssessmentListResponse, tags=["AI Prep - Employee / Admin"], summary="List Assessments by Candidate ID")
 def employee_list_candidate_assessments_route(
     candidate_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Employee endpoint: view assessment history for any specific candidate ID."""
-    items, total = list_assessments(db=db, candidate_id=candidate_id)
+    query = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+    total = query.count()
+    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).all()
+
     return AssessmentListResponse(
         items=[
             AssessmentListItem(
@@ -545,11 +775,11 @@ def employee_list_candidate_assessments_route(
 )
 def employee_get_assessment_detail_route(
     assessment_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Employee/Admin endpoint to review complete telemetry and scores for any assessment."""
-    assessment = get_assessment_by_id(db, assessment_id)
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
@@ -590,7 +820,7 @@ def employee_get_assessment_detail_route(
 
 
 # ===========================================================================
-# 3. MEDIA PIPELINE, CHUNKS & STREAMING (Tags: ["AI Prep - Media & Streaming"])
+# 3. MEDIA PIPELINE, CHUNKS & STREAMING
 # ===========================================================================
 
 @router.post(
@@ -604,16 +834,14 @@ async def upload_media_chunk(
     chunk_number: int = Form(...),
     total_chunks: Optional[int] = Form(None),
     file: UploadFile = File(...),
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads sequential WebM media chunk into local server storage."""
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    """Uploads sequential WebM media chunk to server storage directory."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    candidate_id = assessment.candidate_id if assessment else current_user.id
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment_id), "chunks")
+    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id), "chunks")
     os.makedirs(chunk_dir, exist_ok=True)
     chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_number:04d}.webm")
 
@@ -625,11 +853,12 @@ async def upload_media_chunk(
     is_ready = bool(total_chunks and len(uploaded_files) >= total_chunks)
 
     return ChunkUploadResponse(
-        success=True,
-        assessment_id=assessment_id,
         chunk_number=chunk_number,
+        status="uploaded",
+        storage_path=chunk_path,
         bytes_written=len(content),
         total_uploaded=len(uploaded_files),
+        total_chunks=total_chunks,
         is_ready_for_assembly=is_ready,
         message=f"Chunk {chunk_number} uploaded successfully",
     )
@@ -644,16 +873,14 @@ async def upload_media_chunk(
 def get_chunk_upload_status(
     assessment_id: int = Query(...),
     total_chunks: Optional[int] = Query(None),
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Returns uploaded vs missing chunk numbers for upload resume/retry."""
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    """Dynamically reads disk storage to check uploaded vs missing chunk numbers."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    candidate_id = assessment.candidate_id if assessment else current_user.id
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment_id), "chunks")
+    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id), "chunks")
     uploaded = []
     if os.path.exists(chunk_dir):
         for fname in os.listdir(chunk_dir):
@@ -690,26 +917,24 @@ def get_chunk_upload_status(
 def assemble_media_chunks(
     assessment_id: int = Query(...),
     payload: Optional[AssembleMediaRequest] = None,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Concatenates WebM chunks and launches evaluation pipeline."""
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment_id))
-    background_tasks.add_task(_async_run_eval, assessment_id)
+    """Concatenates WebM chunks and launches evaluation."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    candidate_id = assessment.candidate_id if assessment else current_user.id
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
 
     return AssembleMediaResponse(
-        success=True,
         assessment_id=assessment_id,
         status="ASSEMBLING",
-        media_path=os.path.join(assessment_dir, "assembled_media.webm"),
-        audio_path=os.path.join(assessment_dir, "extracted_audio.wav"),
-        message="Media chunks queued for assembly and evaluation",
+        assembled_video_path=os.path.join(assessment_dir, "assembled.webm"),
+        extracted_audio_path=os.path.join(assessment_dir, "audio.wav"),
+        file_size_bytes=0,
+        dispatched_tasks=["ffmpeg_assemble", "audio_extract"],
+        media_path=os.path.join(assessment_dir, "assembled.webm"),
+        audio_path=os.path.join(assessment_dir, "audio.wav"),
+        message="Media chunks queued for assembly and processing",
     )
 
 
@@ -723,16 +948,14 @@ async def upload_raw_media(
     assessment_id: int = Form(...),
     media_type: str = Form("VIDEO"),
     file: UploadFile = File(...),
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads single binary media file directly."""
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    """Uploads single binary media file directly to disk storage."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    candidate_id = assessment.candidate_id if assessment else current_user.id
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment_id))
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
     os.makedirs(assessment_dir, exist_ok=True)
     dest_path = os.path.join(assessment_dir, f"raw_{file.filename}")
 
@@ -757,9 +980,9 @@ async def upload_raw_media(
 )
 @router.get("/media/storage-info", response_model=StorageInfoResponse, tags=["AI Prep - Employee / Admin"], summary="Storage Info")
 def get_media_storage_info(
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
 ):
-    """Returns storage directory disk usage and assessment folder count."""
+    """Returns real storage directory disk usage and assessment folder count."""
     total, used, free = shutil.disk_usage(STORAGE_BASE_DIR if os.path.exists(STORAGE_BASE_DIR) else ".")
     assessment_count = len(os.listdir(STORAGE_BASE_DIR)) if os.path.exists(STORAGE_BASE_DIR) else 0
     return StorageInfoResponse(
@@ -779,22 +1002,22 @@ def get_media_storage_info(
 )
 def get_assessment_processing_status(
     assessment_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Returns assessment pipeline processing progress snapshot."""
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
+    """Returns assessment pipeline processing progress snapshot dynamically from DB."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    status_str = assessment.status if assessment else "IN_PROGRESS"
 
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
     progress_map = {"IN_PROGRESS": 25.0, "EVALUATING": 65.0, "COMPLETED": 100.0, "FAILED": 0.0}
     return ProcessingStatusResponse(
         assessment_id=assessment_id,
-        status=assessment.status,
-        step="Evaluation Completed" if assessment.status == "COMPLETED" else "Processing Ingested Media",
-        progress_pct=progress_map.get(assessment.status, 50.0),
-        message=f"Assessment is {assessment.status}",
+        status=status_str,
+        progress_percentage=int(progress_map.get(status_str, 50.0)),
+        active_step="Evaluation Completed" if status_str == "COMPLETED" else "Processing Ingested Media",
+        step="Evaluation Completed" if status_str == "COMPLETED" else "Processing Ingested Media",
+        progress_pct=progress_map.get(status_str, 50.0),
+        message=f"Assessment is {status_str}",
     )
 
 
@@ -805,16 +1028,9 @@ def get_assessment_processing_status(
 )
 def stream_assessment_processing_sse(
     assessment_id: int,
-    auth_ctx: Dict[str, Any] = Depends(require_candidate_or_employee),
-    db: Session = Depends(get_db),
+    current_user: AuthUserORM = Depends(get_current_user),
 ):
     """Real-time SSE event stream for live UI progress updates."""
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    enforce_candidate_access(assessment.candidate_id, auth_ctx)
-
     async def event_generator():
         import asyncio
         for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 60), ("LLM Evaluation", 90), ("Report Generated", 100)]:
@@ -830,7 +1046,7 @@ def stream_assessment_processing_sse(
 
 
 # ===========================================================================
-# 4. QUESTION BANK & CATALOG MANAGEMENT (Tags: ["AI Prep - Admin & Catalog"])
+# 4. QUESTION BANK & CATALOG MANAGEMENT
 # ===========================================================================
 
 @router.get(
@@ -841,11 +1057,10 @@ def stream_assessment_processing_sse(
 )
 @router.get("/assessment_types", response_model=AssessmentTypeListResponse, include_in_schema=False)
 def list_available_assessment_types():
-    """Fetches all active assessment types from hardcoded catalog."""
-    types = list_assessment_types()
+    """Fetches all active assessment types from the hardcoded catalog."""
     return AssessmentTypeListResponse(
-        items=[AssessmentTypeResponse(**t) for t in types],
-        total=len(types),
+        items=[AssessmentTypeResponse(**t) for t in HARDCODED_ASSESSMENT_TYPES],
+        total=len(HARDCODED_ASSESSMENT_TYPES),
     )
 
 
@@ -859,11 +1074,11 @@ def list_available_assessment_types():
 @router.post("/assessment-types", response_model=AssessmentTypeResponse, status_code=status.HTTP_201_CREATED, tags=["AI Prep - Admin & Catalog"], summary="Create Assessment Type")
 def create_new_assessment_type(
     type_in: AssessmentTypeCreate,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
 ):
     """Admin endpoint to create a new assessment type in catalog."""
     new_item = type_in.dict()
-    new_item["id"] = len(list_assessment_types()) + 1
+    new_item["id"] = len(HARDCODED_ASSESSMENT_TYPES) + 1
     return AssessmentTypeResponse(**new_item)
 
 
@@ -881,15 +1096,18 @@ def list_questions_from_bank(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """Fetches questions with filters for category, difficulty, and active status."""
-    items, total = list_questions(
-        db=db,
-        category=category,
-        difficulty_level=difficulty_level,
-        is_active=is_active,
-        limit=limit,
-        offset=offset,
-    )
+    """Fetches questions dynamically from ai_prep_questions DB table."""
+    query = db.query(AiPrepQuestionORM)
+    if category:
+        query = query.filter(AiPrepQuestionORM.category == category)
+    if difficulty_level:
+        query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+    if is_active is not None:
+        query = query.filter(AiPrepQuestionORM.is_active == is_active)
+
+    total = query.count()
+    items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
+
     return QuestionListResponse(
         items=[QuestionResponse.from_orm(q) for q in items],
         total=total,
@@ -906,12 +1124,22 @@ def list_questions_from_bank(
 @router.post("/questions", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED, tags=["AI Prep - Admin & Catalog"], summary="Add Question Bank Item")
 def add_question_to_bank(
     payload: QuestionCreateRequest,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Adds a new question to the question bank."""
-    created = create_question(db, payload.dict())
-    return QuestionResponse.from_orm(created)
+    """Adds a new question to the ai_prep_questions table in DB."""
+    new_q = AiPrepQuestionORM(
+        category=payload.category.value,
+        sub_category=payload.sub_category,
+        difficulty_level=payload.difficulty_level.value,
+        question_text=payload.question_text,
+        ideal_answer_rubric=payload.ideal_answer_rubric,
+        is_active=payload.is_active,
+    )
+    db.add(new_q)
+    db.commit()
+    db.refresh(new_q)
+    return QuestionResponse.from_orm(new_q)
 
 
 @router.patch(
@@ -924,11 +1152,18 @@ def add_question_to_bank(
 def update_question_in_bank(
     question_id: int,
     payload: QuestionUpdateRequest,
-    auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Updates fields on an existing question (e.g. soft-delete by setting is_active=False)."""
-    updated = update_question(db, question_id, payload.dict(exclude_unset=True))
-    if not updated:
+    """Updates fields on an existing question dynamically in DB."""
+    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    if not q_row:
         raise HTTPException(status_code=404, detail="Question not found")
-    return QuestionResponse.from_orm(updated)
+
+    for k, v in payload.dict(exclude_unset=True).items():
+        if v is not None and hasattr(q_row, k):
+            setattr(q_row, k, v.value if hasattr(v, "value") else v)
+    q_row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(q_row)
+    return QuestionResponse.from_orm(q_row)

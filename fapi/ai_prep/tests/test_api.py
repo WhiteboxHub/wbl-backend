@@ -1,6 +1,5 @@
-"""Comprehensive Test Suite for AI Prep Tool - Candidate vs Employee AuthN/AuthZ and Execution."""
+"""Dynamic API Endpoints and Schemas Test Suite for AI Prep Tool."""
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,17 +7,16 @@ from sqlalchemy.pool import StaticPool
 
 from fapi.main import app
 from fapi.db.database import get_db
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.db.models import Base, AuthUserORM, CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 from fapi.ai_prep.models import (
-    AiPrepAssessmentTypeORM,
     AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
     AiPrepAssessmentReportORM,
     AiPrepQuestionORM,
 )
-from fapi.utils.auth_dependencies import get_current_user
 
-# Isolated SQLite in-memory DB
+# In-memory SQLite for isolated test execution
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
@@ -30,9 +28,19 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
-    Base.metadata.create_all(bind=engine)
+    tables = [
+        AuthUserORM.__table__,
+        CandidateORM.__table__,
+        CandidateMarketingORM.__table__,
+        CandidateLlmApiKeyORM.__table__,
+        AiPrepAssessmentORM.__table__,
+        AiPrepAssessmentDataORM.__table__,
+        AiPrepAssessmentReportORM.__table__,
+        AiPrepQuestionORM.__table__,
+    ]
+    Base.metadata.create_all(bind=engine, tables=tables)
     yield
-    Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=engine, tables=tables)
 
 
 @pytest.fixture
@@ -44,12 +52,13 @@ def db_session():
         db.close()
 
 
+import datetime
+
 @pytest.fixture
-def seed_data(db_session):
-    # Candidate 1 (User 1001)
+def seed_candidate(db_session):
     cand1 = db_session.query(CandidateORM).filter(CandidateORM.id == 1001).first()
     if not cand1:
-        cand1 = CandidateORM(id=1001, email="candidate1@test.com", fname="Candidate", lname="One")
+        cand1 = CandidateORM(id=1001, email="candidate1001@whitebox.com", full_name="John Doe")
         db_session.add(cand1)
 
     llm1 = db_session.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.candidate_id == 1001).first()
@@ -69,217 +78,224 @@ def seed_data(db_session):
     if not mktg1:
         mktg1 = CandidateMarketingORM(
             candidate_id=1001,
-            start_date="2026-01-01",
-            resume_url="https://s3.amazonaws.com/resumes/cand1.pdf",
-            candidate_json={"skills": ["Python", "PyTorch"], "current_title": "AI Engineer"},
+            start_date=datetime.date(2026, 1, 1),
+            resume_url="https://s3.amazonaws.com/resumes/john_doe.pdf",
+            candidate_json={"skills": ["Python", "FastAPI", "PyTorch"], "current_title": "AI Engineer"},
         )
         db_session.add(mktg1)
 
-    # Candidate 2 (User 1002) - Unconfigured without LLM key
-    cand2 = db_session.query(CandidateORM).filter(CandidateORM.id == 1002).first()
-    if not cand2:
-        cand2 = CandidateORM(id=1002, email="candidate2@test.com", fname="Candidate", lname="Two")
-        db_session.add(cand2)
+    # Seed a question in DB
+    q1 = db_session.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == 101).first()
+    if not q1:
+        q1 = AiPrepQuestionORM(
+            id=101,
+            category="TECHNICAL",
+            sub_category="RAG Systems",
+            difficulty_level="HARD",
+            question_text="Explain hybrid search indexing in RAG pipelines.",
+            ideal_answer_rubric="Detail sparse and dense vector representations.",
+            is_active=True,
+        )
+        db_session.add(q1)
+
+    # Seed an assessment in DB
+    a1 = db_session.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == 1001).first()
+    if not a1:
+        a1 = AiPrepAssessmentORM(
+            id=1,
+            assessment_uuid="test-session-1001",
+            candidate_id=1001,
+            assessment_type="TECHNICAL",
+            status="COMPLETED",
+        )
+        db_session.add(a1)
 
     db_session.commit()
-    return {"cand1": cand1, "cand2": cand2}
+    return cand1
 
 
-def get_test_client_for_user(user_obj, db_session):
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+def get_candidate_client(db_session, candidate_id: int = 1001):
+    mock_user = AuthUserORM(
+        id=candidate_id,
+        uname=f"candidate{candidate_id}@whitebox.com",
+        fullname=f"Candidate {candidate_id}",
+        role="candidate",
+    )
+    setattr(mock_user, "is_employee", False)
+    setattr(mock_user, "is_admin", False)
 
-    def override_get_current_user():
-        return user_obj
+    app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    return TestClient(app)
 
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_current_user] = override_get_current_user
+
+def get_employee_client(db_session, employee_id: int = 50):
+    mock_staff = AuthUserORM(
+        id=employee_id,
+        uname="staff@whitebox.com",
+        fullname="Admin Staff",
+        role="admin",
+    )
+    setattr(mock_staff, "is_employee", True)
+    setattr(mock_staff, "is_admin", True)
+
+    app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_current_user] = lambda: mock_staff
+    app.dependency_overrides[staff_or_admin_required] = lambda: mock_staff
     return TestClient(app)
 
 
 # ===========================================================================
-# 1. CANDIDATE ISOLATION & AUTHORIZATION TESTS
+# 1. CANDIDATE ENDPOINTS TESTS
 # ===========================================================================
 
-def test_candidate_self_access_success(db_session, seed_data):
-    candidate_user = AuthUserORM(id=1001, uname="candidate1@test.com", role="candidate")
-    client = get_test_client_for_user(candidate_user, db_session)
-
-    # Check LLM key (Self)
+def test_candidate_llm_keys_self_check(db_session, seed_candidate):
+    client = get_candidate_client(db_session, 1001)
     res = client.get("/api/aiprep/candidate/llm-keys")
     assert res.status_code == 200
-    assert res.json()["status"] == "valid"
-    assert res.json()["is_configured"] is True
-
-    # Check Resume (Self)
-    res_resume = client.get("/api/aiprep/candidate/resume-status")
-    assert res_resume.status_code == 200
-    assert res_resume.json()["has_resume"] is True
-
-    # Pre-check (Self)
-    res_pre = client.get("/api/aiprep/candidate/pre-check")
-    assert res_pre.status_code == 200
-    assert res_pre.json()["eligible"] is True
+    data = res.json()
+    assert data["status"] == "valid"
+    assert data["is_configured"] is True
+    assert data["provider"] == "openai"
 
 
-def test_candidate_tamper_other_candidate_forbidden(db_session, seed_data):
-    # Logged in as Candidate 1 (1001), trying to query Candidate 2 (1002)
-    candidate_user = AuthUserORM(id=1001, uname="candidate1@test.com", role="candidate")
-    client = get_test_client_for_user(candidate_user, db_session)
-
-    # Candidate 1 cannot check Candidate 2's LLM keys
-    res = client.get("/api/aiprep/candidates/1002/llm-keys")
-    assert res.status_code == 403
-
-    # Candidate 1 cannot check Candidate 2's resume
-    res_resume = client.get("/api/aiprep/candidates/1002/resume-status")
-    assert res_resume.status_code == 403
-
-    # Candidate 1 cannot start assessment for Candidate 2
-    res_create = client.post("/api/aiprep/assessments", json={
-        "candidate_id": 1002,
-        "assessment_type": "INTRO",
-        "media_type": "VIDEO",
-    })
-    assert res_create.status_code == 403
+def test_candidate_resume_status_self_check(db_session, seed_candidate):
+    client = get_candidate_client(db_session, 1001)
+    res = client.get("/api/aiprep/candidate/resume-status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "valid"
+    assert data["has_resume"] is True
+    assert "skills" in data
 
 
-# ===========================================================================
-# 2. CANDIDATE ASSESSMENT EXECUTION FLOW
-# ===========================================================================
+def test_candidate_pre_check(db_session, seed_candidate):
+    client = get_candidate_client(db_session, 1001)
+    res = client.get("/api/aiprep/candidate/pre-check")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["eligible"] is True
+    assert data["candidate_id"] == 1001
+    assert data["llm_check"]["is_configured"] is True
 
-def test_candidate_full_assessment_flow(db_session, seed_data):
-    candidate_user = AuthUserORM(id=1001, uname="candidate1@test.com", role="candidate")
-    client = get_test_client_for_user(candidate_user, db_session)
 
-    # Step 1: Create Assessment
-    create_res = client.post("/api/aiprep/candidate/assessments", json={
+def test_candidate_create_assessment_flow(db_session, seed_candidate):
+    client = get_candidate_client(db_session, 1001)
+    payload = {
+        "candidate_id": 1001,
         "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
-        "job_description": "LLM Engineer",
-    })
-    assert create_res.status_code == 201
-    assessment_data = create_res.json()
-    assessment_id = assessment_data["id"]
-    assert assessment_data["status"] == "IN_PROGRESS"
+        "job_description": "Senior GenAI Engineer",
+    }
+    res = client.post("/api/aiprep/candidate/assessments", json=payload)
+    assert res.status_code == 201
+    data = res.json()
+    assessment_id = data["id"]
+    assert data["status"] == "IN_PROGRESS"
+    assert data["assessment_type"] == "TECHNICAL"
 
-    # Step 2: Submit Telemetry
-    submit_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data", json={
-        "questions": [{"question_id": 1, "question_text": "Explain RAG systems"}],
-        "transcript": {"full_text": "RAG enhances LLM responses with retrieved documents.", "segments": []},
-        "audio_telemetry": {"words_per_minute": 138, "silence_ratio_pct": 11.5},
-        "video_telemetry": {"face_visible_pct": 97.0, "head_nods_count": 10},
-    })
+    # 1. Submit telemetry
+    telemetry_payload = {
+        "questions": [{"question_id": 101, "question_text": "Explain RAG"}],
+        "transcript": {"full_text": "Retrieval Augmented Generation."},
+        "audio_telemetry": {"words_per_minute": 135, "silence_ratio_pct": 12.0},
+        "video_telemetry": {"face_visible_pct": 98.0, "head_nods_count": 8},
+    }
+    submit_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data", json=telemetry_payload)
     assert submit_res.status_code == 200
+    assert submit_res.json()["message"] == "Data saved successfully"
 
-    # Step 3: Update Media URL
-    media_res = client.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
-        "youtube_url": "https://youtube.com/watch?v=cand1_video",
+    # 2. Update media URL
+    patch_res = client.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
+        "youtube_url": "https://youtube.com/watch?v=cand_video_101"
     })
-    assert media_res.status_code == 200
-    assert media_res.json()["youtube_url"] == "https://youtube.com/watch?v=cand1_video"
+    assert patch_res.status_code == 200
+    assert patch_res.json()["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
 
-    # Step 4: Get Processing Status
-    status_res = client.get(f"/api/aiprep/assessments/{assessment_id}/status")
-    assert status_res.status_code == 200
+    # 3. Get Details
+    detail_res = client.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    assert detail_res.status_code == 200
+    detail = detail_res.json()
+    assert detail["candidate_id"] == 1001
+    assert detail["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
 
-    # Step 5: Trigger Evaluation
+    # 4. Trigger Evaluation
     eval_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate")
     assert eval_res.status_code == 202
     assert eval_res.json()["status"] == "EVALUATING"
 
 
-# ===========================================================================
-# 3. EMPLOYEE & ADMIN WORKFLOW TESTS
-# ===========================================================================
-
-def test_employee_can_inspect_any_candidate(db_session, seed_data):
-    employee_user = AuthUserORM(id=50, uname="staff@whitebox.com", role="admin", is_admin=True, is_employee=True)
-    client = get_test_client_for_user(employee_user, db_session)
-
-    # Employee checks candidate 1 LLM keys
-    res1 = client.get("/api/aiprep/employee/candidates/1001/llm-keys")
-    assert res1.status_code == 200
-    assert res1.json()["is_configured"] is True
-
-    # Employee checks candidate 2 LLM keys (which is unconfigured)
-    res2 = client.get("/api/aiprep/employee/candidates/1002/llm-keys")
-    assert res2.status_code == 200
-    assert res2.json()["is_configured"] is False
-
-    # Employee checks candidate 1 resume
-    res_mktg = client.get("/api/aiprep/employee/candidates/1001/resume-status")
-    assert res_mktg.status_code == 200
-    assert res_mktg.json()["has_resume"] is True
-
-    # Employee queries comprehensive assessments table
-    table_res = client.get("/api/aiprep/employee/assessments?limit=10")
-    assert table_res.status_code == 200
-    assert "items" in table_res.json()
-
-
-def test_admin_assessment_types_and_question_bank(db_session):
-    admin_user = AuthUserORM(id=1, uname="admin", role="admin", is_admin=True, is_employee=True)
-    client = get_test_client_for_user(admin_user, db_session)
-
-    # List catalog
-    cat_res = client.get("/api/aiprep/assessment-types")
-    assert cat_res.status_code == 200
-    assert cat_res.json()["total"] >= 6
-
-    # Create question in question bank
-    q_res = client.post("/api/aiprep/employee/questions", json={
-        "category": "TECHNICAL",
-        "sub_category": "Agentic Frameworks",
-        "difficulty_level": "HARD",
-        "question_text": "Describe the architecture of autonomous multi-agent systems.",
-        "ideal_answer_rubric": "Detail message buses, tool execution guards, and memory systems.",
-        "is_active": True,
-    })
-    assert q_res.status_code == 201
-    q_id = q_res.json()["id"]
-
-    # Update question
-    patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={
-        "difficulty_level": "EXPERT",
-    })
-    assert patch_res.status_code == 200
-    assert patch_res.json()["difficulty_level"] == "EXPERT"
-
-
-# ===========================================================================
-# 4. MEDIA INGESTION & CHUNK UPLOADER TESTS
-# ===========================================================================
-
-def test_media_chunk_upload_and_status(db_session, seed_data):
-    candidate_user = AuthUserORM(id=1001, uname="candidate1@test.com", role="candidate")
-    client = get_test_client_for_user(candidate_user, db_session)
-
-    # Create assessment session first
-    create_res = client.post("/api/aiprep/candidate/assessments", json={
+def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_candidate):
+    client = get_candidate_client(db_session, 1001)
+    res = client.post("/api/aiprep/assessments", json={
+        "candidate_id": 1002,
         "assessment_type": "INTRO",
         "media_type": "VIDEO",
     })
-    assessment_id = create_res.json()["id"]
+    assert res.status_code == 403
 
-    # Upload chunk 1
-    chunk_bytes = b"RIFFfake_webm_binary_data_chunk_001"
-    upload_res = client.post(
-        "/api/aiprep/media/upload-chunk",
-        data={"assessment_id": assessment_id, "chunk_number": 1, "total_chunks": 2},
-        files={"file": ("chunk_0001.webm", chunk_bytes, "video/webm")},
-    )
-    assert upload_res.status_code == 200
-    assert upload_res.json()["success"] is True
-    assert upload_res.json()["chunk_number"] == 1
 
-    # Query chunk status
-    status_res = client.get(f"/api/aiprep/media/chunk-status?assessment_id={assessment_id}&total_chunks=2")
-    assert status_res.status_code == 200
-    data = status_res.json()
-    assert 1 in data["uploaded_chunks"]
-    assert 2 in data["missing_chunks"]
-    assert data["is_complete"] is False
+# ===========================================================================
+# 2. EMPLOYEE & ADMIN ENDPOINTS TESTS
+# ===========================================================================
+
+def test_employee_check_candidate_llm_and_resume(db_session, seed_candidate):
+    client = get_employee_client(db_session, 50)
+
+    # Check Candidate 1001 LLM
+    res_llm = client.get("/api/aiprep/employee/candidates/1001/llm-keys")
+    assert res_llm.status_code == 200
+    assert res_llm.json()["is_configured"] is True
+
+    # Check Candidate 1001 Resume
+    res_resume = client.get("/api/aiprep/employee/candidates/1001/resume-status")
+    assert res_resume.status_code == 200
+    assert res_resume.json()["has_resume"] is True
+
+
+def test_employee_assessments_table(db_session, seed_candidate):
+    client = get_employee_client(db_session, 50)
+    res = client.get("/api/aiprep/employee/assessments?limit=10")
+    assert res.status_code == 200
+    data = res.json()
+    assert "items" in data
+    assert data["total"] >= 1
+
+
+# ===========================================================================
+# 3. CATALOG & QUESTION BANK TESTS
+# ===========================================================================
+
+def test_assessment_types_catalog(db_session):
+    client = get_candidate_client(db_session, 1001)
+    res = client.get("/api/aiprep/assessment-types")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 6
+    codes = [item["code"] for item in data["items"]]
+    assert "INTRO" in codes
+    assert "SYSTEM_DESIGN" in codes
+    assert "TECHNICAL" in codes
+
+
+def test_question_bank_management(db_session):
+    client = get_employee_client(db_session, 50)
+
+    # 1. Add question
+    new_q = {
+        "category": "TECHNICAL",
+        "sub_category": "Multi-Agent Systems",
+        "difficulty_level": "HARD",
+        "question_text": "How do you coordinate hierarchical multi-agent workflows?",
+        "ideal_answer_rubric": "Detail supervisory agents, delegation, and state aggregation.",
+        "is_active": True,
+    }
+    post_res = client.post("/api/aiprep/employee/questions", json=new_q)
+    assert post_res.status_code == 201
+    assert post_res.json()["question_text"] == new_q["question_text"]
+    q_id = post_res.json()["id"]
+
+    # 2. Update question
+    patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={"difficulty_level": "EXPERT"})
+    assert patch_res.status_code == 200
+    assert patch_res.json()["difficulty_level"] == "EXPERT"

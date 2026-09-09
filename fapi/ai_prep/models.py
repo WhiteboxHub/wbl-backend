@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM Models for AI Prep Tool."""
+"""SQLAlchemy ORM Models for AI Prep Tool (Assessment Sessions, Telemetry Data, Reports, Questions)."""
 from datetime import datetime
 from sqlalchemy import (
     Column,
