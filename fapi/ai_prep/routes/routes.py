@@ -1,5 +1,5 @@
 """FastAPI Routes and API Endpoints for AI Prep Tool.
-Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend code architecture.
+Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
 import logging
 from typing import Optional
@@ -12,7 +12,6 @@ from fastapi import (
     Form,
     status,
 )
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from fapi.db.database import get_db
@@ -217,7 +216,6 @@ def candidate_trigger_eval_post(
     "/candidate/assessments/{assessment_id}/evaluate",
     response_model=TriggerEvaluationResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    tags=["AI Prep - Candidate"],
     summary="Candidate: Submit & Evaluate (PUT)",
 )
 @router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
@@ -229,6 +227,27 @@ def candidate_trigger_eval_put(
 ):
     """Saves telemetry if provided and transitions status to EVALUATING."""
     return aiprep_utils.candidate_trigger_eval_put_logic(db=db, current_user=current_user, assessment_id=assessment_id, payload=payload)
+
+
+@router.get(
+    "/candidate/assessment-types",
+    response_model=AssessmentTypeListResponse,
+    tags=["AI Prep - Candidate"],
+    summary="Candidate: List Available Assessment Types",
+)
+@router.get(
+    "/assessment-types",
+    response_model=AssessmentTypeListResponse,
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Catalog: List Assessment Types",
+)
+@router.get("/assessment_types", response_model=AssessmentTypeListResponse, include_in_schema=False)
+def list_available_assessment_types(
+    current_user: AuthUserORM = Depends(get_current_user),
+):
+    """Fetches all active assessment types from the catalog."""
+    _ = current_user
+    return aiprep_utils.list_available_assessment_types_logic()
 
 
 # ===========================================================================
@@ -338,6 +357,97 @@ def employee_get_assessment_detail_route(
     return aiprep_utils.employee_get_assessment_detail_logic(db=db, assessment_id=assessment_id)
 
 
+@router.get(
+    "/employee/media/storage-info",
+    response_model=StorageInfoResponse,
+    tags=["AI Prep - Employee / Admin"],
+    summary="Employee: Media Storage Quota & Usage",
+)
+@router.get("/media/storage-info", response_model=StorageInfoResponse, tags=["AI Prep - Employee / Admin"], summary="Storage Info")
+def get_media_storage_info(
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+):
+    """Returns real storage directory disk usage and assessment folder count."""
+    return aiprep_utils.get_media_storage_info_logic()
+
+
+@router.post(
+    "/employee/assessment-types",
+    response_model=AssessmentTypeResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Admin: Create Assessment Type",
+)
+@router.post("/assessment-types", response_model=AssessmentTypeResponse, status_code=status.HTTP_201_CREATED, tags=["AI Prep - Admin & Catalog"], summary="Create Assessment Type")
+def create_new_assessment_type(
+    type_in: AssessmentTypeCreate,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+):
+    """Admin endpoint to create a new assessment type in catalog."""
+    _ = _staff
+    return aiprep_utils.create_new_assessment_type_logic(type_in=type_in)
+
+
+@router.get(
+    "/questions",
+    response_model=QuestionListResponse,
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Question Bank: List Questions",
+)
+def list_questions_from_bank(
+    category: Optional[str] = Query(None),
+    difficulty_level: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Fetches questions dynamically from ai_prep_questions DB table."""
+    return aiprep_utils.list_questions_from_bank_logic(
+        db=db,
+        category=category,
+        difficulty_level=difficulty_level,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/employee/questions",
+    response_model=QuestionResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Admin: Add Question Bank Item",
+)
+@router.post("/questions", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED, tags=["AI Prep - Admin & Catalog"], summary="Add Question Bank Item")
+def add_question_to_bank(
+    payload: QuestionCreateRequest,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Adds a new question to the ai_prep_questions table in DB."""
+    return aiprep_utils.add_question_to_bank_logic(db=db, payload=payload)
+
+
+@router.patch(
+    "/employee/questions/{question_id}",
+    response_model=QuestionResponse,
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Admin: Update Question Bank Item",
+)
+@router.patch("/questions/{question_id}", response_model=QuestionResponse, tags=["AI Prep - Admin & Catalog"], summary="Update Question Bank Item")
+def update_question_in_bank(
+    question_id: int,
+    payload: QuestionUpdateRequest,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Updates fields on an existing question dynamically in DB."""
+    return aiprep_utils.update_question_in_bank_logic(db=db, question_id=question_id, payload=payload)
+
+
 # ===========================================================================
 # 3. MEDIA PIPELINE, CHUNKS & STREAMING
 # ===========================================================================
@@ -436,20 +546,6 @@ async def upload_raw_media(
 
 
 @router.get(
-    "/employee/media/storage-info",
-    response_model=StorageInfoResponse,
-    tags=["AI Prep - Employee / Admin"],
-    summary="Employee: Media Storage Quota & Usage",
-)
-@router.get("/media/storage-info", response_model=StorageInfoResponse, tags=["AI Prep - Employee / Admin"], summary="Storage Info")
-def get_media_storage_info(
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-):
-    """Returns real storage directory disk usage and assessment folder count."""
-    return aiprep_utils.get_media_storage_info_logic()
-
-
-@router.get(
     "/assessments/{assessment_id}/status",
     response_model=ProcessingStatusResponse,
     tags=["AI Prep - Media & Streaming"],
@@ -484,99 +580,3 @@ def stream_assessment_processing_sse(
         current_user=current_user,
         assessment_id=assessment_id,
     )
-
-
-# ===========================================================================
-# 4. QUESTION BANK & CATALOG MANAGEMENT
-# ===========================================================================
-
-@router.get(
-    "/assessment-types",
-    response_model=AssessmentTypeListResponse,
-    tags=["AI Prep - Admin & Catalog"],
-    summary="Catalog: List Assessment Types",
-)
-@router.get("/assessment_types", response_model=AssessmentTypeListResponse, include_in_schema=False)
-def list_available_assessment_types(
-    current_user: AuthUserORM = Depends(get_current_user),
-):
-    """Fetches all active assessment types from the hardcoded catalog."""
-    _ = current_user
-    return aiprep_utils.list_available_assessment_types_logic()
-
-
-@router.post(
-    "/employee/assessment-types",
-    response_model=AssessmentTypeResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["AI Prep - Admin & Catalog"],
-    summary="Admin: Create Assessment Type",
-)
-@router.post("/assessment-types", response_model=AssessmentTypeResponse, status_code=status.HTTP_201_CREATED, tags=["AI Prep - Admin & Catalog"], summary="Create Assessment Type")
-def create_new_assessment_type(
-    type_in: AssessmentTypeCreate,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-):
-    """Admin endpoint to create a new assessment type in catalog."""
-    _ = _staff
-    return aiprep_utils.create_new_assessment_type_logic(type_in=type_in)
-
-
-@router.get(
-    "/questions",
-    response_model=QuestionListResponse,
-    tags=["AI Prep - Admin & Catalog"],
-    summary="Question Bank: List Questions",
-)
-def list_questions_from_bank(
-    category: Optional[str] = Query(None),
-    difficulty_level: Optional[str] = Query(None),
-    is_active: Optional[bool] = Query(None),
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Fetches questions dynamically from ai_prep_questions DB table."""
-    return aiprep_utils.list_questions_from_bank_logic(
-        db=db,
-        category=category,
-        difficulty_level=difficulty_level,
-        is_active=is_active,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@router.post(
-    "/employee/questions",
-    response_model=QuestionResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["AI Prep - Admin & Catalog"],
-    summary="Admin: Add Question Bank Item",
-)
-@router.post("/questions", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED, tags=["AI Prep - Admin & Catalog"], summary="Add Question Bank Item")
-def add_question_to_bank(
-    payload: QuestionCreateRequest,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Adds a new question to the ai_prep_questions table in DB."""
-    return aiprep_utils.add_question_to_bank_logic(db=db, payload=payload)
-
-
-@router.patch(
-    "/employee/questions/{question_id}",
-    response_model=QuestionResponse,
-    tags=["AI Prep - Admin & Catalog"],
-    summary="Admin: Update Question Bank Item",
-)
-@router.patch("/questions/{question_id}", response_model=QuestionResponse, tags=["AI Prep - Admin & Catalog"], summary="Update Question Bank Item")
-def update_question_in_bank(
-    question_id: int,
-    payload: QuestionUpdateRequest,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Updates fields on an existing question dynamically in DB."""
-    return aiprep_utils.update_question_in_bank_logic(db=db, question_id=question_id, payload=payload)
