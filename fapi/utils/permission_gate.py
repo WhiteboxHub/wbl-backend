@@ -75,8 +75,8 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
                 )
         return current_user
 
-    # Authenticated learners may use CoderPad (snippets, run, assignments).
-    if path == "/api/coderpad" or path.startswith("/api/coderpad/"):
+    # Authenticated learners may use CoderPad and AI Prep Tool.
+    if path in ("/api/coderpad", "/api/aiprep", "/aiprep") or path.startswith(("/api/coderpad/", "/api/aiprep/", "/aiprep/")):
         return current_user
 
     if method == "GET":
