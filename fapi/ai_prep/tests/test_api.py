@@ -66,7 +66,7 @@ def seed_candidate(db_session):
         llm1 = CandidateLlmApiKeyORM(
             candidate_id=1001,
             provider_name="openai",
-            api_key="sk-test-mock-key-1001",
+            api_key="mock_test_key_1001",
             model_name="gpt-4o",
             voice_enabled=True,
             is_default=True,

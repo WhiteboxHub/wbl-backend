@@ -1056,7 +1056,9 @@ def stream_assessment_processing_sse(
     summary="Catalog: List Assessment Types",
 )
 @router.get("/assessment_types", response_model=AssessmentTypeListResponse, include_in_schema=False)
-def list_available_assessment_types():
+def list_available_assessment_types(
+    current_user: AuthUserORM = Depends(get_current_user),
+):
     """Fetches all active assessment types from the hardcoded catalog."""
     return AssessmentTypeListResponse(
         items=[AssessmentTypeResponse(**t) for t in HARDCODED_ASSESSMENT_TYPES],
@@ -1094,6 +1096,7 @@ def list_questions_from_bank(
     is_active: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Fetches questions dynamically from ai_prep_questions DB table."""
