@@ -13,7 +13,8 @@ from fapi.ai_prep.crud import (
     check_candidate_llm_key,
     check_candidate_resume,
 )
-from fapi.ai_prep.models import AiPrepAssessmentORM, CandidateMarketingORM, CandidateLlmApiKeyORM
+from fapi.ai_prep.models import AiPrepAssessmentORM
+from fapi.db.models import CandidateMarketingORM, CandidateLlmApiKeyORM
 from fapi.utils.llm_service import call_llm_with_context
 
 logger = logging.getLogger(__name__)
