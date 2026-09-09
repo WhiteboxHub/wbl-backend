@@ -1,4 +1,6 @@
-"""Pydantic Schemas and Master JSON Contracts for AI Prep Tool (Complete 26 Endpoints Suite)."""
+"""Pydantic Schemas and Master JSON Contracts for AI Prep Tool.
+Fully compatible with Master Contracts and aiprep-backend branch.
+"""
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
@@ -9,7 +11,7 @@ from pydantic import BaseModel, Field
 # Enums
 # ---------------------------------------------------------------------------
 
-class AssessmentTypeEnum(str, Enum):
+class AssessmentCategoryEnum(str, Enum):
     INTRO = "INTRO"
     JD_INTRO = "JD_INTRO"
     RECRUITER = "RECRUITER"
@@ -18,9 +20,15 @@ class AssessmentTypeEnum(str, Enum):
     TECHNICAL = "TECHNICAL"
 
 
+AssessmentTypeEnum = AssessmentCategoryEnum
+
+
 class MediaTypeEnum(str, Enum):
     VIDEO = "VIDEO"
     AUDIO = "AUDIO"
+
+
+AssessmentMediaTypeEnum = MediaTypeEnum
 
 
 class AssessmentStatusEnum(str, Enum):
@@ -35,6 +43,12 @@ class DifficultyLevelEnum(str, Enum):
     MEDIUM = "MEDIUM"
     HARD = "HARD"
     EXPERT = "EXPERT"
+
+
+class EngineOperationEnum(str, Enum):
+    START = "START"
+    SUBMIT = "SUBMIT"
+    CANCEL = "CANCEL"
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +128,7 @@ class PreAssessmentCheckResponse(BaseModel):
 
 class CreateAssessmentRequest(BaseModel):
     candidate_id: Optional[int] = Field(None, description="Candidate ID (auto-resolved from session if candidate)")
-    assessment_type: AssessmentTypeEnum = Field(default=AssessmentTypeEnum.INTRO, description="Assessment type code")
+    assessment_type: AssessmentCategoryEnum = Field(default=AssessmentCategoryEnum.INTRO, description="Assessment type code")
     media_type: MediaTypeEnum = Field(default=MediaTypeEnum.VIDEO, description="Recording media mode")
     job_description: Optional[str] = Field(None, description="Optional job description for tailored assessments")
 
@@ -132,6 +146,9 @@ class CreateAssessmentResponse(BaseModel):
         from_attributes = True
 
 
+AssessmentResponse = CreateAssessmentResponse
+
+
 class SubmitAssessmentRequest(BaseModel):
     transcript: Optional[Dict[str, Any]] = None
     audio_telemetry: Optional[Dict[str, Any]] = None
@@ -140,10 +157,10 @@ class SubmitAssessmentRequest(BaseModel):
 
 
 class SubmitAssessmentDataRequest(BaseModel):
-    questions: List[Dict[str, Any]] = Field(..., description="List of questions answered")
-    transcript: Dict[str, Any] = Field(..., description="Transcript payload with full_text and segments")
-    audio_telemetry: Dict[str, Any] = Field(..., description="Audio metrics: words_per_minute, silence_ratio_pct, etc.")
-    video_telemetry: Dict[str, Any] = Field(..., description="Video metrics: face_visible_pct, head_nods_count, etc.")
+    questions: List[Dict[str, Any]] = Field(default_factory=list, description="List of questions answered")
+    transcript: Dict[str, Any] = Field(default_factory=dict, description="Transcript payload with full_text and segments")
+    audio_telemetry: Dict[str, Any] = Field(default_factory=dict, description="Audio metrics: words_per_minute, silence_ratio_pct, etc.")
+    video_telemetry: Dict[str, Any] = Field(default_factory=dict, description="Video metrics: face_visible_pct, head_nods_count, etc.")
 
 
 class SubmitAssessmentDataResponse(BaseModel):
@@ -152,6 +169,9 @@ class SubmitAssessmentDataResponse(BaseModel):
 
 class UpdateMediaURLRequest(BaseModel):
     youtube_url: str = Field(..., description="Public/unlisted video or audio streaming URL")
+
+
+UpdateMediaUrlRequest = UpdateMediaURLRequest
 
 
 class UpdateMediaURLResponse(BaseModel):
@@ -180,7 +200,7 @@ class AssessmentListItem(BaseModel):
 
 
 class AssessmentListResponse(BaseModel):
-    items: List[AssessmentListItem]
+    items: List[AssessmentListItem] = Field(default_factory=list)
     total: int
 
 
@@ -208,13 +228,14 @@ class AssessmentDetailResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ChunkUploadResponse(BaseModel):
-    success: bool
-    assessment_id: int
     chunk_number: int
-    bytes_written: int
-    total_uploaded: int
-    is_ready_for_assembly: bool
-    message: str
+    status: str = "uploaded"
+    storage_path: Optional[str] = None
+    bytes_written: Optional[int] = None
+    total_uploaded: Optional[int] = None
+    total_chunks: Optional[int] = None
+    is_ready_for_assembly: Optional[bool] = False
+    message: Optional[str] = None
 
 
 class ChunkStatusResponse(BaseModel):
@@ -231,16 +252,19 @@ class ChunkStatusResponse(BaseModel):
 
 
 class AssembleMediaRequest(BaseModel):
-    total_chunks: int = Field(default=1, description="Expected total number of chunks")
+    total_chunks: int = Field(default=1, ge=1, description="Total number of chunks to assemble")
 
 
 class AssembleMediaResponse(BaseModel):
-    success: bool
     assessment_id: int
     status: str
+    assembled_video_path: Optional[str] = None
+    extracted_audio_path: Optional[str] = None
+    file_size_bytes: Optional[int] = 0
+    dispatched_tasks: List[str] = Field(default_factory=list)
     media_path: Optional[str] = None
     audio_path: Optional[str] = None
-    message: str
+    message: Optional[str] = None
 
 
 class LocalMediaUploadResponse(BaseModel):
@@ -266,10 +290,14 @@ class StorageInfoResponse(BaseModel):
 class ProcessingStatusResponse(BaseModel):
     assessment_id: int
     status: str
+    progress_percentage: Optional[int] = 0
+    active_step: Optional[str] = None
+    tasks: Dict[str, str] = Field(default_factory=dict)
+    youtube_url: Optional[str] = None
+    error_message: Optional[str] = None
     step: Optional[str] = None
     progress_pct: Optional[float] = 0.0
     message: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +305,7 @@ class ProcessingStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class QuestionCreateRequest(BaseModel):
-    category: AssessmentTypeEnum = Field(..., description="Target assessment category")
+    category: AssessmentCategoryEnum = Field(..., description="Target assessment category")
     sub_category: Optional[str] = Field(None, description="Optional subcategory / topic")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
     question_text: str = Field(..., description="Question prompt text")
@@ -285,13 +313,19 @@ class QuestionCreateRequest(BaseModel):
     is_active: bool = Field(default=True, description="Whether question is active")
 
 
+QuestionBankCreateRequest = QuestionCreateRequest
+
+
 class QuestionUpdateRequest(BaseModel):
-    category: Optional[AssessmentTypeEnum] = None
+    category: Optional[AssessmentCategoryEnum] = None
     sub_category: Optional[str] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
     question_text: Optional[str] = None
     ideal_answer_rubric: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+QuestionBankUpdateRequest = QuestionUpdateRequest
 
 
 class QuestionResponse(BaseModel):
@@ -308,6 +342,70 @@ class QuestionResponse(BaseModel):
         from_attributes = True
 
 
+QuestionBankResponse = QuestionResponse
+
+
 class QuestionListResponse(BaseModel):
-    items: List[QuestionResponse]
+    items: List[QuestionResponse] = Field(default_factory=list)
     total: int
+
+
+# ---------------------------------------------------------------------------
+# Assessment Engine & Core Sub-Engine Domain Contracts
+# ---------------------------------------------------------------------------
+
+class QuestionItemContract(BaseModel):
+    question_id: int
+    question_text: str
+    category: Optional[str] = None
+    sub_category: Optional[str] = None
+    difficulty_level: Optional[str] = None
+
+
+class TranscriptDataContract(BaseModel):
+    full_text: str = ""
+    segments: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AudioEnginePayload(BaseModel):
+    audio_telemetry: Dict[str, Any]
+
+
+class AudioEngineOutput(BaseModel):
+    audio_context: str
+
+
+class VideoEnginePayload(BaseModel):
+    video_telemetry: Dict[str, Any]
+
+
+class VideoEngineOutput(BaseModel):
+    video_context: str
+
+
+class EvalEnginePayload(BaseModel):
+    audio_context: Optional[str] = ""
+    video_context: Optional[str] = ""
+    qa_context: str
+
+
+class EvalEnginePromptOutput(BaseModel):
+    system_prompt: str
+    user_prompt: str
+    response_format: str = "json_object"
+
+
+class ScoresEnginePayload(BaseModel):
+    raw_llm_json_string: str
+
+
+class ParsedReportOutput(BaseModel):
+    audio_evaluation: Dict[str, Any] = Field(default_factory=dict)
+    video_evaluation: Dict[str, Any] = Field(default_factory=dict)
+    transcript_evaluation: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScoresEngineOutput(BaseModel):
+    is_valid: bool
+    parsed_report: Optional[ParsedReportOutput] = None
+    error: Optional[str] = None

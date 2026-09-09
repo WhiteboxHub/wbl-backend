@@ -1,5 +1,8 @@
-"""Database CRUD operations for AI Prep Tool."""
+"""Database CRUD operations for AI Prep Tool.
+Fully validated and interoperable with aiprep-backend branch.
+"""
 import uuid
+import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -22,7 +25,7 @@ from fapi.db.models import (
 
 logger = logging.getLogger(__name__)
 
-# Hardcoded standard assessment types catalog (in-memory, no schema changes)
+# Hardcoded standard assessment types catalog (in-memory)
 HARDCODED_ASSESSMENT_TYPES = [
     {
         "id": 1,
@@ -197,6 +200,25 @@ def list_assessments(
     return items, total
 
 
+def list_candidate_assessments(
+    db: Session,
+    candidate_id: int,
+    limit: int = 50,
+    offset: int = 0,
+) -> Tuple[List[AiPrepAssessmentORM], int]:
+    return list_assessments(db, candidate_id=candidate_id, limit=limit, offset=offset)
+
+
+def list_assessments_for_employee(
+    db: Session,
+    candidate_id: Optional[int] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Tuple[List[AiPrepAssessmentORM], int]:
+    return list_assessments(db, candidate_id=candidate_id, status=status, limit=limit, offset=offset)
+
+
 def save_assessment_data(
     db: Session,
     assessment_id: int,
@@ -228,6 +250,21 @@ def save_assessment_data(
     return db_obj
 
 
+def create_or_update_assessment_data(
+    db: Session,
+    assessment_id: int,
+    questions: List[Dict[str, Any]],
+    transcript: Dict[str, Any],
+    audio_telemetry: Dict[str, Any],
+    video_telemetry: Dict[str, Any],
+) -> AiPrepAssessmentDataORM:
+    return save_assessment_data(db, assessment_id, questions, transcript, audio_telemetry, video_telemetry)
+
+
+def get_assessment_data_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentDataORM]:
+    return db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+
+
 def update_assessment_media_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
     assessment = get_assessment_by_id(db, assessment_id)
     if not assessment:
@@ -237,6 +274,10 @@ def update_assessment_media_url(db: Session, assessment_id: int, youtube_url: st
     db.commit()
     db.refresh(assessment)
     return assessment
+
+
+def update_assessment_youtube_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
+    return update_assessment_media_url(db, assessment_id, youtube_url)
 
 
 def update_assessment_status(db: Session, assessment_id: int, status: str) -> Optional[AiPrepAssessmentORM]:
@@ -286,6 +327,14 @@ def save_assessment_report(
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+
+def create_or_update_assessment_report(db: Session, assessment_id: int, parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
+    return save_assessment_report(db, assessment_id, parsed_report)
+
+
+def get_assessment_report_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentReportORM]:
+    return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == assessment_id).first()
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +398,10 @@ def list_questions(
     return items, total
 
 
+def get_question_by_id(db: Session, question_id: int) -> Optional[AiPrepQuestionORM]:
+    return db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+
+
 def create_question(db: Session, question_in: Dict[str, Any]) -> AiPrepQuestionORM:
     db_obj = AiPrepQuestionORM(**question_in)
     db.add(db_obj)
@@ -405,6 +458,10 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
     }
 
 
+def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
+    return check_candidate_llm_key(db, candidate_id)
+
+
 def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Checks whether the candidate has an uploaded and parsed resume."""
     candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
@@ -458,3 +515,28 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         "skills": skills if isinstance(skills, list) else [],
         "message": "Candidate resume is verified and ready.",
     }
+
+
+def get_candidate_resume_json(db: Session, candidate_id: int) -> Optional[Dict[str, Any]]:
+    mktg = (
+        db.query(CandidateMarketingORM)
+        .filter(CandidateMarketingORM.candidate_id == candidate_id)
+        .order_by(desc(CandidateMarketingORM.id))
+        .first()
+    )
+    return mktg.candidate_json if mktg and isinstance(mktg.candidate_json, dict) else None
+
+
+def save_candidate_resume_json(db: Session, candidate_id: int, resume_data: Dict[str, Any]) -> bool:
+    mktg = (
+        db.query(CandidateMarketingORM)
+        .filter(CandidateMarketingORM.candidate_id == candidate_id)
+        .order_by(desc(CandidateMarketingORM.id))
+        .first()
+    )
+    if mktg:
+        mktg.candidate_json = resume_data
+        mktg.last_mod_datetime = datetime.utcnow()
+        db.commit()
+        return True
+    return False
