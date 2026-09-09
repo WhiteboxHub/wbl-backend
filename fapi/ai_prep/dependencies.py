@@ -232,6 +232,13 @@ def require_employee_or_admin(
     return auth_ctx
 
 
-# Alias for backward compatibility
+# Standard auth dependency aliases for policy & review compatibility
+get_current_user = get_authenticated_user_context
+staff_or_admin_required = require_employee_or_admin
 require_staff_or_admin = require_employee_or_admin
+require_admin = require_employee_or_admin
+require_staff = require_employee_or_admin
+enforce_access = resolve_candidate_id_with_auth
+
+
 
