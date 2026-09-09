@@ -160,6 +160,9 @@ def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: 
 
     # Match Candidate by email or ID
     candidate = db.query(CandidateORM).filter(CandidateORM.email == current_user.uname).first()
+    if not candidate and not is_employee:
+        raise HTTPException(status_code=404, detail="Candidate record not found.")
+
     self_candidate_id = candidate.id if candidate else current_user.id
 
     if not is_employee:
@@ -837,7 +840,9 @@ async def upload_media_chunk(
 ):
     """Uploads sequential WebM media chunk to server storage directory."""
     assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    candidate_id = assessment.candidate_id if assessment else current_user.id
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id), "chunks")
     os.makedirs(chunk_dir, exist_ok=True)
@@ -876,7 +881,9 @@ def get_chunk_upload_status(
 ):
     """Dynamically reads disk storage to check uploaded vs missing chunk numbers."""
     assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    candidate_id = assessment.candidate_id if assessment else current_user.id
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id), "chunks")
     uploaded = []
@@ -920,7 +927,9 @@ def assemble_media_chunks(
 ):
     """Concatenates WebM chunks and launches evaluation."""
     assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    candidate_id = assessment.candidate_id if assessment else current_user.id
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
 
     return AssembleMediaResponse(
@@ -951,7 +960,9 @@ async def upload_raw_media(
 ):
     """Uploads single binary media file directly to disk storage."""
     assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    candidate_id = assessment.candidate_id if assessment else current_user.id
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
     os.makedirs(assessment_dir, exist_ok=True)
@@ -1005,7 +1016,10 @@ def get_assessment_processing_status(
 ):
     """Returns assessment pipeline processing progress snapshot dynamically from DB."""
     assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    status_str = assessment.status if assessment else "IN_PROGRESS"
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    status_str = assessment.status if assessment.status else "IN_PROGRESS"
 
     progress_map = {"IN_PROGRESS": 25.0, "EVALUATING": 65.0, "COMPLETED": 100.0, "FAILED": 0.0}
     return ProcessingStatusResponse(
@@ -1027,8 +1041,13 @@ def get_assessment_processing_status(
 def stream_assessment_processing_sse(
     assessment_id: int,
     current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Real-time SSE event stream for live UI progress updates."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
     async def event_generator():
         import asyncio
         for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 60), ("LLM Evaluation", 90), ("Report Generated", 100)]:
