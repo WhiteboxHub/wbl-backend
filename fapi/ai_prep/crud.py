@@ -337,7 +337,7 @@ def get_assessment_report_by_assessment_id(db: Session, assessment_id: int) -> O
 
 def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
     created = []
-    for item in DEFAULT_QUESTIONS:
+    for item in get_default_questions():
         existing = db.query(AiPrepQuestionORM).filter(
             AiPrepQuestionORM.category == item["category"],
             AiPrepQuestionORM.question_text == item["question_text"]
@@ -477,7 +477,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         .first()
     )
 
-    candidate_name = f"{candidate.fname or ''} {candidate.lname or ''}".strip() or candidate.email
+    candidate_name = (candidate.full_name or "").strip() or candidate.email
     has_resume = bool(mktg and mktg.resume_url)
     parsed_json = mktg.candidate_json if mktg and isinstance(mktg.candidate_json, dict) else None
 
