@@ -61,6 +61,11 @@ def seed_candidate(db_session):
         cand1 = CandidateORM(id=1001, email="candidate1001@whitebox.com", full_name="John Doe")
         db_session.add(cand1)
 
+    cand2 = db_session.query(CandidateORM).filter(CandidateORM.id == 1002).first()
+    if not cand2:
+        cand2 = CandidateORM(id=1002, email="candidate1002@whitebox.com", full_name="Bob Smith")
+        db_session.add(cand2)
+
     llm1 = db_session.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.candidate_id == 1001).first()
     if not llm1:
         llm1 = CandidateLlmApiKeyORM(
@@ -233,6 +238,59 @@ def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_cand
         "media_type": "VIDEO",
     })
     assert res.status_code == 403
+
+
+def test_candidate_creation_does_not_leak_rubric(db_session, seed_candidate):
+    """Verifies that ideal_answer_rubric is not leaked in candidate assessment questions."""
+    client = get_candidate_client(db_session, 1001)
+    res = client.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 1001,
+        "assessment_type": "TECHNICAL",
+        "media_type": "VIDEO",
+    })
+    assert res.status_code == 201
+    questions = res.json().get("questions", [])
+    assert len(questions) > 0
+    for q in questions:
+        assert "ideal_answer_rubric" not in q
+
+
+def test_cross_candidate_media_authorization(db_session, seed_candidate):
+    """Verifies that Candidate 1002 cannot view or manipulate Candidate 1001's assessment media."""
+    # 1. Candidate 1001 creates assessment
+    client_1001 = get_candidate_client(db_session, 1001)
+    res = client_1001.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 1001,
+        "assessment_type": "TECHNICAL",
+        "media_type": "VIDEO",
+    })
+    assert res.status_code == 201
+    assessment_id = res.json()["id"]
+
+    # Switch session context to Candidate 1002
+    client_1002 = get_candidate_client(db_session, 1002)
+
+    # 2. Candidate 1002 attempts to get assessment details -> 403
+    res_detail = client_1002.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    assert res_detail.status_code == 403
+
+    # 3. Candidate 1002 attempts to query chunk upload status -> 403
+    res_chunk_status = client_1002.get(f"/api/aiprep/media/chunk-status?assessment_id={assessment_id}")
+    assert res_chunk_status.status_code == 403
+
+    # 4. Candidate 1002 attempts to assemble media -> 403
+    res_assemble = client_1002.post(f"/api/aiprep/media/assemble?assessment_id={assessment_id}")
+    assert res_assemble.status_code == 403
+
+    # 5. Candidate 1002 attempts to get processing status -> 403
+    res_status = client_1002.get(f"/api/aiprep/assessments/{assessment_id}/status")
+    assert res_status.status_code == 403
+
+    # 6. Candidate 1002 attempts to update media URL -> 403
+    res_media = client_1002.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
+        "youtube_url": "https://malicious.com/overwrite"
+    })
+    assert res_media.status_code == 403
 
 
 # ===========================================================================

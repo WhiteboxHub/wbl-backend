@@ -385,7 +385,6 @@ def candidate_create_assessment(
             "question_text": q_row.question_text,
             "category": q_row.category,
             "difficulty_level": q_row.difficulty_level,
-            "ideal_answer_rubric": q_row.ideal_answer_rubric,
         })
     else:
         questions_list.append({

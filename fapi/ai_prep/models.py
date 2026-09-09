@@ -10,7 +10,6 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     JSON,
-    Index,
 )
 from sqlalchemy.orm import relationship
 
@@ -21,7 +20,6 @@ class AiPrepAssessmentORM(Base):
     """Core assessment session table."""
 
     __tablename__ = "ai_prep_assessments"
-    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     assessment_uuid = Column(String(64), unique=True, nullable=False, index=True)
@@ -44,7 +42,6 @@ class AiPrepAssessmentDataORM(Base):
     """Telemetry, raw transcript, and questions submitted for an assessment."""
 
     __tablename__ = "ai_prep_assessment_data"
-    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id"), unique=True, nullable=False, index=True)
@@ -62,7 +59,6 @@ class AiPrepAssessmentReportORM(Base):
     """Validated evaluation scores and qualitative coaching report from LLM / Scores Engine."""
 
     __tablename__ = "ai_prep_assessment_reports"
-    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id"), unique=True, nullable=False, index=True)
@@ -81,7 +77,6 @@ class AiPrepQuestionORM(Base):
     """Question bank repository for AI Prep assessments."""
 
     __tablename__ = "ai_prep_questions"
-    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     category = Column(String(50), nullable=False, index=True)  # INTRO, JD_INTRO, RECRUITER, HIRING_MANAGER, SYSTEM_DESIGN, TECHNICAL
