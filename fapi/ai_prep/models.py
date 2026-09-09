@@ -11,30 +11,10 @@ from sqlalchemy import (
     ForeignKey,
     JSON,
     Index,
-    Enum as SQLAEnum,
 )
 from sqlalchemy.orm import relationship
 
 from fapi.db.models import Base
-
-
-class AiPrepAssessmentTypeORM(Base):
-    """Assessment Types definition table (Intro, JD Intro, Recruiter, Hiring Manager, System Design, Technical)."""
-
-    __tablename__ = "ai_prep_assessment_types"
-    __table_args__ = {"extend_existing": True}
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    code = Column(String(50), unique=True, nullable=False, index=True)
-    title = Column(String(100), nullable=False)
-    description = Column(Text, nullable=True)
-    category = Column(String(50), nullable=False, default="GENERAL")
-    time_estimate_mins = Column(Integer, nullable=False, default=15)
-    is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    assessments = relationship("AiPrepAssessmentORM", back_populates="assessment_type_obj")
 
 
 class AiPrepAssessmentORM(Base):
@@ -46,7 +26,6 @@ class AiPrepAssessmentORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     assessment_uuid = Column(String(64), unique=True, nullable=False, index=True)
     candidate_id = Column(Integer, nullable=False, index=True)
-    assessment_type_id = Column(Integer, ForeignKey("ai_prep_assessment_types.id"), nullable=True)
     assessment_type = Column(String(50), nullable=False, default="INTRO")
     media_type = Column(String(20), nullable=False, default="VIDEO")
     status = Column(String(50), nullable=False, default="IN_PROGRESS")  # IN_PROGRESS, EVALUATING, COMPLETED, FAILED
@@ -57,7 +36,6 @@ class AiPrepAssessmentORM(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    assessment_type_obj = relationship("AiPrepAssessmentTypeORM", back_populates="assessments")
     data_record = relationship("AiPrepAssessmentDataORM", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
     report_record = relationship("AiPrepAssessmentReportORM", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
 

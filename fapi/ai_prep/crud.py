@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from fapi.ai_prep.models import (
-    AiPrepAssessmentTypeORM,
     AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
     AiPrepAssessmentReportORM,
@@ -23,49 +22,61 @@ from fapi.db.models import (
 
 logger = logging.getLogger(__name__)
 
-# Default standard assessment types
-DEFAULT_ASSESSMENT_TYPES = [
+# Hardcoded standard assessment types catalog (in-memory, no schema changes)
+HARDCODED_ASSESSMENT_TYPES = [
     {
+        "id": 1,
         "code": "INTRO",
         "title": "Intro Assessment",
         "description": "Standard introductory background, soft skills, and career narrative assessment.",
         "category": "GENERAL",
         "time_estimate_mins": 4,
+        "is_active": True,
     },
     {
+        "id": 2,
         "code": "JD_INTRO",
         "title": "JD Intro Assessment",
         "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
         "category": "ROLE_SPECIFIC",
         "time_estimate_mins": 4,
+        "is_active": True,
     },
     {
+        "id": 3,
         "code": "RECRUITER",
         "title": "Recruiter Screen",
         "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
         "category": "SCREENING",
         "time_estimate_mins": 10,
+        "is_active": True,
     },
     {
+        "id": 4,
         "code": "HIRING_MANAGER",
         "title": "Hiring Manager Round",
         "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
         "category": "MANAGEMENT",
         "time_estimate_mins": 15,
+        "is_active": True,
     },
     {
+        "id": 5,
         "code": "SYSTEM_DESIGN",
         "title": "System Design",
         "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
         "category": "TECHNICAL",
         "time_estimate_mins": 25,
+        "is_active": True,
     },
     {
+        "id": 6,
         "code": "TECHNICAL",
         "title": "Technical Assessment",
         "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
         "category": "TECHNICAL",
         "time_estimate_mins": 30,
+        "is_active": True,
     },
 ]
 
@@ -117,56 +128,19 @@ DEFAULT_QUESTIONS = [
 
 
 # ---------------------------------------------------------------------------
-# Assessment Types CRUD
+# Assessment Types (Hardcoded Catalog)
 # ---------------------------------------------------------------------------
 
-def seed_default_assessment_types(db: Session) -> List[AiPrepAssessmentTypeORM]:
-    """Ensures default assessment types exist in the database."""
-    created = []
-    for item in DEFAULT_ASSESSMENT_TYPES:
-        existing = db.query(AiPrepAssessmentTypeORM).filter(AiPrepAssessmentTypeORM.code == item["code"]).first()
-        if not existing:
-            new_type = AiPrepAssessmentTypeORM(
-                code=item["code"],
-                title=item["title"],
-                description=item["description"],
-                category=item["category"],
-                time_estimate_mins=item["time_estimate_mins"],
-                is_active=True,
-            )
-            db.add(new_type)
-            created.append(new_type)
-    if created:
-        try:
-            db.commit()
-            for obj in created:
-                db.refresh(obj)
-        except Exception as e:
-            db.rollback()
-            logger.warning(f"Error committing default assessment types: {e}")
-    return db.query(AiPrepAssessmentTypeORM).filter(AiPrepAssessmentTypeORM.is_active == True).all()
+def list_assessment_types() -> List[Dict[str, Any]]:
+    """Returns the hardcoded assessment types catalog."""
+    return HARDCODED_ASSESSMENT_TYPES
 
 
-def list_assessment_types(db: Session, active_only: bool = True) -> List[AiPrepAssessmentTypeORM]:
-    query = db.query(AiPrepAssessmentTypeORM)
-    if active_only:
-        query = query.filter(AiPrepAssessmentTypeORM.is_active == True)
-    types = query.all()
-    if not types:
-        types = seed_default_assessment_types(db)
-    return types
-
-
-def get_assessment_type_by_code(db: Session, code: str) -> Optional[AiPrepAssessmentTypeORM]:
-    return db.query(AiPrepAssessmentTypeORM).filter(AiPrepAssessmentTypeORM.code == code).first()
-
-
-def create_assessment_type(db: Session, type_in: Dict[str, Any]) -> AiPrepAssessmentTypeORM:
-    db_obj = AiPrepAssessmentTypeORM(**type_in)
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+def get_assessment_type_by_code(code: str) -> Optional[Dict[str, Any]]:
+    for t in HARDCODED_ASSESSMENT_TYPES:
+        if t["code"].upper() == code.upper():
+            return t
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -181,14 +155,10 @@ def create_assessment(
     job_description: Optional[str] = None,
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
-    type_obj = get_assessment_type_by_code(db, assessment_type)
-    type_id = type_obj.id if type_obj else None
-
     assessment_uuid = str(uuid.uuid4())
     db_obj = AiPrepAssessmentORM(
         assessment_uuid=assessment_uuid,
         candidate_id=candidate_id,
-        assessment_type_id=type_id,
         assessment_type=assessment_type,
         media_type=media_type,
         status="IN_PROGRESS",

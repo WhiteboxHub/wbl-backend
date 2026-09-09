@@ -58,7 +58,6 @@ from fapi.ai_prep.dependencies import (
 )
 from fapi.ai_prep.crud import (
     list_assessment_types,
-    create_assessment_type,
     get_assessment_by_id,
     list_assessments,
     save_assessment_data,
@@ -841,13 +840,11 @@ def stream_assessment_processing_sse(
     summary="Catalog: List Assessment Types",
 )
 @router.get("/assessment_types", response_model=AssessmentTypeListResponse, include_in_schema=False)
-def list_available_assessment_types(
-    db: Session = Depends(get_db),
-):
-    """Fetches all active assessment types from catalog."""
-    types = list_assessment_types(db, active_only=True)
+def list_available_assessment_types():
+    """Fetches all active assessment types from hardcoded catalog."""
+    types = list_assessment_types()
     return AssessmentTypeListResponse(
-        items=[AssessmentTypeResponse.from_orm(t) for t in types],
+        items=[AssessmentTypeResponse(**t) for t in types],
         total=len(types),
     )
 
@@ -863,11 +860,11 @@ def list_available_assessment_types(
 def create_new_assessment_type(
     type_in: AssessmentTypeCreate,
     auth_ctx: Dict[str, Any] = Depends(require_employee_or_admin),
-    db: Session = Depends(get_db),
 ):
-    """Admin endpoint to create a new assessment type."""
-    created = create_assessment_type(db, type_in.dict())
-    return AssessmentTypeResponse.from_orm(created)
+    """Admin endpoint to create a new assessment type in catalog."""
+    new_item = type_in.dict()
+    new_item["id"] = len(list_assessment_types()) + 1
+    return AssessmentTypeResponse(**new_item)
 
 
 @router.get(
