@@ -1,73 +1,56 @@
-"""Pydantic Schemas and Master JSON Contracts for AI Prep Tool.
-Fully compatible with Master Contracts and aiprep-backend branch.
+"""Pydantic Schemas and enums for AI Prep Tool.
+Strictly derived from Migration V134 DDL — enums match DB ENUM values exactly.
 """
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
-# Enums
+# Domain Enums — values match DDL ENUM literals exactly
 # ---------------------------------------------------------------------------
 
-AssessmentCategoryEnum = Enum(
-    "AssessmentCategoryEnum",
-    {
-        "INTRO": "INTRO",
-        "JD_INTRO": "JD_INTRO",
-        "RECRUITER": "RECRUITER",
-        "HIRING_MANAGER": "HIRING_MANAGER",
-        "SYSTEM_DESIGN": "SYSTEM_DESIGN",
-        "TECHNICAL": "TECHNICAL",
-    },
-    type=str,
-)
+class AssessmentCategoryEnum(str, Enum):
+    INTRO = "INTRO"
+    JD_INTRO = "JD_INTRO"
+    RECRUITER = "RECRUITER"
+    HIRING_MANAGER = "HIRING_MANAGER"
+    SYSTEM_DESIGN = "SYSTEM_DESIGN"
+    TECHNICAL = "TECHNICAL"
 
+
+# Alias used in some places
 AssessmentTypeEnum = AssessmentCategoryEnum
 
-MediaTypeEnum = Enum(
-    "MediaTypeEnum",
-    {
-        "VIDEO": "VIDEO",
-        "AUDIO": "AUDIO",
-    },
-    type=str,
-)
 
+class MediaTypeEnum(str, Enum):
+    AUDIO = "AUDIO"
+    VIDEO = "VIDEO"
+
+
+# Alias
 AssessmentMediaTypeEnum = MediaTypeEnum
 
-AssessmentStatusEnum = Enum(
-    "AssessmentStatusEnum",
-    {
-        "IN_PROGRESS": "IN_PROGRESS",
-        "EVALUATING": "EVALUATING",
-        "COMPLETED": "COMPLETED",
-        "FAILED": "FAILED",
-    },
-    type=str,
-)
 
-DifficultyLevelEnum = Enum(
-    "DifficultyLevelEnum",
-    {
-        "EASY": "EASY",
-        "MEDIUM": "MEDIUM",
-        "HARD": "HARD",
-        "EXPERT": "EXPERT",
-    },
-    type=str,
-)
+class AssessmentStatusEnum(str, Enum):
+    IN_PROGRESS = "IN_PROGRESS"
+    EVALUATING = "EVALUATING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
-EngineOperationEnum = Enum(
-    "EngineOperationEnum",
-    {
-        "START": "START",
-        "SUBMIT": "SUBMIT",
-        "CANCEL": "CANCEL",
-    },
-    type=str,
-)
+
+class DifficultyLevelEnum(str, Enum):
+    EASY = "EASY"
+    MEDIUM = "MEDIUM"
+    HARD = "HARD"
+    EXPERT = "EXPERT"
+
+
+class EngineOperationEnum(str, Enum):
+    START = "START"
+    SUBMIT = "SUBMIT"
+    CANCEL = "CANCEL"
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +58,9 @@ EngineOperationEnum = Enum(
 # ---------------------------------------------------------------------------
 
 class AssessmentTypeBase(BaseModel):
-    code: str = Field(..., description="Unique assessment type code identifier (e.g. INTRO, SYSTEM_DESIGN)")
-    title: str = Field(..., description="Display title for the assessment type")
-    description: Optional[str] = Field(None, description="Detailed overview of what the assessment covers")
+    code: str = Field(..., description="Unique assessment type code (e.g. INTRO, SYSTEM_DESIGN)")
+    title: str = Field(..., description="Display title")
+    description: Optional[str] = Field(None, description="Overview of what the assessment covers")
     category: str = Field(default="GENERAL", description="Category grouping")
     time_estimate_mins: int = Field(default=15, description="Estimated duration in minutes")
     is_active: bool = Field(default=True, description="Whether this assessment type is enabled")
@@ -134,7 +117,7 @@ class ResumeStatusResponse(BaseModel):
 
 
 class PreAssessmentCheckResponse(BaseModel):
-    eligible: bool = Field(..., description="True if candidate meets all prerequisites to start assessment")
+    eligible: bool = Field(..., description="True if candidate meets all prerequisites")
     candidate_id: int
     llm_check: LLMKeyStatusResponse
     resume_check: ResumeStatusResponse
@@ -147,16 +130,15 @@ class PreAssessmentCheckResponse(BaseModel):
 
 class CreateAssessmentRequest(BaseModel):
     candidate_id: Optional[int] = Field(None, description="Candidate ID (auto-resolved from session if candidate)")
-    assessment_type: AssessmentCategoryEnum = Field(default=AssessmentCategoryEnum.INTRO, description="Assessment type code")
-    media_type: MediaTypeEnum = Field(default=MediaTypeEnum.VIDEO, description="Recording media mode")
-    job_description: Optional[str] = Field(None, description="Optional job description for tailored assessments")
+    assessment_type: AssessmentCategoryEnum = Field(default=AssessmentCategoryEnum.INTRO)
+    media_type: MediaTypeEnum = Field(default=MediaTypeEnum.VIDEO)
+    job_description: Optional[str] = Field(None, description="Optional JD for tailored assessments")
 
 
 class CreateAssessmentResponse(BaseModel):
     id: int
-    assessment_uuid: Optional[str] = None
     status: str = Field(default="IN_PROGRESS")
-    started_at: datetime
+    started_at: Optional[datetime] = None
     assessment_type: Optional[str] = None
     media_type: Optional[str] = None
     questions: Optional[List[Dict[str, Any]]] = None
@@ -165,6 +147,7 @@ class CreateAssessmentResponse(BaseModel):
         from_attributes = True
 
 
+# Alias
 AssessmentResponse = CreateAssessmentResponse
 
 
@@ -176,10 +159,10 @@ class SubmitAssessmentRequest(BaseModel):
 
 
 class SubmitAssessmentDataRequest(BaseModel):
-    questions: List[Dict[str, Any]] = Field(default_factory=list, description="List of questions answered")
-    transcript: Dict[str, Any] = Field(default_factory=dict, description="Transcript payload with full_text and segments")
-    audio_telemetry: Dict[str, Any] = Field(default_factory=dict, description="Audio metrics: words_per_minute, silence_ratio_pct, etc.")
-    video_telemetry: Dict[str, Any] = Field(default_factory=dict, description="Video metrics: face_visible_pct, head_nods_count, etc.")
+    questions: List[Dict[str, Any]] = Field(default_factory=list)
+    transcript: Dict[str, Any] = Field(default_factory=dict)
+    audio_telemetry: Dict[str, Any] = Field(default_factory=dict)
+    video_telemetry: Dict[str, Any] = Field(default_factory=dict)
 
 
 class SubmitAssessmentDataResponse(BaseModel):
@@ -190,6 +173,7 @@ class UpdateMediaURLRequest(BaseModel):
     youtube_url: str = Field(..., description="Public/unlisted video or audio streaming URL")
 
 
+# Alias
 UpdateMediaUrlRequest = UpdateMediaURLRequest
 
 
@@ -205,7 +189,6 @@ class TriggerEvaluationResponse(BaseModel):
 
 class AssessmentListItem(BaseModel):
     id: int
-    assessment_uuid: Optional[str] = None
     candidate_id: Optional[int] = None
     assessment_type: str
     media_type: str
@@ -225,12 +208,13 @@ class AssessmentListResponse(BaseModel):
 
 class AssessmentDetailResponse(BaseModel):
     id: int
-    assessment_uuid: Optional[str] = None
     candidate_id: int
     assessment_type: str
     media_type: str
     status: str
     job_description: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
     youtube_url: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -243,7 +227,7 @@ class AssessmentDetailResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Media Ingestion & BE2 Chunk Upload Schemas (Category 4)
+# Media Ingestion & Chunk Upload Schemas (Category 4)
 # ---------------------------------------------------------------------------
 
 class ChunkUploadResponse(BaseModel):
@@ -325,13 +309,21 @@ class ProcessingStatusResponse(BaseModel):
 
 class QuestionCreateRequest(BaseModel):
     category: AssessmentCategoryEnum = Field(..., description="Target assessment category")
-    sub_category: Optional[str] = Field(None, description="Optional subcategory / topic")
-    difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
+    sub_category: Optional[str] = Field(None, description="Optional sub-category (required when category=TECHNICAL)")
+    difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM)
     question_text: str = Field(..., description="Question prompt text")
-    ideal_answer_rubric: Optional[str] = Field(None, description="Evaluation rubric guidelines")
-    is_active: bool = Field(default=True, description="Whether question is active")
+    is_active: bool = Field(default=True)
+
+    @model_validator(mode="after")
+    def validate_subcategory(self):
+        if self.category == AssessmentCategoryEnum.TECHNICAL and not self.sub_category:
+            raise ValueError("sub_category is required when category is TECHNICAL")
+        if self.category != AssessmentCategoryEnum.TECHNICAL and self.sub_category is not None:
+            self.sub_category = None
+        return self
 
 
+# Alias
 QuestionBankCreateRequest = QuestionCreateRequest
 
 
@@ -340,10 +332,10 @@ class QuestionUpdateRequest(BaseModel):
     sub_category: Optional[str] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
     question_text: Optional[str] = None
-    ideal_answer_rubric: Optional[str] = None
     is_active: Optional[bool] = None
 
 
+# Alias
 QuestionBankUpdateRequest = QuestionUpdateRequest
 
 
@@ -353,7 +345,6 @@ class QuestionResponse(BaseModel):
     sub_category: Optional[str] = None
     difficulty_level: str
     question_text: str
-    ideal_answer_rubric: Optional[str] = None
     is_active: bool
     created_at: Optional[datetime] = None
 
@@ -361,6 +352,7 @@ class QuestionResponse(BaseModel):
         from_attributes = True
 
 
+# Alias
 QuestionBankResponse = QuestionResponse
 
 

@@ -23,7 +23,7 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
     AiPrepAssessmentReportORM,
-    AiPrepQuestionORM,
+    AiPrepQuestionBankORM,
 )
 from fapi.ai_prep.schemas import (
     AssessmentTypeResponse,
@@ -289,9 +289,7 @@ def candidate_create_assessment_logic(
     candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
     _verify_prerequisites(db, candidate_id)
 
-    assessment_uuid = str(uuid.uuid4())
     db_assessment = AiPrepAssessmentORM(
-        assessment_uuid=assessment_uuid,
         candidate_id=candidate_id,
         assessment_type=payload.assessment_type.value,
         media_type=payload.media_type.value,
@@ -303,10 +301,13 @@ def candidate_create_assessment_logic(
     db.commit()
     db.refresh(db_assessment)
 
-    # Query initial question from question bank table (excluding rubric from candidate response)
+    # Query initial question from question bank table (rubric is never sent to candidate)
     q_row = (
-        db.query(AiPrepQuestionORM)
-        .filter(AiPrepQuestionORM.category == payload.assessment_type.value, AiPrepQuestionORM.is_active == True)
+        db.query(AiPrepQuestionBankORM)
+        .filter(
+            AiPrepQuestionBankORM.category == payload.assessment_type.value,
+            AiPrepQuestionBankORM.is_active == True,  # noqa: E712
+        )
         .first()
     )
     questions_list = []
@@ -326,7 +327,6 @@ def candidate_create_assessment_logic(
 
     return CreateAssessmentResponse(
         id=db_assessment.id,
-        assessment_uuid=db_assessment.assessment_uuid,
         status=db_assessment.status,
         started_at=db_assessment.started_at,
         assessment_type=db_assessment.assessment_type,
@@ -351,7 +351,6 @@ def candidate_list_assessments_logic(
         items=[
             AssessmentListItem(
                 id=a.id,
-                assessment_uuid=a.assessment_uuid,
                 candidate_id=a.candidate_id,
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
@@ -379,32 +378,31 @@ def candidate_get_assessment_detail_logic(
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     data_dict = None
-    if assessment.data_record:
+    if assessment.assessment_data:
         data_dict = {
-            "questions": assessment.data_record.questions,
-            "transcript": assessment.data_record.transcript,
-            "audio_telemetry": assessment.data_record.audio_telemetry,
-            "video_telemetry": assessment.data_record.video_telemetry,
+            "questions": assessment.assessment_data.questions,
+            "transcript": assessment.assessment_data.transcript,
+            "audio_telemetry": assessment.assessment_data.audio_telemetry,
+            "video_telemetry": assessment.assessment_data.video_telemetry,
         }
 
     report_dict = None
-    if assessment.report_record:
+    if assessment.assessment_report:
         report_dict = {
-            "audio_evaluation": assessment.report_record.audio_evaluation,
-            "video_evaluation": assessment.report_record.video_evaluation,
-            "transcript_evaluation": assessment.report_record.transcript_evaluation,
-            "overall_score": assessment.report_record.overall_score,
-            "report_data": assessment.report_record.report_data,
+            "audio_evaluation": assessment.assessment_report.audio_evaluation,
+            "video_evaluation": assessment.assessment_report.video_evaluation,
+            "transcript_evaluation": assessment.assessment_report.transcript_evaluation,
         }
 
     return AssessmentDetailResponse(
         id=assessment.id,
-        assessment_uuid=assessment.assessment_uuid,
         candidate_id=assessment.candidate_id,
         assessment_type=assessment.assessment_type,
         media_type=assessment.media_type,
         status=assessment.status,
         job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
@@ -563,7 +561,6 @@ def employee_list_assessments_table_logic(
         items=[
             AssessmentListItem(
                 id=a.id,
-                assessment_uuid=a.assessment_uuid,
                 candidate_id=a.candidate_id,
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
@@ -588,7 +585,6 @@ def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) ->
         items=[
             AssessmentListItem(
                 id=a.id,
-                assessment_uuid=a.assessment_uuid,
                 candidate_id=a.candidate_id,
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
@@ -610,32 +606,31 @@ def employee_get_assessment_detail_logic(db: Session, assessment_id: int) -> Ass
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     data_dict = None
-    if assessment.data_record:
+    if assessment.assessment_data:
         data_dict = {
-            "questions": assessment.data_record.questions,
-            "transcript": assessment.data_record.transcript,
-            "audio_telemetry": assessment.data_record.audio_telemetry,
-            "video_telemetry": assessment.data_record.video_telemetry,
+            "questions": assessment.assessment_data.questions,
+            "transcript": assessment.assessment_data.transcript,
+            "audio_telemetry": assessment.assessment_data.audio_telemetry,
+            "video_telemetry": assessment.assessment_data.video_telemetry,
         }
 
     report_dict = None
-    if assessment.report_record:
+    if assessment.assessment_report:
         report_dict = {
-            "audio_evaluation": assessment.report_record.audio_evaluation,
-            "video_evaluation": assessment.report_record.video_evaluation,
-            "transcript_evaluation": assessment.report_record.transcript_evaluation,
-            "overall_score": assessment.report_record.overall_score,
-            "report_data": assessment.report_record.report_data,
+            "audio_evaluation": assessment.assessment_report.audio_evaluation,
+            "video_evaluation": assessment.assessment_report.video_evaluation,
+            "transcript_evaluation": assessment.assessment_report.transcript_evaluation,
         }
 
     return AssessmentDetailResponse(
         id=assessment.id,
-        assessment_uuid=assessment.assessment_uuid,
         candidate_id=assessment.candidate_id,
         assessment_type=assessment.assessment_type,
         media_type=assessment.media_type,
         status=assessment.status,
         job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
@@ -875,16 +870,16 @@ def list_questions_from_bank_logic(
     offset: int = 0,
 ) -> QuestionListResponse:
     """Fetches questions dynamically from ai_prep_questions DB table."""
-    query = db.query(AiPrepQuestionORM)
+    query = db.query(AiPrepQuestionBankORM)
     if category:
-        query = query.filter(AiPrepQuestionORM.category == category)
+        query = query.filter(AiPrepQuestionBankORM.category == category)
     if difficulty_level:
-        query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+        query = query.filter(AiPrepQuestionBankORM.difficulty_level == difficulty_level)
     if is_active is not None:
-        query = query.filter(AiPrepQuestionORM.is_active == is_active)
+        query = query.filter(AiPrepQuestionBankORM.is_active == is_active)
 
     total = query.count()
-    items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
+    items = query.order_by(desc(AiPrepQuestionBankORM.id)).offset(offset).limit(limit).all()
 
     return QuestionListResponse(
         items=[QuestionResponse.from_orm(q) for q in items],
@@ -893,13 +888,12 @@ def list_questions_from_bank_logic(
 
 
 def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> QuestionResponse:
-    """Adds a new question to the ai_prep_questions table in DB."""
-    new_q = AiPrepQuestionORM(
+    """Adds a new question to the ai_prep_question_bank table in DB."""
+    new_q = AiPrepQuestionBankORM(
         category=payload.category.value,
         sub_category=payload.sub_category,
         difficulty_level=payload.difficulty_level.value,
         question_text=payload.question_text,
-        ideal_answer_rubric=payload.ideal_answer_rubric,
         is_active=payload.is_active,
     )
     db.add(new_q)
@@ -914,14 +908,13 @@ def update_question_in_bank_logic(
     payload: QuestionUpdateRequest,
 ) -> QuestionResponse:
     """Updates fields on an existing question dynamically in DB."""
-    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    q_row = db.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.id == question_id).first()
     if not q_row:
         raise HTTPException(status_code=404, detail="Question not found")
 
     for k, v in payload.dict(exclude_unset=True).items():
         if v is not None and hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
-    q_row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(q_row)
     return QuestionResponse.from_orm(q_row)

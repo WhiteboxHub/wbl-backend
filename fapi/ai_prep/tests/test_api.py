@@ -13,7 +13,7 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
     AiPrepAssessmentReportORM,
-    AiPrepQuestionORM,
+    AiPrepQuestionBankORM,
 )
 
 # In-memory SQLite for isolated test execution
@@ -36,7 +36,7 @@ def setup_db():
         AiPrepAssessmentORM.__table__,
         AiPrepAssessmentDataORM.__table__,
         AiPrepAssessmentReportORM.__table__,
-        AiPrepQuestionORM.__table__,
+        AiPrepQuestionBankORM.__table__,
     ]
     Base.metadata.create_all(bind=engine, tables=tables)
     yield
@@ -90,15 +90,14 @@ def seed_candidate(db_session):
         db_session.add(mktg1)
 
     # Seed a question in DB
-    q1 = db_session.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == 101).first()
+    q1 = db_session.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.id == 101).first()
     if not q1:
-        q1 = AiPrepQuestionORM(
+        q1 = AiPrepQuestionBankORM(
             id=101,
             category="TECHNICAL",
             sub_category="RAG Systems",
             difficulty_level="HARD",
             question_text="Explain hybrid search indexing in RAG pipelines.",
-            ideal_answer_rubric="Detail sparse and dense vector representations.",
             is_active=True,
         )
         db_session.add(q1)
@@ -108,9 +107,9 @@ def seed_candidate(db_session):
     if not a1:
         a1 = AiPrepAssessmentORM(
             id=1,
-            assessment_uuid="test-session-1001",
             candidate_id=1001,
             assessment_type="TECHNICAL",
+            media_type="VIDEO",
             status="COMPLETED",
         )
         db_session.add(a1)
@@ -252,6 +251,7 @@ def test_candidate_creation_does_not_leak_rubric(db_session, seed_candidate):
     questions = res.json().get("questions", [])
     assert len(questions) > 0
     for q in questions:
+        # rubric is NOT a column in V134 DDL — must never be exposed
         assert "ideal_answer_rubric" not in q
 
 
@@ -345,7 +345,6 @@ def test_question_bank_management(db_session):
         "sub_category": "Multi-Agent Systems",
         "difficulty_level": "HARD",
         "question_text": "How do you coordinate hierarchical multi-agent workflows?",
-        "ideal_answer_rubric": "Detail supervisory agents, delegation, and state aggregation.",
         "is_active": True,
     }
     post_res = client.post("/api/aiprep/employee/questions", json=new_q)

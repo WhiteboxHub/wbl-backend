@@ -1,134 +1,65 @@
 """Database CRUD operations for AI Prep Tool.
-Fully validated and interoperable with aiprep-backend branch.
+Strictly matches V134 DDL table structure — 4 tables only.
+All DB queries are isolated here; engines and orchestrators must not make raw queries.
 """
-import uuid
-import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from fapi.ai_prep.models import (
-    AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
+    AiPrepAssessmentORM,
     AiPrepAssessmentReportORM,
-    AiPrepQuestionORM,
+    AiPrepQuestionBankORM,
 )
 from fapi.db.models import (
-    CandidateORM,
-    CandidateMarketingORM,
     CandidateLlmApiKeyORM,
-    AuthUserORM,
+    CandidateMarketingORM,
+    CandidateORM,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Assessment Types Catalog (in-memory — no DB table in V134)
+# ---------------------------------------------------------------------------
 
 def list_assessment_types() -> List[Dict[str, Any]]:
     """Returns the hardcoded assessment types catalog."""
     return [
         {
-            "id": 1,
-            "code": "INTRO",
-            "title": "Intro Assessment",
+            "id": 1, "code": "INTRO", "title": "Intro Assessment",
             "description": "Standard introductory background, soft skills, and career narrative assessment.",
-            "category": "GENERAL",
-            "time_estimate_mins": 4,
-            "is_active": True,
+            "category": "GENERAL", "time_estimate_mins": 4, "is_active": True,
         },
         {
-            "id": 2,
-            "code": "JD_INTRO",
-            "title": "JD Intro Assessment",
-            "description": "Job description-aligned introductory walkthrough focusing on specific tech stack and role requirements.",
-            "category": "ROLE_SPECIFIC",
-            "time_estimate_mins": 4,
-            "is_active": True,
+            "id": 2, "code": "JD_INTRO", "title": "JD Intro Assessment",
+            "description": "Job description-aligned introductory walkthrough.",
+            "category": "ROLE_SPECIFIC", "time_estimate_mins": 4, "is_active": True,
         },
         {
-            "id": 3,
-            "code": "RECRUITER",
-            "title": "Recruiter Screen",
-            "description": "Recruiter-style screening covering motivation, cultural fit, transitions, and logistics.",
-            "category": "SCREENING",
-            "time_estimate_mins": 10,
-            "is_active": True,
+            "id": 3, "code": "RECRUITER", "title": "Recruiter Screen",
+            "description": "Recruiter-style screening covering motivation, cultural fit, and logistics.",
+            "category": "SCREENING", "time_estimate_mins": 10, "is_active": True,
         },
         {
-            "id": 4,
-            "code": "HIRING_MANAGER",
-            "title": "Hiring Manager Round",
-            "description": "In-depth hiring manager interview exploring project ownership, delivery, accountability, and problem-solving.",
-            "category": "MANAGEMENT",
-            "time_estimate_mins": 15,
-            "is_active": True,
+            "id": 4, "code": "HIRING_MANAGER", "title": "Hiring Manager Round",
+            "description": "In-depth hiring manager interview exploring project ownership and delivery.",
+            "category": "MANAGEMENT", "time_estimate_mins": 15, "is_active": True,
         },
         {
-            "id": 5,
-            "code": "SYSTEM_DESIGN",
-            "title": "System Design",
-            "description": "Architectural breakdown covering high-level architecture, scalability, trade-offs, and GenAI/RAG pipelines.",
-            "category": "TECHNICAL",
-            "time_estimate_mins": 25,
-            "is_active": True,
+            "id": 5, "code": "SYSTEM_DESIGN", "title": "System Design",
+            "description": "Architectural breakdown covering scalability, trade-offs, and GenAI/RAG pipelines.",
+            "category": "TECHNICAL", "time_estimate_mins": 25, "is_active": True,
         },
         {
-            "id": 6,
-            "code": "TECHNICAL",
-            "title": "Technical Assessment",
-            "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
-            "category": "TECHNICAL",
-            "time_estimate_mins": 30,
-            "is_active": True,
-        },
-    ]
-
-
-def get_default_questions() -> List[Dict[str, Any]]:
-    """Standard introductory fallback questions."""
-    return [
-        {
-            "category": "INTRO",
-            "sub_category": "Background & Overview",
-            "difficulty_level": "MEDIUM",
-            "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
-            "ideal_answer_rubric": "Articulate career arc, GenAI specialization, system architectures built, and end-to-end project ownership.",
-        },
-        {
-            "category": "JD_INTRO",
-            "sub_category": "Role & Stack Alignment",
-            "difficulty_level": "MEDIUM",
-            "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
-            "ideal_answer_rubric": "Directly map past technical projects and libraries to the job responsibilities and required technologies.",
-        },
-        {
-            "category": "RECRUITER",
-            "sub_category": "Career Transitions",
-            "difficulty_level": "MEDIUM",
-            "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
-            "ideal_answer_rubric": "Clear explanation of career choices, continuous learning, and positive team culture alignment.",
-        },
-        {
-            "category": "HIRING_MANAGER",
-            "sub_category": "Ownership & Impact",
-            "difficulty_level": "HARD",
-            "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
-            "ideal_answer_rubric": "Structured STAR response detailing leadership, cross-functional collaboration, technical pivot, and business metrics achieved.",
-        },
-        {
-            "category": "SYSTEM_DESIGN",
-            "sub_category": "AI Architecture",
-            "difficulty_level": "HARD",
-            "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
-            "ideal_answer_rubric": "Detail vector databases, chunking strategies, embedding retrieval, re-ranking, LLM latency budgets, and fallback mechanisms.",
-        },
-        {
-            "category": "TECHNICAL",
-            "sub_category": "Agentic AI",
-            "difficulty_level": "HARD",
-            "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks. When would you choose one over the other?",
-            "ideal_answer_rubric": "Compare reasoning traces, token overhead, tool-calling loops, latency, and determinism in production environments.",
+            "id": 6, "code": "TECHNICAL", "title": "Technical Assessment",
+            "description": "Deep technical evaluation covering core engineering, frameworks, and algorithms.",
+            "category": "TECHNICAL", "time_estimate_mins": 30, "is_active": True,
         },
     ]
 
@@ -138,6 +69,36 @@ def get_assessment_type_by_code(code: str) -> Optional[Dict[str, Any]]:
         if t["code"].upper() == code.upper():
             return t
     return None
+
+
+def get_default_questions() -> List[Dict[str, Any]]:
+    """Standard fallback questions used when question bank is empty."""
+    return [
+        {
+            "category": "INTRO", "sub_category": None, "difficulty_level": "MEDIUM",
+            "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
+        },
+        {
+            "category": "JD_INTRO", "sub_category": None, "difficulty_level": "MEDIUM",
+            "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
+        },
+        {
+            "category": "RECRUITER", "sub_category": None, "difficulty_level": "MEDIUM",
+            "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
+        },
+        {
+            "category": "HIRING_MANAGER", "sub_category": None, "difficulty_level": "HARD",
+            "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
+        },
+        {
+            "category": "SYSTEM_DESIGN", "sub_category": None, "difficulty_level": "HARD",
+            "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents.",
+        },
+        {
+            "category": "TECHNICAL", "sub_category": "Agentic AI", "difficulty_level": "HARD",
+            "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks.",
+        },
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -150,17 +111,19 @@ def create_assessment(
     assessment_type: str,
     media_type: str,
     job_description: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
-    assessment_uuid = str(uuid.uuid4())
     db_obj = AiPrepAssessmentORM(
-        assessment_uuid=assessment_uuid,
         candidate_id=candidate_id,
         assessment_type=assessment_type,
         media_type=media_type,
         status="IN_PROGRESS",
         job_description=job_description,
-        started_at=datetime.utcnow(),
+        ip_address=ip_address,
+        user_agent=user_agent,
+        started_at=datetime.now(timezone.utc),
     )
     db.add(db_obj)
     db.commit()
@@ -170,10 +133,6 @@ def create_assessment(
 
 def get_assessment_by_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentORM]:
     return db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-
-
-def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrepAssessmentORM]:
-    return db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.assessment_uuid == assessment_uuid).first()
 
 
 def list_assessments(
@@ -188,7 +147,6 @@ def list_assessments(
         query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
     if status:
         query = query.filter(AiPrepAssessmentORM.status == status)
-
     total = query.count()
     items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
     return items, total
@@ -213,6 +171,36 @@ def list_assessments_for_employee(
     return list_assessments(db, candidate_id=candidate_id, status=status, limit=limit, offset=offset)
 
 
+def update_assessment_media_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
+    assessment = get_assessment_by_id(db, assessment_id)
+    if not assessment:
+        return None
+    assessment.youtube_url = youtube_url
+    db.commit()
+    db.refresh(assessment)
+    return assessment
+
+
+# Alias
+update_assessment_youtube_url = update_assessment_media_url
+
+
+def update_assessment_status(db: Session, assessment_id: int, status: str) -> Optional[AiPrepAssessmentORM]:
+    assessment = get_assessment_by_id(db, assessment_id)
+    if not assessment:
+        return None
+    assessment.status = status
+    if status in ("COMPLETED", "FAILED"):
+        assessment.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(assessment)
+    return assessment
+
+
+# ---------------------------------------------------------------------------
+# Assessment Data CRUD
+# ---------------------------------------------------------------------------
+
 def save_assessment_data(
     db: Session,
     assessment_id: int,
@@ -221,13 +209,16 @@ def save_assessment_data(
     audio_telemetry: Dict[str, Any],
     video_telemetry: Dict[str, Any],
 ) -> AiPrepAssessmentDataORM:
-    existing = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+    existing = (
+        db.query(AiPrepAssessmentDataORM)
+        .filter(AiPrepAssessmentDataORM.assessment_id == assessment_id)
+        .first()
+    )
     if existing:
         existing.questions = questions
         existing.transcript = transcript
         existing.audio_telemetry = audio_telemetry
         existing.video_telemetry = video_telemetry
-        existing.updated_at = datetime.utcnow()
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentDataORM(
@@ -238,74 +229,48 @@ def save_assessment_data(
             video_telemetry=video_telemetry,
         )
         db.add(db_obj)
-
     db.commit()
     db.refresh(db_obj)
     return db_obj
 
 
-def create_or_update_assessment_data(
-    db: Session,
-    assessment_id: int,
-    questions: List[Dict[str, Any]],
-    transcript: Dict[str, Any],
-    audio_telemetry: Dict[str, Any],
-    video_telemetry: Dict[str, Any],
-) -> AiPrepAssessmentDataORM:
-    return save_assessment_data(db, assessment_id, questions, transcript, audio_telemetry, video_telemetry)
+# Alias
+create_or_update_assessment_data = save_assessment_data
 
 
 def get_assessment_data_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentDataORM]:
-    return db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+    return (
+        db.query(AiPrepAssessmentDataORM)
+        .filter(AiPrepAssessmentDataORM.assessment_id == assessment_id)
+        .first()
+    )
 
 
-def update_assessment_media_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        return None
-    assessment.youtube_url = youtube_url
-    assessment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(assessment)
-    return assessment
-
-
-def update_assessment_youtube_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
-    return update_assessment_media_url(db, assessment_id, youtube_url)
-
-
-def update_assessment_status(db: Session, assessment_id: int, status: str) -> Optional[AiPrepAssessmentORM]:
-    assessment = get_assessment_by_id(db, assessment_id)
-    if not assessment:
-        return None
-    assessment.status = status
-    if status in ("COMPLETED", "FAILED"):
-        assessment.completed_at = datetime.utcnow()
-    assessment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(assessment)
-    return assessment
-
+# ---------------------------------------------------------------------------
+# Assessment Report CRUD
+# ---------------------------------------------------------------------------
 
 def save_assessment_report(
     db: Session,
     assessment_id: int,
     parsed_report: Dict[str, Any],
 ) -> AiPrepAssessmentReportORM:
-    existing = db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == assessment_id).first()
-    
+    """Creates or updates the evaluation report for an assessment.
+    NOTE: The V134 DDL report table has only 3 JSON eval columns (no overall_score, no report_data).
+    """
+    existing = (
+        db.query(AiPrepAssessmentReportORM)
+        .filter(AiPrepAssessmentReportORM.assessment_id == assessment_id)
+        .first()
+    )
     audio_eval = parsed_report.get("audio_evaluation")
     video_eval = parsed_report.get("video_evaluation")
     transcript_eval = parsed_report.get("transcript_evaluation")
-    overall_score = parsed_report.get("overall_score")
 
     if existing:
         existing.audio_evaluation = audio_eval
         existing.video_evaluation = video_eval
         existing.transcript_evaluation = transcript_eval
-        existing.overall_score = overall_score
-        existing.report_data = parsed_report
-        existing.updated_at = datetime.utcnow()
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentReportORM(
@@ -313,42 +278,47 @@ def save_assessment_report(
             audio_evaluation=audio_eval,
             video_evaluation=video_eval,
             transcript_evaluation=transcript_eval,
-            overall_score=overall_score,
-            report_data=parsed_report,
         )
         db.add(db_obj)
-
     db.commit()
     db.refresh(db_obj)
     return db_obj
 
 
-def create_or_update_assessment_report(db: Session, assessment_id: int, parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
-    return save_assessment_report(db, assessment_id, parsed_report)
+# Alias
+create_or_update_assessment_report = save_assessment_report
 
 
 def get_assessment_report_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentReportORM]:
-    return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == assessment_id).first()
+    return (
+        db.query(AiPrepAssessmentReportORM)
+        .filter(AiPrepAssessmentReportORM.assessment_id == assessment_id)
+        .first()
+    )
 
 
 # ---------------------------------------------------------------------------
-# Questions Bank CRUD
+# Question Bank CRUD (table: ai_prep_question_bank)
 # ---------------------------------------------------------------------------
 
-def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
+def seed_default_questions(db: Session) -> List[AiPrepQuestionBankORM]:
+    """Seeds default question bank entries if the table is empty."""
     created = []
     for item in get_default_questions():
-        existing = db.query(AiPrepQuestionORM).filter(
-            AiPrepQuestionORM.category == item["category"],
-            AiPrepQuestionORM.question_text == item["question_text"]
-        ).first()
+        existing = (
+            db.query(AiPrepQuestionBankORM)
+            .filter(
+                AiPrepQuestionBankORM.category == item["category"],
+                AiPrepQuestionBankORM.question_text == item["question_text"],
+            )
+            .first()
+        )
         if not existing:
-            q = AiPrepQuestionORM(
+            q = AiPrepQuestionBankORM(
                 category=item["category"],
-                sub_category=item["sub_category"],
+                sub_category=item.get("sub_category"),
                 difficulty_level=item["difficulty_level"],
                 question_text=item["question_text"],
-                ideal_answer_rubric=item["ideal_answer_rubric"],
                 is_active=True,
             )
             db.add(q)
@@ -358,10 +328,10 @@ def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
             db.commit()
             for obj in created:
                 db.refresh(obj)
-        except Exception as e:
+        except Exception as exc:
             db.rollback()
-            logger.warning(f"Error seeding default questions: {e}")
-    return db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.is_active == True).all()
+            logger.warning("Error seeding default questions: %s", exc)
+    return db.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.is_active == True).all()  # noqa: E712
 
 
 def list_questions(
@@ -371,51 +341,51 @@ def list_questions(
     is_active: Optional[bool] = None,
     limit: int = 50,
     offset: int = 0,
-) -> Tuple[List[AiPrepQuestionORM], int]:
-    query = db.query(AiPrepQuestionORM)
+) -> Tuple[List[AiPrepQuestionBankORM], int]:
+    query = db.query(AiPrepQuestionBankORM)
     if category:
-        query = query.filter(AiPrepQuestionORM.category == category)
+        query = query.filter(AiPrepQuestionBankORM.category == category)
     if difficulty_level:
-        query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+        query = query.filter(AiPrepQuestionBankORM.difficulty_level == difficulty_level)
     if is_active is not None:
-        query = query.filter(AiPrepQuestionORM.is_active == is_active)
+        query = query.filter(AiPrepQuestionBankORM.is_active == is_active)
 
     total = query.count()
     if total == 0:
         seed_default_questions(db)
-        query = db.query(AiPrepQuestionORM)
+        # Re-query after seeding
+        query = db.query(AiPrepQuestionBankORM)
         if category:
-            query = query.filter(AiPrepQuestionORM.category == category)
+            query = query.filter(AiPrepQuestionBankORM.category == category)
         if difficulty_level:
-            query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+            query = query.filter(AiPrepQuestionBankORM.difficulty_level == difficulty_level)
         if is_active is not None:
-            query = query.filter(AiPrepQuestionORM.is_active == is_active)
+            query = query.filter(AiPrepQuestionBankORM.is_active == is_active)
         total = query.count()
 
-    items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
+    items = query.order_by(desc(AiPrepQuestionBankORM.id)).offset(offset).limit(limit).all()
     return items, total
 
 
-def get_question_by_id(db: Session, question_id: int) -> Optional[AiPrepQuestionORM]:
-    return db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+def get_question_by_id(db: Session, question_id: int) -> Optional[AiPrepQuestionBankORM]:
+    return db.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.id == question_id).first()
 
 
-def create_question(db: Session, question_in: Dict[str, Any]) -> AiPrepQuestionORM:
-    db_obj = AiPrepQuestionORM(**question_in)
+def create_question(db: Session, question_in: Dict[str, Any]) -> AiPrepQuestionBankORM:
+    db_obj = AiPrepQuestionBankORM(**question_in)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
     return db_obj
 
 
-def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) -> Optional[AiPrepQuestionORM]:
-    q = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) -> Optional[AiPrepQuestionBankORM]:
+    q = db.query(AiPrepQuestionBankORM).filter(AiPrepQuestionBankORM.id == question_id).first()
     if not q:
         return None
     for field, val in question_in.items():
         if val is not None and hasattr(q, field):
             setattr(q, field, val)
-    q.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(q)
     return q
@@ -456,8 +426,8 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
     }
 
 
-def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
-    return check_candidate_llm_key(db, candidate_id)
+# Alias
+get_candidate_llm_config = check_candidate_llm_key
 
 
 def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
@@ -515,6 +485,10 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
     }
 
 
+# Alias for backward compatibility
+check_candidate_resume_status = check_candidate_resume
+
+
 def get_candidate_resume_json(db: Session, candidate_id: int) -> Optional[Dict[str, Any]]:
     mktg = (
         db.query(CandidateMarketingORM)
@@ -534,7 +508,6 @@ def save_candidate_resume_json(db: Session, candidate_id: int, resume_data: Dict
     )
     if mktg:
         mktg.candidate_json = resume_data
-        mktg.last_mod_datetime = datetime.utcnow()
         db.commit()
         return True
     return False
