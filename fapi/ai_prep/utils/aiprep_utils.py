@@ -58,7 +58,8 @@ from fapi.ai_prep.schemas import (
 
 logger = logging.getLogger(__name__)
 
-STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR", "./storage/aiprep")
+_default_storage_dir = "./storage/aiprep"
+STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR") or _default_storage_dir
 
 
 # ---------------------------------------------------------------------------
