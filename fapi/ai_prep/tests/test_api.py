@@ -7,6 +7,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock
 
+import secrets
+
 # Mock multipart installation check for test environment
 import fastapi.dependencies.utils
 fastapi.dependencies.utils.ensure_multipart_is_installed = lambda: None
@@ -16,7 +18,7 @@ mock_sqla = MagicMock()
 sys.modules.setdefault("jose", mock_sqla)
 sys.modules.setdefault("jose.jwt", mock_sqla)
 sys.modules.setdefault("dotenv", mock_sqla)
-sys.modules.setdefault("fapi.core.config", MagicMock(SECRET_KEY="secret", ALGORITHM="HS256"))
+sys.modules.setdefault("fapi.core.config", MagicMock(SECRET_KEY=secrets.token_urlsafe(16), ALGORITHM="HS256"))
 
 for mod in [
     "sqlalchemy",

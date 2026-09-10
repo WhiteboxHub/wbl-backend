@@ -154,10 +154,20 @@ class QuestionBankCreateRequest(BaseModel):
 
 
 class QuestionBankUpdateRequest(BaseModel):
+    category: Optional[AssessmentCategoryEnum] = None
     sub_category: Optional[str] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
     question_text: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_subcategory_update(self):
+        if self.category is not None:
+            if self.category == AssessmentCategoryEnum.TECHNICAL and not self.sub_category:
+                raise ValueError("sub_category is required when category is updated to TECHNICAL")
+            if self.category != AssessmentCategoryEnum.TECHNICAL and self.sub_category is not None:
+                self.sub_category = None
+        return self
 
 
 class QuestionBankResponse(BaseModel):

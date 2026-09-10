@@ -266,18 +266,31 @@ def list_questions(
 def update_question(
     db: Session,
     question_id: int,
+    category: Optional[AssessmentCategoryEnum] = None,
     sub_category: Optional[str] = None,
     difficulty_level: Optional[DifficultyLevelEnum] = None,
     question_text: Optional[str] = None,
     is_active: Optional[bool] = None,
 ) -> Optional[AiPrepQuestionBankORM]:
-    """Updates fields on an existing question bank record."""
+    """Updates fields on an existing question bank record while preserving DB CheckConstraints."""
     question = get_question_by_id(db, question_id)
     if not question:
         return None
 
+    if category is not None:
+        question.category = category
+
+    effective_cat = question.category
+    cat_val = effective_cat.value if hasattr(effective_cat, "value") else str(effective_cat)
+
     if sub_category is not None:
-        question.sub_category = sub_category
+        if cat_val == "TECHNICAL":
+            question.sub_category = sub_category
+        else:
+            question.sub_category = None
+    elif cat_val != "TECHNICAL":
+        question.sub_category = None
+
     if difficulty_level is not None:
         question.difficulty_level = difficulty_level
     if question_text is not None:
@@ -477,12 +490,16 @@ def save_candidate_resume_json(
         row = CandidateMarketingORM(
             candidate_id=candidate_id,
             candidate_json=resume_json,
-            start_date=datetime.utcnow().date(),
+            start_date=datetime.now(timezone.utc).date(),
             status="active",
         )
+        if hasattr(row, "last_mod_datetime"):
+            setattr(row, "last_mod_datetime", datetime.now(timezone.utc))
         db.add(row)
     else:
         row.candidate_json = resume_json
+        if hasattr(row, "last_mod_datetime"):
+            setattr(row, "last_mod_datetime", datetime.now(timezone.utc))
     db.commit()
     db.refresh(row)
     return row

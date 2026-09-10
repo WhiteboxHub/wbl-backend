@@ -96,8 +96,9 @@ class TestAssessmentOrchestrator(unittest.TestCase):
     def test_submit_assessment_workflow(
         self, mock_run_eval, mock_get_cfg, mock_get_by_id, mock_resume, mock_update_status, mock_save_data, mock_save_report
     ):
+        import secrets
         mock_get_by_id.return_value = self.dummy_assessment
-        mock_get_cfg.return_value = {"api_key": "test_key", "provider": "openai", "model": "gpt-4o"}
+        mock_get_cfg.return_value = {"api_key": secrets.token_urlsafe(16), "provider": "openai", "model": "gpt-4o"}
         mock_resume.return_value = {"skills": ["Python"]}
         mock_run_eval.return_value = {
             "transcript_evaluation": {"score": 85},

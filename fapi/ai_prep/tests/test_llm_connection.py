@@ -43,7 +43,8 @@ class TestLLMConnection(unittest.TestCase):
                 "x-ratelimit-reset-requests": "1s",
             },
         )
-        res = asyncio.run(run_test_llm_connection(api_key="sk-proj-fakekey", provider="openai"))
+        import secrets
+        res = asyncio.run(run_test_llm_connection(api_key=secrets.token_urlsafe(16), provider="openai"))
         self.assertEqual(res["provider"], "openai")
         self.assertEqual(res["response_text"], "Hello, world!")
 
