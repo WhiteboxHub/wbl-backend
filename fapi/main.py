@@ -20,6 +20,7 @@ from fapi.api.routes import (
     email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli, cli_analytics,
     campaign_email, outreach_email, tracking, aiprep_setup, llm_providers
 )
+from fapi.ai_prep.routes import router as aiprep_router
 from fapi.api.routes import aiprep_analytics
 from fapi.ai_prep.router import router as aiprep_router
 from fapi.utils.auth_dependencies import staff_or_admin_required
@@ -269,3 +270,5 @@ app.include_router(weekly_workflow.router, prefix="/api/weekly-workflow", tags=[
 app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SMTP Credentials"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setup"], dependencies=[Depends(enforce_access)])
 app.include_router(llm_providers.router, prefix="/api", tags=["LLM Providers"], dependencies=[Depends(enforce_access)])
+app.include_router(aiprep_router, prefix="/api/aiprep", tags=["AI Prep Tool"], dependencies=[Depends(enforce_access)])
+app.include_router(aiprep_router, prefix="/aiprep", tags=["AI Prep Tool Alias"], dependencies=[Depends(enforce_access)])
