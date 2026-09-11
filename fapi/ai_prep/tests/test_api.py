@@ -223,6 +223,12 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     detail = detail_res.json()
     assert detail["candidate_id"] == 1001
     assert detail["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
+    assert detail["job_description"] == "Senior GenAI Engineer"
+    assert "ip_address" in detail
+    assert "user_agent" in detail
+    assert "started_at" in detail
+    assert "completed_at" in detail
+
 
     # 4. Trigger Evaluation
     eval_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate")
@@ -357,3 +363,16 @@ def test_question_bank_management(db_session):
     patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={"difficulty_level": "EXPERT"})
     assert patch_res.status_code == 200
     assert patch_res.json()["difficulty_level"] == "EXPERT"
+
+    # 3. Add non-TECHNICAL question (verifies DDL constraint chk_qb_subcategory: sub_category is nullified)
+    non_tech_q = {
+        "category": "INTRO",
+        "sub_category": "Should be None",
+        "difficulty_level": "EASY",
+        "question_text": "Tell me about your background and core achievements.",
+        "is_active": True,
+    }
+    intro_res = client.post("/api/aiprep/employee/questions", json=non_tech_q)
+    assert intro_res.status_code == 201
+    assert intro_res.json()["sub_category"] is None
+

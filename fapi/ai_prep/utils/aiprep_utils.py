@@ -284,6 +284,8 @@ def candidate_create_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
     payload: CreateAssessmentRequest,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> CreateAssessmentResponse:
     """Dynamically validates prerequisites and creates a new assessment row in DB."""
     candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
@@ -297,6 +299,8 @@ def candidate_create_assessment_logic(
         media_type=payload.media_type.value,
         status="IN_PROGRESS",
         job_description=payload.job_description,
+        ip_address=ip_address,
+        user_agent=user_agent,
         started_at=datetime.utcnow(),
     )
     db.add(db_assessment)
@@ -331,6 +335,8 @@ def candidate_create_assessment_logic(
         started_at=db_assessment.started_at,
         assessment_type=db_assessment.assessment_type,
         media_type=db_assessment.media_type,
+        job_description=db_assessment.job_description,
+        youtube_url=db_assessment.youtube_url,
         questions=questions_list,
     )
 
@@ -356,8 +362,10 @@ def candidate_list_assessments_logic(
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
+                job_description=a.job_description,
                 youtube_url=a.youtube_url,
                 started_at=a.started_at,
+                completed_at=a.completed_at,
                 created_at=a.created_at,
             )
             for a in items
@@ -405,6 +413,8 @@ def candidate_get_assessment_detail_logic(
         media_type=assessment.media_type,
         status=assessment.status,
         job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
@@ -568,8 +578,10 @@ def employee_list_assessments_table_logic(
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
+                job_description=a.job_description,
                 youtube_url=a.youtube_url,
                 started_at=a.started_at,
+                completed_at=a.completed_at,
                 created_at=a.created_at,
             )
             for a in items
@@ -593,8 +605,10 @@ def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) ->
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
+                job_description=a.job_description,
                 youtube_url=a.youtube_url,
                 started_at=a.started_at,
+                completed_at=a.completed_at,
                 created_at=a.created_at,
             )
             for a in items
@@ -636,6 +650,8 @@ def employee_get_assessment_detail_logic(db: Session, assessment_id: int) -> Ass
         media_type=assessment.media_type,
         status=assessment.status,
         job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
@@ -893,11 +909,20 @@ def list_questions_from_bank_logic(
 
 
 def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> QuestionResponse:
-    """Adds a new question to the ai_prep_questions table in DB."""
+    """Adds a new question to the ai_prep_question_bank table in DB."""
+    cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
+    sub_cat = payload.sub_category
+    if cat != "TECHNICAL":
+        sub_cat = None
+    elif not sub_cat:
+        sub_cat = "General"
+
+    diff = payload.difficulty_level.value if hasattr(payload.difficulty_level, "value") else str(payload.difficulty_level)
+
     new_q = AiPrepQuestionORM(
-        category=payload.category.value,
-        sub_category=payload.sub_category,
-        difficulty_level=payload.difficulty_level.value,
+        category=cat,
+        sub_category=sub_cat,
+        difficulty_level=diff,
         question_text=payload.question_text,
         ideal_answer_rubric=payload.ideal_answer_rubric,
         is_active=payload.is_active,
@@ -921,6 +946,14 @@ def update_question_in_bank_logic(
     for k, v in payload.dict(exclude_unset=True).items():
         if v is not None and hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
+
+    # Enforce DDL chk_qb_subcategory constraint
+    cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
+    if cat != "TECHNICAL":
+        q_row.sub_category = None
+    elif not q_row.sub_category:
+        q_row.sub_category = "General"
+
     q_row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(q_row)

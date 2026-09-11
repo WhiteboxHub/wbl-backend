@@ -4,7 +4,7 @@ Fully compatible with Master Contracts and aiprep-backend branch.
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -156,9 +156,11 @@ class CreateAssessmentResponse(BaseModel):
     id: int
     assessment_uuid: Optional[str] = None
     status: str = Field(default="IN_PROGRESS")
-    started_at: datetime
+    started_at: Optional[datetime] = None
     assessment_type: Optional[str] = None
     media_type: Optional[str] = None
+    job_description: Optional[str] = None
+    youtube_url: Optional[str] = None
     questions: Optional[List[Dict[str, Any]]] = None
 
     class Config:
@@ -210,8 +212,10 @@ class AssessmentListItem(BaseModel):
     assessment_type: str
     media_type: str
     status: str
+    job_description: Optional[str] = None
     youtube_url: Optional[str] = None
     started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -231,6 +235,8 @@ class AssessmentDetailResponse(BaseModel):
     media_type: str
     status: str
     job_description: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
     youtube_url: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -330,6 +336,16 @@ class QuestionCreateRequest(BaseModel):
     question_text: str = Field(..., description="Question prompt text")
     ideal_answer_rubric: Optional[str] = Field(None, description="Evaluation rubric guidelines")
     is_active: bool = Field(default=True, description="Whether question is active")
+
+
+    @model_validator(mode="after")
+    def enforce_subcategory_constraint(self):
+        cat_val = self.category.value if hasattr(self.category, "value") else str(self.category)
+        if cat_val != "TECHNICAL":
+            self.sub_category = None
+        elif not self.sub_category:
+            self.sub_category = "General"
+        return self
 
 
 QuestionBankCreateRequest = QuestionCreateRequest

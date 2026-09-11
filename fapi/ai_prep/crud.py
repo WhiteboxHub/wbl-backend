@@ -90,35 +90,35 @@ def get_default_questions() -> List[Dict[str, Any]]:
     return [
         {
             "category": "INTRO",
-            "sub_category": "Background & Overview",
+            "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
             "ideal_answer_rubric": "Articulate career arc, GenAI specialization, system architectures built, and end-to-end project ownership.",
         },
         {
             "category": "JD_INTRO",
-            "sub_category": "Role & Stack Alignment",
+            "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
             "ideal_answer_rubric": "Directly map past technical projects and libraries to the job responsibilities and required technologies.",
         },
         {
             "category": "RECRUITER",
-            "sub_category": "Career Transitions",
+            "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
             "ideal_answer_rubric": "Clear explanation of career choices, continuous learning, and positive team culture alignment.",
         },
         {
             "category": "HIRING_MANAGER",
-            "sub_category": "Ownership & Impact",
+            "sub_category": None,
             "difficulty_level": "HARD",
             "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
             "ideal_answer_rubric": "Structured STAR response detailing leadership, cross-functional collaboration, technical pivot, and business metrics achieved.",
         },
         {
             "category": "SYSTEM_DESIGN",
-            "sub_category": "AI Architecture",
+            "sub_category": None,
             "difficulty_level": "HARD",
             "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
             "ideal_answer_rubric": "Detail vector databases, chunking strategies, embedding retrieval, re-ranking, LLM latency budgets, and fallback mechanisms.",
@@ -150,6 +150,8 @@ def create_assessment(
     assessment_type: str,
     media_type: str,
     job_description: Optional[str] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
     assessment_uuid = str(uuid.uuid4())
@@ -160,6 +162,8 @@ def create_assessment(
         media_type=media_type,
         status="IN_PROGRESS",
         job_description=job_description,
+        ip_address=ip_address,
+        user_agent=user_agent,
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)
@@ -173,7 +177,12 @@ def get_assessment_by_id(db: Session, assessment_id: int) -> Optional[AiPrepAsse
 
 
 def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrepAssessmentORM]:
-    return db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.assessment_uuid == assessment_uuid).first()
+    """Compatibility lookup: looks up by numeric ID if valid integer, otherwise None."""
+    try:
+        aid = int(assessment_uuid)
+        return get_assessment_by_id(db, aid)
+    except (ValueError, TypeError):
+        return None
 
 
 def list_assessments(
@@ -401,7 +410,13 @@ def get_question_by_id(db: Session, question_id: int) -> Optional[AiPrepQuestion
 
 
 def create_question(db: Session, question_in: Dict[str, Any]) -> AiPrepQuestionORM:
-    db_obj = AiPrepQuestionORM(**question_in)
+    data = dict(question_in)
+    cat = data.get("category")
+    if cat and str(cat).upper() != "TECHNICAL":
+        data["sub_category"] = None
+    elif cat and str(cat).upper() == "TECHNICAL" and not data.get("sub_category"):
+        data["sub_category"] = "General"
+    db_obj = AiPrepQuestionORM(**data)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
@@ -412,7 +427,13 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
     q = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
     if not q:
         return None
-    for field, val in question_in.items():
+    data = dict(question_in)
+    target_cat = data.get("category", q.category)
+    if target_cat and str(target_cat).upper() != "TECHNICAL":
+        data["sub_category"] = None
+    elif target_cat and str(target_cat).upper() == "TECHNICAL" and not data.get("sub_category", q.sub_category):
+        data["sub_category"] = "General"
+    for field, val in data.items():
         if val is not None and hasattr(q, field):
             setattr(q, field, val)
     q.updated_at = datetime.utcnow()

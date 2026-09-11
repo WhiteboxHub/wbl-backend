@@ -11,6 +11,7 @@ from fastapi import (
     File,
     Form,
     status,
+    Request,
 )
 from sqlalchemy.orm import Session
 
@@ -121,11 +122,20 @@ def candidate_pre_check(
 )
 def candidate_create_assessment(
     payload: CreateAssessmentRequest,
+    request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Dynamically validates prerequisites and creates a new assessment row in DB."""
-    return aiprep_utils.candidate_create_assessment_logic(db=db, current_user=current_user, payload=payload)
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    return aiprep_utils.candidate_create_assessment_logic(
+        db=db,
+        current_user=current_user,
+        payload=payload,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
 
 
 @router.get(
