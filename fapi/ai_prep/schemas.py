@@ -248,6 +248,36 @@ class AssessmentDetailResponse(BaseModel):
         from_attributes = True
 
 
+class AssessmentDataResponse(BaseModel):
+    id: Optional[int] = None
+    assessment_id: int
+    questions: Optional[List[Dict[str, Any]]] = None
+    transcript: Optional[Dict[str, Any]] = None
+    audio_telemetry: Optional[Dict[str, Any]] = None
+    video_telemetry: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AssessmentReportResponse(BaseModel):
+    id: Optional[int] = None
+    assessment_id: int
+    audio_evaluation: Optional[Dict[str, Any]] = None
+    video_evaluation: Optional[Dict[str, Any]] = None
+    transcript_evaluation: Optional[Dict[str, Any]] = None
+    overall_score: Optional[float] = None
+    report_data: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+
 # ---------------------------------------------------------------------------
 # Media Ingestion & BE2 Chunk Upload Schemas (Category 4)
 # ---------------------------------------------------------------------------
