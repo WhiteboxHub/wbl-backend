@@ -150,7 +150,16 @@ class AiPrepAssessmentReportORM(Base):
 
     @property
     def overall_score(self) -> Optional[float]:
-        return getattr(self, "_overall_score", None)
+        explicit = getattr(self, "_overall_score", None)
+        if explicit is not None:
+            return explicit
+        if isinstance(self.transcript_evaluation, dict):
+            val = self.transcript_evaluation.get("overall_score") or self.transcript_evaluation.get("score")
+            try:
+                return float(val) if val is not None else None
+            except (ValueError, TypeError):
+                return None
+        return None
 
     @overall_score.setter
     def overall_score(self, val: Optional[float]):
@@ -158,7 +167,16 @@ class AiPrepAssessmentReportORM(Base):
 
     @property
     def report_data(self) -> Optional[dict]:
-        return getattr(self, "_report_data", None)
+        explicit = getattr(self, "_report_data", None)
+        if explicit is not None:
+            return explicit
+        if self.audio_evaluation or self.video_evaluation or self.transcript_evaluation:
+            return {
+                "audio_evaluation": self.audio_evaluation,
+                "video_evaluation": self.video_evaluation,
+                "transcript_evaluation": self.transcript_evaluation,
+            }
+        return None
 
     @report_data.setter
     def report_data(self, val: Optional[dict]):

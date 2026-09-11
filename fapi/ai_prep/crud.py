@@ -308,6 +308,9 @@ def save_assessment_report(
     transcript_eval = parsed_report.get("transcript_evaluation")
     overall_score = parsed_report.get("overall_score")
 
+    if overall_score is not None and isinstance(transcript_eval, dict):
+        transcript_eval.setdefault("overall_score", overall_score)
+
     if existing:
         existing.audio_evaluation = audio_eval
         existing.video_evaluation = video_eval
