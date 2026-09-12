@@ -11,6 +11,7 @@ from fastapi import (
     File,
     Form,
     status,
+    Request,
 )
 from sqlalchemy.orm import Session
 
@@ -34,6 +35,8 @@ from fapi.ai_prep.schemas import (
     UpdateMediaURLResponse,
     TriggerEvaluationResponse,
     AssessmentDetailResponse,
+    AssessmentDataResponse,
+    AssessmentReportResponse,
     AssessmentListResponse,
     ChunkUploadResponse,
     ChunkStatusResponse,
@@ -121,11 +124,20 @@ def candidate_pre_check(
 )
 def candidate_create_assessment(
     payload: CreateAssessmentRequest,
+    request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Dynamically validates prerequisites and creates a new assessment row in DB."""
-    return aiprep_utils.candidate_create_assessment_logic(db=db, current_user=current_user, payload=payload)
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    return aiprep_utils.candidate_create_assessment_logic(
+        db=db,
+        current_user=current_user,
+        payload=payload,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
 
 
 @router.get(
@@ -159,6 +171,39 @@ def candidate_get_assessment_detail(
 ):
     """Fetches assessment detail, telemetry, and evaluation scores from DB."""
     return aiprep_utils.candidate_get_assessment_detail_logic(db=db, current_user=current_user, assessment_id=assessment_id)
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/data",
+    response_model=AssessmentDataResponse,
+    tags=["AI Prep - Candidate"],
+    summary="Candidate: Get Submitted Telemetry & Questions",
+)
+@router.get("/assessments/{assessment_id}/data", response_model=AssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Data")
+def candidate_get_assessment_data(
+    assessment_id: int,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Fetches submitted telemetry, questions, and transcript for an assessment."""
+    return aiprep_utils.candidate_get_assessment_data_logic(db=db, current_user=current_user, assessment_id=assessment_id)
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/report",
+    response_model=AssessmentReportResponse,
+    tags=["AI Prep - Candidate"],
+    summary="Candidate: Get Assessment Evaluation Report",
+)
+@router.get("/assessments/{assessment_id}/report", response_model=AssessmentReportResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Report")
+def candidate_get_assessment_report(
+    assessment_id: int,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Fetches evaluation report (audio, video, transcript evaluations) for an assessment."""
+    return aiprep_utils.candidate_get_assessment_report_logic(db=db, current_user=current_user, assessment_id=assessment_id)
+
 
 
 @router.post(
@@ -261,6 +306,8 @@ def list_available_assessment_types(
     summary="Employee: Check Candidate LLM Keys",
 )
 @router.get("/candidates/{candidate_id}/llm-keys", response_model=LLMKeyStatusResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Check LLM Keys")
+@router.get("/employee/candidate/{candidate_id}/llm-keys", response_model=LLMKeyStatusResponse, include_in_schema=False)
+@router.get("/candidate/{candidate_id}/llm-keys", response_model=LLMKeyStatusResponse, include_in_schema=False)
 def employee_check_candidate_llm_keys_route(
     candidate_id: int,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
@@ -277,6 +324,8 @@ def employee_check_candidate_llm_keys_route(
     summary="Employee: Check Candidate Resume Status",
 )
 @router.get("/candidates/{candidate_id}/resume-status", response_model=ResumeStatusResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Check Resume")
+@router.get("/employee/candidate/{candidate_id}/resume-status", response_model=ResumeStatusResponse, include_in_schema=False)
+@router.get("/candidate/{candidate_id}/resume-status", response_model=ResumeStatusResponse, include_in_schema=False)
 def employee_check_candidate_resume_route(
     candidate_id: int,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
@@ -293,6 +342,8 @@ def employee_check_candidate_resume_route(
     summary="Employee: Pre-Flight Readiness for Candidate",
 )
 @router.get("/candidates/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Candidate Pre-Check")
+@router.get("/employee/candidate/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, include_in_schema=False)
+@router.get("/candidate/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, include_in_schema=False)
 def employee_check_candidate_pre_check_route(
     candidate_id: int,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
@@ -333,6 +384,8 @@ def employee_list_assessments_table(
     summary="Employee: List Specific Candidate Assessments",
 )
 @router.get("/candidates/{candidate_id}/assessments", response_model=AssessmentListResponse, tags=["AI Prep - Employee / Admin"], summary="List Assessments by Candidate ID")
+@router.get("/employee/candidate/{candidate_id}/assessments", response_model=AssessmentListResponse, include_in_schema=False)
+@router.get("/candidate/{candidate_id}/assessments", response_model=AssessmentListResponse, include_in_schema=False)
 def employee_list_candidate_assessments_route(
     candidate_id: int,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
@@ -355,6 +408,36 @@ def employee_get_assessment_detail_route(
 ):
     """Employee/Admin endpoint to review complete telemetry and scores for any assessment."""
     return aiprep_utils.employee_get_assessment_detail_logic(db=db, assessment_id=assessment_id)
+
+
+@router.get(
+    "/employee/assessments/{assessment_id}/data",
+    response_model=AssessmentDataResponse,
+    tags=["AI Prep - Employee / Admin"],
+    summary="Employee: Get Assessment Telemetry & Questions",
+)
+def employee_get_assessment_data_route(
+    assessment_id: int,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Employee/Admin endpoint to view submitted telemetry, transcript, and questions."""
+    return aiprep_utils.employee_get_assessment_data_logic(db=db, assessment_id=assessment_id)
+
+
+@router.get(
+    "/employee/assessments/{assessment_id}/report",
+    response_model=AssessmentReportResponse,
+    tags=["AI Prep - Employee / Admin"],
+    summary="Employee: Get Assessment Evaluation Report",
+)
+def employee_get_assessment_report_route(
+    assessment_id: int,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Employee/Admin endpoint to view complete evaluation report (audio, video, transcript)."""
+    return aiprep_utils.employee_get_assessment_report_logic(db=db, assessment_id=assessment_id)
 
 
 @router.get(
@@ -446,6 +529,38 @@ def update_question_in_bank(
 ):
     """Updates fields on an existing question dynamically in DB."""
     return aiprep_utils.update_question_in_bank_logic(db=db, question_id=question_id, payload=payload)
+
+
+@router.get(
+    "/employee/questions/{question_id}",
+    response_model=QuestionResponse,
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Admin: Get Question Bank Item by ID",
+)
+@router.get("/questions/{question_id}", response_model=QuestionResponse, tags=["AI Prep - Admin & Catalog"], summary="Get Question Bank Item by ID")
+def get_question_from_bank(
+    question_id: int,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Fetches a specific question by ID from the question bank."""
+    return aiprep_utils.get_question_from_bank_logic(db=db, question_id=question_id)
+
+
+@router.delete(
+    "/employee/questions/{question_id}",
+    tags=["AI Prep - Admin & Catalog"],
+    summary="Admin: Deactivate Question Bank Item",
+)
+@router.delete("/questions/{question_id}", tags=["AI Prep - Admin & Catalog"], summary="Deactivate Question Bank Item")
+def delete_question_from_bank(
+    question_id: int,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    db: Session = Depends(get_db),
+):
+    """Deactivates/deletes a question from the question bank."""
+    return aiprep_utils.delete_question_from_bank_logic(db=db, question_id=question_id)
+
 
 
 # ===========================================================================

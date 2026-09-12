@@ -1,15 +1,19 @@
-"""SQLAlchemy ORM Models for AI Prep Tool (Assessment Sessions, Telemetry Data, Reports, Questions)."""
+"""SQLAlchemy ORM Models for AI Prep Tool (Assessment Sessions, Telemetry Data, Reports, Questions).
+Aligned strictly with Migration V134 DDL.
+"""
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import (
     Column,
     Integer,
+    BigInteger,
     String,
     Boolean,
     DateTime,
-    Float,
     Text,
     ForeignKey,
     JSON,
+    Enum,
 )
 from sqlalchemy.orm import relationship
 
@@ -17,25 +21,78 @@ from fapi.db.models import Base
 
 
 class AiPrepAssessmentORM(Base):
-    """Core assessment session table."""
+    """Core assessment session table (ai_prep_assessment)."""
 
-    __tablename__ = "ai_prep_assessments"
+    __tablename__ = "ai_prep_assessment"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    assessment_uuid = Column(String(64), unique=True, nullable=False, index=True)
-    candidate_id = Column(Integer, nullable=False, index=True)
-    assessment_type = Column(String(50), nullable=False, default="INTRO")
-    media_type = Column(String(20), nullable=False, default="VIDEO")
-    status = Column(String(50), nullable=False, default="IN_PROGRESS")  # IN_PROGRESS, EVALUATING, COMPLETED, FAILED
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    candidate_id = Column(BigInteger, nullable=False, index=True)
+    assessment_type = Column(
+        Enum(
+            "INTRO",
+            "JD_INTRO",
+            "RECRUITER",
+            "HIRING_MANAGER",
+            "SYSTEM_DESIGN",
+            "TECHNICAL",
+            name="assessment_category_enum",
+        ),
+        nullable=False,
+        default="INTRO",
+        index=True,
+    )
+    media_type = Column(
+        Enum("AUDIO", "VIDEO", name="assessment_media_type_enum"),
+        nullable=False,
+        default="VIDEO",
+    )
+    status = Column(
+        Enum(
+            "IN_PROGRESS",
+            "EVALUATING",
+            "COMPLETED",
+            "FAILED",
+            name="assessment_status_enum",
+        ),
+        nullable=False,
+        default="IN_PROGRESS",
+        index=True,
+    )
     job_description = Column(Text, nullable=True)
-    youtube_url = Column(Text, nullable=True)
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    youtube_url = Column(Text, nullable=True)
 
-    data_record = relationship("AiPrepAssessmentDataORM", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
-    report_record = relationship("AiPrepAssessmentReportORM", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
+    data_record = relationship(
+        "AiPrepAssessmentDataORM",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    report_record = relationship(
+        "AiPrepAssessmentReportORM",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+    def __init__(self, **kwargs):
+        self._assessment_uuid = kwargs.pop("assessment_uuid", None)
+        super().__init__(**kwargs)
+
+    @property
+    def assessment_uuid(self) -> Optional[str]:
+        return getattr(self, "_assessment_uuid", None) or (str(self.id) if self.id is not None else None)
+
+    @assessment_uuid.setter
+    def assessment_uuid(self, val: Optional[str]):
+        self._assessment_uuid = val
 
 
 class AiPrepAssessmentDataORM(Base):
@@ -43,14 +100,22 @@ class AiPrepAssessmentDataORM(Base):
 
     __tablename__ = "ai_prep_assessment_data"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id"), unique=True, nullable=False, index=True)
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     questions = Column(JSON, nullable=True)
     transcript = Column(JSON, nullable=True)
     audio_telemetry = Column(JSON, nullable=True)
     video_telemetry = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
     assessment = relationship("AiPrepAssessmentORM", back_populates="data_record")
 
@@ -58,32 +123,114 @@ class AiPrepAssessmentDataORM(Base):
 class AiPrepAssessmentReportORM(Base):
     """Validated evaluation scores and qualitative coaching report from LLM / Scores Engine."""
 
-    __tablename__ = "ai_prep_assessment_reports"
+    __tablename__ = "ai_prep_assessment_report"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    assessment_id = Column(Integer, ForeignKey("ai_prep_assessments.id"), unique=True, nullable=False, index=True)
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    assessment_id = Column(
+        BigInteger,
+        ForeignKey("ai_prep_assessment.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
     audio_evaluation = Column(JSON, nullable=True)
     video_evaluation = Column(JSON, nullable=True)
     transcript_evaluation = Column(JSON, nullable=True)
-    overall_score = Column(Float, nullable=True)
-    report_data = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
     assessment = relationship("AiPrepAssessmentORM", back_populates="report_record")
 
+    def __init__(self, **kwargs):
+        self._overall_score = kwargs.pop("overall_score", None)
+        self._report_data = kwargs.pop("report_data", None)
+        super().__init__(**kwargs)
+
+    @property
+    def overall_score(self) -> Optional[float]:
+        explicit = getattr(self, "_overall_score", None)
+        if explicit is not None:
+            return explicit
+        if isinstance(self.transcript_evaluation, dict):
+            val = self.transcript_evaluation.get("overall_score") or self.transcript_evaluation.get("score")
+            try:
+                return float(val) if val is not None else None
+            except (ValueError, TypeError):
+                return None
+        return None
+
+    @overall_score.setter
+    def overall_score(self, val: Optional[float]):
+        self._overall_score = val
+
+    @property
+    def report_data(self) -> Optional[dict]:
+        explicit = getattr(self, "_report_data", None)
+        if explicit is not None:
+            return explicit
+        if self.audio_evaluation or self.video_evaluation or self.transcript_evaluation:
+            return {
+                "audio_evaluation": self.audio_evaluation,
+                "video_evaluation": self.video_evaluation,
+                "transcript_evaluation": self.transcript_evaluation,
+            }
+        return None
+
+    @report_data.setter
+    def report_data(self, val: Optional[dict]):
+        self._report_data = val
+
 
 class AiPrepQuestionORM(Base):
-    """Question bank repository for AI Prep assessments."""
+    """Question bank repository for AI Prep assessments (ai_prep_question_bank)."""
 
-    __tablename__ = "ai_prep_questions"
+    __tablename__ = "ai_prep_question_bank"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(String(50), nullable=False, index=True)  # INTRO, JD_INTRO, RECRUITER, HIRING_MANAGER, SYSTEM_DESIGN, TECHNICAL
+    category = Column(
+        Enum(
+            "INTRO",
+            "JD_INTRO",
+            "RECRUITER",
+            "HIRING_MANAGER",
+            "SYSTEM_DESIGN",
+            "TECHNICAL",
+            name="qb_category_enum",
+        ),
+        nullable=False,
+        index=True,
+    )
     sub_category = Column(String(100), nullable=True)
-    difficulty_level = Column(String(20), nullable=False, default="MEDIUM")  # EASY, MEDIUM, HARD, EXPERT
+    difficulty_level = Column(
+        Enum("EASY", "MEDIUM", "HARD", "EXPERT", name="qb_difficulty_enum"),
+        nullable=False,
+        default="MEDIUM",
+    )
     question_text = Column(Text, nullable=False)
-    ideal_answer_rubric = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    def __init__(self, **kwargs):
+        self._ideal_answer_rubric = kwargs.pop("ideal_answer_rubric", None)
+        super().__init__(**kwargs)
+
+    @property
+    def ideal_answer_rubric(self) -> Optional[str]:
+        return getattr(self, "_ideal_answer_rubric", None)
+
+    @ideal_answer_rubric.setter
+    def ideal_answer_rubric(self, val: Optional[str]):
+        self._ideal_answer_rubric = val
+
+
+# Compatibility aliases
+AiPrepQuestionBankORM = AiPrepQuestionORM
+AiPrepAssessment = AiPrepAssessmentORM
+AiPrepAssessmentData = AiPrepAssessmentDataORM
+AiPrepAssessmentReport = AiPrepAssessmentReportORM
+AiPrepQuestionBank = AiPrepQuestionORM
