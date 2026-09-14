@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, text
 
 from fapi.db.models import (
     AuthUserORM,
@@ -25,6 +25,8 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentReportORM,
     AiPrepQuestionORM,
 )
+from fapi.utils.llm_key_validation_utils import validate_provider_key
+from fapi.utils.encryption_utils import decrypt_api_key
 from fapi.ai_prep.schemas import (
     AssessmentTypeResponse,
     AssessmentTypeListResponse,
@@ -169,10 +171,37 @@ def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
             "message": "No active LLM API key found for this candidate. Please configure an API key in setup.",
             "available_models": [],
         }
+    provider = key_row.provider_name or "openai"
+    raw_key = decrypt_api_key(key_row.api_key)
+    if not raw_key or raw_key == "DECRYPTION_FAILED":
+        return {
+            "status": "failure",
+            "is_configured": False,
+            "provider": provider,
+            "model": key_row.model_name or "gpt-4o",
+            "voice_enabled": bool(key_row.voice_enabled),
+            "message": "LLM API key could not be decrypted. Please re-save your API key in setup.",
+            "available_models": [],
+        }
+    try:
+        validation_status, validation_msg = validate_provider_key(provider, raw_key)
+    except Exception as exc:
+        logger.warning("[aiprep] LLM key validation error for candidate=%s: %s", candidate_id, exc)
+        validation_status, validation_msg = "invalid", str(exc)
+    if validation_status != "active":
+        return {
+            "status": "failure",
+            "is_configured": False,
+            "provider": provider,
+            "model": key_row.model_name or "gpt-4o",
+            "voice_enabled": bool(key_row.voice_enabled),
+            "message": f"LLM API key is invalid or inactive: {validation_msg}",
+            "available_models": [],
+        }
     return {
         "status": "valid",
         "is_configured": True,
-        "provider": key_row.provider_name or "openai",
+        "provider": provider,
         "model": key_row.model_name or "gpt-4o",
         "voice_enabled": bool(key_row.voice_enabled),
         "message": "LLM API Key is configured and valid.",
@@ -182,18 +211,62 @@ def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
 
 def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Queries candidate_marketing and candidate tables dynamically."""
-    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
-    candidate_name = cand.full_name if (cand and cand.full_name) else f"Candidate #{candidate_id}"
+    _failure = {
+        "status": "failure",
+        "has_resume": False,
+        "has_parsed_json": False,
+        "candidate_name": f"Candidate #{candidate_id}",
+        "current_title": None,
+        "skills": [],
+        "message": "Could not check resume status.",
+    }
+    try:
+        cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+        candidate_name = cand.full_name if (cand and cand.full_name) else f"Candidate #{candidate_id}"
+        _failure["candidate_name"] = candidate_name
+    except Exception as exc:
+        logger.warning("[aiprep] candidate lookup failed for id=%s: %s", candidate_id, exc)
+        return _failure
 
-    mktg = (
-        db.query(CandidateMarketingORM)
-        .filter(CandidateMarketingORM.candidate_id == candidate_id)
-        .order_by(desc(CandidateMarketingORM.id))
-        .first()
-    )
-
-    has_resume = bool(mktg and mktg.resume_url)
-    parsed_json = mktg.candidate_json if mktg and isinstance(mktg.candidate_json, dict) else None
+    # Use raw SQL to avoid OperationalError if candidate_json column is missing in the DB.
+    try:
+        row = db.execute(
+            text(
+                "SELECT resume_url, candidate_json FROM candidate_marketing"
+                " WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"
+            ),
+            {"cid": candidate_id},
+        ).fetchone()
+        has_resume = bool(row and row.resume_url)
+        raw_json = row.candidate_json if row else None
+        if isinstance(raw_json, dict):
+            parsed_json = raw_json
+        elif isinstance(raw_json, str):
+            try:
+                import json as _json
+                parsed_json = _json.loads(raw_json)
+            except Exception:
+                parsed_json = None
+        else:
+            parsed_json = None
+    except Exception as exc:
+        # Fallback: candidate_json column may not exist — query only resume_url.
+        logger.warning("[aiprep] candidate_marketing full query failed for id=%s: %s", candidate_id, exc)
+        try:
+            row = db.execute(
+                text(
+                    "SELECT resume_url FROM candidate_marketing"
+                    " WHERE candidate_id = :cid ORDER BY id DESC LIMIT 1"
+                ),
+                {"cid": candidate_id},
+            ).fetchone()
+            has_resume = bool(row and row.resume_url)
+            parsed_json = None
+        except Exception as exc2:
+            logger.warning("[aiprep] candidate_marketing fallback query failed for id=%s: %s", candidate_id, exc2)
+            _failure["candidate_name"] = candidate_name
+            _failure["message"] = "Resume data unavailable (DB error)."
+            return _failure
 
     if not has_resume and not parsed_json:
         return {
@@ -209,10 +282,22 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
     skills = []
     current_title = None
     if parsed_json:
-        skills = parsed_json.get("skills", [])
-        if not skills and isinstance(parsed_json.get("personal"), dict):
-            skills = parsed_json.get("personal", {}).get("skills", [])
         current_title = parsed_json.get("current_title") or parsed_json.get("title")
+        # Verify the JSON has at least one meaningful resume section
+        _contact_keys = {"name", "email", "phone", "full_name", "first_name", "contact"}
+        _exp_keys = {"experience", "work_experience", "work_history", "employment", "jobs", "positions"}
+        _skill_keys = {"skills", "skill_set", "competencies", "technologies"}
+        _json_keys = set(k.lower() for k in parsed_json.keys())
+        if not (_json_keys & (_contact_keys | _exp_keys | _skill_keys)):
+            return {
+                "status": "failure",
+                "has_resume": False,
+                "has_parsed_json": False,
+                "candidate_name": candidate_name,
+                "current_title": None,
+                "skills": [],
+                "message": "Resume JSON is missing required sections (contact, experience, or skills).",
+            }
 
     return {
         "status": "valid",
