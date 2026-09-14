@@ -310,9 +310,21 @@ def save_assessment_report(
     overall_score = parsed_report.get("overall_score")
 
     if overall_score is None and isinstance(transcript_eval, dict):
-        overall_score = transcript_eval.get("overall_score") or transcript_eval.get("score")
-    elif overall_score is not None and isinstance(transcript_eval, dict):
+        # Extract from nested evaluation objects if present (scores_breakdown_json, intro_evaluation, or top-level)
+        inner_eval = (
+            transcript_eval.get("scores_breakdown_json")
+            or transcript_eval.get("intro_evaluation")
+            or transcript_eval
+        )
+        if isinstance(inner_eval, dict):
+            overall_score = inner_eval.get("overall_score") or inner_eval.get("score")
+            if overall_score is None and isinstance(inner_eval.get("overall_assessment"), dict):
+                oa = inner_eval["overall_assessment"]
+                overall_score = oa.get("overall_score") or oa.get("score")
+
+    if overall_score is not None and isinstance(transcript_eval, dict):
         transcript_eval["overall_score"] = overall_score
+
 
     if existing:
         existing.audio_evaluation = audio_eval

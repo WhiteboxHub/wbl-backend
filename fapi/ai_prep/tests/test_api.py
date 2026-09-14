@@ -560,4 +560,45 @@ def test_admin_create_custom_assessment_type(db_session):
     assert res.json()["title"] == "Executive Leadership Round"
 
 
+def test_save_assessment_report_nested_overall_score(db_session):
+    """Verifies that save_assessment_report extracts overall_score from nested scores_breakdown_json."""
+    from fapi.ai_prep import crud
+    from fapi.ai_prep.models import AiPrepAssessmentORM
+
+    ass = AiPrepAssessmentORM(
+        candidate_id=10,
+        assessment_type="TECHNICAL",
+        media_type="VIDEO",
+        status="EVALUATING",
+    )
+    db_session.add(ass)
+    db_session.commit()
+
+    # Report with nested scores_breakdown_json (per contract)
+    eval_result = {
+        "transcript_evaluation": {
+            "scores_breakdown_json": {
+                "ai_engineering": {"score": 90, "band": "STRONG"},
+                "core_engineering": {"score": 85, "band": "STRONG"},
+                "non_technical": {"score": 80, "band": "STRONG"},
+                "business_acumen": {"score": 75, "band": "DEVELOPING"},
+                "overall_score": 82.5,
+                "overall_band": "STRONG",
+            }
+        },
+        "audio_evaluation": {"score": 88},
+        "video_evaluation": {"score": 92},
+    }
+
+    report = crud.save_assessment_report(db_session, ass.id, eval_result)
+    assert report.overall_score == 82.5
+    assert report.transcript_evaluation.get("overall_score") == 82.5
+
+    # Reload from DB and verify property still returns overall_score
+    reloaded = crud.get_assessment_report_by_assessment_id(db_session, ass.id)
+    assert reloaded is not None
+    assert reloaded.overall_score == 82.5
+
+
+
 
