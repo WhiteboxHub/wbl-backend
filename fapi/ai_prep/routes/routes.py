@@ -12,6 +12,7 @@ from fastapi import (
     Form,
     status,
     Request,
+    BackgroundTasks,
 )
 from sqlalchemy.orm import Session
 
@@ -252,9 +253,15 @@ def candidate_trigger_eval_post(
     assessment_id: int,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ):
-    """Transitions status to EVALUATING in DB."""
-    return aiprep_utils.candidate_trigger_eval_post_logic(db=db, current_user=current_user, assessment_id=assessment_id)
+    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
+    return aiprep_utils.candidate_trigger_eval_post_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        background_tasks=background_tasks,
+    )
 
 
 @router.put(
@@ -269,9 +276,16 @@ def candidate_trigger_eval_put(
     payload: Optional[SubmitAssessmentRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
 ):
-    """Saves telemetry if provided and transitions status to EVALUATING."""
-    return aiprep_utils.candidate_trigger_eval_put_logic(db=db, current_user=current_user, assessment_id=assessment_id, payload=payload)
+    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
+    return aiprep_utils.candidate_trigger_eval_put_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        payload=payload,
+        background_tasks=background_tasks,
+    )
 
 
 @router.get(

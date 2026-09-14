@@ -145,6 +145,16 @@ class AiPrepAssessmentReportORM(Base):
             return explicit
         if isinstance(self.transcript_evaluation, dict):
             val = self.transcript_evaluation.get("overall_score") or self.transcript_evaluation.get("score")
+            if val is None:
+                inner = (
+                    self.transcript_evaluation.get("scores_breakdown_json")
+                    or self.transcript_evaluation.get("intro_evaluation")
+                )
+                if isinstance(inner, dict):
+                    val = inner.get("overall_score") or inner.get("score")
+                    if val is None and isinstance(inner.get("overall_assessment"), dict):
+                        oa = inner["overall_assessment"]
+                        val = oa.get("overall_score") or oa.get("score")
             try:
                 return float(val) if val is not None else None
             except (ValueError, TypeError):

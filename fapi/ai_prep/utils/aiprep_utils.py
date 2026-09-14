@@ -5,13 +5,18 @@ import os
 import uuid
 import shutil
 import logging
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+
+from fapi.db.database import SessionLocal
+from fapi.ai_prep import crud
+from fapi.ai_prep.orchestrator import llm_orchestrator
 
 from fapi.db.models import (
     AuthUserORM,
@@ -216,32 +221,8 @@ def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: 
 
 
 def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
-    """Queries candidate_llm_api_keys dynamically for the candidate."""
-    key_row = (
-        db.query(CandidateLlmApiKeyORM)
-        .filter(CandidateLlmApiKeyORM.candidate_id == candidate_id)
-        .order_by(desc(CandidateLlmApiKeyORM.is_default), desc(CandidateLlmApiKeyORM.id))
-        .first()
-    )
-    if not key_row or not key_row.api_key:
-        return {
-            "status": "failure",
-            "is_configured": False,
-            "provider": None,
-            "model": None,
-            "voice_enabled": False,
-            "message": "No active LLM API key found for this candidate. Please configure an API key in setup.",
-            "available_models": [],
-        }
-    return {
-        "status": "valid",
-        "is_configured": True,
-        "provider": key_row.provider_name or "openai",
-        "model": key_row.model_name or "gpt-4o",
-        "voice_enabled": bool(key_row.voice_enabled),
-        "message": "LLM API Key is configured and valid.",
-        "available_models": [key_row.model_name or "gpt-4o"],
-    }
+    """Queries candidate_llm_api_keys dynamically for the candidate via crud."""
+    return crud.check_candidate_llm_key(db, candidate_id)
 
 
 def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]:
@@ -417,21 +398,15 @@ def candidate_create_assessment_logic(
     candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
     _verify_prerequisites(db, candidate_id)
 
-    assessment_uuid = str(uuid.uuid4())
-    db_assessment = AiPrepAssessmentORM(
-        assessment_uuid=assessment_uuid,
+    db_assessment = crud.create_assessment(
+        db=db,
         candidate_id=candidate_id,
-        assessment_type=payload.assessment_type.value,
-        media_type=payload.media_type.value,
-        status="IN_PROGRESS",
+        assessment_type=payload.assessment_type.value if hasattr(payload.assessment_type, "value") else str(payload.assessment_type),
+        media_type=payload.media_type.value if hasattr(payload.media_type, "value") else str(payload.media_type),
         job_description=payload.job_description,
         ip_address=ip_address,
         user_agent=user_agent,
-        started_at=datetime.utcnow(),
     )
-    db.add(db_assessment)
-    db.commit()
-    db.refresh(db_assessment)
 
     # Query initial question from question bank table (excluding rubric from candidate response)
     q_row = (
@@ -599,37 +574,92 @@ def candidate_get_assessment_report_logic(
     )
 
 
+async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> None:
+    """Background task to run full LLM evaluation pipeline and persist report."""
+    try:
+        with SessionLocal() as db:
+            assessment = crud.get_assessment_by_id(db, assessment_id)
+            if not assessment:
+                logger.error("[LLMOrchestrator Worker] Assessment %d not found", assessment_id)
+                return
+
+            data_rec = crud.get_assessment_data_by_assessment_id(db, assessment_id)
+            transcript_data = (data_rec.transcript if data_rec else {}) or {}
+            transcript_text = ""
+            if isinstance(transcript_data, dict):
+                transcript_text = (
+                    transcript_data.get("transcript_text")
+                    or transcript_data.get("text")
+                    or transcript_data.get("transcript")
+                    or ""
+                )
+            elif isinstance(transcript_data, str):
+                transcript_text = transcript_data
+
+            audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
+            video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
+            resume_json = crud.get_candidate_resume_json(db, candidate_id)
+
+            llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
+            if not llm_config.get("is_configured"):
+                logger.error(
+                    "[LLMOrchestrator Worker] Candidate %d has no valid LLM API key configured.",
+                    candidate_id,
+                )
+                crud.update_assessment_status(db, assessment_id, "FAILED")
+                return
+
+            assessment_type_str = (
+                assessment.assessment_type.value
+                if hasattr(assessment.assessment_type, "value")
+                else str(assessment.assessment_type)
+            )
+
+            eval_result = await llm_orchestrator.run_evaluation(
+                candidate_id=candidate_id,
+                assessment_type=assessment_type_str,
+                transcript_text=transcript_text,
+                audio_telemetry=audio_telemetry,
+                video_telemetry=video_telemetry,
+                resume_json=resume_json,
+                llm_config=llm_config,
+            )
+
+            crud.save_assessment_report(db, assessment_id, eval_result)
+            crud.update_assessment_status(db, assessment_id, "COMPLETED")
+            logger.info(
+                "[LLMOrchestrator Worker] Assessment %d successfully evaluated and report saved.",
+                assessment_id,
+            )
+    except Exception as exc:
+        logger.exception(
+            "[LLMOrchestrator Worker] Assessment %d evaluation failed: %s",
+            assessment_id,
+            exc,
+        )
+
+
 def candidate_submit_data_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: int,
     payload: SubmitAssessmentDataRequest,
 ) -> SubmitAssessmentDataResponse:
-    """Persists candidate telemetry, transcript, and answers into ai_prep_assessment_data."""
-    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    """Persists candidate telemetry, transcript, and answers into ai_prep_assessment_data via crud."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
-    data_rec = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
-    if data_rec:
-        data_rec.questions = payload.questions
-        data_rec.transcript = payload.transcript
-        data_rec.audio_telemetry = payload.audio_telemetry
-        data_rec.video_telemetry = payload.video_telemetry
-        data_rec.updated_at = datetime.utcnow()
-    else:
-        data_rec = AiPrepAssessmentDataORM(
-            assessment_id=assessment_id,
-            questions=payload.questions,
-            transcript=payload.transcript,
-            audio_telemetry=payload.audio_telemetry,
-            video_telemetry=payload.video_telemetry,
-        )
-        db.add(data_rec)
-
-    db.commit()
+    crud.save_assessment_data(
+        db=db,
+        assessment_id=assessment_id,
+        questions=payload.questions or [],
+        transcript=payload.transcript or {},
+        audio_telemetry=payload.audio_telemetry or {},
+        video_telemetry=payload.video_telemetry or {},
+    )
     return SubmitAssessmentDataResponse(message="Data saved successfully")
 
 
@@ -639,15 +669,13 @@ def candidate_update_media_url_logic(
     assessment_id: int,
     payload: UpdateMediaURLRequest,
 ) -> UpdateMediaURLResponse:
-    """Updates YouTube/video playback URL on assessment in DB."""
-    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    """Updates YouTube/video playback URL on assessment in DB via crud."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    assessment.youtube_url = payload.youtube_url
-    assessment.updated_at = datetime.utcnow()
-    db.commit()
+    crud.update_assessment_media_url(db, assessment_id, payload.youtube_url)
     return UpdateMediaURLResponse(id=assessment_id, youtube_url=payload.youtube_url)
 
 
@@ -655,16 +683,19 @@ def candidate_trigger_eval_post_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: int,
+    background_tasks: Optional[BackgroundTasks] = None,
 ) -> TriggerEvaluationResponse:
-    """Transitions status to EVALUATING in DB."""
-    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    assessment.status = "EVALUATING"
-    assessment.updated_at = datetime.utcnow()
-    db.commit()
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    crud.update_assessment_status(db, assessment_id, "EVALUATING")
+
+    if background_tasks:
+        background_tasks.add_task(_run_evaluation_background, assessment_id, candidate_id)
+
     return TriggerEvaluationResponse(id=assessment_id, status="EVALUATING")
 
 
@@ -673,27 +704,29 @@ def candidate_trigger_eval_put_logic(
     current_user: AuthUserORM,
     assessment_id: int,
     payload: Optional[SubmitAssessmentRequest] = None,
+    background_tasks: Optional[BackgroundTasks] = None,
 ) -> TriggerEvaluationResponse:
-    """Saves telemetry if provided and transitions status to EVALUATING."""
-    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
+    assessment = crud.get_assessment_by_id(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
     if payload and (payload.transcript or payload.audio_telemetry or payload.video_telemetry):
-        data_rec = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
-        if not data_rec:
-            data_rec = AiPrepAssessmentDataORM(assessment_id=assessment_id)
-            db.add(data_rec)
-        data_rec.transcript = payload.transcript or {}
-        data_rec.audio_telemetry = payload.audio_telemetry or {}
-        data_rec.video_telemetry = payload.video_telemetry or {}
-        data_rec.questions = payload.questions or []
-        data_rec.updated_at = datetime.utcnow()
+        crud.save_assessment_data(
+            db=db,
+            assessment_id=assessment_id,
+            questions=payload.questions or [],
+            transcript=payload.transcript or {},
+            audio_telemetry=payload.audio_telemetry or {},
+            video_telemetry=payload.video_telemetry or {},
+        )
 
-    assessment.status = "EVALUATING"
-    assessment.updated_at = datetime.utcnow()
-    db.commit()
+    crud.update_assessment_status(db, assessment_id, "EVALUATING")
+
+    if background_tasks:
+        background_tasks.add_task(_run_evaluation_background, assessment_id, candidate_id)
+
     return TriggerEvaluationResponse(id=assessment_id, status="EVALUATING")
 
 
@@ -1069,7 +1102,6 @@ def stream_assessment_processing_sse_logic(
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     async def event_generator():
-        import asyncio
         for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 60), ("LLM Evaluation", 90), ("Report Generated", 100)]:
             data = f'{{"assessment_id": {assessment_id}, "step": "{step}", "progress": {pct}}}\n\n'
             yield f"data: {data}"
