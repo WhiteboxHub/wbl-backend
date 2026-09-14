@@ -10,7 +10,7 @@ with open(os.path.join(os.path.dirname(__file__), "resume_parser_prompt.txt"), "
 from fapi.db.database import get_db
 from fapi.utils.llm_service import call_llm_with_context
 from fastapi import HTTPException
-from fapi.db.models import CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
+from fapi.db.models import CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM, AiPrepToolProjectContextORM
 
 logger = logging.getLogger(__name__)
 
@@ -927,6 +927,8 @@ def extract_project_logic(user_email: str, db):
             except: res["skills"] = []
             return res
         return {}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"extract-project error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -947,6 +949,8 @@ def get_latest_project_logic(user_email: str, db):
             except: res["skills"] = []
             return res
         return {}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"latest-project error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

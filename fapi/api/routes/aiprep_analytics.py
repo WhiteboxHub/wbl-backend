@@ -22,6 +22,16 @@ router = APIRouter(prefix="/analytics/ai-prep", tags=["AI Prep Analytics"])
 
 # ─── Helpers ───────────────────────────────────────────────────────────────
 
+def _dtstr(v):
+    if not v:
+        return None
+    if isinstance(v, str):
+        return v
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    return str(v)
+
+
 def _prep_status(has_resume, has_project, intro_passed, interview_completed):
     steps = sum([bool(has_resume), bool(has_project), bool(intro_passed), bool(interview_completed)])
     pct = int(steps / 4 * 100)
@@ -142,11 +152,14 @@ def get_ai_prep_report(
                 total_intro_scores.append(best_intro)
 
             last_login_dt = row.get("last_login")
-            if last_login_dt and last_login_dt >= seven_days_ago:
-                active_last_7_days += 1
-
-            def dtstr(v):
-                return v.isoformat() if v else None
+            if last_login_dt:
+                if isinstance(last_login_dt, str):
+                    try:
+                        last_login_dt = datetime.fromisoformat(last_login_dt.replace("Z", "+00:00").split(".")[0])
+                    except Exception:
+                        last_login_dt = None
+                if last_login_dt and last_login_dt.replace(tzinfo=None) >= seven_days_ago.replace(tzinfo=None):
+                    active_last_7_days += 1
 
             resume_name, resume_email = _extract_from_resume(row.get("resume_json"))
             disp_name = row.get("name")
@@ -174,13 +187,13 @@ def get_ai_prep_report(
                 "wbl_email": disp_email,
                 "name": disp_name,
                 "login_count": row.get("login_count") or 0,
-                "last_active": dtstr(row.get("last_login")),
+                "last_active": _dtstr(row.get("last_login")),
                 "extraction_status": row.get("extraction_status") or "completed",
                 "intro_attempts": intro_attempts,
                 "intro_best_score": best_intro,
                 "intro_latest_score": latest_intro,
                 "intro_passed": intro_passed,
-                "last_intro_date": dtstr(row.get("last_intro_at")),
+                "last_intro_date": _dtstr(row.get("last_intro_at")),
                 "video_url": row.get("latest_video_url"),
                 "scores": {},
                 "overall_score": best_intro,
@@ -188,7 +201,7 @@ def get_ai_prep_report(
                 "weaknesses": weaknesses if isinstance(weaknesses, list) else [],
                 "ai_suggestions": [],
                 "improvement_areas": [],
-                "created_at": dtstr(row.get("created_at")),
+                "created_at": _dtstr(row.get("created_at")),
             }
             users.append(u_entry)
 
@@ -314,9 +327,6 @@ def get_candidates(
                 interview_completed,
             )
 
-            def dtstr(v):
-                return v.isoformat() if v else None
-
             resume_name, resume_email = _extract_from_resume(row.get("resume_json"))
 
             disp_name = row.get("name")
@@ -339,8 +349,8 @@ def get_candidates(
                 "email": disp_email,
                 "wbl_email": row.get("wbl_email") or "—",
                 "login_count": row.get("login_count") or 0,
-                "created_at": dtstr(row.get("created_at")),
-                "last_login": dtstr(row.get("last_login")),
+                "created_at": _dtstr(row.get("created_at")),
+                "last_login": _dtstr(row.get("last_login")),
                 # Resume / Project
                 "has_resume": bool(row.get("has_resume")),
                 "has_project": bool(row.get("has_project")),
@@ -351,7 +361,7 @@ def get_candidates(
                 "intro_status": "passed" if intro_passed else ("failed" if best_intro > 0 else "not_started"),
                 "intro_passed": intro_passed,
                 "latest_video_url": row.get("latest_video_url"),
-                "last_intro_at": dtstr(row.get("last_intro_at")),
+                "last_intro_at": _dtstr(row.get("last_intro_at")),
                 "interview_answers_count": row.get("interview_answers_count") or 0,
                 "interview_completed": interview_completed,
                 # Case studies
@@ -451,9 +461,6 @@ def get_candidate_detail(
             ORDER BY created_at DESC
         """), {"user_id": real_user_id, "user_id_int": user_id_int}).mappings().all()
 
-        def dtstr(v):
-            return v.isoformat() if v else None
-
         def parse_json_field(v):
             if not v:
                 return {}
@@ -470,7 +477,7 @@ def get_candidate_detail(
                 "score": e.get("score") or 0,
                 "passed": bool(e.get("passed")),
                 "feedback": parse_json_field(e.get("feedback")),
-                "created_at": dtstr(e.get("created_at")),
+                "created_at": _dtstr(e.get("created_at")),
                 "video_url": e.get("video_url"),
             })
 
@@ -479,7 +486,7 @@ def get_candidate_detail(
             interview_list.append({
                 "score": e.get("score") or 0,
                 "feedback": parse_json_field(e.get("feedback")),
-                "created_at": dtstr(e.get("created_at")),
+                "created_at": _dtstr(e.get("created_at")),
             })
 
         resume_name, resume_email = _extract_from_resume(resume_json)
@@ -502,12 +509,12 @@ def get_candidate_detail(
                 "email": disp_email,
                 "wbl_email": candidate.get("wbl_email") or "—",
                 "login_count": candidate.get("login_count") or 0,
-                "created_at": dtstr(candidate.get("created_at")),
-                "last_login": dtstr(candidate.get("last_login")),
+                "created_at": _dtstr(candidate.get("created_at")),
+                "last_login": _dtstr(candidate.get("last_login")),
             },
             "intro_history": intro_list,
             "interview_history": interview_list,
-            "case_studies": [{"topic": cs.get("topic"), "created_at": dtstr(cs.get("created_at"))} for cs in case_studies],
+            "case_studies": [{"topic": cs.get("topic"), "created_at": _dtstr(cs.get("created_at"))} for cs in case_studies],
         }
 
     except HTTPException:
