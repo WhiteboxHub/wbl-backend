@@ -11,6 +11,7 @@ NOT covered here (Srimanth's responsibility):
 """
 import asyncio
 import json
+import secrets
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -78,7 +79,7 @@ class TestAssessmentOrchestratorLoadContext:
             mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
             mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
             mock_crud.get_candidate_llm_config.return_value = {
-                "is_configured": True, "api_key": "test-key", "provider": "openai", "model": "gpt-4o"
+                "is_configured": True, "api_key": secrets.token_urlsafe(16), "provider": "openai", "model": "gpt-4o"
             }
             mock_crud.get_candidate_resume_json.return_value = {"skills": ["Python"]}
 
@@ -99,9 +100,9 @@ class TestAssessmentOrchestratorLoadContext:
         with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud:
             mock_crud.get_assessment_by_id.return_value = _make_mock_assessment(media_type="VIDEO")
             mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record(
-                video={"face_visible_pct": 95.0}  # no is_video_mode yet
+                video={}  # no is_video_mode yet
             )
-            mock_crud.get_candidate_llm_config.return_value = {"is_configured": True, "api_key": "k"}
+            mock_crud.get_candidate_llm_config.return_value = {"is_configured": True, "api_key": secrets.token_urlsafe(16)}
             mock_crud.get_candidate_resume_json.return_value = None
 
             ctx = assessment_orchestrator._load_assessment_context(db, 1)
@@ -115,7 +116,7 @@ class TestAssessmentOrchestratorLoadContext:
             mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record(
                 video={}  # no is_video_mode
             )
-            mock_crud.get_candidate_llm_config.return_value = {"is_configured": True, "api_key": "k"}
+            mock_crud.get_candidate_llm_config.return_value = {"is_configured": True, "api_key": secrets.token_urlsafe(16)}
             mock_crud.get_candidate_resume_json.return_value = None
 
             ctx = assessment_orchestrator._load_assessment_context(db, 1)
@@ -128,7 +129,7 @@ class TestAssessmentOrchestratorLoadContext:
         with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud:
             mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
             mock_crud.get_assessment_data_by_assessment_id.return_value = None
-            mock_crud.get_candidate_llm_config.return_value = {"is_configured": True, "api_key": "k"}
+            mock_crud.get_candidate_llm_config.return_value = {"is_configured": True, "api_key": secrets.token_urlsafe(16)}
             mock_crud.get_candidate_resume_json.return_value = None
 
             ctx = assessment_orchestrator._load_assessment_context(db, 1)
@@ -144,6 +145,27 @@ class TestAssessmentOrchestratorLoadContext:
 
 
 class TestAssessmentOrchestratorFullEvaluation:
+
+    def test_fails_and_marks_failed_when_llm_config_is_none(self):
+        """Rule 1: When get_candidate_llm_config returns None, mark FAILED and raise ValueError without AttributeError."""
+        db = MagicMock()
+        with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud, \
+             patch("fapi.ai_prep.orchestrator.assessment_orchestrator.llm_orchestrator") as mock_llm_orch:
+            mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
+            mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
+            mock_crud.get_candidate_llm_config.return_value = None  # None returned!
+            mock_crud.get_candidate_resume_json.return_value = None
+            mock_crud.update_assessment_status.return_value = None
+
+            with pytest.raises(ValueError, match="no active LLM"):
+                asyncio.get_event_loop().run_until_complete(
+                    assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
+                )
+
+            # Assessment must be marked FAILED
+            mock_crud.update_assessment_status.assert_called_with(db, 1, "FAILED")
+            # LLM orchestrator should not be invoked
+            mock_llm_orch.run_evaluation.assert_not_called()
 
     def test_fails_and_marks_failed_when_no_llm_key(self):
         db = MagicMock()
@@ -172,7 +194,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
             mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
             mock_crud.get_candidate_llm_config.return_value = {
-                "is_configured": True, "api_key": "sk-fake-key"
+                "is_configured": True, "api_key": secrets.token_urlsafe(16)
             }
             mock_crud.get_candidate_resume_json.return_value = None
             mock_crud.update_assessment_status.return_value = None
@@ -194,7 +216,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
             mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
             mock_crud.get_candidate_llm_config.return_value = {
-                "is_configured": True, "api_key": "sk-fake-key", "provider": "openai"
+                "is_configured": True, "api_key": secrets.token_urlsafe(16), "provider": "openai"
             }
             mock_crud.get_candidate_resume_json.return_value = None
             mock_crud.save_assessment_report.return_value = MagicMock()
@@ -212,7 +234,8 @@ class TestAssessmentOrchestratorFullEvaluation:
         mock_crud.save_assessment_report.assert_called_once()
         mock_crud.update_assessment_status.assert_called_with(db, 1, "COMPLETED")
 
-    def test_overall_score_extracted_and_included_in_result(self):
+    def test_report_structure_persisted_without_overall_score(self):
+        """Rule 5: Persisted report contains transcript, audio, video evals and does NOT contain overall_score."""
         db = MagicMock()
         with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud, \
              patch("fapi.ai_prep.orchestrator.assessment_orchestrator.llm_orchestrator") as mock_llm_orch:
@@ -220,7 +243,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
             mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
             mock_crud.get_candidate_llm_config.return_value = {
-                "is_configured": True, "api_key": "sk-fake-key"
+                "is_configured": True, "api_key": secrets.token_urlsafe(16)
             }
             mock_crud.get_candidate_resume_json.return_value = None
             mock_crud.save_assessment_report.return_value = MagicMock()
@@ -232,8 +255,12 @@ class TestAssessmentOrchestratorFullEvaluation:
                 assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
             )
 
-        # Score 82.0 comes from _make_valid_eval_result() → overall_assessment.score
-        assert result["overall_score"] == 82.0
+        saved_report = mock_crud.save_assessment_report.call_args[0][2]
+        assert "transcript_evaluation" in saved_report
+        assert "audio_evaluation" in saved_report
+        assert "video_evaluation" in saved_report
+        assert "overall_score" not in saved_report
+        assert "overall_score" not in result
 
 
 # =============================================================================
@@ -261,6 +288,20 @@ class TestAssessmentOrchestratorQuestionSelection:
         assert result[0]["category"] == "INTRO"
         # Rubric must be stripped
         assert "ideal_answer_rubric" not in result[0]
+
+    def test_normalizes_assessment_type_variations_before_db_query(self):
+        """Rule 2: TECHNICAL, technical, Technical,  TECHNICAL  must all query DB with canonical TECHNICAL."""
+        db = MagicMock()
+        variations = ["TECHNICAL", "technical", "Technical", " TECHNICAL "]
+
+        with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud:
+            mock_crud.list_questions.return_value = ([], 0)
+
+            for var in variations:
+                assessment_orchestrator.get_questions_for_assessment(db, var)
+                mock_crud.list_questions.assert_called_with(
+                    db, category="TECHNICAL", is_active=True, limit=100
+                )
 
     def test_returns_empty_list_when_no_questions_in_db(self):
         db = MagicMock()

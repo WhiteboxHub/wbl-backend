@@ -41,11 +41,10 @@ class AssessmentEngine:
 
     # Valid status transitions allowed by business rules
     VALID_TRANSITIONS: Dict[str, List[str]] = {
-        "IN_PROGRESS": ["EVALUATING", "ABANDONED", "FAILED"],
+        "IN_PROGRESS": ["EVALUATING", "FAILED"],
         "EVALUATING":  ["COMPLETED", "FAILED"],
         "COMPLETED":   [],
         "FAILED":      [],
-        "ABANDONED":   [],
     }
 
     def __init__(self) -> None:
@@ -74,6 +73,7 @@ class AssessmentEngine:
 
         Returns:
             List of candidate-safe question dicts (no internal columns exposed).
+            If no matching questions exist for the category, returns an empty list [].
         """
         normalized_type = assessment_type.upper().strip()
 
@@ -89,14 +89,6 @@ class AssessmentEngine:
             if str(q.get("category", "")).upper() == normalized_type
             and q.get("is_active", True)
         ]
-
-        # Fall back to all active questions if no category match
-        if not matched:
-            logger.warning(
-                "[AssessmentEngine] No questions found for type '%s'. Using all active questions.",
-                normalized_type,
-            )
-            matched = [q for q in available_questions if q.get("is_active", True)]
 
         # Sort by difficulty: EXPERT > HARD > MEDIUM > EASY
         difficulty_order = {"EXPERT": 0, "HARD": 1, "MEDIUM": 2, "EASY": 3}
@@ -245,39 +237,6 @@ class AssessmentEngine:
             f"  Head Nods:          {head_nods}"
         )
 
-    def extract_overall_score(self, evaluation_result: Dict[str, Any]) -> Optional[float]:
-        """
-        Extracts the overall numerical score from an evaluation result dict.
-        Supports both new schema ('overall_assessment' -> 'score') and legacy schemas.
-        Coerces string scores to float. Returns None if unparseable.
-        """
-        if not evaluation_result or not isinstance(evaluation_result, dict):
-            return None
-
-        t_eval = evaluation_result.get("transcript_evaluation")
-        if not t_eval or not isinstance(t_eval, dict):
-            return None
-
-        # Check new schema: overall_assessment -> score
-        overall_obj = t_eval.get("overall_assessment")
-        raw_score = None
-        if isinstance(overall_obj, dict):
-            raw_score = overall_obj.get("score")
-
-        # Check legacy/fallback schemas
-        if raw_score is None:
-            raw_score = t_eval.get("overall_score")
-        if raw_score is None:
-            raw_score = t_eval.get("score")
-
-        if raw_score is None:
-            return None
-
-        try:
-            return float(raw_score)
-        except (ValueError, TypeError):
-            return None
-
     # =========================================================================
     # 3. ELIGIBILITY CHECKS (pure logic, no DB)
     # =========================================================================
@@ -329,11 +288,10 @@ class AssessmentEngine:
         Returns True if transitioning from current_status → target_status is allowed.
 
         Valid transitions:
-          IN_PROGRESS  → EVALUATING | ABANDONED | FAILED
+          IN_PROGRESS  → EVALUATING | FAILED
           EVALUATING   → COMPLETED  | FAILED
           COMPLETED    → (terminal — no transitions)
           FAILED       → (terminal — no transitions)
-          ABANDONED    → (terminal — no transitions)
         """
         allowed = self.VALID_TRANSITIONS.get(current_status.upper(), [])
         return target_status.upper() in allowed

@@ -133,8 +133,13 @@ async def run_full_evaluation(
     )
 
     # Step 2: Validate LLM config is available
-    llm_config = ctx["llm_config"]
-    if not llm_config.get("is_configured") or not llm_config.get("api_key"):
+    llm_config = ctx.get("llm_config")
+    if (
+        not llm_config
+        or not isinstance(llm_config, dict)
+        or not llm_config.get("is_configured")
+        or not llm_config.get("api_key")
+    ):
         # Update status to FAILED and raise
         crud.update_assessment_status(db, assessment_id, "FAILED")
         raise ValueError(
@@ -174,16 +179,11 @@ async def run_full_evaluation(
         assessment_id,
     )
 
-    # Step 5: Extract overall score from AssessmentEngine (pure logic)
-    engine = AssessmentEngine()
-    overall_score = engine.extract_overall_score(evaluation_result)
-
-    # Build the parsed report dict for CRUD
+    # Step 5: Build the parsed report dict for CRUD (without overall_score)
     parsed_report = {
         "transcript_evaluation": evaluation_result.get("transcript_evaluation"),
         "audio_evaluation": evaluation_result.get("audio_evaluation"),
         "video_evaluation": evaluation_result.get("video_evaluation"),
-        "overall_score": overall_score,
     }
 
     # Step 6: Persist report to DB
@@ -193,14 +193,13 @@ async def run_full_evaluation(
     crud.update_assessment_status(db, assessment_id, "COMPLETED")
 
     logger.info(
-        "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%d score=%s",
-        assessment_id, overall_score,
+        "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%d",
+        assessment_id,
     )
 
     return {
         "assessment_id": assessment_id,
         "status": "COMPLETED",
-        "overall_score": overall_score,
         "report": parsed_report,
     }
 
@@ -229,8 +228,11 @@ def get_questions_for_assessment(
     Returns:
         List of candidate-safe question dicts (rubric stripped).
     """
-    # Load all active questions for this type
-    items, _ = crud.list_questions(db, category=assessment_type, is_active=True, limit=100)
+    # Normalize assessment_type before querying the database
+    normalized_type = (assessment_type or "").upper().strip()
+
+    # Load all active questions for this normalized type
+    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=100)
     available = [
         {
             "id": q.id,
@@ -245,7 +247,7 @@ def get_questions_for_assessment(
 
     engine = AssessmentEngine()
     return engine.select_questions_for_assessment(
-        assessment_type=assessment_type,
+        assessment_type=normalized_type,
         available_questions=available,
         limit=limit,
     )

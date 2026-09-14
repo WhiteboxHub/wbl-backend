@@ -180,7 +180,8 @@ class TestAssessmentEngineQuestionSelection:
         assert "ideal_answer_rubric" not in result[0]
         assert "question_text" in result[0]
 
-    def test_no_matching_category_returns_empty(self):
+    def test_no_questions_returned_when_category_has_no_matches(self):
+        """When requesting TECHNICAL and only INTRO + RECRUITER exist, return [] (no cross-category fallback)."""
         questions = self._make_questions(["INTRO", "RECRUITER"])
         result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
         assert result == []
@@ -367,6 +368,34 @@ class TestAssessmentEngineEligibility:
         msg = self.engine.compute_eligibility_message(llm, resume)
         assert "LLM" in msg
         assert "Resume" in msg or "resume" in msg.lower()
+
+
+# =============================================================================
+# AssessmentEngine — State Validation
+# =============================================================================
+
+
+class TestAssessmentEngineStateValidation:
+
+    def setup_method(self):
+        self.engine = AssessmentEngine()
+
+    def test_valid_in_progress_transitions(self):
+        assert self.engine.is_valid_transition("IN_PROGRESS", "EVALUATING") is True
+        assert self.engine.is_valid_transition("IN_PROGRESS", "FAILED") is True
+
+    def test_valid_evaluating_transitions(self):
+        assert self.engine.is_valid_transition("EVALUATING", "COMPLETED") is True
+        assert self.engine.is_valid_transition("EVALUATING", "FAILED") is True
+
+    def test_abandoned_status_rejected(self):
+        """ABANDONED is not part of the status contract and must be rejected."""
+        assert self.engine.is_valid_transition("IN_PROGRESS", "ABANDONED") is False
+        assert self.engine.is_valid_transition("EVALUATING", "ABANDONED") is False
+
+    def test_terminal_states_reject_transitions(self):
+        assert self.engine.is_valid_transition("COMPLETED", "IN_PROGRESS") is False
+        assert self.engine.is_valid_transition("FAILED", "IN_PROGRESS") is False
 
 
 # =============================================================================
