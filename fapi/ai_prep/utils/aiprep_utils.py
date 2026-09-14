@@ -131,6 +131,68 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
 # Dynamic DB & Authorization Helpers
 # ---------------------------------------------------------------------------
 
+def _normalize_skills(raw_skills: Any) -> List[str]:
+    """Extracts and flattens skills into a clean, deduplicated list of strings."""
+    if not raw_skills:
+        return []
+    extracted: List[str] = []
+
+    def _add(val: Any):
+        if val is None:
+            return
+        if isinstance(val, str):
+            s = val.strip()
+            if s and s not in extracted:
+                extracted.append(s)
+        elif isinstance(val, (int, float)):
+            s = str(val).strip()
+            if s and s not in extracted:
+                extracted.append(s)
+
+    if isinstance(raw_skills, str):
+        for part in raw_skills.replace("\n", ",").split(","):
+            _add(part)
+    elif isinstance(raw_skills, dict):
+        for k, v in raw_skills.items():
+            if isinstance(v, list):
+                for sub in v:
+                    if isinstance(sub, str):
+                        _add(sub)
+                    elif isinstance(sub, dict):
+                        _add(sub.get("name") or sub.get("skill"))
+                        if isinstance(sub.get("keywords"), list):
+                            for kw in sub["keywords"]:
+                                _add(kw)
+            elif isinstance(v, str):
+                _add(v)
+            else:
+                _add(k)
+    elif isinstance(raw_skills, list):
+        for item in raw_skills:
+            if isinstance(item, str):
+                _add(item)
+            elif isinstance(item, dict):
+                name = item.get("name") or item.get("skill") or item.get("title")
+                keywords = item.get("keywords")
+                if isinstance(keywords, list) and keywords:
+                    if name:
+                        _add(name)
+                    for kw in keywords:
+                        _add(kw)
+                elif name:
+                    _add(name)
+                else:
+                    for v in item.values():
+                        if isinstance(v, str):
+                            _add(v)
+                        elif isinstance(v, list):
+                            for sub in v:
+                                _add(sub)
+            else:
+                _add(str(item))
+    return extracted
+
+
 def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: Optional[int] = None) -> int:
     """Enforces authorization: Candidates can only access their own ID; employees can specify any."""
     uname = (getattr(current_user, "uname", "") or "").lower()
@@ -139,6 +201,8 @@ def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: 
 
     # Match Candidate by email or ID
     candidate = db.query(CandidateORM).filter(CandidateORM.email == current_user.uname).first()
+    if not candidate:
+        candidate = db.query(CandidateORM).filter(CandidateORM.id == current_user.id).first()
     if not candidate and not is_employee:
         raise HTTPException(status_code=404, detail="Candidate record not found.")
 
@@ -193,7 +257,16 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
     )
 
     has_resume = bool(mktg and mktg.resume_url)
-    parsed_json = mktg.candidate_json if mktg and isinstance(mktg.candidate_json, dict) else None
+    parsed_json = None
+    if mktg and mktg.candidate_json:
+        if isinstance(mktg.candidate_json, dict):
+            parsed_json = mktg.candidate_json
+        elif isinstance(mktg.candidate_json, str):
+            try:
+                import json
+                parsed_json = json.loads(mktg.candidate_json)
+            except Exception:
+                parsed_json = None
 
     if not has_resume and not parsed_json:
         return {
@@ -206,13 +279,15 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
             "message": "Candidate has not uploaded or synced a resume.",
         }
 
-    skills = []
-    current_title = None
+    skills: List[str] = []
+    current_title: Optional[str] = None
     if parsed_json:
-        skills = parsed_json.get("skills", [])
-        if not skills and isinstance(parsed_json.get("personal"), dict):
-            skills = parsed_json.get("personal", {}).get("skills", [])
-        current_title = parsed_json.get("current_title") or parsed_json.get("title")
+        raw_skills = parsed_json.get("skills")
+        if not raw_skills and isinstance(parsed_json.get("personal"), dict):
+            raw_skills = parsed_json.get("personal", {}).get("skills")
+        skills = _normalize_skills(raw_skills)
+        raw_title = parsed_json.get("current_title") or parsed_json.get("title")
+        current_title = str(raw_title).strip() if raw_title else None
 
     return {
         "status": "valid",
@@ -220,7 +295,7 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
         "has_parsed_json": bool(parsed_json),
         "candidate_name": candidate_name,
         "current_title": current_title,
-        "skills": skills if isinstance(skills, list) else [],
+        "skills": skills,
         "message": "Candidate resume is verified and ready.",
     }
 
@@ -255,21 +330,70 @@ def _verify_prerequisites(db: Session, candidate_id: int):
 
 def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM) -> LLMKeyStatusResponse:
     """Candidate self-check for configured LLM key dynamically from DB."""
-    candidate_id = _resolve_candidate_id(db, current_user)
-    result = _check_candidate_llm_db(db, candidate_id)
-    return LLMKeyStatusResponse(**result)
+    try:
+        candidate_id = _resolve_candidate_id(db, current_user)
+        result = _check_candidate_llm_db(db, candidate_id)
+        return LLMKeyStatusResponse(**result)
+    except HTTPException as e:
+        if e.status_code == 404:
+            return LLMKeyStatusResponse(
+                status="failure",
+                is_configured=False,
+                provider=None,
+                model=None,
+                voice_enabled=False,
+                message="Candidate profile record not found. Please configure an API key in setup.",
+                available_models=[],
+            )
+        raise
 
 
 def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) -> ResumeStatusResponse:
     """Candidate self-check for parsed resume status dynamically from DB."""
-    candidate_id = _resolve_candidate_id(db, current_user)
-    result = _check_candidate_resume_db(db, candidate_id)
-    return ResumeStatusResponse(**result)
+    try:
+        candidate_id = _resolve_candidate_id(db, current_user)
+        result = _check_candidate_resume_db(db, candidate_id)
+        return ResumeStatusResponse(**result)
+    except HTTPException as e:
+        if e.status_code == 404:
+            cand_name = getattr(current_user, "fullname", None) or getattr(current_user, "uname", "Candidate")
+            return ResumeStatusResponse(
+                status="failure",
+                has_resume=False,
+                has_parsed_json=False,
+                candidate_name=cand_name,
+                current_title=None,
+                skills=[],
+                message="Candidate profile record not found. Please complete profile setup.",
+            )
+        raise
 
 
 def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAssessmentCheckResponse:
     """Verifies both LLM key and resume readiness before starting assessment."""
-    candidate_id = _resolve_candidate_id(db, current_user)
+    try:
+        candidate_id = _resolve_candidate_id(db, current_user)
+    except HTTPException as e:
+        if e.status_code == 404:
+            cand_name = getattr(current_user, "fullname", None) or getattr(current_user, "uname", "Candidate")
+            return PreAssessmentCheckResponse(
+                eligible=False,
+                candidate_id=getattr(current_user, "id", 0),
+                llm_check=LLMKeyStatusResponse(
+                    status="failure",
+                    is_configured=False,
+                    message="Candidate profile record not found.",
+                ),
+                resume_check=ResumeStatusResponse(
+                    status="failure",
+                    has_resume=False,
+                    has_parsed_json=False,
+                    candidate_name=cand_name,
+                    message="Candidate profile record not found. Please complete profile setup.",
+                ),
+                message="Prerequisites missing: setup required",
+            )
+        raise
     llm_check = _check_candidate_llm_db(db, candidate_id)
     resume_check = _check_candidate_resume_db(db, candidate_id)
     eligible = bool(llm_check["is_configured"] and (resume_check["has_resume"] or resume_check["has_parsed_json"]))

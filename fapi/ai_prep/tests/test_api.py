@@ -43,6 +43,12 @@ def setup_db():
     Base.metadata.drop_all(bind=engine, tables=tables)
 
 
+@pytest.fixture(autouse=True)
+def clean_dependency_overrides():
+    yield
+    app.dependency_overrides.clear()
+
+
 @pytest.fixture
 def db_session():
     db = TestingSessionLocal()
@@ -50,6 +56,7 @@ def db_session():
         yield db
     finally:
         db.close()
+
 
 
 import datetime
