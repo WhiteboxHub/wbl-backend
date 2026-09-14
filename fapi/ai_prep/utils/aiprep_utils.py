@@ -41,6 +41,8 @@ from fapi.ai_prep.schemas import (
     UpdateMediaURLResponse,
     TriggerEvaluationResponse,
     AssessmentDetailResponse,
+    AssessmentDataResponse,
+    AssessmentReportResponse,
     AssessmentListResponse,
     AssessmentListItem,
     ChunkUploadResponse,
@@ -284,6 +286,8 @@ def candidate_create_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
     payload: CreateAssessmentRequest,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
 ) -> CreateAssessmentResponse:
     """Dynamically validates prerequisites and creates a new assessment row in DB."""
     candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
@@ -297,6 +301,8 @@ def candidate_create_assessment_logic(
         media_type=payload.media_type.value,
         status="IN_PROGRESS",
         job_description=payload.job_description,
+        ip_address=ip_address,
+        user_agent=user_agent,
         started_at=datetime.utcnow(),
     )
     db.add(db_assessment)
@@ -331,6 +337,8 @@ def candidate_create_assessment_logic(
         started_at=db_assessment.started_at,
         assessment_type=db_assessment.assessment_type,
         media_type=db_assessment.media_type,
+        job_description=db_assessment.job_description,
+        youtube_url=db_assessment.youtube_url,
         questions=questions_list,
     )
 
@@ -356,8 +364,10 @@ def candidate_list_assessments_logic(
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
+                job_description=a.job_description,
                 youtube_url=a.youtube_url,
                 started_at=a.started_at,
+                completed_at=a.completed_at,
                 created_at=a.created_at,
             )
             for a in items
@@ -405,12 +415,63 @@ def candidate_get_assessment_detail_logic(
         media_type=assessment.media_type,
         status=assessment.status,
         job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
         data=data_dict,
         report=report_dict,
+    )
+
+
+def candidate_get_assessment_data_logic(
+    db: Session,
+    current_user: AuthUserORM,
+    assessment_id: int,
+) -> AssessmentDataResponse:
+    """Fetches submitted telemetry and questions data for an assessment."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    if not assessment.data_record:
+        raise HTTPException(status_code=404, detail="No telemetry or submitted data found for this assessment")
+    return AssessmentDataResponse(
+        id=assessment.data_record.id,
+        assessment_id=assessment.data_record.assessment_id,
+        questions=assessment.data_record.questions,
+        transcript=assessment.data_record.transcript,
+        audio_telemetry=assessment.data_record.audio_telemetry,
+        video_telemetry=assessment.data_record.video_telemetry,
+        created_at=assessment.data_record.created_at,
+        updated_at=assessment.data_record.updated_at,
+    )
+
+
+def candidate_get_assessment_report_logic(
+    db: Session,
+    current_user: AuthUserORM,
+    assessment_id: int,
+) -> AssessmentReportResponse:
+    """Fetches generated evaluation report for an assessment."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    if not assessment.report_record:
+        raise HTTPException(status_code=404, detail="Report not generated yet for this assessment")
+    return AssessmentReportResponse(
+        id=assessment.report_record.id,
+        assessment_id=assessment.report_record.assessment_id,
+        audio_evaluation=assessment.report_record.audio_evaluation,
+        video_evaluation=assessment.report_record.video_evaluation,
+        transcript_evaluation=assessment.report_record.transcript_evaluation,
+        overall_score=assessment.report_record.overall_score,
+        report_data=assessment.report_record.report_data,
+        created_at=assessment.report_record.created_at,
+        updated_at=assessment.report_record.updated_at,
     )
 
 
@@ -568,8 +629,10 @@ def employee_list_assessments_table_logic(
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
+                job_description=a.job_description,
                 youtube_url=a.youtube_url,
                 started_at=a.started_at,
+                completed_at=a.completed_at,
                 created_at=a.created_at,
             )
             for a in items
@@ -593,8 +656,10 @@ def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) ->
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
+                job_description=a.job_description,
                 youtube_url=a.youtube_url,
                 started_at=a.started_at,
+                completed_at=a.completed_at,
                 created_at=a.created_at,
             )
             for a in items
@@ -636,6 +701,8 @@ def employee_get_assessment_detail_logic(db: Session, assessment_id: int) -> Ass
         media_type=assessment.media_type,
         status=assessment.status,
         job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
@@ -643,6 +710,52 @@ def employee_get_assessment_detail_logic(db: Session, assessment_id: int) -> Ass
         data=data_dict,
         report=report_dict,
     )
+
+
+def employee_get_assessment_data_logic(
+    db: Session,
+    assessment_id: int,
+) -> AssessmentDataResponse:
+    """Employee view of submitted telemetry and questions data."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not assessment.data_record:
+        raise HTTPException(status_code=404, detail="No telemetry or submitted data found for this assessment")
+    return AssessmentDataResponse(
+        id=assessment.data_record.id,
+        assessment_id=assessment.data_record.assessment_id,
+        questions=assessment.data_record.questions,
+        transcript=assessment.data_record.transcript,
+        audio_telemetry=assessment.data_record.audio_telemetry,
+        video_telemetry=assessment.data_record.video_telemetry,
+        created_at=assessment.data_record.created_at,
+        updated_at=assessment.data_record.updated_at,
+    )
+
+
+def employee_get_assessment_report_logic(
+    db: Session,
+    assessment_id: int,
+) -> AssessmentReportResponse:
+    """Employee view of evaluation report."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not assessment.report_record:
+        raise HTTPException(status_code=404, detail="Report not generated yet for this assessment")
+    return AssessmentReportResponse(
+        id=assessment.report_record.id,
+        assessment_id=assessment.report_record.assessment_id,
+        audio_evaluation=assessment.report_record.audio_evaluation,
+        video_evaluation=assessment.report_record.video_evaluation,
+        transcript_evaluation=assessment.report_record.transcript_evaluation,
+        overall_score=assessment.report_record.overall_score,
+        report_data=assessment.report_record.report_data,
+        created_at=assessment.report_record.created_at,
+        updated_at=assessment.report_record.updated_at,
+    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -893,11 +1006,20 @@ def list_questions_from_bank_logic(
 
 
 def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> QuestionResponse:
-    """Adds a new question to the ai_prep_questions table in DB."""
+    """Adds a new question to the ai_prep_question_bank table in DB."""
+    cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
+    sub_cat = payload.sub_category
+    if cat != "TECHNICAL":
+        sub_cat = None
+    elif not sub_cat:
+        sub_cat = "General"
+
+    diff = payload.difficulty_level.value if hasattr(payload.difficulty_level, "value") else str(payload.difficulty_level)
+
     new_q = AiPrepQuestionORM(
-        category=payload.category.value,
-        sub_category=payload.sub_category,
-        difficulty_level=payload.difficulty_level.value,
+        category=cat,
+        sub_category=sub_cat,
+        difficulty_level=diff,
         question_text=payload.question_text,
         ideal_answer_rubric=payload.ideal_answer_rubric,
         is_active=payload.is_active,
@@ -921,7 +1043,34 @@ def update_question_in_bank_logic(
     for k, v in payload.dict(exclude_unset=True).items():
         if v is not None and hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
+
+    # Enforce DDL chk_qb_subcategory constraint
+    cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
+    if cat != "TECHNICAL":
+        q_row.sub_category = None
+    elif not q_row.sub_category:
+        q_row.sub_category = "General"
+
     q_row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(q_row)
     return QuestionResponse.from_orm(q_row)
+
+
+def get_question_from_bank_logic(db: Session, question_id: int) -> QuestionResponse:
+    """Fetches a specific question by ID from ai_prep_question_bank."""
+    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    if not q_row:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return QuestionResponse.from_orm(q_row)
+
+
+def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, Any]:
+    """Deactivates/deletes a question from ai_prep_question_bank."""
+    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    if not q_row:
+        raise HTTPException(status_code=404, detail="Question not found")
+    q_row.is_active = False
+    q_row.updated_at = datetime.utcnow()
+    db.commit()
+    return {"message": "Question deactivated successfully", "id": question_id}

@@ -25120,6 +25120,54 @@
       }
     },
     "/api/aiprep/assessments/{assessment_id}/data": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Get Assessment Data",
+        "description": "Fetches submitted telemetry, questions, and transcript for an assessment.",
+        "operationId": "candidate_get_assessment_data_api_aiprep_assessments__assessment_id__data_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "AI Prep Tool",
@@ -25180,6 +25228,54 @@
       }
     },
     "/api/aiprep/candidate/assessments/{assessment_id}/data": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Candidate: Get Submitted Telemetry & Questions",
+        "description": "Fetches submitted telemetry, questions, and transcript for an assessment.",
+        "operationId": "candidate_get_assessment_data_api_aiprep_candidate_assessments__assessment_id__data_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "AI Prep Tool",
@@ -25222,6 +25318,106 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubmitAssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/report": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Get Assessment Report",
+        "description": "Fetches evaluation report (audio, video, transcript evaluations) for an assessment.",
+        "operationId": "candidate_get_assessment_report_api_aiprep_assessments__assessment_id__report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/candidate/assessments/{assessment_id}/report": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Candidate: Get Assessment Evaluation Report",
+        "description": "Fetches evaluation report (audio, video, transcript evaluations) for an assessment.",
+        "operationId": "candidate_get_assessment_report_api_aiprep_candidate_assessments__assessment_id__report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentReportResponse"
                 }
               }
             }
@@ -26241,6 +26437,106 @@
         }
       }
     },
+    "/api/aiprep/employee/assessments/{assessment_id}/data": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Employee / Admin"
+        ],
+        "summary": "Employee: Get Assessment Telemetry & Questions",
+        "description": "Employee/Admin endpoint to view submitted telemetry, transcript, and questions.",
+        "operationId": "employee_get_assessment_data_route_api_aiprep_employee_assessments__assessment_id__data_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/employee/assessments/{assessment_id}/report": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Employee / Admin"
+        ],
+        "summary": "Employee: Get Assessment Evaluation Report",
+        "description": "Employee/Admin endpoint to view complete evaluation report (audio, video, transcript).",
+        "operationId": "employee_get_assessment_report_route_api_aiprep_employee_assessments__assessment_id__report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/aiprep/media/storage-info": {
       "get": {
         "tags": [
@@ -26614,6 +26910,100 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Get Question Bank Item by ID",
+        "description": "Fetches a specific question by ID from the question bank.",
+        "operationId": "get_question_from_bank_api_aiprep_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Deactivate Question Bank Item",
+        "description": "Deactivates/deletes a question from the question bank.",
+        "operationId": "delete_question_from_bank_api_aiprep_questions__question_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/aiprep/employee/questions/{question_id}": {
@@ -26660,6 +27050,100 @@
                 "schema": {
                   "$ref": "#/components/schemas/QuestionResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Admin: Get Question Bank Item by ID",
+        "description": "Fetches a specific question by ID from the question bank.",
+        "operationId": "get_question_from_bank_api_aiprep_employee_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Admin: Deactivate Question Bank Item",
+        "description": "Deactivates/deletes a question from the question bank.",
+        "operationId": "delete_question_from_bank_api_aiprep_employee_questions__question_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -27502,6 +27986,54 @@
       }
     },
     "/aiprep/assessments/{assessment_id}/data": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Get Assessment Data",
+        "description": "Fetches submitted telemetry, questions, and transcript for an assessment.",
+        "operationId": "candidate_get_assessment_data_aiprep_assessments__assessment_id__data_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "AI Prep Tool Alias",
@@ -27562,6 +28094,54 @@
       }
     },
     "/aiprep/candidate/assessments/{assessment_id}/data": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Candidate: Get Submitted Telemetry & Questions",
+        "description": "Fetches submitted telemetry, questions, and transcript for an assessment.",
+        "operationId": "candidate_get_assessment_data_aiprep_candidate_assessments__assessment_id__data_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "AI Prep Tool Alias",
@@ -27604,6 +28184,106 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubmitAssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/assessments/{assessment_id}/report": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Get Assessment Report",
+        "description": "Fetches evaluation report (audio, video, transcript evaluations) for an assessment.",
+        "operationId": "candidate_get_assessment_report_aiprep_assessments__assessment_id__report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/candidate/assessments/{assessment_id}/report": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Candidate"
+        ],
+        "summary": "Candidate: Get Assessment Evaluation Report",
+        "description": "Fetches evaluation report (audio, video, transcript evaluations) for an assessment.",
+        "operationId": "candidate_get_assessment_report_aiprep_candidate_assessments__assessment_id__report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentReportResponse"
                 }
               }
             }
@@ -28623,6 +29303,106 @@
         }
       }
     },
+    "/aiprep/employee/assessments/{assessment_id}/data": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Employee / Admin"
+        ],
+        "summary": "Employee: Get Assessment Telemetry & Questions",
+        "description": "Employee/Admin endpoint to view submitted telemetry, transcript, and questions.",
+        "operationId": "employee_get_assessment_data_route_aiprep_employee_assessments__assessment_id__data_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentDataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/employee/assessments/{assessment_id}/report": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Employee / Admin"
+        ],
+        "summary": "Employee: Get Assessment Evaluation Report",
+        "description": "Employee/Admin endpoint to view complete evaluation report (audio, video, transcript).",
+        "operationId": "employee_get_assessment_report_route_aiprep_employee_assessments__assessment_id__report_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/aiprep/media/storage-info": {
       "get": {
         "tags": [
@@ -28996,6 +29776,100 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Get Question Bank Item by ID",
+        "description": "Fetches a specific question by ID from the question bank.",
+        "operationId": "get_question_from_bank_aiprep_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Deactivate Question Bank Item",
+        "description": "Deactivates/deletes a question from the question bank.",
+        "operationId": "delete_question_from_bank_aiprep_questions__question_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/aiprep/employee/questions/{question_id}": {
@@ -29042,6 +29916,100 @@
                 "schema": {
                   "$ref": "#/components/schemas/QuestionResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Admin: Get Question Bank Item by ID",
+        "description": "Fetches a specific question by ID from the question bank.",
+        "operationId": "get_question_from_bank_aiprep_employee_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Admin & Catalog"
+        ],
+        "summary": "Admin: Deactivate Question Bank Item",
+        "description": "Deactivates/deletes a question from the question bank.",
+        "operationId": "delete_question_from_bank_aiprep_employee_questions__question_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -29683,6 +30651,105 @@
         ],
         "title": "AssessmentCategoryEnum"
       },
+      "AssessmentDataResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "audio_telemetry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Telemetry"
+          },
+          "video_telemetry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Telemetry"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id"
+        ],
+        "title": "AssessmentDataResponse"
+      },
       "AssessmentDetailResponse": {
         "properties": {
           "id": {
@@ -29726,6 +30793,28 @@
               }
             ],
             "title": "Job Description"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
           },
           "youtube_url": {
             "anyOf": [
@@ -29849,6 +30938,17 @@
             "type": "string",
             "title": "Status"
           },
+          "job_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description"
+          },
           "youtube_url": {
             "anyOf": [
               {
@@ -29871,6 +30971,18 @@
               }
             ],
             "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
           },
           "created_at": {
             "anyOf": [
@@ -29913,6 +31025,113 @@
           "total"
         ],
         "title": "AssessmentListResponse"
+      },
+      "AssessmentReportResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "audio_evaluation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Evaluation"
+          },
+          "video_evaluation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Evaluation"
+          },
+          "transcript_evaluation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Evaluation"
+          },
+          "overall_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Score"
+          },
+          "report_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Data"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id"
+        ],
+        "title": "AssessmentReportResponse"
       },
       "AssessmentTypeCreate": {
         "properties": {
@@ -42130,8 +43349,15 @@
             "default": "IN_PROGRESS"
           },
           "started_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Started At"
           },
           "assessment_type": {
@@ -42156,6 +43382,28 @@
             ],
             "title": "Media Type"
           },
+          "job_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description"
+          },
+          "youtube_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtube Url"
+          },
           "questions": {
             "anyOf": [
               {
@@ -42174,8 +43422,7 @@
         },
         "type": "object",
         "required": [
-          "id",
-          "started_at"
+          "id"
         ],
         "title": "CreateAssessmentResponse"
       },
