@@ -180,6 +180,23 @@ def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
     }
 
 
+def _normalize_resume_skills(raw_skills: Any) -> List[str]:
+    """Return resume skills in the `ResumeStatusResponse` string-list contract."""
+    if not isinstance(raw_skills, list):
+        return []
+
+    normalized_skills: List[str] = []
+    for skill in raw_skills:
+        if isinstance(skill, str):
+            normalized_skills.append(skill)
+        elif isinstance(skill, dict):
+            name = skill.get("name")
+            if isinstance(name, str):
+                normalized_skills.append(name)
+
+    return normalized_skills
+
+
 def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Queries candidate_marketing and candidate tables dynamically."""
     cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
@@ -220,7 +237,7 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
         "has_parsed_json": bool(parsed_json),
         "candidate_name": candidate_name,
         "current_title": current_title,
-        "skills": skills if isinstance(skills, list) else [],
+        "skills": _normalize_resume_skills(skills),
         "message": "Candidate resume is verified and ready.",
     }
 
