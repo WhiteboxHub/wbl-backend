@@ -412,30 +412,30 @@ def candidate_get_assessment_report_logic(
 
 async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> None:
     """Background task to run full LLM evaluation pipeline and persist report."""
-    with SessionLocal() as db:
-        assessment = crud.get_assessment_by_id(db, assessment_id)
-        if not assessment:
-            logger.error("[LLMOrchestrator Worker] Assessment %d not found", assessment_id)
-            return
+    try:
+        with SessionLocal() as db:
+            assessment = crud.get_assessment_by_id(db, assessment_id)
+            if not assessment:
+                logger.error("[LLMOrchestrator Worker] Assessment %d not found", assessment_id)
+                return
 
-        data_rec = crud.get_assessment_data_by_assessment_id(db, assessment_id)
-        transcript_data = (data_rec.transcript if data_rec else {}) or {}
-        transcript_text = ""
-        if isinstance(transcript_data, dict):
-            transcript_text = (
-                transcript_data.get("transcript_text")
-                or transcript_data.get("text")
-                or transcript_data.get("transcript")
-                or ""
-            )
-        elif isinstance(transcript_data, str):
-            transcript_text = transcript_data
+            data_rec = crud.get_assessment_data_by_assessment_id(db, assessment_id)
+            transcript_data = (data_rec.transcript if data_rec else {}) or {}
+            transcript_text = ""
+            if isinstance(transcript_data, dict):
+                transcript_text = (
+                    transcript_data.get("transcript_text")
+                    or transcript_data.get("text")
+                    or transcript_data.get("transcript")
+                    or ""
+                )
+            elif isinstance(transcript_data, str):
+                transcript_text = transcript_data
 
-        audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
-        video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
-        resume_json = crud.get_candidate_resume_json(db, candidate_id)
+            audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
+            video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
+            resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
-        try:
             llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
             if not llm_config.get("is_configured"):
                 logger.error(
@@ -467,13 +467,12 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 "[LLMOrchestrator Worker] Assessment %d successfully evaluated and report saved.",
                 assessment_id,
             )
-        except Exception as exc:
-            logger.exception(
-                "[LLMOrchestrator Worker] Assessment %d evaluation failed: %s",
-                assessment_id,
-                exc,
-            )
-            crud.update_assessment_status(db, assessment_id, "FAILED")
+    except Exception as exc:
+        logger.exception(
+            "[LLMOrchestrator Worker] Assessment %d evaluation failed: %s",
+            assessment_id,
+            exc,
+        )
 
 
 def candidate_submit_data_logic(
