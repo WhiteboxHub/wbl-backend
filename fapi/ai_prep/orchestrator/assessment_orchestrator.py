@@ -122,8 +122,8 @@ async def run_full_evaluation(
     """
     logger.info("[AssessmentOrchestrator] Starting full evaluation: assessment_id=%d", assessment_id)
 
-    # Step 1: Load all context from DB
-    ctx = _load_assessment_context(db, assessment_id)
+    # Step 1: Load all context from DB (offloaded to thread pool to prevent blocking event loop)
+    ctx = await asyncio.to_thread(_load_assessment_context, db, assessment_id)
     candidate_id = ctx["candidate_id"]
     assessment_type = ctx["assessment_type"]
 
@@ -141,7 +141,7 @@ async def run_full_evaluation(
         or not llm_config.get("api_key")
     ):
         # Update status to FAILED and raise
-        crud.update_assessment_status(db, assessment_id, "FAILED")
+        await asyncio.to_thread(crud.update_assessment_status, db, assessment_id, "FAILED")
         raise ValueError(
             f"Candidate {candidate_id} has no active LLM API key configured. "
             "Cannot run evaluation."
@@ -171,7 +171,7 @@ async def run_full_evaluation(
             "[AssessmentOrchestrator] LLM evaluation failed: assessment=%d error=%s",
             assessment_id, exc,
         )
-        crud.update_assessment_status(db, assessment_id, "FAILED")
+        await asyncio.to_thread(crud.update_assessment_status, db, assessment_id, "FAILED")
         raise
 
     logger.info(
@@ -186,11 +186,11 @@ async def run_full_evaluation(
         "video_evaluation": evaluation_result.get("video_evaluation"),
     }
 
-    # Step 6: Persist report to DB
-    crud.save_assessment_report(db, assessment_id, parsed_report)
+    # Step 6: Persist report to DB (offloaded to thread pool)
+    await asyncio.to_thread(crud.save_assessment_report, db, assessment_id, parsed_report)
 
-    # Step 7: Mark assessment as COMPLETED
-    crud.update_assessment_status(db, assessment_id, "COMPLETED")
+    # Step 7: Mark assessment as COMPLETED (offloaded to thread pool)
+    await asyncio.to_thread(crud.update_assessment_status, db, assessment_id, "COMPLETED")
 
     logger.info(
         "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%d",
