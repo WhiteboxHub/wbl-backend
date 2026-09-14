@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class LLMClientError(Exception):
     """Base exception for all LLM client failures."""
 
-    def __init__(self, message: str, provider: str = "", status_code: Optional[int] = None) -> None:
+    def __init__(self, message: str = "", provider: str = "", status_code: Optional[int] = None) -> None:
         super().__init__(message)
         self.provider = provider
         self.status_code = status_code
@@ -535,70 +535,13 @@ async def test_llm_connection(
         raise LLMClientError(f"Unsupported provider '{resolved_provider}'", provider=resolved_provider)
 
     # 1. Extract Token Usage from Body
-    tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    if "usage" in response_json:
-        u = response_json["usage"]
-        p = u.get("prompt_tokens") or u.get("input_tokens") or 0
-        c = u.get("completion_tokens") or u.get("output_tokens") or 0
-        t = u.get("total_tokens") or (p + c)
-        tokens_used = {"prompt_tokens": int(p), "completion_tokens": int(c), "total_tokens": int(t)}
-    elif "usageMetadata" in response_json:
-        u = response_json["usageMetadata"]
-        p = u.get("promptTokenCount", 0)
-        c = u.get("candidatesTokenCount", 0)
-        t = u.get("totalTokenCount", p + c)
-        tokens_used = {"prompt_tokens": int(p), "completion_tokens": int(c), "total_tokens": int(t)}
+    tokens_used = _extract_token_usage(response_json)
 
     # 2. Extract Remaining Token Limits from HTTP Response Headers
-    def _int_or_none(v: Optional[str]) -> Optional[int]:
-        if v is None:
-            return None
-        try:
-            return int(v.replace(",", "").strip())
-        except ValueError:
-            return None
-
-    tokens_remaining = _int_or_none(
-        headers_dict.get("x-ratelimit-remaining-tokens")
-        or headers_dict.get("anthropic-ratelimit-tokens-remaining")
-    )
-    tokens_limit = _int_or_none(
-        headers_dict.get("x-ratelimit-limit-tokens")
-        or headers_dict.get("anthropic-ratelimit-tokens-limit")
-    )
-    requests_remaining = _int_or_none(
-        headers_dict.get("x-ratelimit-remaining-requests")
-        or headers_dict.get("anthropic-ratelimit-requests-remaining")
-    )
-    rate_limit_reset = (
-        headers_dict.get("x-ratelimit-reset-tokens")
-        or headers_dict.get("anthropic-ratelimit-tokens-reset")
-        or headers_dict.get("x-ratelimit-reset-requests")
-    )
+    rate_limits = _extract_rate_limits(headers_dict)
 
     # 3. Special account check for OpenRouter (fetches dollar balance)
-    account_credits: Optional[Dict[str, Any]] = None
-    if resolved_provider == "openrouter":
-        try:
-            def _check_openrouter_auth():
-                req = urllib.request.Request(
-                    "https://openrouter.ai/api/v1/auth/key",
-                    headers={"Authorization": f"Bearer {clean_key}"},
-                )
-                with urllib.request.urlopen(req, timeout=10.0) as r:
-                    return json.loads(r.read().decode("utf-8"))
-            auth_data = await asyncio.to_thread(_check_openrouter_auth)
-            data_field = auth_data.get("data", {})
-            limit = data_field.get("limit")
-            usage = data_field.get("usage", 0.0)
-            account_credits = {
-                "credit_limit_usd": limit,
-                "usage_usd": round(float(usage), 4),
-                "credits_remaining_usd": round(float(limit - usage), 4) if limit is not None else "Unlimited",
-                "is_free_tier": data_field.get("is_free_tier", False),
-            }
-        except Exception as e:
-            logger.debug(f"Could not fetch OpenRouter balance: {e}")
+    account_credits = await _fetch_openrouter_credits(clean_key) if resolved_provider == "openrouter" else None
 
     return {
         "success": True,
@@ -606,12 +549,88 @@ async def test_llm_connection(
         "model": selected_model,
         "response_text": response_text.strip(),
         "tokens_used_this_call": tokens_used,
-        "tokens_remaining": tokens_remaining,
-        "tokens_limit": tokens_limit,
-        "requests_remaining": requests_remaining,
-        "rate_limit_reset": rate_limit_reset,
+        "tokens_remaining": rate_limits["tokens_remaining"],
+        "tokens_limit": rate_limits["tokens_limit"],
+        "requests_remaining": rate_limits["requests_remaining"],
+        "rate_limit_reset": rate_limits["rate_limit_reset"],
         "account_credits": account_credits,
     }
+
+
+def _extract_token_usage(response_json: Dict[str, Any]) -> Dict[str, int]:
+    """Extracts prompt, completion, and total tokens from response body."""
+    tokens_used = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    if "usage" in response_json:
+        u = response_json["usage"]
+        p = u.get("prompt_tokens") or u.get("input_tokens") or 0
+        c = u.get("completion_tokens") or u.get("output_tokens") or 0
+        t = u.get("total_tokens") or (p + c)
+        return {"prompt_tokens": int(p), "completion_tokens": int(c), "total_tokens": int(t)}
+    elif "usageMetadata" in response_json:
+        u = response_json["usageMetadata"]
+        p = u.get("promptTokenCount", 0)
+        c = u.get("candidatesTokenCount", 0)
+        t = u.get("totalTokenCount", p + c)
+        return {"prompt_tokens": int(p), "completion_tokens": int(c), "total_tokens": int(t)}
+    return tokens_used
+
+
+def _int_or_none(v: Optional[str]) -> Optional[int]:
+    if v is None:
+        return None
+    try:
+        return int(v.replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def _extract_rate_limits(headers_dict: Dict[str, str]) -> Dict[str, Any]:
+    """Extracts token limits and quotas from response headers."""
+    return {
+        "tokens_remaining": _int_or_none(
+            headers_dict.get("x-ratelimit-remaining-tokens")
+            or headers_dict.get("anthropic-ratelimit-tokens-remaining")
+        ),
+        "tokens_limit": _int_or_none(
+            headers_dict.get("x-ratelimit-limit-tokens")
+            or headers_dict.get("anthropic-ratelimit-tokens-limit")
+        ),
+        "requests_remaining": _int_or_none(
+            headers_dict.get("x-ratelimit-remaining-requests")
+            or headers_dict.get("anthropic-ratelimit-requests-remaining")
+        ),
+        "rate_limit_reset": (
+            headers_dict.get("x-ratelimit-reset-tokens")
+            or headers_dict.get("anthropic-ratelimit-tokens-reset")
+            or headers_dict.get("x-ratelimit-reset-requests")
+        ),
+    }
+
+
+async def _fetch_openrouter_credits(clean_key: str) -> Optional[Dict[str, Any]]:
+    """Fetches OpenRouter account credit limits and usage."""
+    def _check_openrouter_auth():
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/auth/key",
+            headers={"Authorization": f"Bearer {clean_key}"},
+        )
+        with urllib.request.urlopen(req, timeout=10.0) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    try:
+        auth_data = await asyncio.to_thread(_check_openrouter_auth)
+        data_field = auth_data.get("data", {})
+        limit = data_field.get("limit")
+        usage = data_field.get("usage", 0.0)
+        return {
+            "credit_limit_usd": limit,
+            "usage_usd": round(float(usage), 4),
+            "credits_remaining_usd": round(float(limit - usage), 4) if limit is not None else "Unlimited",
+            "is_free_tier": data_field.get("is_free_tier", False),
+        }
+    except Exception as e:
+        logger.debug(f"Could not fetch OpenRouter balance: {e}")
+        return None
 
 
 # =============================================================================
