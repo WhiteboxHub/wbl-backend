@@ -515,6 +515,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             parsed_json = mktg.candidate_json
         elif isinstance(mktg.candidate_json, str):
             try:
+                import json
                 parsed_json = json.loads(mktg.candidate_json)
             except Exception:
                 parsed_json = None
