@@ -197,15 +197,53 @@ class EvalEngine:
     def build_insufficient_audio_evaluation(speaking_duration: float = 0.0) -> Dict[str, Any]:
         """
         Generates deterministic, contract-compliant INSUFFICIENT_DATA audio evaluation payload.
-        Used when no audio recording or 0-second speech is detected, saving 100% of LLM tokens.
+        Used when no audio recording, 0-second speech, or telemetry evaluation fallback occurs.
         """
+        try:
+            dur_val = float(speaking_duration) if speaking_duration and speaking_duration > 0 else 0.0
+        except (ValueError, TypeError):
+            dur_val = 0.0
+
+        dur_str = f"{int(dur_val)} seconds" if dur_val.is_integer() else f"{dur_val:.1f} seconds"
+
+        if dur_val > 0:
+            confidence_rationale = (
+                f"You provided a speaking duration of {dur_str}, but audio telemetry was insufficient or could not be evaluated."
+            )
+            executive_summary = (
+                f"Audio telemetry recorded {dur_str} of speech, but data was insufficient for a complete vocal evaluation."
+            )
+            reliability_note = f"Speaking duration of {dur_str} was insufficient for reliable factor evaluation."
+            vocal_obs = f"Telemetry data for {dur_str} did not provide enough reliable signal to assess vocal presence."
+            fluency_obs = f"Telemetry data for {dur_str} did not provide enough reliable signal to assess fluency."
+            pace_obs = f"Telemetry data for {dur_str} did not provide enough reliable signal to assess pace."
+            volume_obs = f"Telemetry data for {dur_str} did not provide enough reliable signal to assess volume."
+            filler_obs = f"Telemetry data for {dur_str} did not provide enough reliable signal to assess filler word usage."
+            pausing_obs = f"Telemetry data for {dur_str} did not provide enough reliable signal to assess pausing."
+            noise_impact = f"Ambient conditions and telemetry reliability could not be fully assessed over the {dur_str} recording."
+            key_finding = f"Recorded {dur_str} of audio, but telemetry signal was insufficient for comprehensive analysis."
+            why_matters = "A complete audio telemetry stream is necessary to evaluate vocal presence, pacing, and communication clarity."
+        else:
+            confidence_rationale = "You provided a speaking duration of 0 seconds, which is insufficient for reliable telemetry evaluation."
+            executive_summary = "The audio telemetry indicates no measurable speech activity, resulting in insufficient data for evaluation."
+            reliability_note = "Speaking duration is 0 seconds, preventing evaluation."
+            vocal_obs = "You did not provide any measurable speech activity, making it impossible to assess vocal presence."
+            fluency_obs = "You did not provide any measurable speech activity, making it impossible to assess fluency."
+            pace_obs = "You did not provide any measurable speech activity, making it impossible to assess pace."
+            volume_obs = "You did not provide any measurable speech activity, making it impossible to assess volume."
+            filler_obs = "You did not provide any measurable speech activity, making it impossible to assess filler word usage."
+            pausing_obs = "You did not provide any measurable speech activity, making it impossible to assess pausing."
+            noise_impact = "The absence of speech activity means ambient conditions did not influence telemetry reliability."
+            key_finding = "No speech activity was detected."
+            why_matters = "Without speech activity, it is impossible to evaluate communication effectiveness or presence."
+
         return {
             "audio_evaluation": {
                 "summary": {
                     "overall_readiness": "INSUFFICIENT_DATA",
                     "confidence_in_reading": "LOW",
-                    "confidence_rationale": "You provided a speaking duration of 0 seconds, which is insufficient for reliable telemetry evaluation.",
-                    "executive_summary": "The audio telemetry indicates no measurable speech activity, resulting in insufficient data for evaluation.",
+                    "confidence_rationale": confidence_rationale,
+                    "executive_summary": executive_summary,
                     "primary_vocal_strength": None,
                     "primary_vocal_gap": None,
                 },
@@ -213,56 +251,56 @@ class EvalEngine:
                     "confidence_vocal_presence": {
                         "status": "INSUFFICIENT_DATA",
                         "reliability": "UNRELIABLE",
-                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
-                        "observation": "You did not provide any measurable speech activity, making it impossible to assess vocal presence.",
+                        "reliability_note": reliability_note,
+                        "observation": vocal_obs,
                     },
                     "fluency": {
                         "status": "INSUFFICIENT_DATA",
                         "reliability": "UNRELIABLE",
-                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
-                        "observation": "You did not provide any measurable speech activity, making it impossible to assess fluency.",
+                        "reliability_note": reliability_note,
+                        "observation": fluency_obs,
                     },
                     "pace": {
                         "status": "INSUFFICIENT_DATA",
                         "reliability": "UNRELIABLE",
-                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "reliability_note": reliability_note,
                         "wpm_recorded": 0,
-                        "observation": "You did not provide any measurable speech activity, making it impossible to assess pace.",
+                        "observation": pace_obs,
                     },
                     "volume": {
                         "status": "INSUFFICIENT_DATA",
                         "reliability": "UNRELIABLE",
-                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "reliability_note": reliability_note,
                         "avg_volume_db": -20.0,
-                        "observation": "You did not provide any measurable speech activity, making it impossible to assess volume.",
+                        "observation": volume_obs,
                     },
                     "filler_word_usage": {
                         "status": "INSUFFICIENT_DATA",
                         "reliability": "UNRELIABLE",
-                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "reliability_note": reliability_note,
                         "filler_rate_per_min": 0.0,
-                        "observation": "You did not provide any measurable speech activity, making it impossible to assess filler word usage.",
+                        "observation": filler_obs,
                     },
                     "pausing": {
                         "status": "INSUFFICIENT_DATA",
                         "reliability": "UNRELIABLE",
-                        "reliability_note": "Speaking duration is 0 seconds, preventing evaluation.",
+                        "reliability_note": reliability_note,
                         "silence_ratio_pct": 0.0,
                         "pause_count": 0,
-                        "observation": "You did not provide any measurable speech activity, making it impossible to assess pausing.",
+                        "observation": pausing_obs,
                     },
                 },
                 "recording_environment_context": {
                     "background_noise_level": "LOW",
                     "clipping_detected": False,
-                    "speaking_duration_seconds": float(speaking_duration),
-                    "noise_impact_observation": "The absence of speech activity means ambient conditions did not influence telemetry reliability.",
+                    "speaking_duration_seconds": float(dur_val),
+                    "noise_impact_observation": noise_impact,
                 },
                 "key_findings": [
                     {
                         "factor": "Confidence",
-                        "finding": "No speech activity was detected.",
-                        "why_it_matters": "Without speech activity, it is impossible to evaluate communication effectiveness or presence.",
+                        "finding": key_finding,
+                        "why_it_matters": why_matters,
                     }
                 ],
             }

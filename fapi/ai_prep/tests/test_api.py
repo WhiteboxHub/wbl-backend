@@ -50,6 +50,9 @@ def db_session():
         yield db
     finally:
         db.close()
+        from fapi.main import app
+        app.dependency_overrides.clear()
+
 
 
 import datetime
@@ -598,6 +601,34 @@ def test_save_assessment_report_nested_overall_score(db_session):
     reloaded = crud.get_assessment_report_by_assessment_id(db_session, ass.id)
     assert reloaded is not None
     assert reloaded.overall_score == 82.5
+
+
+def test_build_insufficient_audio_evaluation_dynamic_duration():
+    """Verifies that build_insufficient_audio_evaluation handles both 0s and positive durations properly."""
+    from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
+    from fapi.ai_prep.core.scores_engine import ScoresEngine
+
+    engine = EvalEngine()
+    validator = ScoresEngine()
+
+    # 1. Zero-second speech
+    zero_eval = engine.build_insufficient_audio_evaluation(0.0)
+    errs = []
+    validator._validate_audio_payload(zero_eval["audio_evaluation"], errs)
+    assert not errs, f"Validation errors on 0s eval: {errs}"
+    assert "0 seconds" in zero_eval["audio_evaluation"]["summary"]["confidence_rationale"]
+    assert "0 seconds" in zero_eval["audio_evaluation"]["factors"]["pace"]["reliability_note"]
+
+    # 2. Positive speaking duration (e.g. 45.0s)
+    forty_five_eval = engine.build_insufficient_audio_evaluation(45.0)
+    errs_45 = []
+    validator._validate_audio_payload(forty_five_eval["audio_evaluation"], errs_45)
+    assert not errs_45, f"Validation errors on 45s eval: {errs_45}"
+    assert "45 seconds" in forty_five_eval["audio_evaluation"]["summary"]["confidence_rationale"]
+    assert "45 seconds" in forty_five_eval["audio_evaluation"]["factors"]["pace"]["reliability_note"]
+    assert "0 seconds" not in forty_five_eval["audio_evaluation"]["summary"]["confidence_rationale"]
+    assert forty_five_eval["audio_evaluation"]["recording_environment_context"]["speaking_duration_seconds"] == 45.0
+
 
 
 
