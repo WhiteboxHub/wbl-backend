@@ -308,8 +308,10 @@ def save_assessment_report(
     transcript_eval = parsed_report.get("transcript_evaluation")
     overall_score = parsed_report.get("overall_score")
 
-    if overall_score is not None and isinstance(transcript_eval, dict):
-        transcript_eval.setdefault("overall_score", overall_score)
+    if overall_score is None and isinstance(transcript_eval, dict):
+        overall_score = transcript_eval.get("overall_score") or transcript_eval.get("score")
+    elif overall_score is not None and isinstance(transcript_eval, dict):
+        transcript_eval["overall_score"] = overall_score
 
     if existing:
         existing.audio_evaluation = audio_eval
@@ -481,7 +483,18 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
 
 
 def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
-    return check_candidate_llm_key(db, candidate_id)
+    cfg = check_candidate_llm_key(db, candidate_id)
+    if cfg.get("is_configured"):
+        key_row = (
+            db.query(CandidateLlmApiKeyORM)
+            .filter(CandidateLlmApiKeyORM.candidate_id == candidate_id)
+            .order_by(desc(CandidateLlmApiKeyORM.is_default), desc(CandidateLlmApiKeyORM.id))
+            .first()
+        )
+        if key_row and key_row.api_key:
+            from fapi.utils.coderpad_openai_key import _plaintext_api_key
+            cfg["api_key"] = _plaintext_api_key(str(key_row.api_key))
+    return cfg
 
 
 def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:

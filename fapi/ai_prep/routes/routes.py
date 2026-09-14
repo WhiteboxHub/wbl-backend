@@ -12,6 +12,7 @@ from fastapi import (
     Form,
     status,
     Request,
+    BackgroundTasks,
 )
 from sqlalchemy.orm import Session
 
@@ -250,11 +251,17 @@ def candidate_update_media_url(
 @router.post("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Trigger Evaluation")
 def candidate_trigger_eval_post(
     assessment_id: int,
+    background_tasks: BackgroundTasks,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Transitions status to EVALUATING in DB."""
-    return aiprep_utils.candidate_trigger_eval_post_logic(db=db, current_user=current_user, assessment_id=assessment_id)
+    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
+    return aiprep_utils.candidate_trigger_eval_post_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        background_tasks=background_tasks,
+    )
 
 
 @router.put(
@@ -266,12 +273,19 @@ def candidate_trigger_eval_post(
 @router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
 def candidate_trigger_eval_put(
     assessment_id: int,
+    background_tasks: BackgroundTasks,
     payload: Optional[SubmitAssessmentRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Saves telemetry if provided and transitions status to EVALUATING."""
-    return aiprep_utils.candidate_trigger_eval_put_logic(db=db, current_user=current_user, assessment_id=assessment_id, payload=payload)
+    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
+    return aiprep_utils.candidate_trigger_eval_put_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        payload=payload,
+        background_tasks=background_tasks,
+    )
 
 
 @router.get(
