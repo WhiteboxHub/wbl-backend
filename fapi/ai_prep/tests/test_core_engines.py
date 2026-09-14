@@ -344,6 +344,20 @@ class TestAssessmentEngineEligibility:
         resume = {"status": "failure", "has_resume": False}
         assert self.engine.is_candidate_eligible(llm, resume) is False
 
+    def test_not_eligible_when_llm_check_is_none(self):
+        """Rule: llm_check=None returns False cleanly without raising AttributeError."""
+        resume = {"status": "valid", "has_resume": True}
+        assert self.engine.is_candidate_eligible(None, resume) is False
+
+    def test_not_eligible_when_resume_check_is_none(self):
+        """Rule: resume_check=None returns False cleanly without raising AttributeError."""
+        llm = {"status": "valid", "is_configured": True}
+        assert self.engine.is_candidate_eligible(llm, None) is False
+
+    def test_not_eligible_when_both_checks_are_none(self):
+        """Rule: both llm_check=None and resume_check=None returns False cleanly."""
+        assert self.engine.is_candidate_eligible(None, None) is False
+
     def test_eligibility_message_when_ready(self):
         llm = {"status": "valid", "is_configured": True}
         resume = {"status": "valid", "has_resume": True}
@@ -368,6 +382,18 @@ class TestAssessmentEngineEligibility:
         msg = self.engine.compute_eligibility_message(llm, resume)
         assert "LLM" in msg
         assert "Resume" in msg or "resume" in msg.lower()
+
+    def test_eligibility_message_handles_none_inputs_safely(self):
+        """Rule: compute_eligibility_message handles None inputs safely without raising AttributeError."""
+        msg_llm_none = self.engine.compute_eligibility_message(None, {"status": "valid", "has_resume": True})
+        assert "LLM" in msg_llm_none
+
+        msg_resume_none = self.engine.compute_eligibility_message({"status": "valid", "is_configured": True}, None)
+        assert "Resume" in msg_resume_none or "resume" in msg_resume_none.lower()
+
+        msg_both_none = self.engine.compute_eligibility_message(None, None)
+        assert "LLM" in msg_both_none
+        assert "Resume" in msg_both_none or "resume" in msg_both_none.lower()
 
 
 # =============================================================================

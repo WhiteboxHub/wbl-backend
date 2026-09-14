@@ -243,36 +243,42 @@ class AssessmentEngine:
 
     def is_candidate_eligible(
         self,
-        llm_check: Dict[str, Any],
-        resume_check: Dict[str, Any],
+        llm_check: Optional[Dict[str, Any]],
+        resume_check: Optional[Dict[str, Any]],
     ) -> bool:
         """
         Pure business rule: candidate is eligible only if both LLM key
-        and resume are configured and valid.
+        and resume are configured and valid. Safely handles None inputs.
 
         Args:
-            llm_check:    Result dict from crud.check_candidate_llm_key().
-            resume_check: Result dict from crud.check_candidate_resume().
+            llm_check:    Result dict from crud.check_candidate_llm_key() (or None).
+            resume_check: Result dict from crud.check_candidate_resume() (or None).
 
         Returns:
             True if candidate passes all prerequisite checks.
         """
-        llm_ok = bool(llm_check.get("is_configured")) and llm_check.get("status") == "valid"
-        resume_ok = bool(resume_check.get("has_resume")) and resume_check.get("status") == "valid"
+        llm_dict = llm_check or {}
+        resume_dict = resume_check or {}
+
+        llm_ok = bool(llm_dict.get("is_configured")) and llm_dict.get("status") == "valid"
+        resume_ok = bool(resume_dict.get("has_resume")) and resume_dict.get("status") == "valid"
         return llm_ok and resume_ok
 
     def compute_eligibility_message(
         self,
-        llm_check: Dict[str, Any],
-        resume_check: Dict[str, Any],
+        llm_check: Optional[Dict[str, Any]],
+        resume_check: Optional[Dict[str, Any]],
     ) -> str:
         """
-        Generates a human-readable eligibility summary message.
+        Generates a human-readable eligibility summary message. Safely handles None inputs.
         """
+        llm_dict = llm_check or {}
+        resume_dict = resume_check or {}
+
         issues = []
-        if not llm_check.get("is_configured"):
+        if not llm_dict.get("is_configured"):
             issues.append("LLM API key not configured")
-        if not resume_check.get("has_resume"):
+        if not resume_dict.get("has_resume"):
             issues.append("Resume not uploaded")
 
         if not issues:
