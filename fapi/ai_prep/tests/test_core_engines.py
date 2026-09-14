@@ -1,10 +1,14 @@
 """
-Exhaustive Unit Tests for Core Engines (AnalyticsEngine, AssessmentEngine, ScoresEngine).
-Includes edge cases, missing payload keys, non-numeric values, and deduplication logic.
+Exhaustive Unit Tests for Core Engines (AnalyticsEngine, AssessmentEngine).
+Includes edge cases, missing payload keys, non-numeric values, deduplication logic,
+and pure unit tests for AssessmentEngine core business logic.
 """
 
 import unittest
+import pytest
+
 from fapi.ai_prep.core.analytics_engine.engine import AnalyticsEngine
+from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
 
 
 class TestAnalyticsEngineExhaustive(unittest.TestCase):
@@ -135,6 +139,284 @@ class TestAnalyticsEngineExhaustive(unittest.TestCase):
 
         self.assertEqual(len(result["wpm_trends"]), 1)
         self.assertEqual(result["wpm_trends"][0]["wpm"], 130.0)
+
+
+# =============================================================================
+# AssessmentEngine — Question Selection
+# =============================================================================
+
+
+class TestAssessmentEngineQuestionSelection:
+
+    def setup_method(self):
+        self.engine = AssessmentEngine()
+
+    def _make_questions(self, categories: list) -> list:
+        return [
+            {
+                "id": i + 1,
+                "category": cat,
+                "sub_category": "General" if cat == "TECHNICAL" else None,
+                "difficulty_level": "HARD",
+                "question_text": f"Question {i + 1} about {cat}",
+                "ideal_answer_rubric": "This is secret rubric text — must never reach candidate",
+                "is_active": True,
+            }
+            for i, cat in enumerate(categories)
+        ]
+
+    def test_select_matching_category_questions(self):
+        questions = self._make_questions(["TECHNICAL", "TECHNICAL", "INTRO"])
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
+        assert len(result) == 2
+        for q in result:
+            assert q["category"] == "TECHNICAL"
+
+    def test_rubric_stripped_from_candidate_questions(self):
+        """Candidate must never receive ideal_answer_rubric."""
+        questions = self._make_questions(["TECHNICAL"])
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
+        assert len(result) == 1
+        assert "ideal_answer_rubric" not in result[0]
+        assert "question_text" in result[0]
+
+    def test_no_matching_category_returns_empty(self):
+        questions = self._make_questions(["INTRO", "RECRUITER"])
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
+        assert result == []
+
+    def test_limit_respected(self):
+        questions = self._make_questions(["TECHNICAL"] * 10)
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions, limit=3)
+        assert len(result) == 3
+
+    def test_inactive_questions_excluded(self):
+        questions = self._make_questions(["TECHNICAL", "TECHNICAL"])
+        questions[0]["is_active"] = False
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
+        assert len(result) == 1
+
+    def test_empty_available_questions_returns_empty(self):
+        result = self.engine.select_questions_for_assessment("TECHNICAL", [])
+        assert result == []
+
+    def test_case_insensitive_type_matching(self):
+        questions = self._make_questions(["TECHNICAL"])
+        result_lower = self.engine.select_questions_for_assessment("technical", questions)
+        result_upper = self.engine.select_questions_for_assessment("TECHNICAL", questions)
+        assert len(result_lower) == len(result_upper) == 1
+
+    def test_sanitized_question_has_required_fields(self):
+        questions = self._make_questions(["INTRO"])
+        result = self.engine.select_questions_for_assessment("INTRO", questions)
+        q = result[0]
+        assert "question_id" in q
+        assert "question_text" in q
+        assert "category" in q
+        assert "difficulty_level" in q
+
+    def test_default_max_questions_cap(self):
+        """Should not return more than MAX_QUESTIONS_PER_ASSESSMENT by default."""
+        questions = self._make_questions(["TECHNICAL"] * 20)
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
+        assert len(result) <= AssessmentEngine.MAX_QUESTIONS_PER_ASSESSMENT
+
+
+# =============================================================================
+# AssessmentEngine — Context Building
+# =============================================================================
+
+
+class TestAssessmentEngineContextBuilding:
+
+    def setup_method(self):
+        self.engine = AssessmentEngine()
+
+    def test_build_qa_context_includes_question_and_transcript(self):
+        questions = [{"question_text": "Explain RAG pipelines."}]
+        transcript = {"full_text": "RAG stands for Retrieval-Augmented Generation..."}
+        ctx = self.engine.build_qa_context(questions, transcript)
+        assert "Explain RAG" in ctx
+        assert "Retrieval-Augmented Generation" in ctx
+
+    def test_build_qa_context_empty_transcript_shows_placeholder(self):
+        questions = [{"question_text": "Tell me about yourself."}]
+        ctx = self.engine.build_qa_context(questions, {})
+        assert "Tell me about yourself" in ctx
+        assert "[No transcript provided]" in ctx
+
+    def test_build_qa_context_handles_no_questions(self):
+        ctx = self.engine.build_qa_context([], {"full_text": "My answer"})
+        assert "My answer" in ctx
+
+    def test_build_qa_context_handles_alternate_transcript_keys(self):
+        """Transcript dict may use 'text' instead of 'full_text'."""
+        questions = []
+        ctx = self.engine.build_qa_context(questions, {"text": "Alternate key transcript"})
+        assert "Alternate key transcript" in ctx
+
+    def test_build_audio_context_with_full_telemetry(self):
+        telemetry = {
+            "speaking_pace_wpm": 130,
+            "silence_ratio_pct": 15.0,
+            "speaking_duration_seconds": 300.0,
+            "filler_rate_per_min": 2.5,
+            "pause_count": 8,
+            "avg_volume_db": -18.0,
+            "background_noise_level": "LOW",
+            "clipping_detected": False,
+        }
+        ctx = self.engine.build_audio_context(telemetry)
+        assert "130 WPM" in ctx
+        assert "15.0%" in ctx
+        assert "300.0s" in ctx
+        assert "LOW" in ctx
+
+    def test_build_audio_context_empty_returns_unavailable(self):
+        ctx = self.engine.build_audio_context({})
+        assert "Not available" in ctx
+
+    def test_build_audio_context_none_returns_unavailable(self):
+        ctx = self.engine.build_audio_context(None)
+        assert "Not available" in ctx
+
+    def test_build_audio_context_alias_fields(self):
+        """Should handle words_per_minute alias for speaking_pace_wpm."""
+        telemetry = {"words_per_minute": 110, "speaking_duration_seconds": 60.0}
+        ctx = self.engine.build_audio_context(telemetry)
+        assert "110 WPM" in ctx
+
+    def test_build_video_context_video_mode(self):
+        telemetry = {
+            "is_video_mode": True,
+            "face_visible_pct": 95.0,
+            "eye_contact_pct": 88.0,
+            "screen_attention_pct": 92.0,
+            "distraction_level_pct": 8.0,
+            "stress_level": "Low",
+            "head_nods_count": 12,
+        }
+        ctx = self.engine.build_video_context(telemetry)
+        assert "95.0%" in ctx
+        assert "88.0%" in ctx
+
+    def test_build_video_context_audio_only_session(self):
+        ctx = self.engine.build_video_context({"is_video_mode": False})
+        assert "audio-only" in ctx.lower() or "Audio-only" in ctx
+
+    def test_build_video_context_no_data_returns_unavailable(self):
+        ctx = self.engine.build_video_context(None)
+        assert "Not available" in ctx
+
+    def test_build_video_context_empty_dict_returns_unavailable(self):
+        ctx = self.engine.build_video_context({})
+        assert "Not available" in ctx
+
+
+# =============================================================================
+# AssessmentEngine — Eligibility Logic
+# =============================================================================
+
+
+class TestAssessmentEngineEligibility:
+
+    def setup_method(self):
+        self.engine = AssessmentEngine()
+
+    def test_eligible_when_both_llm_and_resume_configured(self):
+        llm = {"status": "valid", "is_configured": True}
+        resume = {"status": "valid", "has_resume": True}
+        assert self.engine.is_candidate_eligible(llm, resume) is True
+
+    def test_not_eligible_when_llm_missing(self):
+        llm = {"status": "failure", "is_configured": False}
+        resume = {"status": "valid", "has_resume": True}
+        assert self.engine.is_candidate_eligible(llm, resume) is False
+
+    def test_not_eligible_when_resume_missing(self):
+        llm = {"status": "valid", "is_configured": True}
+        resume = {"status": "failure", "has_resume": False}
+        assert self.engine.is_candidate_eligible(llm, resume) is False
+
+    def test_not_eligible_when_both_missing(self):
+        llm = {"status": "failure", "is_configured": False}
+        resume = {"status": "failure", "has_resume": False}
+        assert self.engine.is_candidate_eligible(llm, resume) is False
+
+    def test_eligibility_message_when_ready(self):
+        llm = {"status": "valid", "is_configured": True}
+        resume = {"status": "valid", "has_resume": True}
+        msg = self.engine.compute_eligibility_message(llm, resume)
+        assert "Ready" in msg or "prerequisites" in msg
+
+    def test_eligibility_message_lists_missing_llm(self):
+        llm = {"status": "failure", "is_configured": False}
+        resume = {"status": "valid", "has_resume": True}
+        msg = self.engine.compute_eligibility_message(llm, resume)
+        assert "LLM" in msg
+
+    def test_eligibility_message_lists_missing_resume(self):
+        llm = {"status": "valid", "is_configured": True}
+        resume = {"status": "failure", "has_resume": False}
+        msg = self.engine.compute_eligibility_message(llm, resume)
+        assert "Resume" in msg or "resume" in msg.lower()
+
+    def test_eligibility_message_lists_both_issues(self):
+        llm = {"status": "failure", "is_configured": False}
+        resume = {"status": "failure", "has_resume": False}
+        msg = self.engine.compute_eligibility_message(llm, resume)
+        assert "LLM" in msg
+        assert "Resume" in msg or "resume" in msg.lower()
+
+
+# =============================================================================
+# AssessmentEngine — Score Extraction
+# =============================================================================
+
+
+class TestAssessmentEngineScoreExtraction:
+
+    def setup_method(self):
+        self.engine = AssessmentEngine()
+
+    def test_extract_overall_score_from_new_schema(self):
+        eval_result = {
+            "transcript_evaluation": {
+                "overall_assessment": {"score": 87.5, "readiness": "GOOD"}
+            }
+        }
+        score = self.engine.extract_overall_score(eval_result)
+        assert score == 87.5
+
+    def test_extract_overall_score_from_legacy_schema(self):
+        eval_result = {
+            "transcript_evaluation": {"overall_score": 75.0}
+        }
+        score = self.engine.extract_overall_score(eval_result)
+        assert score == 75.0
+
+    def test_extract_score_falls_back_to_score_field(self):
+        eval_result = {
+            "transcript_evaluation": {"score": 68.0}
+        }
+        score = self.engine.extract_overall_score(eval_result)
+        assert score == 68.0
+
+    def test_extract_overall_score_returns_none_when_no_transcript_eval(self):
+        score = self.engine.extract_overall_score({})
+        assert score is None
+
+    def test_extract_overall_score_returns_none_when_transcript_eval_not_dict(self):
+        score = self.engine.extract_overall_score({"transcript_evaluation": "bad_value"})
+        assert score is None
+
+    def test_extract_overall_score_handles_string_score(self):
+        """Score may come as string from LLM — should coerce to float."""
+        eval_result = {
+            "transcript_evaluation": {"overall_score": "82.0"}
+        }
+        score = self.engine.extract_overall_score(eval_result)
+        assert score == 82.0
 
 
 if __name__ == "__main__":

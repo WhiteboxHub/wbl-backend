@@ -63,6 +63,7 @@ def db_session():
 
 
 import datetime
+import secrets
 
 @pytest.fixture
 def seed_candidate(db_session):
@@ -78,10 +79,11 @@ def seed_candidate(db_session):
 
     llm1 = db_session.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.candidate_id == 1001).first()
     if not llm1:
+        test_api_key = secrets.token_urlsafe(16)
         llm1 = CandidateLlmApiKeyORM(
             candidate_id=1001,
             provider_name="openai",
-            api_key="mock_test_key_1001",
+            api_key=test_api_key,
             model_name="gpt-4o",
             voice_enabled=True,
             is_default=True,
