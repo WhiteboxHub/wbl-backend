@@ -1,4 +1,5 @@
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ from fapi.db.schemas import Token
 from fapi.core.config import limiter
 from fapi.db.models import AuthUserORM
 from fapi.utils.user_utils import get_user_by_username
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -79,6 +82,7 @@ async def login_for_access_token(
     }
 
     access_token = create_access_token(token_data)
+    logger.info("[DEV] Login token for %s: %s", token_data.get("sub"), access_token)
 
     return {
         "access_token": access_token,
