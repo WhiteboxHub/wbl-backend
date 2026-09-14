@@ -25563,7 +25563,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Trigger Evaluation",
-        "description": "Transitions status to EVALUATING in DB.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_post_api_aiprep_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -25611,7 +25611,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Submit & Evaluate",
-        "description": "Saves telemetry if provided and transitions status to EVALUATING.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_put_api_aiprep_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -25678,7 +25678,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Trigger Evaluation (POST)",
-        "description": "Transitions status to EVALUATING in DB.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_post_api_aiprep_candidate_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -25725,7 +25725,7 @@
           "AI Prep Tool"
         ],
         "summary": "Candidate: Submit & Evaluate (PUT)",
-        "description": "Saves telemetry if provided and transitions status to EVALUATING.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_put_api_aiprep_candidate_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -28429,7 +28429,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Trigger Evaluation",
-        "description": "Transitions status to EVALUATING in DB.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_post_aiprep_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -28477,7 +28477,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Submit & Evaluate",
-        "description": "Saves telemetry if provided and transitions status to EVALUATING.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_put_aiprep_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -28544,7 +28544,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Trigger Evaluation (POST)",
-        "description": "Transitions status to EVALUATING in DB.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_post_aiprep_candidate_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -28591,7 +28591,7 @@
           "AI Prep Tool"
         ],
         "summary": "Candidate: Submit & Evaluate (PUT)",
-        "description": "Saves telemetry if provided and transitions status to EVALUATING.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
         "operationId": "candidate_trigger_eval_put_aiprep_candidate_assessments__assessment_id__evaluate_put",
         "security": [
           {

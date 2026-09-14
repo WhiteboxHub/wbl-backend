@@ -50,6 +50,9 @@ def db_session():
         yield db
     finally:
         db.close()
+        from fapi.main import app
+        app.dependency_overrides.clear()
+
 
 
 import datetime
@@ -558,6 +561,75 @@ def test_admin_create_custom_assessment_type(db_session):
     assert res.status_code == 201
     assert res.json()["code"] == "EXECUTIVE_LEADERSHIP"
     assert res.json()["title"] == "Executive Leadership Round"
+
+
+def test_save_assessment_report_nested_overall_score(db_session):
+    """Verifies that save_assessment_report extracts overall_score from nested scores_breakdown_json."""
+    from fapi.ai_prep import crud
+    from fapi.ai_prep.models import AiPrepAssessmentORM
+
+    ass = AiPrepAssessmentORM(
+        candidate_id=10,
+        assessment_type="TECHNICAL",
+        media_type="VIDEO",
+        status="EVALUATING",
+    )
+    db_session.add(ass)
+    db_session.commit()
+
+    # Report with nested scores_breakdown_json (per contract)
+    eval_result = {
+        "transcript_evaluation": {
+            "scores_breakdown_json": {
+                "ai_engineering": {"score": 90, "band": "STRONG"},
+                "core_engineering": {"score": 85, "band": "STRONG"},
+                "non_technical": {"score": 80, "band": "STRONG"},
+                "business_acumen": {"score": 75, "band": "DEVELOPING"},
+                "overall_score": 82.5,
+                "overall_band": "STRONG",
+            }
+        },
+        "audio_evaluation": {"score": 88},
+        "video_evaluation": {"score": 92},
+    }
+
+    report = crud.save_assessment_report(db_session, ass.id, eval_result)
+    assert report.overall_score == 82.5
+    assert report.transcript_evaluation.get("overall_score") == 82.5
+
+    # Reload from DB and verify property still returns overall_score
+    reloaded = crud.get_assessment_report_by_assessment_id(db_session, ass.id)
+    assert reloaded is not None
+    assert reloaded.overall_score == 82.5
+
+
+def test_build_insufficient_audio_evaluation_dynamic_duration():
+    """Verifies that build_insufficient_audio_evaluation handles both 0s and positive durations properly."""
+    from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
+    from fapi.ai_prep.core.scores_engine import ScoresEngine
+
+    engine = EvalEngine()
+    validator = ScoresEngine()
+
+    # 1. Zero-second speech
+    zero_eval = engine.build_insufficient_audio_evaluation(0.0)
+    errs = []
+    validator._validate_audio_payload(zero_eval["audio_evaluation"], errs)
+    assert not errs, f"Validation errors on 0s eval: {errs}"
+    assert "0 seconds" in zero_eval["audio_evaluation"]["summary"]["confidence_rationale"]
+    assert "0 seconds" in zero_eval["audio_evaluation"]["factors"]["pace"]["reliability_note"]
+
+    # 2. Positive speaking duration (e.g. 45.0s)
+    forty_five_eval = engine.build_insufficient_audio_evaluation(45.0)
+    errs_45 = []
+    validator._validate_audio_payload(forty_five_eval["audio_evaluation"], errs_45)
+    assert not errs_45, f"Validation errors on 45s eval: {errs_45}"
+    assert "45 seconds" in forty_five_eval["audio_evaluation"]["summary"]["confidence_rationale"]
+    assert "45 seconds" in forty_five_eval["audio_evaluation"]["factors"]["pace"]["reliability_note"]
+    assert "0 seconds" not in forty_five_eval["audio_evaluation"]["summary"]["confidence_rationale"]
+    assert forty_five_eval["audio_evaluation"]["recording_environment_context"]["speaking_duration_seconds"] == 45.0
+
+
 
 
 
