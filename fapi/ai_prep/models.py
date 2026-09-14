@@ -2,6 +2,7 @@
 Aligned strictly with Migration V134 DDL.
 """
 from datetime import datetime
+import uuid
 from typing import Optional
 from sqlalchemy import (
     Column,
@@ -26,6 +27,7 @@ class AiPrepAssessmentORM(Base):
     __tablename__ = "ai_prep_assessment"
 
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    assessment_uuid = Column(String(64), nullable=False, unique=True, index=True, default=lambda: str(uuid.uuid4()))
     candidate_id = Column(BigInteger, nullable=False, index=True)
     assessment_type = Column(
         Enum(
@@ -81,18 +83,6 @@ class AiPrepAssessmentORM(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
-
-    def __init__(self, **kwargs):
-        self._assessment_uuid = kwargs.pop("assessment_uuid", None)
-        super().__init__(**kwargs)
-
-    @property
-    def assessment_uuid(self) -> Optional[str]:
-        return getattr(self, "_assessment_uuid", None) or (str(self.id) if self.id is not None else None)
-
-    @assessment_uuid.setter
-    def assessment_uuid(self, val: Optional[str]):
-        self._assessment_uuid = val
 
 
 class AiPrepAssessmentDataORM(Base):

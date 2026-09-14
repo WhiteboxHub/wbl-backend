@@ -4,7 +4,7 @@ Fully compatible with Master Contracts and aiprep-backend branch.
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +131,68 @@ class ResumeStatusResponse(BaseModel):
     current_title: Optional[str] = None
     skills: List[str] = Field(default_factory=list)
     message: Optional[str] = None
+
+    @field_validator("skills", mode="before")
+    @classmethod
+    def validate_skills(cls, v):
+        if not v:
+            return []
+        extracted = []
+
+        def _add(val):
+            if val is None:
+                return
+            if isinstance(val, str):
+                s = val.strip()
+                if s and s not in extracted:
+                    extracted.append(s)
+            elif isinstance(val, (int, float)):
+                s = str(val).strip()
+                if s and s not in extracted:
+                    extracted.append(s)
+
+        if isinstance(v, str):
+            for part in v.replace("\n", ",").split(","):
+                _add(part)
+        elif isinstance(v, dict):
+            for k, val in v.items():
+                if isinstance(val, list):
+                    for sub in val:
+                        if isinstance(sub, str):
+                            _add(sub)
+                        elif isinstance(sub, dict):
+                            _add(sub.get("name") or sub.get("skill"))
+                            if isinstance(sub.get("keywords"), list):
+                                for kw in sub["keywords"]:
+                                    _add(kw)
+                elif isinstance(val, str):
+                    _add(val)
+                else:
+                    _add(k)
+        elif isinstance(v, list):
+            for item in v:
+                if isinstance(item, str):
+                    _add(item)
+                elif isinstance(item, dict):
+                    name = item.get("name") or item.get("skill") or item.get("title")
+                    keywords = item.get("keywords")
+                    if isinstance(keywords, list) and keywords:
+                        if name:
+                            _add(name)
+                        for kw in keywords:
+                            _add(kw)
+                    elif name:
+                        _add(name)
+                    else:
+                        for sub_val in item.values():
+                            if isinstance(sub_val, str):
+                                _add(sub_val)
+                            elif isinstance(sub_val, list):
+                                for sub in sub_val:
+                                    _add(sub)
+                else:
+                    _add(str(item))
+        return extracted
 
 
 class PreAssessmentCheckResponse(BaseModel):
