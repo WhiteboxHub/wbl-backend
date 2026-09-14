@@ -6,6 +6,12 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
+from fapi.ai_prep.core.llm_evaluation.prompts import (
+    audio_prompt,
+    intro_prompt,
+    video_prompt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,10 +118,8 @@ class EvalEngine:
                 assessment_type,
                 module_path,
             )
-            from fapi.ai_prep.core.llm_evaluation.prompts.intro_prompt import (
-                SYSTEM_PROMPT as _system_prompt,
-                USER_PROMPT_TEMPLATE as _user_prompt_template,
-            )
+            _system_prompt = intro_prompt.SYSTEM_PROMPT
+            _user_prompt_template = intro_prompt.USER_PROMPT_TEMPLATE
             using_fallback = True
 
         user_prompt = _user_prompt_template.format(
@@ -144,13 +148,8 @@ class EvalEngine:
         """
         Builds and formats the system and user prompts for universal audio delivery evaluation.
         """
-        from fapi.ai_prep.core.llm_evaluation.prompts.audio_prompt import (
-            SYSTEM_PROMPT,
-            USER_PROMPT_TEMPLATE,
-        )
-
         sanitized = self._sanitize_audio_telemetry(audio_telemetry or {})
-        user_prompt = USER_PROMPT_TEMPLATE.format(
+        user_prompt = audio_prompt.USER_PROMPT_TEMPLATE.format(
             speaking_pace_wpm=sanitized["speaking_pace_wpm"],
             avg_volume_db=sanitized["avg_volume_db"],
             mean_pitch_hz=sanitized["mean_pitch_hz"],
@@ -163,7 +162,7 @@ class EvalEngine:
         )
 
         return {
-            "system_prompt": SYSTEM_PROMPT,
+            "system_prompt": audio_prompt.SYSTEM_PROMPT,
             "user_prompt": user_prompt,
             "response_format": "json_object",
         }
@@ -273,13 +272,8 @@ class EvalEngine:
         """
         Builds and formats the system and user prompts for universal video composure evaluation.
         """
-        from fapi.ai_prep.core.llm_evaluation.prompts.video_prompt import (
-            SYSTEM_PROMPT,
-            USER_PROMPT_TEMPLATE,
-        )
-
         sanitized = self._sanitize_video_telemetry(video_telemetry or {})
-        user_prompt = USER_PROMPT_TEMPLATE.format(
+        user_prompt = video_prompt.USER_PROMPT_TEMPLATE.format(
             face_visibility_pct=sanitized["face_visibility_pct"],
             eye_contact_pct=sanitized["eye_contact_pct"],
             screen_attention_pct=sanitized["screen_attention_pct"],
@@ -288,7 +282,7 @@ class EvalEngine:
         )
 
         return {
-            "system_prompt": SYSTEM_PROMPT,
+            "system_prompt": video_prompt.SYSTEM_PROMPT,
             "user_prompt": user_prompt,
             "response_format": "json_object",
         }

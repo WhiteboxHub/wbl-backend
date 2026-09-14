@@ -22,6 +22,7 @@ from fapi.db.models import (
     CandidateLlmApiKeyORM,
     AuthUserORM,
 )
+from fapi.utils.coderpad_openai_key import _plaintext_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -492,7 +493,6 @@ def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
             .first()
         )
         if key_row and key_row.api_key:
-            from fapi.utils.coderpad_openai_key import _plaintext_api_key
             cfg["api_key"] = _plaintext_api_key(str(key_row.api_key))
     return cfg
 

@@ -5,6 +5,7 @@ import os
 import uuid
 import shutil
 import logging
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
+from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.orchestrator import llm_orchestrator
 
@@ -410,8 +412,6 @@ def candidate_get_assessment_report_logic(
 
 async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> None:
     """Background task to run full LLM evaluation pipeline and persist report."""
-    from fapi.db.database import SessionLocal
-
     with SessionLocal() as db:
         assessment = crud.get_assessment_by_id(db, assessment_id)
         if not assessment:
@@ -939,7 +939,6 @@ def stream_assessment_processing_sse_logic(
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     async def event_generator():
-        import asyncio
         for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 60), ("LLM Evaluation", 90), ("Report Generated", 100)]:
             data = f'{{"assessment_id": {assessment_id}, "step": "{step}", "progress": {pct}}}\n\n'
             yield f"data: {data}"
