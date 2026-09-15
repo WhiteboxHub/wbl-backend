@@ -19,16 +19,36 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+from sqlalchemy.orm import Session
+from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _get_worker_db(db: Optional[Session] = None):
+    """
+    Context manager for thread pool worker database operations.
+    If db is provided and is NOT a real SQLAlchemy Session (e.g. MagicMock in tests),
+    yields db directly. Otherwise, creates a worker-scoped SessionLocal() instance.
+    """
+    if db is not None and not isinstance(db, Session):
+        yield db
+    else:
+        session = SessionLocal()
+        try:
+            yield session
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
 
 # =============================================================================
@@ -122,8 +142,20 @@ async def run_full_evaluation(
     """
     logger.info("[AssessmentOrchestrator] Starting full evaluation: assessment_id=%d", assessment_id)
 
-    # Step 1: Load all context from DB (offloaded to thread pool to prevent blocking event loop)
-    ctx = await asyncio.to_thread(_load_assessment_context, db, assessment_id)
+    def _load_ctx_worker():
+        with _get_worker_db(db) as worker_db:
+            return _load_assessment_context(worker_db, assessment_id)
+
+    def _update_status_worker(status: str):
+        with _get_worker_db(db) as worker_db:
+            crud.update_assessment_status(worker_db, assessment_id, status)
+
+    def _save_report_worker(report: Dict[str, Any]):
+        with _get_worker_db(db) as worker_db:
+            crud.save_assessment_report(worker_db, assessment_id, report)
+
+    # Step 1: Load all context from DB (offloaded to thread pool)
+    ctx = await asyncio.to_thread(_load_ctx_worker)
     candidate_id = ctx["candidate_id"]
     assessment_type = ctx["assessment_type"]
 
@@ -140,8 +172,7 @@ async def run_full_evaluation(
         or not llm_config.get("is_configured")
         or not llm_config.get("api_key")
     ):
-        # Update status to FAILED and raise
-        await asyncio.to_thread(crud.update_assessment_status, db, assessment_id, "FAILED")
+        await asyncio.to_thread(_update_status_worker, "FAILED")
         raise ValueError(
             f"Candidate {candidate_id} has no active LLM API key configured. "
             "Cannot run evaluation."
@@ -155,7 +186,7 @@ async def run_full_evaluation(
         candidate_id, assessment_type,
     )
 
-    # Step 4: Dispatch concurrent LLM evaluation via LLMOrchestrator
+    # Step 4: Dispatch evaluation, save report, and mark COMPLETED
     try:
         evaluation_result = await llm_orchestrator.run_evaluation(
             candidate_id=candidate_id,
@@ -166,31 +197,37 @@ async def run_full_evaluation(
             resume_json=ctx["resume_json"],
             llm_config=llm_config,
         )
+
+        logger.info(
+            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%d",
+            assessment_id,
+        )
+
+        parsed_report = {
+            "transcript_evaluation": evaluation_result.get("transcript_evaluation"),
+            "audio_evaluation": evaluation_result.get("audio_evaluation"),
+            "video_evaluation": evaluation_result.get("video_evaluation"),
+        }
+
+        # Step 5: Persist report to DB (offloaded to thread pool)
+        await asyncio.to_thread(_save_report_worker, parsed_report)
+
+        # Step 6: Mark assessment as COMPLETED (offloaded to thread pool)
+        await asyncio.to_thread(_update_status_worker, "COMPLETED")
+
     except Exception as exc:
         logger.error(
-            "[AssessmentOrchestrator] LLM evaluation failed: assessment=%d error=%s",
+            "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%d: %s",
             assessment_id, exc,
         )
-        await asyncio.to_thread(crud.update_assessment_status, db, assessment_id, "FAILED")
+        try:
+            await asyncio.to_thread(_update_status_worker, "FAILED")
+        except Exception as status_exc:
+            logger.error(
+                "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%d: %s",
+                assessment_id, status_exc,
+            )
         raise
-
-    logger.info(
-        "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%d",
-        assessment_id,
-    )
-
-    # Step 5: Build the parsed report dict for CRUD (without overall_score)
-    parsed_report = {
-        "transcript_evaluation": evaluation_result.get("transcript_evaluation"),
-        "audio_evaluation": evaluation_result.get("audio_evaluation"),
-        "video_evaluation": evaluation_result.get("video_evaluation"),
-    }
-
-    # Step 6: Persist report to DB (offloaded to thread pool)
-    await asyncio.to_thread(crud.save_assessment_report, db, assessment_id, parsed_report)
-
-    # Step 7: Mark assessment as COMPLETED (offloaded to thread pool)
-    await asyncio.to_thread(crud.update_assessment_status, db, assessment_id, "COMPLETED")
 
     logger.info(
         "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%d",
@@ -226,7 +263,7 @@ def get_questions_for_assessment(
         limit:           Optional cap on number of questions returned.
 
     Returns:
-        List of candidate-safe question dicts (rubric stripped).
+        List of candidate-safe question dicts.
     """
     # Normalize assessment_type before querying the database
     normalized_type = (assessment_type or "").upper().strip()

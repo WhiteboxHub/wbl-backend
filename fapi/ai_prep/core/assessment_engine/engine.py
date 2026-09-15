@@ -90,12 +90,7 @@ class AssessmentEngine:
             and q.get("is_active", True)
         ]
 
-        # Sort by difficulty: EXPERT > HARD > MEDIUM > EASY
-        difficulty_order = {"EXPERT": 0, "HARD": 1, "MEDIUM": 2, "EASY": 3}
-        matched.sort(
-            key=lambda q: difficulty_order.get(str(q.get("difficulty_level", "MEDIUM")).upper(), 2)
-        )
-
+        # Preserve question order from available_questions without unapproved difficulty sorting
         selected = matched[:max_q]
 
         logger.info(

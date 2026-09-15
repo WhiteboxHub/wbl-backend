@@ -159,7 +159,6 @@ class TestAssessmentEngineQuestionSelection:
                 "sub_category": "General" if cat == "TECHNICAL" else None,
                 "difficulty_level": "HARD",
                 "question_text": f"Question {i + 1} about {cat}",
-                "ideal_answer_rubric": "This is secret rubric text — must never reach candidate",
                 "is_active": True,
             }
             for i, cat in enumerate(categories)
@@ -172,13 +171,14 @@ class TestAssessmentEngineQuestionSelection:
         for q in result:
             assert q["category"] == "TECHNICAL"
 
-    def test_rubric_stripped_from_candidate_questions(self):
-        """Candidate must never receive ideal_answer_rubric."""
+    def test_sanitized_candidate_question_schema(self):
+        """Candidate question payload contains only public candidate-facing fields."""
         questions = self._make_questions(["TECHNICAL"])
         result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
         assert len(result) == 1
-        assert "ideal_answer_rubric" not in result[0]
         assert "question_text" in result[0]
+        assert "category" in result[0]
+        assert "ideal_answer_rubric" not in result[0]
 
     def test_no_questions_returned_when_category_has_no_matches(self):
         """When requesting TECHNICAL and only INTRO + RECRUITER exist, return [] (no cross-category fallback)."""

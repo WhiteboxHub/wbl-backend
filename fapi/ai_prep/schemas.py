@@ -426,7 +426,6 @@ class QuestionCreateRequest(BaseModel):
     sub_category: Optional[str] = Field(None, description="Optional subcategory / topic")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
     question_text: str = Field(..., description="Question prompt text")
-    ideal_answer_rubric: Optional[str] = Field(None, description="Evaluation rubric guidelines")
     is_active: bool = Field(default=True, description="Whether question is active")
 
 
@@ -448,7 +447,6 @@ class QuestionUpdateRequest(BaseModel):
     sub_category: Optional[str] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
     question_text: Optional[str] = None
-    ideal_answer_rubric: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -461,7 +459,6 @@ class QuestionResponse(BaseModel):
     sub_category: Optional[str] = None
     difficulty_level: str
     question_text: str
-    ideal_answer_rubric: Optional[str] = None
     is_active: bool
     created_at: Optional[datetime] = None
 

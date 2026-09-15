@@ -208,6 +208,54 @@ class TestAssessmentOrchestratorFullEvaluation:
 
             mock_crud.update_assessment_status.assert_called_with(db, 1, "FAILED")
 
+    def test_marks_failed_when_save_assessment_report_raises(self):
+        """When save_assessment_report raises an exception, the assessment failure path is triggered."""
+        db = MagicMock()
+        with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud, \
+             patch("fapi.ai_prep.orchestrator.assessment_orchestrator.llm_orchestrator") as mock_llm_orch:
+
+            mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
+            mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
+            mock_crud.get_candidate_llm_config.return_value = {
+                "is_configured": True, "api_key": secrets.token_urlsafe(16)
+            }
+            mock_crud.get_candidate_resume_json.return_value = None
+            mock_crud.save_assessment_report.side_effect = RuntimeError("Report persistence failure")
+            mock_crud.update_assessment_status.return_value = None
+
+            mock_llm_orch.run_evaluation = AsyncMock(return_value=_make_valid_eval_result())
+
+            with pytest.raises(RuntimeError, match="Report persistence failure"):
+                asyncio.get_event_loop().run_until_complete(
+                    assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
+                )
+
+            mock_crud.update_assessment_status.assert_called_with(db, 1, "FAILED")
+
+    def test_marks_failed_when_marking_completed_raises(self):
+        """When updating status to COMPLETED fails, attempt to mark FAILED and re-raise original exception."""
+        db = MagicMock()
+        with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud, \
+             patch("fapi.ai_prep.orchestrator.assessment_orchestrator.llm_orchestrator") as mock_llm_orch:
+
+            mock_crud.get_assessment_by_id.return_value = _make_mock_assessment()
+            mock_crud.get_assessment_data_by_assessment_id.return_value = _make_mock_data_record()
+            mock_crud.get_candidate_llm_config.return_value = {
+                "is_configured": True, "api_key": secrets.token_urlsafe(16)
+            }
+            mock_crud.get_candidate_resume_json.return_value = None
+            mock_crud.save_assessment_report.return_value = MagicMock()
+            mock_crud.update_assessment_status.side_effect = [RuntimeError("DB Status Write Failure"), None]
+
+            mock_llm_orch.run_evaluation = AsyncMock(return_value=_make_valid_eval_result())
+
+            with pytest.raises(RuntimeError, match="DB Status Write Failure"):
+                asyncio.get_event_loop().run_until_complete(
+                    assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
+                )
+
+            assert mock_crud.update_assessment_status.call_args_list[-1][0] == (db, 1, "FAILED")
+
     def test_success_path_saves_report_and_marks_completed(self):
         db = MagicMock()
         with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud, \
@@ -286,8 +334,8 @@ class TestAssessmentOrchestratorQuestionSelection:
 
         assert len(result) == 1
         assert result[0]["category"] == "INTRO"
-        # Rubric must be stripped
-        assert "ideal_answer_rubric" not in result[0]
+        # Candidate question schema must be clean
+        assert "question_text" in result[0]
 
     def test_normalizes_assessment_type_variations_before_db_query(self):
         """Rule 2: TECHNICAL, technical, Technical,  TECHNICAL  must all query DB with canonical TECHNICAL."""

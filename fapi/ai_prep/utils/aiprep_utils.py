@@ -16,7 +16,7 @@ from sqlalchemy import desc
 
 from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
-from fapi.ai_prep.orchestrator import llm_orchestrator
+from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
 
 from fapi.db.models import (
     AuthUserORM,
@@ -408,26 +408,23 @@ def candidate_create_assessment_logic(
         user_agent=user_agent,
     )
 
-    # Query initial question from question bank table (excluding rubric from candidate response)
-    q_row = (
-        db.query(AiPrepQuestionORM)
-        .filter(AiPrepQuestionORM.category == payload.assessment_type.value, AiPrepQuestionORM.is_active == True)
-        .first()
+    assessment_type_str = (
+        payload.assessment_type.value
+        if hasattr(payload.assessment_type, "value")
+        else str(payload.assessment_type)
     )
-    questions_list = []
-    if q_row:
-        questions_list.append({
-            "question_id": q_row.id,
-            "question_text": q_row.question_text,
-            "category": q_row.category,
-            "difficulty_level": q_row.difficulty_level,
-        })
-    else:
-        questions_list.append({
+
+    # Query initial question from DB via Assessment Orchestrator and Assessment Engine
+    questions_list = assessment_orchestrator.get_questions_for_assessment(
+        db=db,
+        assessment_type=assessment_type_str,
+    )
+    if not questions_list:
+        questions_list = [{
             "question_id": 1,
-            "question_text": f"Please introduce yourself and your background relevant to {payload.assessment_type.value}.",
-            "category": payload.assessment_type.value,
-        })
+            "question_text": f"Please introduce yourself and your background relevant to {assessment_type_str}.",
+            "category": assessment_type_str,
+        }]
 
     return CreateAssessmentResponse(
         id=db_assessment.id,
@@ -1177,7 +1174,6 @@ def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> Q
         sub_category=sub_cat,
         difficulty_level=diff,
         question_text=payload.question_text,
-        ideal_answer_rubric=payload.ideal_answer_rubric,
         is_active=payload.is_active,
     )
     db.add(new_q)

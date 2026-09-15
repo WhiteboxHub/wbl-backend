@@ -110,7 +110,6 @@ def seed_candidate(db_session):
             sub_category="RAG Systems",
             difficulty_level="HARD",
             question_text="Explain hybrid search indexing in RAG pipelines.",
-            ideal_answer_rubric="Detail sparse and dense vector representations.",
             is_active=True,
         )
         db_session.add(q1)
@@ -258,8 +257,8 @@ def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_cand
     assert res.status_code == 403
 
 
-def test_candidate_creation_does_not_leak_rubric(db_session, seed_candidate):
-    """Verifies that ideal_answer_rubric is not leaked in candidate assessment questions."""
+def test_candidate_creation_returns_clean_questions(db_session, seed_candidate):
+    """Verifies candidate assessment returns expected question fields."""
     client = get_candidate_client(db_session, 1001)
     res = client.post("/api/aiprep/candidate/assessments", json={
         "candidate_id": 1001,
@@ -270,6 +269,7 @@ def test_candidate_creation_does_not_leak_rubric(db_session, seed_candidate):
     questions = res.json().get("questions", [])
     assert len(questions) > 0
     for q in questions:
+        assert "question_text" in q
         assert "ideal_answer_rubric" not in q
 
 
@@ -363,7 +363,6 @@ def test_question_bank_management(db_session):
         "sub_category": "Multi-Agent Systems",
         "difficulty_level": "HARD",
         "question_text": "How do you coordinate hierarchical multi-agent workflows?",
-        "ideal_answer_rubric": "Detail supervisory agents, delegation, and state aggregation.",
         "is_active": True,
     }
     post_res = client.post("/api/aiprep/employee/questions", json=new_q)
