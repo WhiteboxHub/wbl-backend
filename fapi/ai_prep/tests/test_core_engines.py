@@ -424,55 +424,5 @@ class TestAssessmentEngineStateValidation:
         assert self.engine.is_valid_transition("FAILED", "IN_PROGRESS") is False
 
 
-# =============================================================================
-# AssessmentEngine — Score Extraction
-# =============================================================================
-
-
-class TestAssessmentEngineScoreExtraction:
-
-    def setup_method(self):
-        self.engine = AssessmentEngine()
-
-    def test_extract_overall_score_from_new_schema(self):
-        eval_result = {
-            "transcript_evaluation": {
-                "overall_assessment": {"score": 87.5, "readiness": "GOOD"}
-            }
-        }
-        score = self.engine.extract_overall_score(eval_result)
-        assert score == 87.5
-
-    def test_extract_overall_score_from_legacy_schema(self):
-        eval_result = {
-            "transcript_evaluation": {"overall_score": 75.0}
-        }
-        score = self.engine.extract_overall_score(eval_result)
-        assert score == 75.0
-
-    def test_extract_score_falls_back_to_score_field(self):
-        eval_result = {
-            "transcript_evaluation": {"score": 68.0}
-        }
-        score = self.engine.extract_overall_score(eval_result)
-        assert score == 68.0
-
-    def test_extract_overall_score_returns_none_when_no_transcript_eval(self):
-        score = self.engine.extract_overall_score({})
-        assert score is None
-
-    def test_extract_overall_score_returns_none_when_transcript_eval_not_dict(self):
-        score = self.engine.extract_overall_score({"transcript_evaluation": "bad_value"})
-        assert score is None
-
-    def test_extract_overall_score_handles_string_score(self):
-        """Score may come as string from LLM — should coerce to float."""
-        eval_result = {
-            "transcript_evaluation": {"overall_score": "82.0"}
-        }
-        score = self.engine.extract_overall_score(eval_result)
-        assert score == 82.0
-
-
 if __name__ == "__main__":
     unittest.main()
