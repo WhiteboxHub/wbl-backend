@@ -176,9 +176,12 @@ class EvalEngine:
         if not audio_telemetry or not isinstance(audio_telemetry, dict):
             return False
 
-        duration = audio_telemetry.get("speaking_duration_seconds")
-        if duration is None:
-            duration = audio_telemetry.get("duration") or audio_telemetry.get("total_audio_duration_seconds", 0)
+        duration = (
+            audio_telemetry.get("speaking_duration_seconds")
+            or audio_telemetry.get("duration_seconds")
+            or audio_telemetry.get("duration")
+            or audio_telemetry.get("total_audio_duration_seconds", 0)
+        )
         try:
             duration_val = float(duration)
         except (ValueError, TypeError):
@@ -346,15 +349,38 @@ class EvalEngine:
             else:
                 silence = 0.0
 
+        # Extract duration first with all common alias keys
+        duration = (
+            raw_audio.get("speaking_duration_seconds")
+            if raw_audio.get("speaking_duration_seconds") is not None
+            else raw_audio.get("duration_seconds")
+        )
+        if duration is None:
+            duration = raw_audio.get("duration")
+        if duration is None:
+            duration = raw_audio.get("total_audio_duration_seconds", 0.0)
+
+        try:
+            dur_float = float(duration) if duration is not None else 0.0
+        except (ValueError, TypeError):
+            dur_float = 0.0
+
+        # Filler words rate calculation with fallback from count
         fillers = raw_audio.get("filler_rate_per_min")
         if fillers is None:
-            fillers = raw_audio.get("filler_rate", 0.0)
+            fillers = raw_audio.get("filler_rate")
+        if fillers is None:
+            count = raw_audio.get("filler_words_count") or raw_audio.get("filler_count", 0)
+            try:
+                count_val = float(count) if count is not None else 0.0
+            except (ValueError, TypeError):
+                count_val = 0.0
+            fillers = ((count_val / dur_float) * 60.0) if dur_float > 0 else 0.0
 
         pauses = raw_audio.get("pause_count")
         if pauses is None:
             pauses = raw_audio.get("pauses", 0)
 
-        duration = raw_audio.get("speaking_duration_seconds", 0.0)
         noise = raw_audio.get("background_noise_level", "LOW")
         clipping = raw_audio.get("clipping_detected", False)
 
@@ -365,7 +391,7 @@ class EvalEngine:
             "silence_ratio_pct": round(float(silence), 1) if silence is not None else 0.0,
             "filler_rate_per_min": round(float(fillers), 1) if fillers is not None else 0.0,
             "pause_count": int(pauses) if pauses is not None else 0,
-            "speaking_duration_seconds": round(float(duration), 1) if duration is not None else 0.0,
+            "speaking_duration_seconds": round(dur_float, 1),
             "background_noise_level": str(noise).upper() if noise else "LOW",
             "clipping_detected": bool(clipping) if clipping is not None else False,
         }

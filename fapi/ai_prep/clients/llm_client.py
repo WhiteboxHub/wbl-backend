@@ -10,11 +10,66 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import socket
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# RESILIENT DNS RESOLUTION FALLBACK
+# =============================================================================
+
+_DNS_CACHE: Dict[str, str] = {}
+_ORIGINAL_GETADDRINFO = socket.getaddrinfo
+
+
+def _resolve_hostname_fallback(hostname: str) -> Optional[str]:
+    """Resolves hostname using Google DNS-over-HTTPS if socket.getaddrinfo fails."""
+    if hostname in _DNS_CACHE:
+        return _DNS_CACHE[hostname]
+    try:
+        url = f"https://dns.google/resolve?name={urllib.parse.quote(hostname)}&type=A"
+        req = urllib.request.Request(
+            url,
+            headers={"Accept": "application/dns-json", "User-Agent": "AIPREP-LLMClient/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            answers = data.get("Answer", [])
+            for ans in answers:
+                if ans.get("type") == 1:  # Type A IPv4
+                    ip = ans.get("data")
+                    if ip:
+                        _DNS_CACHE[hostname] = ip
+                        logger.info("DNS fallback resolved %s -> %s", hostname, ip)
+                        return ip
+    except Exception as exc:
+        logger.warning("Google DoH resolution failed for %s: %s", hostname, exc)
+    return None
+
+
+def _resilient_getaddrinfo(host, port, *args, **kwargs):
+    """Wraps socket.getaddrinfo to fall back to Google DNS-over-HTTPS upon socket.gaierror."""
+    try:
+        return _ORIGINAL_GETADDRINFO(host, port, *args, **kwargs)
+    except socket.gaierror as err:
+        if isinstance(host, str) and not host.replace(".", "").isdigit():
+            fallback_ip = _resolve_hostname_fallback(host)
+            if fallback_ip:
+                try:
+                    return _ORIGINAL_GETADDRINFO(fallback_ip, port, *args, **kwargs)
+                except Exception:
+                    pass
+        raise err
+
+
+# Monkey-patch socket.getaddrinfo safely
+if getattr(socket, "getaddrinfo", None) is not _resilient_getaddrinfo:
+    socket.getaddrinfo = _resilient_getaddrinfo
+
 
 
 # =============================================================================

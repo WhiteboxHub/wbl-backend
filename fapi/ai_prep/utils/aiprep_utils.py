@@ -588,11 +588,20 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
             transcript_text = ""
             if isinstance(transcript_data, dict):
                 transcript_text = (
-                    transcript_data.get("transcript_text")
+                    transcript_data.get("full_text")
+                    or transcript_data.get("transcript_text")
                     or transcript_data.get("text")
                     or transcript_data.get("transcript")
                     or ""
                 )
+                if not transcript_text and "segments" in transcript_data:
+                    segments = transcript_data.get("segments") or []
+                    if isinstance(segments, list):
+                        seg_texts = [
+                            seg.get("text", "") if isinstance(seg, dict) else str(seg)
+                            for seg in segments
+                        ]
+                        transcript_text = " ".join(t.strip() for t in seg_texts if t.strip())
             elif isinstance(transcript_data, str):
                 transcript_text = transcript_data
 
