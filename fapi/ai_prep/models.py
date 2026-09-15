@@ -215,19 +215,6 @@ class AiPrepQuestionORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    def __init__(self, **kwargs):
-        self._ideal_answer_rubric = kwargs.pop("ideal_answer_rubric", None)
-        super().__init__(**kwargs)
-
-    @property
-    def ideal_answer_rubric(self) -> Optional[str]:
-        return getattr(self, "_ideal_answer_rubric", None)
-
-    @ideal_answer_rubric.setter
-    def ideal_answer_rubric(self, val: Optional[str]):
-        self._ideal_answer_rubric = val
-
-
 # Compatibility aliases
 AiPrepQuestionBankORM = AiPrepQuestionORM
 AiPrepAssessment = AiPrepAssessmentORM

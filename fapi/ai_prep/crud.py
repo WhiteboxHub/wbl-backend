@@ -94,42 +94,36 @@ def get_default_questions() -> List[Dict[str, Any]]:
             "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
-            "ideal_answer_rubric": "Articulate career arc, GenAI specialization, system architectures built, and end-to-end project ownership.",
         },
         {
             "category": "JD_INTRO",
             "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
-            "ideal_answer_rubric": "Directly map past technical projects and libraries to the job responsibilities and required technologies.",
         },
         {
             "category": "RECRUITER",
             "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
-            "ideal_answer_rubric": "Clear explanation of career choices, continuous learning, and positive team culture alignment.",
         },
         {
             "category": "HIRING_MANAGER",
             "sub_category": None,
             "difficulty_level": "HARD",
             "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
-            "ideal_answer_rubric": "Structured STAR response detailing leadership, cross-functional collaboration, technical pivot, and business metrics achieved.",
         },
         {
             "category": "SYSTEM_DESIGN",
             "sub_category": None,
             "difficulty_level": "HARD",
             "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
-            "ideal_answer_rubric": "Detail vector databases, chunking strategies, embedding retrieval, re-ranking, LLM latency budgets, and fallback mechanisms.",
         },
         {
             "category": "TECHNICAL",
             "sub_category": "Agentic AI",
             "difficulty_level": "HARD",
             "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks. When would you choose one over the other?",
-            "ideal_answer_rubric": "Compare reasoning traces, token overhead, tool-calling loops, latency, and determinism in production environments.",
         },
     ]
 
@@ -375,7 +369,6 @@ def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
                 sub_category=item["sub_category"],
                 difficulty_level=item["difficulty_level"],
                 question_text=item["question_text"],
-                ideal_answer_rubric=item["ideal_answer_rubric"],
                 is_active=True,
             )
             db.add(q)
