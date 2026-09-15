@@ -598,7 +598,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                     segments = transcript_data.get("segments") or []
                     if isinstance(segments, list):
                         seg_texts = [
-                            seg.get("text", "") if isinstance(seg, dict) else str(seg)
+                            str(seg.get("text") or "") if isinstance(seg, dict) else str(seg or "")
                             for seg in segments
                         ]
                         transcript_text = " ".join(t.strip() for t in seg_texts if t.strip())
@@ -646,6 +646,11 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
             assessment_id,
             exc,
         )
+        try:
+            with SessionLocal() as err_db:
+                crud.update_assessment_status(err_db, assessment_id, "FAILED")
+        except Exception:
+            pass
 
 
 def candidate_submit_data_logic(
