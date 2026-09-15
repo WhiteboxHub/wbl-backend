@@ -176,12 +176,13 @@ class EvalEngine:
         if not audio_telemetry or not isinstance(audio_telemetry, dict):
             return False
 
-        duration = (
-            audio_telemetry.get("speaking_duration_seconds")
-            or audio_telemetry.get("duration_seconds")
-            or audio_telemetry.get("duration")
-            or audio_telemetry.get("total_audio_duration_seconds", 0)
-        )
+        duration = audio_telemetry.get("speaking_duration_seconds")
+        if duration is None:
+            duration = audio_telemetry.get("duration_seconds")
+        if duration is None:
+            duration = audio_telemetry.get("duration")
+        if duration is None:
+            duration = audio_telemetry.get("total_audio_duration_seconds", 0.0)
         try:
             duration_val = float(duration)
         except (ValueError, TypeError):
