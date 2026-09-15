@@ -35,10 +35,13 @@ _ALLOWED_LLM_HOSTS = frozenset({
     "api.x.ai",
     "api.together.xyz",
     "api.perplexity.ai",
+    "dns.google",
 })
 
 _HOSTNAME_REGEX = re.compile(r"^[a-zA-Z0-9.-]{1,253}$")
-_DNS_CACHE: Dict[str, str] = {}
+_DNS_CACHE: Dict[str, str] = {
+    "dns.google": "8.8.8.8",
+}
 _ORIGINAL_GETADDRINFO = socket.getaddrinfo
 
 
