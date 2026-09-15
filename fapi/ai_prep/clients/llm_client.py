@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import socket
 import urllib.error
 import urllib.parse
@@ -19,19 +20,43 @@ from typing import Any, Dict, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# RESILIENT DNS RESOLUTION FALLBACK
+# RESILIENT DNS RESOLUTION FALLBACK (SSRF-Hardened)
 # =============================================================================
 
+# Strict allowlist of approved LLM provider endpoints to prevent SSRF (CWE-918)
+_ALLOWED_LLM_HOSTS = frozenset({
+    "api.openai.com",
+    "generativelanguage.googleapis.com",
+    "api.anthropic.com",
+    "api.groq.com",
+    "api.deepseek.com",
+    "openrouter.ai",
+    "api.mistral.ai",
+    "api.x.ai",
+    "api.together.xyz",
+    "api.perplexity.ai",
+})
+
+_HOSTNAME_REGEX = re.compile(r"^[a-zA-Z0-9.-]{1,253}$")
 _DNS_CACHE: Dict[str, str] = {}
 _ORIGINAL_GETADDRINFO = socket.getaddrinfo
 
 
 def _resolve_hostname_fallback(hostname: str) -> Optional[str]:
-    """Resolves hostname using Google DNS-over-HTTPS if socket.getaddrinfo fails."""
-    if hostname in _DNS_CACHE:
-        return _DNS_CACHE[hostname]
+    """
+    Resolves hostname using Google DNS-over-HTTPS if socket.getaddrinfo fails.
+    Strictly validates against _ALLOWED_LLM_HOSTS to eliminate SSRF risks.
+    """
+    if not isinstance(hostname, str):
+        return None
+    clean_host = hostname.strip().lower()
+    if not _HOSTNAME_REGEX.match(clean_host) or clean_host not in _ALLOWED_LLM_HOSTS:
+        return None
+
+    if clean_host in _DNS_CACHE:
+        return _DNS_CACHE[clean_host]
     try:
-        url = f"https://dns.google/resolve?name={urllib.parse.quote(hostname)}&type=A"
+        url = f"https://dns.google/resolve?name={urllib.parse.quote(clean_host)}&type=A"
         req = urllib.request.Request(
             url,
             headers={"Accept": "application/dns-json", "User-Agent": "AIPREP-LLMClient/1.0"},
@@ -42,21 +67,21 @@ def _resolve_hostname_fallback(hostname: str) -> Optional[str]:
             for ans in answers:
                 if ans.get("type") == 1:  # Type A IPv4
                     ip = ans.get("data")
-                    if ip:
-                        _DNS_CACHE[hostname] = ip
-                        logger.info("DNS fallback resolved %s -> %s", hostname, ip)
+                    if ip and isinstance(ip, str) and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
+                        _DNS_CACHE[clean_host] = ip
+                        logger.info("DNS fallback resolved %s -> %s", clean_host, ip)
                         return ip
     except Exception as exc:
-        logger.warning("Google DoH resolution failed for %s: %s", hostname, exc)
+        logger.warning("Google DoH resolution failed for %s: %s", clean_host, exc)
     return None
 
 
 def _resilient_getaddrinfo(host, port, *args, **kwargs):
-    """Wraps socket.getaddrinfo to fall back to Google DNS-over-HTTPS upon socket.gaierror."""
+    """Wraps socket.getaddrinfo to fall back to Google DNS-over-HTTPS for allowed LLM hosts only."""
     try:
         return _ORIGINAL_GETADDRINFO(host, port, *args, **kwargs)
     except socket.gaierror as err:
-        if isinstance(host, str) and not host.replace(".", "").isdigit():
+        if isinstance(host, str) and host.strip().lower() in _ALLOWED_LLM_HOSTS:
             fallback_ip = _resolve_hostname_fallback(host)
             if fallback_ip:
                 try:
