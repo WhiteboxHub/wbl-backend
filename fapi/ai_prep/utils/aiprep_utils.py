@@ -623,7 +623,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
             video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
             resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
-            llm_config = llm_orchestrator.get_candidate_llm_config(db, candidate_id)
+            llm_config = crud.get_candidate_llm_config(db, candidate_id)
             if not llm_config.get("is_configured"):
                 logger.error(
                     "[LLMOrchestrator Worker] Candidate %d has no valid LLM API key configured.",
