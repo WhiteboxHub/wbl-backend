@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
@@ -58,7 +58,7 @@ def _get_worker_db(db: Optional[Session] = None):
 
 def _load_assessment_context(
     db: "Session",
-    assessment_id: int,
+    assessment_id: Union[int, str],
 ) -> Dict[str, Any]:
     """
     Loads all data required for evaluation from the database via CRUD.
@@ -67,7 +67,11 @@ def _load_assessment_context(
     Raises:
         ValueError: If the assessment or candidate cannot be found, or data is missing.
     """
-    assessment = crud.get_assessment_by_id(db, assessment_id)
+    if isinstance(assessment_id, int) or str(assessment_id).isdigit():
+        assessment = crud.get_assessment_by_id(db, int(assessment_id))
+    else:
+        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+
     if not assessment:
         raise ValueError(f"Assessment ID {assessment_id} not found.")
 
@@ -99,8 +103,9 @@ def _load_assessment_context(
     # Load resume JSON for context enrichment
     resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
+    resolved_id = assessment.id if (hasattr(assessment, "id") and assessment.id is not None) else assessment_id
     return {
-        "assessment_id": assessment_id,
+        "assessment_id": resolved_id,
         "candidate_id": candidate_id,
         "assessment_type": assessment_type,
         "media_type": media_type,
@@ -121,7 +126,7 @@ def _load_assessment_context(
 
 async def run_full_evaluation(
     db: "Session",
-    assessment_id: int,
+    assessment_id: Union[int, str],
 ) -> Dict[str, Any]:
     """
     Full async evaluation pipeline: load → build contexts → LLM eval → save report.
@@ -140,7 +145,7 @@ async def run_full_evaluation(
         ValueError: If assessment not found or LLM config is missing.
         Exception:  Propagates any unrecoverable LLM or network error.
     """
-    logger.info("[AssessmentOrchestrator] Starting full evaluation: assessment_id=%d", assessment_id)
+    logger.info("[AssessmentOrchestrator] Starting full evaluation: assessment_id=%s", str(assessment_id))
 
     def _load_ctx_worker():
         with _get_worker_db(db) as worker_db:
@@ -199,8 +204,8 @@ async def run_full_evaluation(
         )
 
         logger.info(
-            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%d",
-            assessment_id,
+            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s",
+            str(assessment_id),
         )
 
         parsed_report = {
@@ -217,21 +222,21 @@ async def run_full_evaluation(
 
     except Exception as exc:
         logger.error(
-            "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%d: %s",
-            assessment_id, exc,
+            "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%s: %s",
+            str(assessment_id), exc,
         )
         try:
             await asyncio.to_thread(_update_status_worker, "FAILED")
         except Exception as status_exc:
             logger.error(
-                "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%d: %s",
-                assessment_id, status_exc,
+                "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%s: %s",
+                str(assessment_id), status_exc,
             )
         raise
 
     logger.info(
-        "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%d",
-        assessment_id,
+        "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%s",
+        str(assessment_id),
     )
 
     return {
