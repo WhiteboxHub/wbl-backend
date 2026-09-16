@@ -715,14 +715,15 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
     assert res_eval_put.status_code == 202
     assert res_eval_put.json()["id"] == aid
 
-    # 9. Save mock report for report GET check
+    # 9. Save mock report with UUID string for report GET check
     from fapi.ai_prep import crud
-    crud.save_assessment_report(db_session, aid, {
+    rep_obj = crud.save_assessment_report(db_session, auuid, {
         "audio_evaluation": {"score": 90},
         "video_evaluation": {"score": 95},
         "transcript_evaluation": {"score": 92},
         "overall_score": 92.3,
     })
+    assert rep_obj.assessment_id == aid
 
     # 10. Candidate GET report by UUID
     res_rep = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/report")

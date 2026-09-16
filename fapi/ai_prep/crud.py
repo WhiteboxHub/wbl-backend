@@ -365,7 +365,7 @@ def save_assessment_report(
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentReportORM(
-            assessment_id=assessment_id,
+            assessment_id=numeric_id,
             audio_evaluation=audio_eval,
             video_evaluation=video_eval,
             transcript_evaluation=transcript_eval,
@@ -379,12 +379,21 @@ def save_assessment_report(
     return db_obj
 
 
-def create_or_update_assessment_report(db: Session, assessment_id: int, parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
+def create_or_update_assessment_report(db: Session, assessment_id: Union[int, str], parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
     return save_assessment_report(db, assessment_id, parsed_report)
 
 
-def get_assessment_report_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentReportORM]:
-    return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == assessment_id).first()
+def get_assessment_report_by_assessment_id(db: Session, assessment_id: Union[int, str]) -> Optional[AiPrepAssessmentReportORM]:
+    numeric_id = assessment_id
+    if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
+        assessment = get_assessment_by_id_or_uuid(db, assessment_id)
+        if assessment:
+            numeric_id = assessment.id
+        else:
+            return None
+    else:
+        numeric_id = int(assessment_id)
+    return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == numeric_id).first()
 
 
 # ---------------------------------------------------------------------------
