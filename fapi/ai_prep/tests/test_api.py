@@ -760,6 +760,25 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
     assert res_404.status_code == 404
     assert res_404.json()["detail"] == "Assessment not found"
 
+    # 16. CRUD operations with non-existent UUID raise clean ValueError instead of DB casting error
+    with pytest.raises(ValueError, match="not found"):
+        crud.save_assessment_data(
+            db=db_session,
+            assessment_id="non-existent-uuid-99999",
+            questions=[],
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
+
+    with pytest.raises(ValueError, match="not found"):
+        crud.save_assessment_report(
+            db=db_session,
+            assessment_id="non-existent-uuid-99999",
+            parsed_report={},
+        )
+
+
 
 
 

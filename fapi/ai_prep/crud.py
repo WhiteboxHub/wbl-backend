@@ -235,11 +235,11 @@ def save_assessment_data(
     audio_telemetry: Dict[str, Any],
     video_telemetry: Dict[str, Any],
 ) -> AiPrepAssessmentDataORM:
-    numeric_id = assessment_id
     if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
         assessment = get_assessment_by_id_or_uuid(db, assessment_id)
-        if assessment:
-            numeric_id = assessment.id
+        if not assessment:
+            raise ValueError(f"Assessment {assessment_id} not found.")
+        numeric_id = assessment.id
     else:
         numeric_id = int(assessment_id)
 
@@ -323,11 +323,11 @@ def save_assessment_report(
     assessment_id: Union[int, str],
     parsed_report: Dict[str, Any],
 ) -> AiPrepAssessmentReportORM:
-    numeric_id = assessment_id
     if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
         assessment = get_assessment_by_id_or_uuid(db, assessment_id)
-        if assessment:
-            numeric_id = assessment.id
+        if not assessment:
+            raise ValueError(f"Assessment {assessment_id} not found.")
+        numeric_id = assessment.id
     else:
         numeric_id = int(assessment_id)
 
