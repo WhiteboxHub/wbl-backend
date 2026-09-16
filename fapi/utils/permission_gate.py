@@ -1,5 +1,10 @@
 from fastapi import Depends, HTTPException, Request, status
-from fapi.utils.auth_dependencies import get_current_user
+from fapi.utils.auth_dependencies import get_current_user, get_current_user_optional
+
+PUBLIC_GET_PREFIXES = {
+    "/api/course-content",
+    "/api/course-contents",
+}
 
 ALLOWED_GET_PREFIXES = {
     "/api/course-content",
@@ -48,6 +53,8 @@ ALLOWED_DELETE_PREFIXES = {
 }
 
 def _is_admin(user) -> bool:
+    if not user:
+        return False
     uname = (getattr(user, "uname", None) or getattr(user, "username", "") or "").lower()
     return (
         getattr(user, "role", None) == "admin"
@@ -56,16 +63,18 @@ def _is_admin(user) -> bool:
     )
 
 def _is_employee(user) -> bool:
+    if not user:
+        return False
     return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
 
-def enforce_access(request: Request, current_user=Depends(get_current_user)):
+def enforce_access(request: Request, current_user=Depends(get_current_user_optional)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
     
-    if _is_admin(current_user):
+    if current_user and _is_admin(current_user):
         return current_user
 
-    if _is_employee(current_user):
+    if current_user and _is_employee(current_user):
         forbidden_prefixes = ["/api/employees", "/api/user", "/api/users"]
         if method in ["POST", "PUT", "DELETE", "PATCH"]:
             if any(path == prefix or path.startswith(prefix + "/") for prefix in forbidden_prefixes):
@@ -76,13 +85,24 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
         return current_user
 
     # Authenticated learners may use CoderPad and AI Prep Tool.
-    if path in ("/api/coderpad", "/api/aiprep", "/aiprep") or path.startswith(("/api/coderpad/", "/api/aiprep/", "/aiprep/")):
+    if current_user and (path in ("/api/coderpad", "/api/aiprep", "/aiprep") or path.startswith(("/api/coderpad/", "/api/aiprep/", "/aiprep/"))):
         return current_user
 
     if method == "GET":
-        for prefix in ALLOWED_GET_PREFIXES:
+        for prefix in PUBLIC_GET_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
+
+        if current_user:
+            for prefix in ALLOWED_GET_PREFIXES:
+                if path == prefix or path.startswith(prefix + "/"):
+                    return current_user
+
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
     
     if method == "POST":
         for prefix in ALLOWED_POST_PREFIXES:

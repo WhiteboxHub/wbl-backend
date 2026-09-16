@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Security, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from fapi.db.database import get_db
 from fapi.db import schemas
 from fapi.utils import course_content_utils
@@ -10,11 +10,12 @@ from fapi.utils.course_content_utils import get_course_contents_version
 router = APIRouter()
 
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 @router.head("/course-contents")
 def check_version(
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
 ):
     return get_course_contents_version(db)
 
@@ -22,7 +23,7 @@ def check_version(
 @router.get("/course-contents", response_model=List[schemas.CourseContentResponse])
 def get_all_course_contents(
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
 ):
     course_contents = course_content_utils.get_all_course_contents(db)
     return course_contents
@@ -32,7 +33,7 @@ def get_all_course_contents(
 def get_course_content_by_id(
     content_id: int,
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
 ):
     course_content = course_content_utils.get_course_content(db, content_id)
     if not course_content:

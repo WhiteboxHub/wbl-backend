@@ -25,6 +25,17 @@ def decode_token(token: str):
         )
 
 
+def get_current_user_optional(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    try:
+        return get_current_user(request, credentials, db)
+    except HTTPException:
+        return None
+
+
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
