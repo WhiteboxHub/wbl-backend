@@ -129,7 +129,7 @@ def seed_candidate(db_session):
     if not a1:
         a1 = AiPrepAssessmentORM(
             id=1,
-            assessment_uuid="test-session-1001",
+            assessment_uuid="00000000-0000-0000-0000-000000001001",
             candidate_id=1001,
             assessment_type="TECHNICAL",
             status="COMPLETED",

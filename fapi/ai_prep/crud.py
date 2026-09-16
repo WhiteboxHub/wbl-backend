@@ -175,8 +175,13 @@ def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrep
     """Looks up assessment directly by its assessment_uuid column."""
     if not assessment_uuid:
         return None
+    cleaned_uuid = str(assessment_uuid).strip()
+    try:
+        uuid.UUID(cleaned_uuid)
+    except (ValueError, AttributeError):
+        return None
     return db.query(AiPrepAssessmentORM).filter(
-        AiPrepAssessmentORM.assessment_uuid == str(assessment_uuid).strip()
+        AiPrepAssessmentORM.assessment_uuid == cleaned_uuid
     ).first()
 
 
