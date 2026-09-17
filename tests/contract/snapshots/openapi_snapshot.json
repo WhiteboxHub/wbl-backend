@@ -25040,7 +25040,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25090,7 +25090,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25140,7 +25140,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25188,7 +25188,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25248,7 +25248,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25296,7 +25296,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25356,7 +25356,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25406,7 +25406,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25456,7 +25456,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25516,7 +25516,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25576,7 +25576,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25624,7 +25624,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25691,7 +25691,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25738,7 +25738,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -26408,7 +26408,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -26458,7 +26458,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -26508,7 +26508,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27230,7 +27230,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           },
@@ -27296,7 +27296,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27412,7 +27412,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27462,7 +27462,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27906,7 +27906,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27956,7 +27956,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28006,7 +28006,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28054,7 +28054,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28114,7 +28114,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28162,7 +28162,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28222,7 +28222,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28272,7 +28272,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28322,7 +28322,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28382,7 +28382,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28442,7 +28442,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28490,7 +28490,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28557,7 +28557,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28604,7 +28604,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -29274,7 +29274,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -29324,7 +29324,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -29374,7 +29374,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30096,7 +30096,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           },
@@ -30162,7 +30162,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30278,7 +30278,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30328,7 +30328,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30668,6 +30668,17 @@
             "type": "integer",
             "title": "Assessment Id"
           },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
+          },
           "questions": {
             "anyOf": [
               {
@@ -30770,6 +30781,39 @@
           "candidate_id": {
             "type": "integer",
             "title": "Candidate Id"
+          },
+          "candidate_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Name"
+          },
+          "candidate_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Email"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
           },
           "assessment_type": {
             "type": "string",
@@ -30926,6 +30970,39 @@
             ],
             "title": "Candidate Id"
           },
+          "candidate_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Name"
+          },
+          "candidate_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Email"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
           "assessment_type": {
             "type": "string",
             "title": "Assessment Type"
@@ -31042,6 +31119,17 @@
           "assessment_id": {
             "type": "integer",
             "title": "Assessment Id"
+          },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
           },
           "audio_evaluation": {
             "anyOf": [
@@ -34495,7 +34583,7 @@
       "Body_upload_media_chunk_aiprep_media_upload_chunk_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Assessment Id"
           },
           "chunk_number": {
@@ -34530,7 +34618,7 @@
       "Body_upload_media_chunk_api_aiprep_media_upload_chunk_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Assessment Id"
           },
           "chunk_number": {
@@ -34591,7 +34679,7 @@
       "Body_upload_raw_media_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Assessment Id"
           },
           "media_type": {
@@ -34615,7 +34703,7 @@
       "Body_upload_raw_media_api_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Assessment Id"
           },
           "media_type": {
@@ -53917,18 +54005,6 @@
             "title": "Question Text",
             "description": "Question prompt text"
           },
-          "ideal_answer_rubric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ideal Answer Rubric",
-            "description": "Evaluation rubric guidelines"
-          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active",
@@ -53991,17 +54067,6 @@
           "question_text": {
             "type": "string",
             "title": "Question Text"
-          },
-          "ideal_answer_rubric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ideal Answer Rubric"
           },
           "is_active": {
             "type": "boolean",
@@ -54073,17 +54138,6 @@
               }
             ],
             "title": "Question Text"
-          },
-          "ideal_answer_rubric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ideal Answer Rubric"
           },
           "is_active": {
             "anyOf": [
@@ -55856,6 +55910,17 @@
             "type": "integer",
             "title": "Id"
           },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
+          },
           "status": {
             "type": "string",
             "title": "Status",
@@ -55922,6 +55987,17 @@
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
           },
           "youtube_url": {
             "type": "string",
