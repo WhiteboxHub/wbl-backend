@@ -107,25 +107,29 @@ def calculate_filler_rate_per_min(
     filler_breakdown: Dict[str, int] = {}
     filler_count = 0
 
-    # 1. Check pure fillers
+    # 1. Check pure fillers from tokenized words
     for word in words:
         if word in TRANSCRIPT_CONFIG.PURE_FILLERS:
             filler_breakdown[word] = filler_breakdown.get(word, 0) + 1
             filler_count += 1
 
-    # 2. Check contextual multi-word & single-word crutch phrases
+    # 2. Check contextual discourse markers from TRANSCRIPT_CONFIG
     for cm in TRANSCRIPT_CONFIG.CONTEXTUAL_FILLERS:
+        if cm in TRANSCRIPT_CONFIG.PURE_FILLERS:
+            continue  # Prevent double-counting if present in both
+
         pattern = r"\b" + re.escape(cm) + r"\b"
         matches = re.findall(pattern, clean_text)
         if matches:
             count = len(matches)
-            # Only count frequent repetition (>2) of common conversational words as crutches
-            if cm in ("like", "right", "actually", "basically"):
+            # For any single-word contextual marker, only flag frequent repetition (>2)
+            if len(cm.split()) == 1:
                 if count > 2:
                     excess_count = count - 2
                     filler_breakdown[cm] = excess_count
                     filler_count += excess_count
             else:
+                # Multi-word crutch phrases (e.g. "you know", "kind of")
                 filler_breakdown[cm] = count
                 filler_count += count
 

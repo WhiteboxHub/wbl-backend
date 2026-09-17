@@ -15,7 +15,7 @@ from faster_whisper import WhisperModel
 
 logger = logging.getLogger("wbl.ai_prep.audio_engine.stt")
 
-_WHISPER_MODEL = None
+_WHISPER_MODELS: Dict[Tuple[str, str, str], WhisperModel] = {}
 _MODEL_LOCK = threading.Lock()
 
 
@@ -24,13 +24,13 @@ def get_whisper_model(
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> WhisperModel:
-    """Returns singleton cached instance of WhisperModel."""
-    global _WHISPER_MODEL
+    """Returns singleton cached instance of WhisperModel keyed by configuration."""
+    key = (model_size, device, compute_type)
     with _MODEL_LOCK:
-        if _WHISPER_MODEL is None:
+        if key not in _WHISPER_MODELS:
             logger.info(f"Loading faster-whisper model '{model_size}' on {device} ({compute_type})...")
-            _WHISPER_MODEL = WhisperModel(model_size, device=device, compute_type=compute_type)
-    return _WHISPER_MODEL
+            _WHISPER_MODELS[key] = WhisperModel(model_size, device=device, compute_type=compute_type)
+        return _WHISPER_MODELS[key]
 
 
 def _clean_word_token(word: str) -> str:

@@ -164,7 +164,9 @@ def load_audio_waveform(audio_input: Union[str, np.ndarray], sr: int = AUDIO_CON
                 for rframe in resampler.resample(frame):
                     frames.append(rframe.to_ndarray())
             if frames:
-                return np.concatenate(frames, axis=1).squeeze()
+                flattened = [np.ravel(f) for f in frames]
+                return np.concatenate(flattened, axis=0).astype(np.float32)
+
     except Exception as e:
         logger.warning(f"PyAV demuxing failed: {e}")
 

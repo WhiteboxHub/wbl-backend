@@ -1057,51 +1057,68 @@ def get_chunk_upload_status_logic(
 
 async def process_audio_and_save_data(assessment_id: int, audio_path: str):
     """
-    Background worker: Runs Audio Engine on the saved audio file,
-    persists data into MySQL, and triggers LLM evaluation automatically.
+    Background worker: Waits for assembled audio file, runs Audio Engine,
+    persists telemetry into MySQL, and triggers LLM evaluation.
     """
     import asyncio
     import logging
     from fapi.db.database import SessionLocal
     from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
     from fapi.ai_prep import crud
+    from fapi.ai_prep.orchestrator import assessment_orchestrator
 
     logger = logging.getLogger("wbl.ai_prep.media")
 
-    if not os.path.exists(audio_path):
-        logger.warning(f"Audio file not found for processing: {audio_path}")
-        return
+    # 1. Wait for audio file to finish assembling/writing (up to 30 seconds)
+    max_wait_seconds = 30
+    waited = 0
+    while not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
+        await asyncio.sleep(1)
+        waited += 1
+        if waited >= max_wait_seconds:
+            logger.error(
+                f"Audio file {audio_path} not found or empty after {max_wait_seconds}s for assessment {assessment_id}"
+            )
+            with SessionLocal() as db:
+                crud.update_assessment_status(db, assessment_id, "FAILED")
+            return
 
     try:
         logger.info(f"Running Audio Engine for assessment {assessment_id} on {audio_path}...")
         
-        # 1. Run Audio Engine (STT + Acoustic DSP + Transcript Metrics)
-        result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file,audio_path)
+        # 2. Run Audio Engine (STT + Acoustic DSP + Transcript Metrics)
+        result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, audio_path)
         spoken_content = result.get("spoken_content", {})
         audio_telemetry = result.get("audio_telemetry", {})
 
-        # 2. Save into database
+        # 3. Save into database
         with SessionLocal() as db:
-            assessment = crud.get_assessment_by_id(db, assessment_id)
-            candidate_id = assessment.candidate_id if assessment else None
-            
+            assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+            if not assessment:
+                logger.error(f"Assessment {assessment_id} not found during audio save.")
+                return
+
             crud.save_assessment_data(
                 db=db,
-                assessment_id=assessment_id,
+                assessment_id=assessment.id,
                 questions=[],
                 transcript=spoken_content,
                 audio_telemetry=audio_telemetry,
                 video_telemetry={},
             )
-            crud.update_assessment_status(db, assessment_id, "EVALUATING")
+            crud.update_assessment_status(db, assessment.id, "EVALUATING")
             logger.info(f"Successfully saved audio telemetry for assessment {assessment_id}")
 
-        # 3. Automatically run LLM evaluation now that transcript is ready!
-        if candidate_id:
-            await _run_evaluation_background(assessment_id, candidate_id)
+        # 4. Automatically run LLM evaluation via Assessment Orchestrator
+        try:
+            await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
+        except Exception as eval_err:
+            logger.warning(f"LLM Evaluation skipped or deferred for assessment {assessment_id}: {eval_err}")
 
     except Exception as e:
         logger.error(f"Error processing audio for assessment {assessment_id}: {e}", exc_info=True)
+        with SessionLocal() as db:
+            crud.update_assessment_status(db, assessment_id, "FAILED")
 
 
 def assemble_media_chunks_logic(
