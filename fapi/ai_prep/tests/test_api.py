@@ -1,13 +1,13 @@
 """Dynamic API Endpoints and Schemas Test Suite for AI Prep Tool."""
 import os
-os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"
+os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"  # pragma: allowlist secret
 os.environ["ALGORITHM"] = "HS256"
-os.environ["DB_PASSWORD"] = "mock_password"
+os.environ["DB_PASSWORD"] = "mock_password"  # pragma: allowlist secret
 os.environ["DB_HOST"] = "localhost"
 os.environ["DB_NAME"] = "wbl_test"
 os.environ["ENV"] = "test"
 os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
-os.environ["UPSTASH_REDIS_REST_TOKEN"] = "mock_token"
+os.environ["UPSTASH_REDIS_REST_TOKEN"] = "mock_token"  # pragma: allowlist secret
 
 import pytest
 from fastapi.testclient import TestClient
@@ -177,7 +177,7 @@ def get_employee_client(db_session, employee_id: int = 50):
 
 def test_candidate_llm_keys_self_check(db_session, seed_candidate):
     client = get_candidate_client(db_session, 1001)
-    res = client.get("/api/aiprep/candidate/llm-keys")
+    res = client.get("/api/aiprep/llm-keys")
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "valid"
@@ -187,7 +187,7 @@ def test_candidate_llm_keys_self_check(db_session, seed_candidate):
 
 def test_candidate_resume_status_self_check(db_session, seed_candidate):
     client = get_candidate_client(db_session, 1001)
-    res = client.get("/api/aiprep/candidate/resume-status")
+    res = client.get("/api/aiprep/resume-status")
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "valid"
@@ -197,7 +197,7 @@ def test_candidate_resume_status_self_check(db_session, seed_candidate):
 
 def test_candidate_pre_check(db_session, seed_candidate):
     client = get_candidate_client(db_session, 1001)
-    res = client.get("/api/aiprep/candidate/pre-check")
+    res = client.get("/api/aiprep/pre-check")
     assert res.status_code == 200
     data = res.json()
     assert data["eligible"] is True
@@ -213,7 +213,7 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
         "media_type": "VIDEO",
         "job_description": "Senior GenAI Engineer",
     }
-    res = client.post("/api/aiprep/candidate/assessments", json=payload)
+    res = client.post("/api/aiprep/assessments", json=payload)
     assert res.status_code == 201
     data = res.json()
     assessment_id = data["id"]
@@ -250,7 +250,6 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     assert "started_at" in detail
     assert "completed_at" in detail
 
-
     # 4. Trigger Evaluation
     eval_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate")
     assert eval_res.status_code == 202
@@ -270,7 +269,7 @@ def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_cand
 def test_candidate_creation_returns_clean_questions(db_session, seed_candidate):
     """Verifies candidate assessment returns expected question fields."""
     client = get_candidate_client(db_session, 1001)
-    res = client.post("/api/aiprep/candidate/assessments", json={
+    res = client.post("/api/aiprep/assessments", json={
         "candidate_id": 1001,
         "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
@@ -287,7 +286,7 @@ def test_cross_candidate_media_authorization(db_session, seed_candidate):
     """Verifies that Candidate 1002 cannot view or manipulate Candidate 1001's assessment media."""
     # 1. Candidate 1001 creates assessment
     client_1001 = get_candidate_client(db_session, 1001)
-    res = client_1001.post("/api/aiprep/candidate/assessments", json={
+    res = client_1001.post("/api/aiprep/assessments", json={
         "candidate_id": 1001,
         "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
@@ -299,7 +298,7 @@ def test_cross_candidate_media_authorization(db_session, seed_candidate):
     client_1002 = get_candidate_client(db_session, 1002)
 
     # 2. Candidate 1002 attempts to get assessment details -> 403
-    res_detail = client_1002.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    res_detail = client_1002.get(f"/api/aiprep/assessments/{assessment_id}")
     assert res_detail.status_code == 403
 
     # 3. Candidate 1002 attempts to query chunk upload status -> 403
@@ -315,7 +314,7 @@ def test_cross_candidate_media_authorization(db_session, seed_candidate):
     assert res_status.status_code == 403
 
     # 6. Candidate 1002 attempts to update media URL -> 403
-    res_media = client_1002.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
+    res_media = client_1002.patch(f"/api/aiprep/assessments/{assessment_id}/media", json={
         "youtube_url": "https://malicious.com/overwrite"
     })
     assert res_media.status_code == 403
@@ -329,19 +328,19 @@ def test_employee_check_candidate_llm_and_resume(db_session, seed_candidate):
     client = get_employee_client(db_session, 50)
 
     # Check Candidate 1001 LLM
-    res_llm = client.get("/api/aiprep/employee/candidates/1001/llm-keys")
+    res_llm = client.get("/api/aiprep/llm-keys?candidate_id=1001")
     assert res_llm.status_code == 200
     assert res_llm.json()["is_configured"] is True
 
     # Check Candidate 1001 Resume
-    res_resume = client.get("/api/aiprep/employee/candidates/1001/resume-status")
+    res_resume = client.get("/api/aiprep/resume-status?candidate_id=1001")
     assert res_resume.status_code == 200
     assert res_resume.json()["has_resume"] is True
 
 
 def test_employee_assessments_table(db_session, seed_candidate):
     client = get_employee_client(db_session, 50)
-    res = client.get("/api/aiprep/employee/assessments?limit=10")
+    res = client.get("/api/aiprep/assessments?limit=10")
     assert res.status_code == 200
     data = res.json()
     assert "items" in data
@@ -375,13 +374,13 @@ def test_question_bank_management(db_session):
         "question_text": "How do you coordinate hierarchical multi-agent workflows?",
         "is_active": True,
     }
-    post_res = client.post("/api/aiprep/employee/questions", json=new_q)
+    post_res = client.post("/api/aiprep/questions", json=new_q)
     assert post_res.status_code == 201
     assert post_res.json()["question_text"] == new_q["question_text"]
     q_id = post_res.json()["id"]
 
     # 2. Update question
-    patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={"difficulty_level": "EXPERT"})
+    patch_res = client.patch(f"/api/aiprep/questions/{q_id}", json={"difficulty_level": "EXPERT"})
     assert patch_res.status_code == 200
     assert patch_res.json()["difficulty_level"] == "EXPERT"
 
@@ -393,7 +392,7 @@ def test_question_bank_management(db_session):
         "question_text": "Tell me about your background and core achievements.",
         "is_active": True,
     }
-    intro_res = client.post("/api/aiprep/employee/questions", json=non_tech_q)
+    intro_res = client.post("/api/aiprep/questions", json=non_tech_q)
     assert intro_res.status_code == 201
     assert intro_res.json()["sub_category"] is None
 
@@ -403,21 +402,9 @@ def test_question_bank_management(db_session):
     assert get_res.json()["id"] == q_id
 
     # 5. Delete/deactivate question
-    del_res = client.delete(f"/api/aiprep/employee/questions/{q_id}")
+    del_res = client.delete(f"/api/aiprep/questions/{q_id}")
     assert del_res.status_code == 200
     assert del_res.json()["id"] == q_id
-
-
-def test_singular_candidate_route_aliases(db_session, seed_candidate):
-    """Verifies singular candidate URL alias support (/employee/candidate/{id}/...)."""
-    client = get_employee_client(db_session, 50)
-    res_resume = client.get("/api/aiprep/employee/candidate/1001/resume-status")
-    assert res_resume.status_code == 200
-    assert res_resume.json()["has_resume"] is True
-
-    res_llm = client.get("/api/aiprep/employee/candidate/1001/llm-keys")
-    assert res_llm.status_code == 200
-    assert res_llm.json()["is_configured"] is True
 
 
 def test_assessment_data_endpoints(db_session, seed_candidate):
@@ -426,7 +413,7 @@ def test_assessment_data_endpoints(db_session, seed_candidate):
     emp_client = get_employee_client(db_session, 50)
 
     # 1. Candidate creates assessment and submits data
-    create_res = cand_client.post("/api/aiprep/candidate/assessments", json={
+    create_res = cand_client.post("/api/aiprep/assessments", json={
         "candidate_id": 1001,
         "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
@@ -434,7 +421,7 @@ def test_assessment_data_endpoints(db_session, seed_candidate):
     assert create_res.status_code == 201
     aid = create_res.json()["id"]
 
-    submit_res = cand_client.post(f"/api/aiprep/candidate/assessments/{aid}/data", json={
+    submit_res = cand_client.post(f"/api/aiprep/assessments/{aid}/data", json={
         "questions": [{"id": 1, "text": "Question 1"}],
         "transcript": {"text": "My answer"},
         "audio_telemetry": {"wpm": 120},
@@ -443,13 +430,13 @@ def test_assessment_data_endpoints(db_session, seed_candidate):
     assert submit_res.status_code == 200
 
     # 2. Candidate fetches data directly
-    cand_data_res = cand_client.get(f"/api/aiprep/candidate/assessments/{aid}/data")
+    cand_data_res = cand_client.get(f"/api/aiprep/assessments/{aid}/data")
     assert cand_data_res.status_code == 200
     assert cand_data_res.json()["assessment_id"] == aid
     assert cand_data_res.json()["audio_telemetry"]["wpm"] == 120
 
     # 3. Employee fetches data directly
-    emp_data_res = emp_client.get(f"/api/aiprep/employee/assessments/{aid}/data")
+    emp_data_res = emp_client.get(f"/api/aiprep/assessments/{aid}/data")
     assert emp_data_res.status_code == 200
     assert emp_data_res.json()["assessment_id"] == aid
 
@@ -460,7 +447,7 @@ def test_media_pipeline_complete_flow(db_session, seed_candidate):
     emp_client = get_employee_client(db_session, 50)
 
     # 1. Create assessment
-    create_res = cand_client.post("/api/aiprep/candidate/assessments", json={
+    create_res = cand_client.post("/api/aiprep/assessments", json={
         "candidate_id": 1001,
         "assessment_type": "INTRO",
         "media_type": "VIDEO",
@@ -479,12 +466,15 @@ def test_media_pipeline_complete_flow(db_session, seed_candidate):
     assert upload_res.json()["status"] == "uploaded"
 
     # 3. Check chunk status
-    status_res = cand_client.get(f"/api/aiprep/media/chunk-status?assessment_id={aid}&total_chunks=2")
+    status_res = cand_client.get(f"/api/aiprep/media/chunk-status?assessment_id={aid}")
     assert status_res.status_code == 200
     assert status_res.json()["uploaded_chunks_count"] >= 1
 
     # 4. Assemble chunks
-    assemble_res = cand_client.post(f"/api/aiprep/media/assemble?assessment_id={aid}")
+    assemble_res = cand_client.post(
+        "/api/aiprep/media/assemble",
+        json={"assessment_id": str(aid), "total_chunks": 2}
+    )
     assert assemble_res.status_code == 200
     assert assemble_res.json()["status"] == "ASSEMBLING"
 
@@ -492,14 +482,14 @@ def test_media_pipeline_complete_flow(db_session, seed_candidate):
     raw_file = ("raw_sample.webm", b"raw_single_file_content", "video/webm")
     raw_res = cand_client.post(
         "/api/aiprep/media/upload",
-        data={"assessment_id": aid, "media_type": "VIDEO"},
+        data={"assessment_id": aid},
         files={"file": raw_file},
     )
     assert raw_res.status_code == 200
     assert raw_res.json()["success"] is True
 
     # 6. Storage info
-    storage_res = emp_client.get("/api/aiprep/employee/media/storage-info")
+    storage_res = emp_client.get("/api/aiprep/media/storage-info")
     assert storage_res.status_code == 200
     assert "total_bytes" in storage_res.json()
 
@@ -521,11 +511,11 @@ def test_assessment_status_and_streaming(db_session, seed_candidate):
 
 
 def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
-    """Verifies PUT evaluate and dedicated GET report endpoints."""
+    """Verifies PUT evaluate and details endpoints."""
     cand_client = get_candidate_client(db_session, 1001)
     emp_client = get_employee_client(db_session, 50)
 
-    create_res = cand_client.post("/api/aiprep/candidate/assessments", json={
+    create_res = cand_client.post("/api/aiprep/assessments", json={
         "candidate_id": 1001,
         "assessment_type": "SYSTEM_DESIGN",
         "media_type": "VIDEO",
@@ -533,7 +523,7 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
     aid = create_res.json()["id"]
 
     # PUT evaluate with telemetry
-    put_eval_res = cand_client.put(f"/api/aiprep/candidate/assessments/{aid}/evaluate", json={
+    put_eval_res = cand_client.put(f"/api/aiprep/assessments/{aid}/evaluate", json={
         "transcript": {"full_text": "System architecture design"},
         "audio_telemetry": {"words_per_minute": 130},
         "video_telemetry": {"face_visible_pct": 95},
@@ -552,20 +542,19 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
     db_session.add(rep)
     db_session.commit()
 
-    # Candidate GET report
-    cand_rep_res = cand_client.get(f"/api/aiprep/candidate/assessments/{aid}/report")
+    # Candidate GET details (includes report)
+    cand_rep_res = cand_client.get(f"/api/aiprep/assessments/{aid}")
     assert cand_rep_res.status_code == 200
-    assert cand_rep_res.json()["assessment_id"] == aid
-    assert cand_rep_res.json()["audio_evaluation"]["score"] == 88
+    assert cand_rep_res.json()["id"] == aid
 
-    # Employee GET report
-    emp_rep_res = emp_client.get(f"/api/aiprep/employee/assessments/{aid}/report")
+    # Employee GET details (includes report)
+    emp_rep_res = emp_client.get(f"/api/aiprep/assessments/{aid}")
     assert emp_rep_res.status_code == 200
-    assert emp_rep_res.json()["assessment_id"] == aid
+    assert emp_rep_res.json()["id"] == aid
 
 
 def test_admin_create_custom_assessment_type(db_session):
-    """Verifies POST /api/aiprep/employee/assessment-types."""
+    """Verifies POST /api/aiprep/assessment-types."""
     emp_client = get_employee_client(db_session, 50)
     new_type_payload = {
         "code": "EXECUTIVE_LEADERSHIP",
@@ -575,7 +564,7 @@ def test_admin_create_custom_assessment_type(db_session):
         "time_estimate_mins": 45,
         "is_active": True,
     }
-    res = emp_client.post("/api/aiprep/employee/assessment-types", json=new_type_payload)
+    res = emp_client.post("/api/aiprep/assessment-types", json=new_type_payload)
     assert res.status_code == 201
     assert res.json()["code"] == "EXECUTIVE_LEADERSHIP"
     assert res.json()["title"] == "Executive Leadership Round"
@@ -655,7 +644,7 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
 
     # 1. Create assessment
     res_create = cand_client.post(
-        "/api/aiprep/candidate/assessments",
+        "/api/aiprep/assessments",
         json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"}
     )
     assert res_create.status_code == 201
@@ -666,56 +655,51 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
     assert len(auuid) > 10
 
     # 2. Candidate GET assessment details by UUID
-    res_detail = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}")
+    res_detail = cand_client.get(f"/api/aiprep/assessments/{auuid}")
     assert res_detail.status_code == 200
     assert res_detail.json()["id"] == aid
     assert res_detail.json()["assessment_uuid"] == auuid
 
-    # 3. Candidate alias GET /assessments/{auuid}
-    res_alias = cand_client.get(f"/api/aiprep/assessments/{auuid}")
-    assert res_alias.status_code == 200
-    assert res_alias.json()["id"] == aid
-
-    # 4. Candidate POST data by UUID
+    # 3. Candidate POST data by UUID
     data_payload = {
         "questions": [{"id": 1, "question": "Tell me about yourself"}],
         "transcript": {"full_text": "Hello world from candidate"},
         "audio_telemetry": {"wpm": 140},
         "video_telemetry": {"face_visible_pct": 98.5},
     }
-    res_data_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/data", json=data_payload)
+    res_data_post = cand_client.post(f"/api/aiprep/assessments/{auuid}/data", json=data_payload)
     assert res_data_post.status_code == 200
 
-    # 5. Candidate GET data by UUID
-    res_data_get = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/data")
+    # 4. Candidate GET data by UUID
+    res_data_get = cand_client.get(f"/api/aiprep/assessments/{auuid}/data")
     assert res_data_get.status_code == 200
     assert res_data_get.json()["assessment_id"] == aid
     assert res_data_get.json()["assessment_uuid"] == auuid
     assert res_data_get.json()["transcript"]["full_text"] == "Hello world from candidate"
 
-    # 6. Candidate PATCH media by UUID
+    # 5. Candidate PATCH media by UUID
     media_payload = {"youtube_url": "https://media.example.com/uuid_stream"}
-    res_media = cand_client.patch(f"/api/aiprep/candidate/assessments/{auuid}/media", json=media_payload)
+    res_media = cand_client.patch(f"/api/aiprep/assessments/{auuid}/media", json=media_payload)
     assert res_media.status_code == 200
     assert res_media.json()["id"] == aid
     assert res_media.json()["assessment_uuid"] == auuid
     assert res_media.json()["youtube_url"] == "https://media.example.com/uuid_stream"
 
-    # 7. Candidate POST evaluate by UUID
-    res_eval_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/evaluate")
+    # 6. Candidate POST evaluate by UUID
+    res_eval_post = cand_client.post(f"/api/aiprep/assessments/{auuid}/evaluate")
     assert res_eval_post.status_code == 202
     assert res_eval_post.json()["id"] == aid
     assert res_eval_post.json()["status"] == "EVALUATING"
 
-    # 8. Candidate PUT evaluate by UUID
+    # 7. Candidate PUT evaluate by UUID
     res_eval_put = cand_client.put(
-        f"/api/aiprep/candidate/assessments/{auuid}/evaluate",
+        f"/api/aiprep/assessments/{auuid}/evaluate",
         json={"transcript": {"full_text": "Updated transcript"}}
     )
     assert res_eval_put.status_code == 202
     assert res_eval_put.json()["id"] == aid
 
-    # 9. Save mock report with UUID string for report GET check
+    # 8. Save mock report with UUID string for report GET check
     from fapi.ai_prep import crud
     rep_obj = crud.save_assessment_report(db_session, auuid, {
         "audio_evaluation": {"score": 90},
@@ -725,38 +709,32 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
     })
     assert rep_obj.assessment_id == aid
 
-    # 10. Candidate GET report by UUID
-    res_rep = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/report")
+    # 9. Candidate GET report / detail by UUID
+    res_rep = cand_client.get(f"/api/aiprep/assessments/{auuid}")
     assert res_rep.status_code == 200
-    assert res_rep.json()["assessment_id"] == aid
+    assert res_rep.json()["id"] == aid
     assert res_rep.json()["assessment_uuid"] == auuid
-    assert res_rep.json()["overall_score"] == 92.3
+    assert res_rep.json()["report"]["overall_score"] == 92.3
 
-    # 11. Employee GET assessment detail by UUID
-    res_emp_det = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}")
+    # 10. Employee GET assessment detail by UUID
+    res_emp_det = emp_client.get(f"/api/aiprep/assessments/{auuid}")
     assert res_emp_det.status_code == 200
     assert res_emp_det.json()["id"] == aid
     assert res_emp_det.json()["assessment_uuid"] == auuid
 
-    # 12. Employee GET assessment data by UUID
-    res_emp_dat = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/data")
+    # 11. Employee GET assessment data by UUID
+    res_emp_dat = emp_client.get(f"/api/aiprep/assessments/{auuid}/data")
     assert res_emp_dat.status_code == 200
     assert res_emp_dat.json()["assessment_id"] == aid
     assert res_emp_dat.json()["assessment_uuid"] == auuid
 
-    # 13. Employee GET assessment report by UUID
-    res_emp_rep = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/report")
-    assert res_emp_rep.status_code == 200
-    assert res_emp_rep.json()["assessment_id"] == aid
-    assert res_emp_rep.json()["assessment_uuid"] == auuid
-
-    # 14. Progress status snapshot by UUID
+    # 12. Progress status snapshot by UUID
     res_status = cand_client.get(f"/api/aiprep/assessments/{auuid}/status")
     assert res_status.status_code == 200
     assert res_status.json()["assessment_id"] == aid
 
-    # 15. Non-existent UUID returns 404
-    res_404 = cand_client.get("/api/aiprep/candidate/assessments/non-existent-uuid-99999")
+    # 13. Non-existent UUID returns 404
+    res_404 = cand_client.get("/api/aiprep/assessments/non-existent-uuid-99999")
     assert res_404.status_code == 404
     assert res_404.json()["detail"] == "Assessment not found"
 

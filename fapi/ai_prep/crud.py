@@ -176,22 +176,28 @@ def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrep
     if not assessment_uuid:
         return None
     cleaned_uuid = str(assessment_uuid).strip()
-    try:
-        uuid.UUID(cleaned_uuid)
-    except (ValueError, AttributeError):
-        return None
     return db.query(AiPrepAssessmentORM).filter(
         AiPrepAssessmentORM.assessment_uuid == cleaned_uuid
     ).first()
 
 
 def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Optional[AiPrepAssessmentORM]:
-    """Resolves an assessment entity by either integer primary key or UUID string."""
+    """Resolves an assessment entity by either integer primary key or UUID string.
+    Raises HTTPException(400) if the identifier contains special characters or invalid format.
+    """
     if identifier is None:
         return None
     ident_str = str(identifier).strip()
+    if not ident_str:
+        return None
     if ident_str.isdigit():
         return get_assessment_by_id(db, int(ident_str))
+
+    # Reject malformed strings with illegal special characters (e.g. @, #, $, %, ', ", <, >, ;, *, etc.)
+    if any(c in ident_str for c in "@#$%^&*()+=[]{}\\|'\";:<>?/~`, "):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid assessment ID format")
+
     return get_assessment_by_uuid(db, ident_str)
 
 

@@ -215,7 +215,7 @@ def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: 
 
     if not is_employee:
         if requested_id is not None and requested_id != self_candidate_id:
-            raise HTTPException(status_code=403, detail="Candidates can only access their own data.")
+            raise HTTPException(status_code=403, detail="Access denied to this assessment")
         return self_candidate_id
     return requested_id if requested_id is not None else self_candidate_id
 
@@ -309,11 +309,11 @@ def _verify_prerequisites(db: Session, candidate_id: int):
 # 1. Candidate Business Logic Functions
 # ---------------------------------------------------------------------------
 
-def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM) -> LLMKeyStatusResponse:
-    """Candidate self-check for configured LLM key dynamically from DB."""
+def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM, candidate_id: Optional[int] = None) -> LLMKeyStatusResponse:
+    """Check for configured LLM key dynamically from DB (self for candidate, or specified candidate for staff)."""
     try:
-        candidate_id = _resolve_candidate_id(db, current_user)
-        result = _check_candidate_llm_db(db, candidate_id)
+        cand_id = _resolve_candidate_id(db, current_user, candidate_id)
+        result = _check_candidate_llm_db(db, cand_id)
         return LLMKeyStatusResponse(**result)
     except HTTPException as e:
         if e.status_code == 404:
@@ -329,11 +329,11 @@ def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM) -> LL
         raise
 
 
-def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) -> ResumeStatusResponse:
-    """Candidate self-check for parsed resume status dynamically from DB."""
+def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM, candidate_id: Optional[int] = None) -> ResumeStatusResponse:
+    """Check for parsed resume status dynamically from DB (self for candidate, or specified candidate for staff)."""
     try:
-        candidate_id = _resolve_candidate_id(db, current_user)
-        result = _check_candidate_resume_db(db, candidate_id)
+        cand_id = _resolve_candidate_id(db, current_user, candidate_id)
+        result = _check_candidate_resume_db(db, cand_id)
         return ResumeStatusResponse(**result)
     except HTTPException as e:
         if e.status_code == 404:
@@ -350,10 +350,10 @@ def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) 
         raise
 
 
-def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAssessmentCheckResponse:
+def candidate_pre_check_logic(db: Session, current_user: AuthUserORM, candidate_id: Optional[int] = None) -> PreAssessmentCheckResponse:
     """Verifies both LLM key and resume readiness before starting assessment."""
     try:
-        candidate_id = _resolve_candidate_id(db, current_user)
+        cand_id = _resolve_candidate_id(db, current_user, candidate_id)
     except HTTPException as e:
         if e.status_code == 404:
             cand_name = getattr(current_user, "fullname", None) or getattr(current_user, "uname", "Candidate")
@@ -375,12 +375,12 @@ def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAsse
                 message="Prerequisites missing: setup required",
             )
         raise
-    llm_check = _check_candidate_llm_db(db, candidate_id)
-    resume_check = _check_candidate_resume_db(db, candidate_id)
+    llm_check = _check_candidate_llm_db(db, cand_id)
+    resume_check = _check_candidate_resume_db(db, cand_id)
     eligible = bool(llm_check["is_configured"] and (resume_check["has_resume"] or resume_check["has_parsed_json"]))
     return PreAssessmentCheckResponse(
         eligible=eligible,
-        candidate_id=candidate_id,
+        candidate_id=cand_id,
         llm_check=LLMKeyStatusResponse(**llm_check),
         resume_check=ResumeStatusResponse(**resume_check),
         message="Ready to start assessment" if eligible else "Prerequisites missing: setup required",
@@ -442,28 +442,59 @@ def candidate_create_assessment_logic(
 def candidate_list_assessments_logic(
     db: Session,
     current_user: AuthUserORM,
+    candidate_id: Optional[int] = None,
+    status_filter: Optional[str] = None,
+    assessment_type: Optional[str] = None,
+    media_type: Optional[str] = None,
+    search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> AssessmentListResponse:
-    """Lists assessments belonging to the authenticated candidate dynamically from DB."""
-    candidate_id = _resolve_candidate_id(db, current_user)
-    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first() if candidate_id else None
-    candidate_name = cand.full_name if (cand and cand.full_name) else None
-    candidate_email = cand.email if (cand and cand.email) else None
+    """Unified assessment listing: auto-scoped to candidate or filterable for staff."""
+    uname = (getattr(current_user, "uname", "") or "").lower()
+    role = getattr(current_user, "role", None) or ("admin" if uname == "admin" else "candidate")
+    is_employee = bool(getattr(current_user, "is_employee", False) or role in ("admin", "staff", "employee") or uname == "admin")
 
-    query = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+    query = db.query(AiPrepAssessmentORM)
+
+    if not is_employee:
+        cand_id = _resolve_candidate_id(db, current_user)
+        query = query.filter(AiPrepAssessmentORM.candidate_id == cand_id)
+    else:
+        if candidate_id:
+            query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+
+    if status_filter and status_filter.lower() != "all":
+        query = query.filter(AiPrepAssessmentORM.status == status_filter)
+    if assessment_type and assessment_type.lower() != "all":
+        query = query.filter(AiPrepAssessmentORM.assessment_type == assessment_type)
+    if media_type and media_type.lower() != "all":
+        query = query.filter(AiPrepAssessmentORM.media_type == media_type)
+
     total = query.count()
     items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
 
-    return AssessmentListResponse(
-        items=[
+    candidate_ids = {a.candidate_id for a in items if a.candidate_id is not None}
+    cand_map = {}
+    if candidate_ids:
+        candidates = db.query(CandidateORM).filter(CandidateORM.id.in_(candidate_ids)).all()
+        cand_map = {c.id: c for c in candidates}
+
+    result_items = []
+    for a in items:
+        cand = cand_map.get(a.candidate_id)
+        candidate_name = cand.full_name if (cand and cand.full_name) else None
+        candidate_email = cand.email if (cand and cand.email) else None
+        score = a.report_record.overall_score if a.report_record else None
+
+        result_items.append(
             AssessmentListItem(
                 id=a.id,
                 assessment_uuid=a.assessment_uuid,
                 candidate_id=a.candidate_id,
                 candidate_name=candidate_name,
                 candidate_email=candidate_email,
-                score=a.report_record.overall_score if a.report_record else None,
+                score=score,
                 assessment_type=a.assessment_type,
                 media_type=a.media_type,
                 status=a.status,
@@ -473,8 +504,10 @@ def candidate_list_assessments_logic(
                 completed_at=a.completed_at,
                 created_at=a.created_at,
             )
-            for a in items
-        ],
+        )
+
+    return AssessmentListResponse(
+        items=result_items,
         total=total,
     )
 
@@ -536,6 +569,60 @@ def candidate_get_assessment_detail_logic(
     )
 
 
+def admin_get_assessment_detail_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+) -> AssessmentDetailResponse:
+    """Admin: Fetches full assessment details, telemetry, and evaluation scores from DB."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    cand = db.query(CandidateORM).filter(CandidateORM.id == assessment.candidate_id).first() if assessment.candidate_id else None
+    candidate_name = cand.full_name if (cand and cand.full_name) else None
+    candidate_email = cand.email if (cand and cand.email) else None
+
+    data_dict = None
+    if assessment.data_record:
+        data_dict = {
+            "questions": assessment.data_record.questions,
+            "transcript": assessment.data_record.transcript,
+            "audio_telemetry": assessment.data_record.audio_telemetry,
+            "video_telemetry": assessment.data_record.video_telemetry,
+        }
+
+    report_dict = None
+    if assessment.report_record:
+        report_dict = {
+            "audio_evaluation": assessment.report_record.audio_evaluation,
+            "video_evaluation": assessment.report_record.video_evaluation,
+            "transcript_evaluation": assessment.report_record.transcript_evaluation,
+            "overall_score": assessment.report_record.overall_score,
+            "report_data": assessment.report_record.report_data,
+        }
+
+    return AssessmentDetailResponse(
+        id=assessment.id,
+        assessment_uuid=assessment.assessment_uuid,
+        candidate_id=assessment.candidate_id,
+        candidate_name=candidate_name,
+        candidate_email=candidate_email,
+        score=report_dict.get("overall_score") if report_dict else None,
+        assessment_type=assessment.assessment_type,
+        media_type=assessment.media_type,
+        status=assessment.status,
+        job_description=assessment.job_description,
+        ip_address=assessment.ip_address,
+        user_agent=assessment.user_agent,
+        youtube_url=assessment.youtube_url,
+        started_at=assessment.started_at,
+        completed_at=assessment.completed_at,
+        created_at=assessment.created_at,
+        data=data_dict,
+        report=report_dict,
+    )
+
+
 def candidate_get_assessment_data_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -547,15 +634,54 @@ def candidate_get_assessment_data_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
     if not assessment.data_record:
-        raise HTTPException(status_code=404, detail="No telemetry or submitted data found for this assessment")
+        return AssessmentDataResponse(
+            id=None,
+            assessment_id=assessment.id,
+            assessment_uuid=assessment.assessment_uuid,
+            questions=[],
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
     return AssessmentDataResponse(
         id=assessment.data_record.id,
         assessment_id=assessment.data_record.assessment_id,
         assessment_uuid=assessment.assessment_uuid,
-        questions=assessment.data_record.questions,
-        transcript=assessment.data_record.transcript,
-        audio_telemetry=assessment.data_record.audio_telemetry,
-        video_telemetry=assessment.data_record.video_telemetry,
+        questions=assessment.data_record.questions or [],
+        transcript=assessment.data_record.transcript or {},
+        audio_telemetry=assessment.data_record.audio_telemetry or {},
+        video_telemetry=assessment.data_record.video_telemetry or {},
+        created_at=assessment.data_record.created_at,
+        updated_at=assessment.data_record.updated_at,
+    )
+
+
+def admin_get_assessment_data_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+) -> AssessmentDataResponse:
+    """Admin: Fetches submitted telemetry and questions data for an assessment."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not assessment.data_record:
+        return AssessmentDataResponse(
+            id=None,
+            assessment_id=assessment.id,
+            assessment_uuid=assessment.assessment_uuid,
+            questions=[],
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
+    return AssessmentDataResponse(
+        id=assessment.data_record.id,
+        assessment_id=assessment.data_record.assessment_id,
+        assessment_uuid=assessment.assessment_uuid,
+        questions=assessment.data_record.questions or [],
+        transcript=assessment.data_record.transcript or {},
+        audio_telemetry=assessment.data_record.audio_telemetry or {},
+        video_telemetry=assessment.data_record.video_telemetry or {},
         created_at=assessment.data_record.created_at,
         updated_at=assessment.data_record.updated_at,
     )
@@ -572,7 +698,31 @@ def candidate_get_assessment_report_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
     if not assessment.report_record:
-        raise HTTPException(status_code=404, detail="Report not generated yet for this assessment")
+        raise HTTPException(status_code=404, detail="Evaluation report not yet available")
+    return AssessmentReportResponse(
+        id=assessment.report_record.id,
+        assessment_id=assessment.report_record.assessment_id,
+        assessment_uuid=assessment.assessment_uuid,
+        audio_evaluation=assessment.report_record.audio_evaluation,
+        video_evaluation=assessment.report_record.video_evaluation,
+        transcript_evaluation=assessment.report_record.transcript_evaluation,
+        overall_score=assessment.report_record.overall_score,
+        report_data=assessment.report_record.report_data,
+        created_at=assessment.report_record.created_at,
+        updated_at=assessment.report_record.updated_at,
+    )
+
+
+def admin_get_assessment_report_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+) -> AssessmentReportResponse:
+    """Admin: Fetches generated evaluation report for an assessment."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if not assessment.report_record:
+        raise HTTPException(status_code=404, detail="Report not yet available")
     return AssessmentReportResponse(
         id=assessment.report_record.id,
         assessment_id=assessment.report_record.assessment_id,
@@ -667,6 +817,50 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
             pass
 
 
+def _process_submit_data(db: Session, assessment: AiPrepAssessmentORM, payload: SubmitAssessmentDataRequest):
+    data_rec = assessment.data_record
+    existing_questions = (data_rec.questions if data_rec and data_rec.questions else []) if data_rec else []
+    existing_transcript = (data_rec.transcript if data_rec and data_rec.transcript else {}) if data_rec else {}
+    existing_audio = (data_rec.audio_telemetry if data_rec and data_rec.audio_telemetry else {}) if data_rec else {}
+    existing_video = (data_rec.video_telemetry if data_rec and data_rec.video_telemetry else {}) if data_rec else {}
+
+    if payload.question_id is not None or payload.answer is not None:
+        q_entry = {
+            "question_id": payload.question_id,
+            "answer": payload.answer,
+            "duration_seconds": payload.duration_seconds,
+            "timestamp": str(payload.timestamp) if payload.timestamp else None,
+        }
+        updated = False
+        new_questions = list(existing_questions)
+        for idx, q in enumerate(new_questions):
+            if isinstance(q, dict) and str(q.get("question_id")) == str(payload.question_id):
+                new_questions[idx] = q_entry
+                updated = True
+                break
+        if not updated:
+            new_questions.append(q_entry)
+        questions_to_save = new_questions
+        transcript_to_save = existing_transcript
+        if payload.answer:
+            transcript_to_save = {"full_text": payload.answer}
+    else:
+        questions_to_save = payload.questions if payload.questions is not None else existing_questions
+        transcript_to_save = payload.transcript if payload.transcript is not None else existing_transcript
+
+    audio_to_save = payload.audio_telemetry if payload.audio_telemetry is not None else existing_audio
+    video_to_save = payload.video_telemetry if payload.video_telemetry is not None else existing_video
+
+    crud.save_assessment_data(
+        db=db,
+        assessment_id=assessment.id,
+        questions=questions_to_save,
+        transcript=transcript_to_save,
+        audio_telemetry=audio_to_save,
+        video_telemetry=video_to_save,
+    )
+
+
 def candidate_submit_data_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -680,14 +874,24 @@ def candidate_submit_data_logic(
 
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
-    crud.save_assessment_data(
-        db=db,
-        assessment_id=assessment.id,
-        questions=payload.questions or [],
-        transcript=payload.transcript or {},
-        audio_telemetry=payload.audio_telemetry or {},
-        video_telemetry=payload.video_telemetry or {},
-    )
+    if assessment.status in ("COMPLETED", "EVALUATED"):
+        raise HTTPException(status_code=400, detail="Assessment is no longer accepting submissions")
+
+    _process_submit_data(db, assessment, payload)
+    return SubmitAssessmentDataResponse(message="Data saved successfully")
+
+
+def admin_submit_data_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+    payload: SubmitAssessmentDataRequest,
+) -> SubmitAssessmentDataResponse:
+    """Admin: Persists telemetry, transcript, and answers into ai_prep_assessment_data."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    _process_submit_data(db, assessment, payload)
     return SubmitAssessmentDataResponse(message="Data saved successfully")
 
 
@@ -703,8 +907,38 @@ def candidate_update_media_url_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    crud.update_assessment_media_url(db, assessment.id, payload.youtube_url)
-    return UpdateMediaURLResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, youtube_url=payload.youtube_url)
+
+    if assessment.status in ("COMPLETED", "EVALUATED"):
+        raise HTTPException(status_code=400, detail="Cannot update media for a closed assessment")
+
+    target_url = payload.url
+    crud.update_assessment_media_url(db, assessment.id, target_url)
+    return UpdateMediaURLResponse(
+        id=assessment.id,
+        assessment_uuid=assessment.assessment_uuid,
+        media_url=target_url,
+        youtube_url=target_url or "",
+    )
+
+
+def admin_update_media_url_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+    payload: UpdateMediaURLRequest,
+) -> UpdateMediaURLResponse:
+    """Admin: Updates media URL on assessment."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    target_url = payload.url
+    crud.update_assessment_media_url(db, assessment.id, target_url)
+    return UpdateMediaURLResponse(
+        id=assessment.id,
+        assessment_uuid=assessment.assessment_uuid,
+        media_url=target_url,
+        youtube_url=target_url or "",
+    )
 
 
 def candidate_trigger_eval_post_logic(
@@ -719,9 +953,43 @@ def candidate_trigger_eval_post_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    if assessment.status in ("COMPLETED", "EVALUATED"):
+        raise HTTPException(status_code=409, detail="Assessment already evaluated")
+
+    data_rec = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+    if not data_rec or (not data_rec.questions and not data_rec.transcript):
+        raise HTTPException(status_code=400, detail="No answers submitted to evaluate")
+
     crud.update_assessment_status(db, assessment.id, "EVALUATING")
 
     if background_tasks:
+        background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
+
+    return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
+
+
+def admin_trigger_eval_post_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+    background_tasks: Optional[BackgroundTasks] = None,
+) -> TriggerEvaluationResponse:
+    """Admin: Transitions status to EVALUATING and queues background LLM evaluation."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    if assessment.status in ("COMPLETED", "EVALUATED"):
+        raise HTTPException(status_code=409, detail="Assessment has already been evaluated")
+
+    data_rec = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+    if not data_rec or (not data_rec.questions and not data_rec.transcript):
+        raise HTTPException(status_code=400, detail="No telemetry data found to evaluate")
+
+    crud.update_assessment_status(db, assessment.id, "EVALUATING")
+    candidate_id = assessment.candidate_id or 0
+
+    if background_tasks and candidate_id:
         background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
 
     return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
@@ -740,11 +1008,19 @@ def candidate_trigger_eval_put_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    if payload and (payload.transcript or payload.audio_telemetry or payload.video_telemetry):
+
+    if assessment.status in ("COMPLETED", "EVALUATED"):
+        raise HTTPException(status_code=400, detail="Assessment is already completed")
+
+    if payload is not None and payload.answers is not None and len(payload.answers) == 0:
+        raise HTTPException(status_code=400, detail="Answers array cannot be empty")
+
+    if payload:
+        questions_to_save = payload.answers or payload.questions or []
         crud.save_assessment_data(
             db=db,
             assessment_id=assessment.id,
-            questions=payload.questions or [],
+            questions=questions_to_save,
             transcript=payload.transcript or {},
             audio_telemetry=payload.audio_telemetry or {},
             video_telemetry=payload.video_telemetry or {},
@@ -753,6 +1029,43 @@ def candidate_trigger_eval_put_logic(
     crud.update_assessment_status(db, assessment.id, "EVALUATING")
 
     if background_tasks:
+        background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
+
+    return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
+
+
+def admin_trigger_eval_put_logic(
+    db: Session,
+    assessment_id: Union[int, str],
+    payload: Optional[SubmitAssessmentRequest] = None,
+    background_tasks: Optional[BackgroundTasks] = None,
+) -> TriggerEvaluationResponse:
+    """Admin: Saves telemetry if provided, transitions status to EVALUATING, and queues evaluation."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    if assessment.status in ("COMPLETED", "EVALUATED"):
+        raise HTTPException(status_code=400, detail="Assessment is already closed")
+
+    if payload is not None and payload.answers is not None and len(payload.answers) == 0:
+        raise HTTPException(status_code=400, detail="Answers cannot be empty")
+
+    if payload:
+        questions_to_save = payload.answers or payload.questions or []
+        crud.save_assessment_data(
+            db=db,
+            assessment_id=assessment.id,
+            questions=questions_to_save,
+            transcript=payload.transcript or {},
+            audio_telemetry=payload.audio_telemetry or {},
+            video_telemetry=payload.video_telemetry or {},
+        )
+
+    crud.update_assessment_status(db, assessment.id, "EVALUATING")
+    candidate_id = assessment.candidate_id or 0
+
+    if background_tasks and candidate_id:
         background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
 
     return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
@@ -1087,9 +1400,9 @@ async def upload_raw_media_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
-    media_type: str,
     filename: str,
     file_content: bytes,
+    media_type: str = "video/webm",
 ) -> LocalMediaUploadResponse:
     """Uploads single binary media file directly to disk storage."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
