@@ -16,9 +16,14 @@ ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 
 def decode_token(token: str):
+    secret = os.getenv("SECRET_KEY") or SECRET_KEY
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication secret key is not configured",
+        )
+    algorithm = os.getenv("JWT_ALGORITHM") or ALGORITHM or "HS256"
     try:
-        secret = os.getenv("SECRET_KEY") or SECRET_KEY or "mock_test_secret_key_12345"
-        algorithm = os.getenv("JWT_ALGORITHM") or ALGORITHM or "HS256"
         return jwt.decode(token, secret, algorithms=[algorithm])
     except JWTError:
         raise HTTPException(
