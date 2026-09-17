@@ -79,9 +79,6 @@ def db_session():
 
 
 
-import datetime
-import secrets
-
 @pytest.fixture
 def seed_candidate(db_session):
     cand1 = db_session.query(CandidateORM).filter(CandidateORM.id == 1001).first()

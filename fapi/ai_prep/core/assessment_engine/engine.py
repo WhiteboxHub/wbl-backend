@@ -9,8 +9,8 @@ Architecture Rules (MUST NOT VIOLATE):
   - The ONLY way to communicate with this engine is through the Assessment Orchestrator.
 
 Responsibilities:
-  1. Question selection — filter, cap, and prepare questions for a given assessment type.
-     INTRO and JD_INTRO types are capped at 1 question by design.
+  1. Question selection — filter and prepare questions for a given assessment type.
+     INTRO and JD_INTRO types always receive exactly 1 question.
   2. Context building — transform raw telemetry/transcript dicts into structured text
      contexts that the LLMEvaluationEngine (Srimanth) can consume.
   3. Candidate eligibility — pure pre-flight rule checks before an assessment starts.
@@ -296,14 +296,6 @@ class AssessmentEngine:
         allowed = self.VALID_TRANSITIONS.get(current_status.upper(), [])
         return target_status.upper() in allowed
 
-    def resolve_question_limit(self, assessment_type: str) -> int:
-        """
-        Returns the correct question limit for a given assessment type.
-        INTRO and JD_INTRO → 1.  All others → MAX_QUESTIONS_PER_ASSESSMENT.
-        """
-        if assessment_type.upper() in self.SINGLE_QUESTION_TYPES:
-            return 1
-        return self.MAX_QUESTIONS_PER_ASSESSMENT
 
 
 # Module-level alias for compatibility with orchestrator imports
