@@ -551,10 +551,28 @@ def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
     return cfg
 
 
+def _extract_normalized_skills(raw_skills: Any) -> List[str]:
+    """Helper to extract and flatten skills list without circular inline imports."""
+    if not raw_skills:
+        return []
+    res: List[str] = []
+    if isinstance(raw_skills, list):
+        for item in raw_skills:
+            if isinstance(item, str) and item.strip() and item.strip() not in res:
+                res.append(item.strip())
+            elif isinstance(item, dict):
+                val = item.get("name") or item.get("skill") or item.get("title")
+                if isinstance(val, str) and val.strip() and val.strip() not in res:
+                    res.append(val.strip())
+    elif isinstance(raw_skills, str):
+        for part in raw_skills.replace("\n", ",").split(","):
+            if part.strip() and part.strip() not in res:
+                res.append(part.strip())
+    return res
+
+
 def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Checks whether the candidate has an uploaded and parsed resume."""
-    from fapi.ai_prep.utils.aiprep_utils import _normalize_skills
-
     candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
     if not candidate:
         return {
@@ -582,7 +600,6 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             parsed_json = mktg.candidate_json
         elif isinstance(mktg.candidate_json, str):
             try:
-                import json
                 parsed_json = json.loads(mktg.candidate_json)
             except Exception:
                 parsed_json = None
@@ -604,7 +621,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         raw_skills = parsed_json.get("skills")
         if not raw_skills and isinstance(parsed_json.get("personal"), dict):
             raw_skills = parsed_json.get("personal", {}).get("skills")
-        skills = _normalize_skills(raw_skills)
+        skills = _extract_normalized_skills(raw_skills)
         raw_title = parsed_json.get("current_title") or parsed_json.get("title")
         current_title = str(raw_title).strip() if raw_title else None
 

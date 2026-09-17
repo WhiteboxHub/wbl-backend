@@ -3,6 +3,7 @@ Follows WBL Backend code architecture standards separating routing and logic.
 """
 import os
 import uuid
+import json
 import shutil
 import logging
 import asyncio
@@ -244,7 +245,6 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
             parsed_json = mktg.candidate_json
         elif isinstance(mktg.candidate_json, str):
             try:
-                import json
                 parsed_json = json.loads(mktg.candidate_json)
             except Exception:
                 parsed_json = None
@@ -387,6 +387,10 @@ def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAsse
     )
 
 
+FALLBACK_INTRO_QUESTION = "Please introduce yourself and walk us through your background and experience."
+FALLBACK_JD_INTRO_QUESTION = "Please introduce yourself and walk us through your background and experience."
+
+
 def candidate_create_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -415,16 +419,36 @@ def candidate_create_assessment_logic(
     )
 
     # Query initial question from DB via Assessment Orchestrator and Assessment Engine
-    questions_list = assessment_orchestrator.get_questions_for_assessment(
-        db=db,
-        assessment_type=assessment_type_str,
-    )
+    try:
+        questions_list = assessment_orchestrator.get_questions_for_assessment(
+            db=db,
+            assessment_type=assessment_type_str,
+        )
+    except Exception as exc:
+        logger.warning(f"DB question retrieval failed for {assessment_type_str}: {exc}")
+        questions_list = []
+
     if not questions_list:
+        fallback_text = FALLBACK_JD_INTRO_QUESTION if assessment_type_str == "JD_INTRO" else FALLBACK_INTRO_QUESTION
         questions_list = [{
             "question_id": 1,
-            "question_text": f"Please introduce yourself and your background relevant to {assessment_type_str}.",
+            "question_text": fallback_text,
             "category": assessment_type_str,
+            "difficulty_level": "EASY",
         }]
+
+    # Persist the assigned question set into ai_prep_assessment_data
+    try:
+        crud.save_assessment_data(
+            db=db,
+            assessment_id=db_assessment.id,
+            questions=questions_list,
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
+    except Exception as exc:
+        logger.warning(f"Error persisting assessment questions into assessment_data: {exc}")
 
     return CreateAssessmentResponse(
         id=db_assessment.id,
@@ -496,7 +520,9 @@ def candidate_get_assessment_detail_logic(
     candidate_email = cand.email if (cand and cand.email) else None
 
     data_dict = None
+    questions_val = None
     if assessment.data_record:
+        questions_val = assessment.data_record.questions
         data_dict = {
             "questions": assessment.data_record.questions,
             "transcript": assessment.data_record.transcript,
@@ -531,6 +557,7 @@ def candidate_get_assessment_detail_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
+        questions=questions_val,
         data=data_dict,
         report=report_dict,
     )
