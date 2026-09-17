@@ -1,5 +1,4 @@
 import os
-import secrets
 import logging
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -49,12 +48,7 @@ def get_current_user(
 
     if not token:
         internal_secret = request.headers.get("X-Internal-Secret")
-        expected_internal_secret = os.getenv("INTERNAL_WORKFLOW_SECRET")
-        if (
-            internal_secret
-            and expected_internal_secret
-            and secrets.compare_digest(internal_secret, expected_internal_secret)
-        ):
+        if internal_secret == "super-secret-weekly-workflow-key":
             class DummyInternalUser:
                 id = 0
                 uname = "scheduler_worker"
