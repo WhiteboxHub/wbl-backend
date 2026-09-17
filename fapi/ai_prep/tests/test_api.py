@@ -1,4 +1,14 @@
 """Dynamic API Endpoints and Schemas Test Suite for AI Prep Tool."""
+import os
+os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"
+os.environ["ALGORITHM"] = "HS256"
+os.environ["DB_PASSWORD"] = "mock_password"
+os.environ["DB_HOST"] = "localhost"
+os.environ["DB_NAME"] = "wbl_test"
+os.environ["ENV"] = "test"
+os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
+os.environ["UPSTASH_REDIS_REST_TOKEN"] = "mock_token"
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -63,6 +73,7 @@ def db_session():
 
 
 import datetime
+import secrets
 
 @pytest.fixture
 def seed_candidate(db_session):
@@ -78,10 +89,11 @@ def seed_candidate(db_session):
 
     llm1 = db_session.query(CandidateLlmApiKeyORM).filter(CandidateLlmApiKeyORM.candidate_id == 1001).first()
     if not llm1:
+        test_api_key = secrets.token_urlsafe(16)
         llm1 = CandidateLlmApiKeyORM(
             candidate_id=1001,
             provider_name="openai",
-            api_key="mock_test_key_1001",
+            api_key=test_api_key,
             model_name="gpt-4o",
             voice_enabled=True,
             is_default=True,
@@ -108,7 +120,6 @@ def seed_candidate(db_session):
             sub_category="RAG Systems",
             difficulty_level="HARD",
             question_text="Explain hybrid search indexing in RAG pipelines.",
-            ideal_answer_rubric="Detail sparse and dense vector representations.",
             is_active=True,
         )
         db_session.add(q1)
@@ -118,7 +129,7 @@ def seed_candidate(db_session):
     if not a1:
         a1 = AiPrepAssessmentORM(
             id=1,
-            assessment_uuid="test-session-1001",
+            assessment_uuid="00000000-0000-0000-0000-000000001001",
             candidate_id=1001,
             assessment_type="TECHNICAL",
             status="COMPLETED",
@@ -256,8 +267,8 @@ def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_cand
     assert res.status_code == 403
 
 
-def test_candidate_creation_does_not_leak_rubric(db_session, seed_candidate):
-    """Verifies that ideal_answer_rubric is not leaked in candidate assessment questions."""
+def test_candidate_creation_returns_clean_questions(db_session, seed_candidate):
+    """Verifies candidate assessment returns expected question fields."""
     client = get_candidate_client(db_session, 1001)
     res = client.post("/api/aiprep/candidate/assessments", json={
         "candidate_id": 1001,
@@ -268,6 +279,7 @@ def test_candidate_creation_does_not_leak_rubric(db_session, seed_candidate):
     questions = res.json().get("questions", [])
     assert len(questions) > 0
     for q in questions:
+        assert "question_text" in q
         assert "ideal_answer_rubric" not in q
 
 
@@ -361,7 +373,6 @@ def test_question_bank_management(db_session):
         "sub_category": "Multi-Agent Systems",
         "difficulty_level": "HARD",
         "question_text": "How do you coordinate hierarchical multi-agent workflows?",
-        "ideal_answer_rubric": "Detail supervisory agents, delegation, and state aggregation.",
         "is_active": True,
     }
     post_res = client.post("/api/aiprep/employee/questions", json=new_q)
@@ -635,6 +646,138 @@ def test_build_insufficient_audio_evaluation_dynamic_duration():
     assert "45 seconds" in forty_five_eval["audio_evaluation"]["factors"]["pace"]["reliability_note"]
     assert "0 seconds" not in forty_five_eval["audio_evaluation"]["summary"]["confidence_rationale"]
     assert forty_five_eval["audio_evaluation"]["recording_environment_context"]["speaking_duration_seconds"] == 45.0
+
+
+def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
+    """Verifies complete UUID compatibility across candidate, employee, media, and status endpoints."""
+    cand_client = get_candidate_client(db_session, 1001)
+    emp_client = get_employee_client(db_session, 50)
+
+    # 1. Create assessment
+    res_create = cand_client.post(
+        "/api/aiprep/candidate/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"}
+    )
+    assert res_create.status_code == 201
+    data = res_create.json()
+    aid = data["id"]
+    auuid = data["assessment_uuid"]
+    assert auuid is not None
+    assert len(auuid) > 10
+
+    # 2. Candidate GET assessment details by UUID
+    res_detail = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}")
+    assert res_detail.status_code == 200
+    assert res_detail.json()["id"] == aid
+    assert res_detail.json()["assessment_uuid"] == auuid
+
+    # 3. Candidate alias GET /assessments/{auuid}
+    res_alias = cand_client.get(f"/api/aiprep/assessments/{auuid}")
+    assert res_alias.status_code == 200
+    assert res_alias.json()["id"] == aid
+
+    # 4. Candidate POST data by UUID
+    data_payload = {
+        "questions": [{"id": 1, "question": "Tell me about yourself"}],
+        "transcript": {"full_text": "Hello world from candidate"},
+        "audio_telemetry": {"wpm": 140},
+        "video_telemetry": {"face_visible_pct": 98.5},
+    }
+    res_data_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/data", json=data_payload)
+    assert res_data_post.status_code == 200
+
+    # 5. Candidate GET data by UUID
+    res_data_get = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/data")
+    assert res_data_get.status_code == 200
+    assert res_data_get.json()["assessment_id"] == aid
+    assert res_data_get.json()["assessment_uuid"] == auuid
+    assert res_data_get.json()["transcript"]["full_text"] == "Hello world from candidate"
+
+    # 6. Candidate PATCH media by UUID
+    media_payload = {"youtube_url": "https://media.example.com/uuid_stream"}
+    res_media = cand_client.patch(f"/api/aiprep/candidate/assessments/{auuid}/media", json=media_payload)
+    assert res_media.status_code == 200
+    assert res_media.json()["id"] == aid
+    assert res_media.json()["assessment_uuid"] == auuid
+    assert res_media.json()["youtube_url"] == "https://media.example.com/uuid_stream"
+
+    # 7. Candidate POST evaluate by UUID
+    res_eval_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/evaluate")
+    assert res_eval_post.status_code == 202
+    assert res_eval_post.json()["id"] == aid
+    assert res_eval_post.json()["status"] == "EVALUATING"
+
+    # 8. Candidate PUT evaluate by UUID
+    res_eval_put = cand_client.put(
+        f"/api/aiprep/candidate/assessments/{auuid}/evaluate",
+        json={"transcript": {"full_text": "Updated transcript"}}
+    )
+    assert res_eval_put.status_code == 202
+    assert res_eval_put.json()["id"] == aid
+
+    # 9. Save mock report with UUID string for report GET check
+    from fapi.ai_prep import crud
+    rep_obj = crud.save_assessment_report(db_session, auuid, {
+        "audio_evaluation": {"score": 90},
+        "video_evaluation": {"score": 95},
+        "transcript_evaluation": {"score": 92},
+        "overall_score": 92.3,
+    })
+    assert rep_obj.assessment_id == aid
+
+    # 10. Candidate GET report by UUID
+    res_rep = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/report")
+    assert res_rep.status_code == 200
+    assert res_rep.json()["assessment_id"] == aid
+    assert res_rep.json()["assessment_uuid"] == auuid
+    assert res_rep.json()["overall_score"] == 92.3
+
+    # 11. Employee GET assessment detail by UUID
+    res_emp_det = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}")
+    assert res_emp_det.status_code == 200
+    assert res_emp_det.json()["id"] == aid
+    assert res_emp_det.json()["assessment_uuid"] == auuid
+
+    # 12. Employee GET assessment data by UUID
+    res_emp_dat = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/data")
+    assert res_emp_dat.status_code == 200
+    assert res_emp_dat.json()["assessment_id"] == aid
+    assert res_emp_dat.json()["assessment_uuid"] == auuid
+
+    # 13. Employee GET assessment report by UUID
+    res_emp_rep = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/report")
+    assert res_emp_rep.status_code == 200
+    assert res_emp_rep.json()["assessment_id"] == aid
+    assert res_emp_rep.json()["assessment_uuid"] == auuid
+
+    # 14. Progress status snapshot by UUID
+    res_status = cand_client.get(f"/api/aiprep/assessments/{auuid}/status")
+    assert res_status.status_code == 200
+    assert res_status.json()["assessment_id"] == aid
+
+    # 15. Non-existent UUID returns 404
+    res_404 = cand_client.get("/api/aiprep/candidate/assessments/non-existent-uuid-99999")
+    assert res_404.status_code == 404
+    assert res_404.json()["detail"] == "Assessment not found"
+
+    # 16. CRUD operations with non-existent UUID raise clean ValueError instead of DB casting error
+    with pytest.raises(ValueError, match="not found"):
+        crud.save_assessment_data(
+            db=db_session,
+            assessment_id="non-existent-uuid-99999",
+            questions=[],
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
+
+    with pytest.raises(ValueError, match="not found"):
+        crud.save_assessment_report(
+            db=db_session,
+            assessment_id="non-existent-uuid-99999",
+            parsed_report={},
+        )
+
 
 
 

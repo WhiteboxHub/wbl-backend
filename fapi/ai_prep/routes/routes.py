@@ -166,7 +166,7 @@ def candidate_list_assessments(
 )
 @router.get("/assessments/{assessment_id}", response_model=AssessmentDetailResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Details")
 def candidate_get_assessment_detail(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -182,7 +182,7 @@ def candidate_get_assessment_detail(
 )
 @router.get("/assessments/{assessment_id}/data", response_model=AssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Data")
 def candidate_get_assessment_data(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -198,7 +198,7 @@ def candidate_get_assessment_data(
 )
 @router.get("/assessments/{assessment_id}/report", response_model=AssessmentReportResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Report")
 def candidate_get_assessment_report(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -215,7 +215,7 @@ def candidate_get_assessment_report(
 )
 @router.post("/assessments/{assessment_id}/data", response_model=SubmitAssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Submit Telemetry")
 def candidate_submit_data(
-    assessment_id: int,
+    assessment_id: str,
     payload: SubmitAssessmentDataRequest,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -232,7 +232,7 @@ def candidate_submit_data(
 )
 @router.patch("/assessments/{assessment_id}/media", response_model=UpdateMediaURLResponse, tags=["AI Prep - Candidate"], summary="Update Media URL")
 def candidate_update_media_url(
-    assessment_id: int,
+    assessment_id: str,
     payload: UpdateMediaURLRequest,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -250,7 +250,7 @@ def candidate_update_media_url(
 )
 @router.post("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Trigger Evaluation")
 def candidate_trigger_eval_post(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
@@ -272,7 +272,7 @@ def candidate_trigger_eval_post(
 )
 @router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
 def candidate_trigger_eval_put(
-    assessment_id: int,
+    assessment_id: str,
     payload: Optional[SubmitAssessmentRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -416,7 +416,7 @@ def employee_list_candidate_assessments_route(
     summary="Employee: Inspect Assessment Details & Scores",
 )
 def employee_get_assessment_detail_route(
-    assessment_id: int,
+    assessment_id: str,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
@@ -431,7 +431,7 @@ def employee_get_assessment_detail_route(
     summary="Employee: Get Assessment Telemetry & Questions",
 )
 def employee_get_assessment_data_route(
-    assessment_id: int,
+    assessment_id: str,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
@@ -446,7 +446,7 @@ def employee_get_assessment_data_route(
     summary="Employee: Get Assessment Evaluation Report",
 )
 def employee_get_assessment_report_route(
-    assessment_id: int,
+    assessment_id: str,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
@@ -588,7 +588,7 @@ def delete_question_from_bank(
     summary="Media: Upload 30s WebM Chunk",
 )
 async def upload_media_chunk(
-    assessment_id: int = Form(...),
+    assessment_id: str = Form(...),
     chunk_number: int = Form(...),
     total_chunks: Optional[int] = Form(None),
     file: UploadFile = File(...),
@@ -614,7 +614,7 @@ async def upload_media_chunk(
     summary="Media: Query Chunk Upload Status",
 )
 def get_chunk_upload_status(
-    assessment_id: int = Query(...),
+    assessment_id: str = Query(...),
     total_chunks: Optional[int] = Query(None),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -635,7 +635,7 @@ def get_chunk_upload_status(
     summary="Media: Assemble Chunks & Process",
 )
 def assemble_media_chunks(
-    assessment_id: int = Query(...),
+    assessment_id: str = Query(...),
     payload: Optional[AssembleMediaRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -656,7 +656,7 @@ def assemble_media_chunks(
     summary="Media: Direct Single Media Upload",
 )
 async def upload_raw_media(
-    assessment_id: int = Form(...),
+    assessment_id: str = Form(...),
     media_type: str = Form("VIDEO"),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
@@ -681,7 +681,7 @@ async def upload_raw_media(
     summary="Progress: Assessment Processing Status Snapshot",
 )
 def get_assessment_processing_status(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -699,7 +699,7 @@ def get_assessment_processing_status(
     summary="Progress: Real-Time SSE Status Stream",
 )
 def stream_assessment_processing_sse(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

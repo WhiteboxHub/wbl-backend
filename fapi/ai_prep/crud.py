@@ -5,7 +5,7 @@ import uuid
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -94,42 +94,36 @@ def get_default_questions() -> List[Dict[str, Any]]:
             "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
-            "ideal_answer_rubric": "Articulate career arc, GenAI specialization, system architectures built, and end-to-end project ownership.",
         },
         {
             "category": "JD_INTRO",
             "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
-            "ideal_answer_rubric": "Directly map past technical projects and libraries to the job responsibilities and required technologies.",
         },
         {
             "category": "RECRUITER",
             "sub_category": None,
             "difficulty_level": "MEDIUM",
             "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
-            "ideal_answer_rubric": "Clear explanation of career choices, continuous learning, and positive team culture alignment.",
         },
         {
             "category": "HIRING_MANAGER",
             "sub_category": None,
             "difficulty_level": "HARD",
             "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
-            "ideal_answer_rubric": "Structured STAR response detailing leadership, cross-functional collaboration, technical pivot, and business metrics achieved.",
         },
         {
             "category": "SYSTEM_DESIGN",
             "sub_category": None,
             "difficulty_level": "HARD",
             "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
-            "ideal_answer_rubric": "Detail vector databases, chunking strategies, embedding retrieval, re-ranking, LLM latency budgets, and fallback mechanisms.",
         },
         {
             "category": "TECHNICAL",
             "sub_category": "Agentic AI",
             "difficulty_level": "HARD",
             "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks. When would you choose one over the other?",
-            "ideal_answer_rubric": "Compare reasoning traces, token overhead, tool-calling loops, latency, and determinism in production environments.",
         },
     ]
 
@@ -178,12 +172,27 @@ def get_assessment_by_id(db: Session, assessment_id: int) -> Optional[AiPrepAsse
 
 
 def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrepAssessmentORM]:
-    """Compatibility lookup: looks up by numeric ID if valid integer, otherwise None."""
-    try:
-        aid = int(assessment_uuid)
-        return get_assessment_by_id(db, aid)
-    except (ValueError, TypeError):
+    """Looks up assessment directly by its assessment_uuid column."""
+    if not assessment_uuid:
         return None
+    cleaned_uuid = str(assessment_uuid).strip()
+    try:
+        uuid.UUID(cleaned_uuid)
+    except (ValueError, AttributeError):
+        return None
+    return db.query(AiPrepAssessmentORM).filter(
+        AiPrepAssessmentORM.assessment_uuid == cleaned_uuid
+    ).first()
+
+
+def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Optional[AiPrepAssessmentORM]:
+    """Resolves an assessment entity by either integer primary key or UUID string."""
+    if identifier is None:
+        return None
+    ident_str = str(identifier).strip()
+    if ident_str.isdigit():
+        return get_assessment_by_id(db, int(ident_str))
+    return get_assessment_by_uuid(db, ident_str)
 
 
 def list_assessments(
@@ -225,13 +234,21 @@ def list_assessments_for_employee(
 
 def save_assessment_data(
     db: Session,
-    assessment_id: int,
+    assessment_id: Union[int, str],
     questions: List[Dict[str, Any]],
     transcript: Dict[str, Any],
     audio_telemetry: Dict[str, Any],
     video_telemetry: Dict[str, Any],
 ) -> AiPrepAssessmentDataORM:
-    existing = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+    if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
+        assessment = get_assessment_by_id_or_uuid(db, assessment_id)
+        if not assessment:
+            raise ValueError(f"Assessment {assessment_id} not found.")
+        numeric_id = assessment.id
+    else:
+        numeric_id = int(assessment_id)
+
+    existing = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == numeric_id).first()
     if existing:
         existing.questions = questions
         existing.transcript = transcript
@@ -241,7 +258,7 @@ def save_assessment_data(
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentDataORM(
-            assessment_id=assessment_id,
+            assessment_id=numeric_id,
             questions=questions,
             transcript=transcript,
             audio_telemetry=audio_telemetry,
@@ -256,7 +273,7 @@ def save_assessment_data(
 
 def create_or_update_assessment_data(
     db: Session,
-    assessment_id: int,
+    assessment_id: Union[int, str],
     questions: List[Dict[str, Any]],
     transcript: Dict[str, Any],
     audio_telemetry: Dict[str, Any],
@@ -265,12 +282,21 @@ def create_or_update_assessment_data(
     return save_assessment_data(db, assessment_id, questions, transcript, audio_telemetry, video_telemetry)
 
 
-def get_assessment_data_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentDataORM]:
-    return db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+def get_assessment_data_by_assessment_id(db: Session, assessment_id: Union[int, str]) -> Optional[AiPrepAssessmentDataORM]:
+    numeric_id = assessment_id
+    if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
+        assessment = get_assessment_by_id_or_uuid(db, assessment_id)
+        if assessment:
+            numeric_id = assessment.id
+        else:
+            return None
+    else:
+        numeric_id = int(assessment_id)
+    return db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == numeric_id).first()
 
 
-def update_assessment_media_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
-    assessment = get_assessment_by_id(db, assessment_id)
+def update_assessment_media_url(db: Session, assessment_id: Union[int, str], youtube_url: str) -> Optional[AiPrepAssessmentORM]:
+    assessment = get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         return None
     assessment.youtube_url = youtube_url
@@ -280,12 +306,12 @@ def update_assessment_media_url(db: Session, assessment_id: int, youtube_url: st
     return assessment
 
 
-def update_assessment_youtube_url(db: Session, assessment_id: int, youtube_url: str) -> Optional[AiPrepAssessmentORM]:
+def update_assessment_youtube_url(db: Session, assessment_id: Union[int, str], youtube_url: str) -> Optional[AiPrepAssessmentORM]:
     return update_assessment_media_url(db, assessment_id, youtube_url)
 
 
-def update_assessment_status(db: Session, assessment_id: int, status: str) -> Optional[AiPrepAssessmentORM]:
-    assessment = get_assessment_by_id(db, assessment_id)
+def update_assessment_status(db: Session, assessment_id: Union[int, str], status: str) -> Optional[AiPrepAssessmentORM]:
+    assessment = get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         return None
     assessment.status = status
@@ -299,10 +325,18 @@ def update_assessment_status(db: Session, assessment_id: int, status: str) -> Op
 
 def save_assessment_report(
     db: Session,
-    assessment_id: int,
+    assessment_id: Union[int, str],
     parsed_report: Dict[str, Any],
 ) -> AiPrepAssessmentReportORM:
-    existing = db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == assessment_id).first()
+    if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
+        assessment = get_assessment_by_id_or_uuid(db, assessment_id)
+        if not assessment:
+            raise ValueError(f"Assessment {assessment_id} not found.")
+        numeric_id = assessment.id
+    else:
+        numeric_id = int(assessment_id)
+
+    existing = db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == numeric_id).first()
     
     audio_eval = parsed_report.get("audio_evaluation")
     video_eval = parsed_report.get("video_evaluation")
@@ -336,7 +370,7 @@ def save_assessment_report(
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentReportORM(
-            assessment_id=assessment_id,
+            assessment_id=numeric_id,
             audio_evaluation=audio_eval,
             video_evaluation=video_eval,
             transcript_evaluation=transcript_eval,
@@ -350,12 +384,21 @@ def save_assessment_report(
     return db_obj
 
 
-def create_or_update_assessment_report(db: Session, assessment_id: int, parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
+def create_or_update_assessment_report(db: Session, assessment_id: Union[int, str], parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
     return save_assessment_report(db, assessment_id, parsed_report)
 
 
-def get_assessment_report_by_assessment_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentReportORM]:
-    return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == assessment_id).first()
+def get_assessment_report_by_assessment_id(db: Session, assessment_id: Union[int, str]) -> Optional[AiPrepAssessmentReportORM]:
+    numeric_id = assessment_id
+    if not isinstance(assessment_id, int) or not str(assessment_id).isdigit():
+        assessment = get_assessment_by_id_or_uuid(db, assessment_id)
+        if assessment:
+            numeric_id = assessment.id
+        else:
+            return None
+    else:
+        numeric_id = int(assessment_id)
+    return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == numeric_id).first()
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +418,6 @@ def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
                 sub_category=item["sub_category"],
                 difficulty_level=item["difficulty_level"],
                 question_text=item["question_text"],
-                ideal_answer_rubric=item["ideal_answer_rubric"],
                 is_active=True,
             )
             db.add(q)

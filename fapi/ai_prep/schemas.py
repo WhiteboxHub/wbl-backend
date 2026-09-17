@@ -259,11 +259,13 @@ UpdateMediaUrlRequest = UpdateMediaURLRequest
 
 class UpdateMediaURLResponse(BaseModel):
     id: int
+    assessment_uuid: Optional[str] = None
     youtube_url: str
 
 
 class TriggerEvaluationResponse(BaseModel):
     id: int
+    assessment_uuid: Optional[str] = None
     status: str = Field(default="EVALUATING")
 
 
@@ -271,6 +273,9 @@ class AssessmentListItem(BaseModel):
     id: int
     assessment_uuid: Optional[str] = None
     candidate_id: Optional[int] = None
+    candidate_name: Optional[str] = None
+    candidate_email: Optional[str] = None
+    score: Optional[float] = None
     assessment_type: str
     media_type: str
     status: str
@@ -293,6 +298,9 @@ class AssessmentDetailResponse(BaseModel):
     id: int
     assessment_uuid: Optional[str] = None
     candidate_id: int
+    candidate_name: Optional[str] = None
+    candidate_email: Optional[str] = None
+    score: Optional[float] = None
     assessment_type: str
     media_type: str
     status: str
@@ -313,6 +321,7 @@ class AssessmentDetailResponse(BaseModel):
 class AssessmentDataResponse(BaseModel):
     id: Optional[int] = None
     assessment_id: int
+    assessment_uuid: Optional[str] = None
     questions: Optional[List[Dict[str, Any]]] = None
     transcript: Optional[Dict[str, Any]] = None
     audio_telemetry: Optional[Dict[str, Any]] = None
@@ -327,6 +336,7 @@ class AssessmentDataResponse(BaseModel):
 class AssessmentReportResponse(BaseModel):
     id: Optional[int] = None
     assessment_id: int
+    assessment_uuid: Optional[str] = None
     audio_evaluation: Optional[Dict[str, Any]] = None
     video_evaluation: Optional[Dict[str, Any]] = None
     transcript_evaluation: Optional[Dict[str, Any]] = None
@@ -426,7 +436,6 @@ class QuestionCreateRequest(BaseModel):
     sub_category: Optional[str] = Field(None, description="Optional subcategory / topic")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
     question_text: str = Field(..., description="Question prompt text")
-    ideal_answer_rubric: Optional[str] = Field(None, description="Evaluation rubric guidelines")
     is_active: bool = Field(default=True, description="Whether question is active")
 
 
@@ -448,7 +457,6 @@ class QuestionUpdateRequest(BaseModel):
     sub_category: Optional[str] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
     question_text: Optional[str] = None
-    ideal_answer_rubric: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -461,7 +469,6 @@ class QuestionResponse(BaseModel):
     sub_category: Optional[str] = None
     difficulty_level: str
     question_text: str
-    ideal_answer_rubric: Optional[str] = None
     is_active: bool
     created_at: Optional[datetime] = None
 
