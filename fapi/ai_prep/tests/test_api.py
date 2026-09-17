@@ -1,16 +1,17 @@
 """Dynamic API Endpoints and Schemas Test Suite for AI Prep Tool."""
 import os
-os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"
+import secrets
+
+os.environ["SECRET_KEY"] = secrets.token_urlsafe(32)
 os.environ["ALGORITHM"] = "HS256"
-os.environ["DB_PASSWORD"] = "mock_password"
+os.environ["DB_PASSWORD"] = secrets.token_urlsafe(16)
 os.environ["DB_HOST"] = "localhost"
 os.environ["DB_NAME"] = "wbl_test"
 os.environ["ENV"] = "test"
 os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
-os.environ["UPSTASH_REDIS_REST_TOKEN"] = "mock_token"
+os.environ["UPSTASH_REDIS_REST_TOKEN"] = secrets.token_urlsafe(32)
 
 import datetime
-import secrets
 from unittest.mock import patch
 
 import pytest
@@ -863,6 +864,18 @@ def test_question_loading_persistence_and_fallback_flow(db_session, seed_candida
         empty_data = res_empty.json()
         assert len(empty_data["questions"]) == 1
         assert "Please introduce yourself and walk us through your background" in empty_data["questions"][0]["question_text"]
+
+
+def test_persistence_failure_raises_error(db_session, seed_candidate):
+    """Verifies that if save_assessment_data fails, creation raises 500 error instead of silently returning 201."""
+    client = get_candidate_client(db_session, 1001)
+    with patch("fapi.ai_prep.crud.save_assessment_data", side_effect=RuntimeError("DB Write Error")):
+        res = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+        )
+        assert res.status_code == 500
+        assert "Failed to persist assessment questions" in res.json()["detail"]
 
 
 

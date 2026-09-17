@@ -448,7 +448,12 @@ def candidate_create_assessment_logic(
             video_telemetry={},
         )
     except Exception as exc:
-        logger.warning(f"Error persisting assessment questions into assessment_data: {exc}")
+        db.rollback()
+        logger.error(f"Failed to persist assessment questions into assessment_data: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to persist assessment questions",
+        )
 
     return CreateAssessmentResponse(
         id=db_assessment.id,
