@@ -1111,7 +1111,8 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
 
         # 4. Automatically run LLM evaluation via Assessment Orchestrator
         try:
-            await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
+            with SessionLocal() as db:
+                await assessment_orchestrator.run_full_evaluation(db=db, assessment_id=assessment_id)
         except Exception as eval_err:
             logger.warning(f"LLM Evaluation skipped or deferred for assessment {assessment_id}: {eval_err}")
 
