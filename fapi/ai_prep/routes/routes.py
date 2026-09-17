@@ -543,11 +543,10 @@ def list_questions(
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: AuthUserORM = Depends(get_current_user),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Fetches questions dynamically from ai_prep_questions DB table."""
-    _ = current_user
     return aiprep_utils.list_questions_from_bank_logic(
         db=db,
         category=category,
@@ -582,11 +581,10 @@ def add_question(
 )
 def get_question(
     question_id: int,
-    current_user: AuthUserORM = Depends(get_current_user),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Fetches a specific question by ID from the question bank."""
-    _ = current_user
     return aiprep_utils.get_question_from_bank_logic(db=db, question_id=question_id)
 
 
