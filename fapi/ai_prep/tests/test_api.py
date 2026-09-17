@@ -110,7 +110,7 @@ def seed_candidate(db_session):
         mktg1 = CandidateMarketingORM(
             candidate_id=1001,
             start_date=datetime.date(2026, 1, 1),
-            resume_url="https://s3.amazonaws.com/resumes/john_doe.pdf",
+            resume_url="https://test-storage.example.com/resumes/test_candidate_resume.pdf",
             candidate_json={"skills": ["Python", "FastAPI", "PyTorch"], "current_title": "AI Engineer"},
         )
         db_session.add(mktg1)
@@ -833,34 +833,23 @@ def test_question_loading_persistence_and_fallback_flow(db_session, seed_candida
     assert len(jd_data["questions"]) == 1
     assert jd_data["questions"][0]["question_text"] == "How do your skills match this specific JD?"
 
-    # 4. Fallback Trigger Test: DB retrieval raises exception
+    # 4. DB retrieval exception → HTTP 422 with user-facing error message.
     with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment", side_effect=RuntimeError("DB Connection error")):
         res_fail = client.post(
             "/api/aiprep/candidate/assessments",
             json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
         )
-        assert res_fail.status_code == 201
-        fail_data = res_fail.json()
-        assert len(fail_data["questions"]) == 1
-        assert "Please introduce yourself and walk us through your background and experience." in fail_data["questions"][0]["question_text"]
+        assert res_fail.status_code == 422
+        assert "could not be loaded" in res_fail.json()["detail"].lower()
 
-        # Verify fallback question is persisted
-        fail_rec = db_session.query(AiPrepAssessmentDataORM).filter(
-            AiPrepAssessmentDataORM.assessment_id == fail_data["id"]
-        ).first()
-        assert fail_rec is not None
-        assert "Please introduce yourself and walk us through your background and experience." in fail_rec.questions[0]["question_text"]
-
-    # 5. Fallback Trigger Test: DB returns no active questions for a category
+    # 5. Empty DB result (no active questions) → HTTP 422 with user-facing error message.
     with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment", return_value=[]):
         res_empty = client.post(
             "/api/aiprep/candidate/assessments",
             json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
         )
-        assert res_empty.status_code == 201
-        empty_data = res_empty.json()
-        assert len(empty_data["questions"]) == 1
-        assert "Please introduce yourself and walk us through your background" in empty_data["questions"][0]["question_text"]
+        assert res_empty.status_code == 422
+        assert "could not be loaded" in res_empty.json()["detail"].lower()
 
 
 def test_persistence_failure_raises_error(db_session, seed_candidate):
@@ -875,8 +864,31 @@ def test_persistence_failure_raises_error(db_session, seed_candidate):
         assert "Failed to persist assessment questions" in res.json()["detail"]
 
 
+def test_question_load_exception_returns_user_error(db_session, seed_candidate):
+    """DB exception during question retrieval returns HTTP 422 with a user-facing error message."""
+    client = get_candidate_client(db_session, 1001)
+    with patch(
+        "fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment",
+        side_effect=RuntimeError("Simulated DB failure"),
+    ):
+        res = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+        )
+    assert res.status_code == 422
+    assert "could not be loaded" in res.json()["detail"].lower()
 
 
-
-
-
+def test_empty_question_bank_returns_user_error(db_session, seed_candidate):
+    """Empty question bank result returns HTTP 422 with a user-facing error message."""
+    client = get_candidate_client(db_session, 1001)
+    with patch(
+        "fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment",
+        return_value=[],
+    ):
+        res = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "TECHNICAL", "media_type": "VIDEO"},
+        )
+    assert res.status_code == 422
+    assert "could not be loaded" in res.json()["detail"].lower()

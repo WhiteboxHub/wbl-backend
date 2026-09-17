@@ -387,8 +387,6 @@ def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAsse
     )
 
 
-FALLBACK_INTRO_QUESTION = "Please introduce yourself and walk us through your background and experience."
-FALLBACK_JD_INTRO_QUESTION = "Please introduce yourself and walk us through your background and experience."
 
 
 def candidate_create_assessment_logic(
@@ -416,26 +414,35 @@ def candidate_create_assessment_logic(
         payload.assessment_type.value
         if hasattr(payload.assessment_type, "value")
         else str(payload.assessment_type)
-    )
+    ).upper().strip()
 
-    # Query initial question from DB via Assessment Orchestrator and Assessment Engine
+    # Load questions from the question bank via the orchestrator.
+    # Both a DB/query exception and an empty result are treated as hard failures.
+    # The assessment must not be created without a question.
     try:
         questions_list = assessment_orchestrator.get_questions_for_assessment(
             db=db,
             assessment_type=assessment_type_str,
         )
     except Exception as exc:
-        logger.warning(f"DB question retrieval failed for {assessment_type_str}: {exc}")
-        questions_list = []
+        logger.error(
+            "Question bank retrieval failed for type '%s': %s",
+            assessment_type_str, exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The question could not be loaded. Please try again or contact support.",
+        )
 
     if not questions_list:
-        fallback_text = FALLBACK_JD_INTRO_QUESTION if assessment_type_str == "JD_INTRO" else FALLBACK_INTRO_QUESTION
-        questions_list = [{
-            "question_id": 1,
-            "question_text": fallback_text,
-            "category": assessment_type_str,
-            "difficulty_level": "EASY",
-        }]
+        logger.warning(
+            "No active questions found in the question bank for type '%s'.",
+            assessment_type_str,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The question could not be loaded. Please try again or contact support.",
+        )
 
     # Persist the assigned question set into ai_prep_assessment_data
     try:
