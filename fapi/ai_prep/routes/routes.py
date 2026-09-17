@@ -635,7 +635,8 @@ def get_chunk_upload_status(
     summary="Media: Assemble Chunks & Process",
 )
 def assemble_media_chunks(
-    assessment_id: str = Query(...),
+    background_tasks: BackgroundTasks,
+    assessment_id: Union[int, str] = Query(...),
     payload: Optional[AssembleMediaRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -646,6 +647,7 @@ def assemble_media_chunks(
         current_user=current_user,
         assessment_id=assessment_id,
         payload=payload,
+        background_tasks=background_tasks,
     )
 
 
@@ -656,7 +658,8 @@ def assemble_media_chunks(
     summary="Media: Direct Single Media Upload",
 )
 async def upload_raw_media(
-    assessment_id: str = Form(...),
+    background_tasks: BackgroundTasks,
+    assessment_id: Union[int, str] = Form(...),
     media_type: str = Form("VIDEO"),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
@@ -671,6 +674,7 @@ async def upload_raw_media(
         media_type=media_type,
         filename=file.filename,
         file_content=content,
+        background_tasks=background_tasks,
     )
 
 
