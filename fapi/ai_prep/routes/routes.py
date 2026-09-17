@@ -2,7 +2,7 @@
 Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
 import logging
-from typing import Optional
+from typing import Optional, Union
 from fastapi import (
     APIRouter,
     Depends,
