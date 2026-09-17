@@ -66,6 +66,8 @@ from fapi.ai_prep.schemas import (
 logger = logging.getLogger(__name__)
 
 STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR", "./storage/aiprep")
+MAX_CHUNK_SIZE = int(os.getenv("AIPREP_MAX_CHUNK_SIZE", 25 * 1024 * 1024))  # 25 MB
+MAX_MEDIA_SIZE = int(os.getenv("AIPREP_MAX_MEDIA_SIZE", 150 * 1024 * 1024))  # 150 MB
 
 
 # ---------------------------------------------------------------------------
@@ -1302,6 +1304,11 @@ async def upload_media_chunk_logic(
     file_content: bytes,
 ) -> ChunkUploadResponse:
     """Uploads sequential WebM media chunk to server storage directory."""
+    if len(file_content) > MAX_CHUNK_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Chunk size ({len(file_content)} bytes) exceeds maximum limit of {MAX_CHUNK_SIZE} bytes.",
+        )
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -1405,6 +1412,11 @@ async def upload_raw_media_logic(
     media_type: str = "video/webm",
 ) -> LocalMediaUploadResponse:
     """Uploads single binary media file directly to disk storage."""
+    if len(file_content) > MAX_MEDIA_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Media file size ({len(file_content)} bytes) exceeds maximum limit of {MAX_MEDIA_SIZE} bytes.",
+        )
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")

@@ -757,6 +757,107 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
         )
 
 
+def test_update_media_url_request_validation():
+    from fapi.ai_prep.schemas import UpdateMediaURLRequest
+    from pydantic import ValidationError
+
+    # Valid URLs
+    req1 = UpdateMediaURLRequest(media_url="https://example.com/video.mp4")
+    assert req1.url == "https://example.com/video.mp4"
+
+    req2 = UpdateMediaURLRequest(youtube_url="https://www.youtube.com/watch?v=12345")
+    assert req2.url == "https://www.youtube.com/watch?v=12345"
+
+    req3 = UpdateMediaURLRequest(media_url="https://example.com/video.mp4", youtube_url="https://www.youtube.com/watch?v=12345")
+    assert req3.url == "https://example.com/video.mp4"
+
+    # Validation bypass attempt: media_url is None while malicious youtube_url is provided
+    with pytest.raises(ValidationError):
+        UpdateMediaURLRequest(media_url=None, youtube_url="javascript:alert(document.cookie)")
+
+    # Malicious media_url
+    with pytest.raises(ValidationError):
+        UpdateMediaURLRequest(media_url="javascript:alert(1)")
+
+    # Malicious youtube_url
+    with pytest.raises(ValidationError):
+        UpdateMediaURLRequest(youtube_url="data:text/html,<script>alert(1)</script>")
+
+    # Non-URL strings
+    with pytest.raises(ValidationError):
+        UpdateMediaURLRequest(media_url="not-a-url")
+
+    with pytest.raises(ValidationError):
+        UpdateMediaURLRequest(youtube_url="not-a-url")
+
+    # Missing both fields
+    with pytest.raises(ValidationError):
+        UpdateMediaURLRequest()
+
+
+def test_get_assessment_by_uuid_malformed():
+    from fapi.ai_prep import crud
+    db = TestingSessionLocal()
+    try:
+        # Invalid UUID formats should return None cleanly without DB exceptions
+        assert crud.get_assessment_by_uuid(db, "non-existent-uuid-99999") is None
+        assert crud.get_assessment_by_uuid(db, "invalid-uuid-format") is None
+        assert crud.get_assessment_by_uuid(db, "") is None
+        assert crud.get_assessment_by_uuid(db, None) is None
+    finally:
+        db.close()
+
+
+def test_internal_workflow_secret_auth():
+    from fapi.utils.auth_dependencies import get_current_user
+    from fastapi import HTTPException
+    from unittest.mock import MagicMock
+    import os
+
+    os.environ["INTERNAL_WORKFLOW_SECRET"] = "test-secure-token-12345"  # pragma: allowlist secret
+    try:
+        req_valid = MagicMock()
+        req_valid.headers = {"X-Internal-Secret": "test-secure-token-12345"}  # pragma: allowlist secret
+        user = get_current_user(request=req_valid, credentials=None, db=None)
+        assert user.role == "admin"
+        assert user.is_admin is True
+
+        req_invalid = MagicMock()
+        req_invalid.headers = {"X-Internal-Secret": "wrong-token"}  # pragma: allowlist secret
+        with pytest.raises(HTTPException) as exc:
+            get_current_user(request=req_invalid, credentials=None, db=None)
+        assert exc.value.status_code == 401
+    finally:
+        os.environ.pop("INTERNAL_WORKFLOW_SECRET", None)
+
+
+def test_question_difficulty_validation():
+    from fapi.ai_prep import crud
+    db = TestingSessionLocal()
+    try:
+        # Create question with valid difficulty
+        q1 = crud.create_question(db, {
+            "category": "TECHNICAL",
+            "sub_category": "Backend",
+            "difficulty_level": "HARD",
+            "question_text": "Explain distributed locks in Redis",
+            "is_active": True,
+        })
+        assert q1.difficulty_level == "HARD"
+
+        # Update with invalid difficulty level ignores the invalid value
+        updated = crud.update_question(db, q1.id, {"difficulty_level": "SUPER_HARD_INVALID"})
+        assert updated.difficulty_level == "HARD"
+
+        # Update with valid difficulty level
+        updated2 = crud.update_question(db, q1.id, {"difficulty_level": "EXPERT"})
+        assert updated2.difficulty_level == "EXPERT"
+    finally:
+        db.close()
+
+
+
+
 
 
 

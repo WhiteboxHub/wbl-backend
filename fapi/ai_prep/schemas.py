@@ -273,15 +273,18 @@ class UpdateMediaURLRequest(BaseModel):
     def validate_urls(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        url = data.get("media_url") if "media_url" in data else data.get("youtube_url")
-        if url is None and "media_url" not in data and "youtube_url" not in data:
+        media_url = data.get("media_url")
+        youtube_url = data.get("youtube_url")
+        if "media_url" not in data and "youtube_url" not in data:
             raise ValueError("media_url or youtube_url is required")
-        if url == "":
-            return data
-        if url:
-            import re
-            if not re.match(r"^https?://[^\s]+$", str(url)):
+        import re
+        url_regex = r"^https?://[^\s]+$"
+        if media_url:
+            if not re.match(url_regex, str(media_url)):
                 raise ValueError("media_url must be a valid URL")
+        if youtube_url:
+            if not re.match(url_regex, str(youtube_url)):
+                raise ValueError("youtube_url must be a valid URL")
         return data
 
     @property
