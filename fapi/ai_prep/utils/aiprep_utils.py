@@ -1065,6 +1065,7 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
     """
     import asyncio
     import logging
+    from fapi.db.database import SessionLocal
     logger = logging.getLogger("wbl.ai_prep.media")
     try:
         logger.info(f"Running Audio Engine for assessment {assessment_id} on {audio_path}...")
