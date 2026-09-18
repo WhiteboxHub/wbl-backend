@@ -1080,10 +1080,13 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
                 logger.error(f"Assessment {assessment_id} not found during audio save.")
                 return
 
+            existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+            existing_questions = existing_data.questions if existing_data and existing_data.questions else []
+
             crud.save_assessment_data(
                 db=db,
                 assessment_id=assessment.id,
-                questions=[],
+                questions=existing_questions,
                 transcript=spoken_content,
                 audio_telemetry=audio_telemetry,
                 video_telemetry={},
