@@ -531,7 +531,7 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
 
     create_res = cand_client.post("/api/aiprep/candidate/assessments", json={
         "candidate_id": 1001,
-        "assessment_type": "SYSTEM_DESIGN",
+        "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
     })
     aid = create_res.json()["id"]
