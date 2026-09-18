@@ -162,9 +162,13 @@ def create_assessment(
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    try:
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_assessment_by_id(db: Session, assessment_id: int) -> Optional[AiPrepAssessmentORM]:
@@ -186,12 +190,18 @@ def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrep
 
 
 def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Optional[AiPrepAssessmentORM]:
-    """Resolves an assessment entity by either integer primary key or UUID string."""
     if identifier is None:
         return None
     ident_str = str(identifier).strip()
+    if not ident_str:
+        return None
     if ident_str.isdigit():
         return get_assessment_by_id(db, int(ident_str))
+    try:
+        import uuid
+        uuid.UUID(ident_str)
+    except ValueError:
+        return None
     return get_assessment_by_uuid(db, ident_str)
 
 
@@ -266,9 +276,13 @@ def save_assessment_data(
         )
         db.add(db_obj)
 
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    try:
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+    except Exception:
+        db.rollback()
+        raise
 
 
 def create_or_update_assessment_data(
@@ -301,9 +315,13 @@ def update_assessment_media_url(db: Session, assessment_id: Union[int, str], you
         return None
     assessment.youtube_url = youtube_url
     assessment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(assessment)
-    return assessment
+    try:
+        db.commit()
+        db.refresh(assessment)
+        return assessment
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_assessment_youtube_url(db: Session, assessment_id: Union[int, str], youtube_url: str) -> Optional[AiPrepAssessmentORM]:
@@ -318,9 +336,13 @@ def update_assessment_status(db: Session, assessment_id: Union[int, str], status
     if status in ("COMPLETED", "FAILED"):
         assessment.completed_at = datetime.utcnow()
     assessment.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(assessment)
-    return assessment
+    try:
+        db.commit()
+        db.refresh(assessment)
+        return assessment
+    except Exception:
+        db.rollback()
+        raise
 
 
 def save_assessment_report(
@@ -379,9 +401,13 @@ def save_assessment_report(
         )
         db.add(db_obj)
 
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    try:
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+    except Exception:
+        db.rollback()
+        raise
 
 
 def create_or_update_assessment_report(db: Session, assessment_id: Union[int, str], parsed_report: Dict[str, Any]) -> AiPrepAssessmentReportORM:
@@ -476,11 +502,22 @@ def create_question(db: Session, question_in: Dict[str, Any]) -> AiPrepQuestionO
         data["sub_category"] = None
     elif cat and str(cat).upper() == "TECHNICAL" and not data.get("sub_category"):
         data["sub_category"] = "General"
+
+    diff = data.get("difficulty_level")
+    if diff and str(diff).upper() in ("EASY", "MEDIUM", "HARD", "EXPERT"):
+        data["difficulty_level"] = str(diff).upper()
+    elif diff:
+        data["difficulty_level"] = "MEDIUM"
+
     db_obj = AiPrepQuestionORM(**data)
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    try:
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) -> Optional[AiPrepQuestionORM]:
@@ -493,13 +530,39 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
         data["sub_category"] = None
     elif target_cat and str(target_cat).upper() == "TECHNICAL" and not data.get("sub_category", q.sub_category):
         data["sub_category"] = "General"
+
+    if "difficulty_level" in data and data["difficulty_level"] is not None:
+        diff_val = str(data["difficulty_level"]).upper()
+        if diff_val in ("EASY", "MEDIUM", "HARD", "EXPERT"):
+            data["difficulty_level"] = diff_val
+        else:
+            del data["difficulty_level"]
+
     for field, val in data.items():
         if val is not None and hasattr(q, field):
             setattr(q, field, val)
     q.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(q)
-    return q
+    try:
+        db.commit()
+        db.refresh(q)
+        return q
+    except Exception:
+        db.rollback()
+        raise
+
+
+def delete_question(db: Session, question_id: int) -> bool:
+    """Permanently deletes a question from ai_prep_questions table."""
+    q = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    if not q:
+        return False
+    try:
+        db.delete(q)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -639,6 +702,10 @@ def save_candidate_resume_json(db: Session, candidate_id: int, resume_data: Dict
     if mktg:
         mktg.candidate_json = resume_data
         mktg.last_mod_datetime = datetime.utcnow()
-        db.commit()
-        return True
+        try:
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            raise
     return False

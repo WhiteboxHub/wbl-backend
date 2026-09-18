@@ -269,4 +269,3 @@ app.include_router(email_smtp_credentials.router, prefix="/api", tags=["Email SM
 app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setup"], dependencies=[Depends(enforce_access)])
 app.include_router(llm_providers.router, prefix="/api", tags=["LLM Providers"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_router, prefix="/api/aiprep", tags=["AI Prep Tool"], dependencies=[Depends(enforce_access)])
-app.include_router(aiprep_router, prefix="/aiprep", tags=["AI Prep Tool Alias"], dependencies=[Depends(enforce_access)])

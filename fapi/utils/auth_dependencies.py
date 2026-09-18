@@ -1,5 +1,7 @@
 import os
+import secrets
 import logging
+from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -16,8 +18,15 @@ ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 
 def decode_token(token: str):
+    secret = os.getenv("SECRET_KEY") or SECRET_KEY
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication secret key is not configured",
+        )
+    algorithm = os.getenv("JWT_ALGORITHM") or ALGORITHM or "HS256"
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return jwt.decode(token, secret, algorithms=[algorithm])
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -27,7 +36,7 @@ def decode_token(token: str):
 
 def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
 ):
     token = None
@@ -41,7 +50,12 @@ def get_current_user(
 
     if not token:
         internal_secret = request.headers.get("X-Internal-Secret")
-        if internal_secret == "super-secret-weekly-workflow-key":
+        expected_internal_secret = os.getenv("INTERNAL_WORKFLOW_SECRET")
+        if (
+            internal_secret
+            and expected_internal_secret
+            and secrets.compare_digest(internal_secret, expected_internal_secret)
+        ):
             class DummyInternalUser:
                 id = 0
                 uname = "scheduler_worker"

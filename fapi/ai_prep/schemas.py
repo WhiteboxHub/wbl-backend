@@ -1,10 +1,13 @@
 """Pydantic Schemas and Master JSON Contracts for AI Prep Tool.
 Fully compatible with Master Contracts and aiprep-backend branch.
 """
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, model_validator, field_validator
+
+URL_REGEX = re.compile(r"^https?://[^\s]+$")
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +236,7 @@ AssessmentResponse = CreateAssessmentResponse
 
 
 class SubmitAssessmentRequest(BaseModel):
+    answers: Optional[List[Dict[str, Any]]] = None
     transcript: Optional[Dict[str, Any]] = None
     audio_telemetry: Optional[Dict[str, Any]] = None
     video_telemetry: Optional[Dict[str, Any]] = None
@@ -240,10 +244,24 @@ class SubmitAssessmentRequest(BaseModel):
 
 
 class SubmitAssessmentDataRequest(BaseModel):
-    questions: List[Dict[str, Any]] = Field(default_factory=list, description="List of questions answered")
-    transcript: Dict[str, Any] = Field(default_factory=dict, description="Transcript payload with full_text and segments")
-    audio_telemetry: Dict[str, Any] = Field(default_factory=dict, description="Audio metrics: words_per_minute, silence_ratio_pct, etc.")
-    video_telemetry: Dict[str, Any] = Field(default_factory=dict, description="Video metrics: face_visible_pct, head_nods_count, etc.")
+    question_id: Optional[Union[str, int]] = None
+    answer: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    timestamp: Optional[Union[str, datetime]] = None
+    questions: Optional[List[Dict[str, Any]]] = None
+    transcript: Optional[Dict[str, Any]] = None
+    audio_telemetry: Optional[Dict[str, Any]] = None
+    video_telemetry: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_payload(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or not data:
+            raise ValueError("Payload cannot be empty")
+        if "duration_seconds" in data:
+            if "question_id" not in data or not data.get("answer"):
+                raise ValueError("Both question_id and answer are required")
+        return data
 
 
 class SubmitAssessmentDataResponse(BaseModel):
@@ -251,7 +269,27 @@ class SubmitAssessmentDataResponse(BaseModel):
 
 
 class UpdateMediaURLRequest(BaseModel):
-    youtube_url: str = Field(..., description="Public/unlisted video or audio streaming URL")
+    media_url: Optional[str] = None
+    youtube_url: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_urls(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        media_url = (data.get("media_url") or "").strip()
+        youtube_url = (data.get("youtube_url") or "").strip()
+        if not media_url and not youtube_url:
+            raise ValueError("media_url or youtube_url is required")
+        if media_url and not URL_REGEX.match(media_url):
+            raise ValueError("Invalid media_url format")
+        if youtube_url and not URL_REGEX.match(youtube_url):
+            raise ValueError("Invalid youtube_url format")
+        return data
+
+    @property
+    def url(self) -> Optional[str]:
+        return (self.media_url or self.youtube_url or "").strip() or None
 
 
 UpdateMediaUrlRequest = UpdateMediaURLRequest
@@ -260,7 +298,8 @@ UpdateMediaUrlRequest = UpdateMediaURLRequest
 class UpdateMediaURLResponse(BaseModel):
     id: int
     assessment_uuid: Optional[str] = None
-    youtube_url: str
+    media_url: Optional[str] = None
+    youtube_url: Optional[str] = None
 
 
 class TriggerEvaluationResponse(BaseModel):
@@ -379,6 +418,7 @@ class ChunkStatusResponse(BaseModel):
 
 
 class AssembleMediaRequest(BaseModel):
+    assessment_id: Optional[Union[int, str]] = Field(None, description="Assessment ID or UUID")
     total_chunks: int = Field(default=1, ge=1, description="Total number of chunks to assemble")
 
 

@@ -12,11 +12,14 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, Tuple, Union
 import numpy as np
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+except ImportError:
+    WhisperModel = Any
 
 logger = logging.getLogger("wbl.ai_prep.audio_engine.stt")
 
-_WHISPER_MODELS: Dict[Tuple[str, str, str], WhisperModel] = {}
+_WHISPER_MODELS: Dict[Tuple[str, str, str], Any] = {}
 _MODEL_LOCK = threading.Lock()
 
 
@@ -24,8 +27,10 @@ def get_whisper_model(
     model_size: str = "base",
     device: str = "cpu",
     compute_type: str = "int8",
-) -> WhisperModel:
+) -> Any:
     """Returns singleton cached instance of WhisperModel keyed by configuration."""
+    if WhisperModel is Any:
+        raise ImportError("faster_whisper is not installed. Please install faster-whisper to use transcription.")
     key = (model_size, device, compute_type)
     with _MODEL_LOCK:
         if key not in _WHISPER_MODELS:
