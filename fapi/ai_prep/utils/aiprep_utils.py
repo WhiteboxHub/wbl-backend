@@ -953,8 +953,6 @@ def employee_get_assessment_report_logic(
 # 3. Media Pipeline, Chunks & Streaming Logic
 # ---------------------------------------------------------------------------
 
-_IN_MEMORY_CHUNK_STORE: Dict[Tuple[int, int], set] = {}
-
 
 async def upload_media_chunk_logic(
     db: Session,
@@ -971,40 +969,38 @@ async def upload_media_chunk_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
     chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_number:04d}.webm")
-    uploaded_set = set()
-    key = (candidate_id, assessment.id)
     try:
         os.makedirs(chunk_dir, exist_ok=True)
         with open(chunk_path, "wb") as f:
             f.write(file_content)
     except (PermissionError, OSError) as err:
-        logging.warning("Could not write media chunk to disk: %s", err)
-        _IN_MEMORY_CHUNK_STORE.setdefault(key, set()).add(chunk_number)
+        logging.error("Could not write media chunk to disk: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to write media chunk to server storage",
+        )
 
+    uploaded = []
     if os.path.exists(chunk_dir):
         try:
             for fname in os.listdir(chunk_dir):
                 if fname.startswith("chunk_") and fname.endswith(".webm"):
                     try:
                         num = int(fname.replace("chunk_", "").replace(".webm", ""))
-                        uploaded_set.add(num)
+                        uploaded.append(num)
                     except ValueError:
                         pass
         except (PermissionError, OSError):
             pass
 
-    if key in _IN_MEMORY_CHUNK_STORE:
-        uploaded_set.update(_IN_MEMORY_CHUNK_STORE[key])
-
-    uploaded_files = [f"chunk_{num:04d}.webm" for num in uploaded_set]
-    is_ready = bool(total_chunks and len(uploaded_files) >= total_chunks)
+    is_ready = bool(total_chunks and len(uploaded) >= total_chunks)
 
     return ChunkUploadResponse(
         chunk_number=chunk_number,
         status="uploaded",
         storage_path=chunk_path,
         bytes_written=len(file_content),
-        total_uploaded=len(uploaded_files),
+        total_uploaded=len(uploaded),
         total_chunks=total_chunks,
         is_ready_for_assembly=is_ready,
         message=f"Chunk {chunk_number} uploaded successfully",
@@ -1024,24 +1020,20 @@ def get_chunk_upload_status_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
-    uploaded_set = set()
+    uploaded = []
     if os.path.exists(chunk_dir):
         try:
             for fname in os.listdir(chunk_dir):
                 if fname.startswith("chunk_") and fname.endswith(".webm"):
                     try:
                         num = int(fname.replace("chunk_", "").replace(".webm", ""))
-                        uploaded_set.add(num)
+                        uploaded.append(num)
                     except ValueError:
                         pass
         except (PermissionError, OSError):
             pass
 
-    key = (candidate_id, assessment.id)
-    if key in _IN_MEMORY_CHUNK_STORE:
-        uploaded_set.update(_IN_MEMORY_CHUNK_STORE[key])
-
-    uploaded = sorted(list(uploaded_set))
+    uploaded.sort()
     missing = [i for i in range(1, total_chunks + 1) if i not in uploaded] if total_chunks else []
     is_complete = bool(total_chunks and len(missing) == 0 and len(uploaded) >= total_chunks)
 
@@ -1173,7 +1165,11 @@ async def upload_raw_media_logic(
         with open(dest_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except (PermissionError, OSError) as err:
-        logging.warning("Could not write raw media file to disk: %s", err)
+        logging.error("Could not write raw media file to disk: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to write media file to server storage",
+        )
 
     if background_tasks:
         background_tasks.add_task(process_audio_and_save_data, assessment.id, dest_path)
