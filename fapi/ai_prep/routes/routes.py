@@ -607,14 +607,14 @@ def update_question(
 @router.delete(
     "/questions/{question_id}",
     tags=["AI Prep - Questions"],
-    summary="Admin: Deactivate Question Bank Item",
+    summary="Admin: Delete Question Bank Item",
 )
 def delete_question(
     question_id: int,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Deactivates/deletes a question from the question bank."""
+    """Permanently deletes a question from the question bank."""
     return aiprep_utils.delete_question_from_bank_logic(db=db, question_id=question_id)
 
 

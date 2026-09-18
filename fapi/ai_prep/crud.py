@@ -190,9 +190,6 @@ def get_assessment_by_uuid(db: Session, assessment_uuid: str) -> Optional[AiPrep
 
 
 def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Optional[AiPrepAssessmentORM]:
-    """Resolves an assessment entity by either integer primary key or UUID string.
-    Raises HTTPException(400) if the identifier contains special characters or invalid format.
-    """
     if identifier is None:
         return None
     ident_str = str(identifier).strip()
@@ -200,12 +197,11 @@ def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Op
         return None
     if ident_str.isdigit():
         return get_assessment_by_id(db, int(ident_str))
-
-    # Reject malformed strings with illegal special characters (e.g. @, #, $, %, ', ", <, >, ;, *, etc.)
-    if any(c in ident_str for c in "@#$%^&*()+=[]{}\\|'\";:<>?/~`, "):
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Invalid assessment ID format")
-
+    try:
+        import uuid
+        uuid.UUID(ident_str)
+    except ValueError:
+        return None
     return get_assessment_by_uuid(db, ident_str)
 
 
@@ -550,6 +546,20 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
         db.commit()
         db.refresh(q)
         return q
+    except Exception:
+        db.rollback()
+        raise
+
+
+def delete_question(db: Session, question_id: int) -> bool:
+    """Permanently deletes a question from ai_prep_questions table."""
+    q = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    if not q:
+        return False
+    try:
+        db.delete(q)
+        db.commit()
+        return True
     except Exception:
         db.rollback()
         raise

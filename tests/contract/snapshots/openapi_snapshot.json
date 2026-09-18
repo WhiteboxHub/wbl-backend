@@ -26219,8 +26219,8 @@
           "AI Prep Tool",
           "AI Prep - Questions"
         ],
-        "summary": "Admin: Deactivate Question Bank Item",
-        "description": "Deactivates/deletes a question from the question bank.",
+        "summary": "Admin: Delete Question Bank Item",
+        "description": "Permanently deletes a question from the question bank.",
         "operationId": "delete_question_api_aiprep_questions__question_id__delete",
         "security": [
           {

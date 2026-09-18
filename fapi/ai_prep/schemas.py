@@ -1,10 +1,13 @@
 """Pydantic Schemas and Master JSON Contracts for AI Prep Tool.
 Fully compatible with Master Contracts and aiprep-backend branch.
 """
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, model_validator, field_validator
+
+URL_REGEX = re.compile(r"^https?://[^\s]+$")
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +258,9 @@ class SubmitAssessmentDataRequest(BaseModel):
     def validate_payload(cls, data: Any) -> Any:
         if not isinstance(data, dict) or not data:
             raise ValueError("Payload cannot be empty")
-        if "duration_seconds" in data and "question_id" not in data and "questions" not in data and "transcript" not in data:
-            raise ValueError("question_id and answer are required")
+        if "duration_seconds" in data:
+            if "question_id" not in data or not data.get("answer"):
+                raise ValueError("Both question_id and answer are required")
         return data
 
 
@@ -273,23 +277,19 @@ class UpdateMediaURLRequest(BaseModel):
     def validate_urls(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        media_url = data.get("media_url")
-        youtube_url = data.get("youtube_url")
-        if "media_url" not in data and "youtube_url" not in data:
+        media_url = (data.get("media_url") or "").strip()
+        youtube_url = (data.get("youtube_url") or "").strip()
+        if not media_url and not youtube_url:
             raise ValueError("media_url or youtube_url is required")
-        import re
-        url_regex = r"^https?://[^\s]+$"
-        if media_url:
-            if not re.match(url_regex, str(media_url)):
-                raise ValueError("media_url must be a valid URL")
-        if youtube_url:
-            if not re.match(url_regex, str(youtube_url)):
-                raise ValueError("youtube_url must be a valid URL")
+        if media_url and not URL_REGEX.match(media_url):
+            raise ValueError("Invalid media_url format")
+        if youtube_url and not URL_REGEX.match(youtube_url):
+            raise ValueError("Invalid youtube_url format")
         return data
 
     @property
     def url(self) -> Optional[str]:
-        return self.media_url if self.media_url is not None else self.youtube_url
+        return (self.media_url or self.youtube_url or "").strip() or None
 
 
 UpdateMediaUrlRequest = UpdateMediaURLRequest

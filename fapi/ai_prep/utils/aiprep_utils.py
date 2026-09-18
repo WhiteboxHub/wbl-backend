@@ -472,6 +472,9 @@ def candidate_list_assessments_logic(
         query = query.filter(AiPrepAssessmentORM.assessment_type == assessment_type)
     if media_type and media_type.lower() != "all":
         query = query.filter(AiPrepAssessmentORM.media_type == media_type)
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+        query = query.filter(AiPrepAssessmentORM.job_description.ilike(search_term))
 
     total = query.count()
     items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
@@ -815,8 +818,8 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
         try:
             with SessionLocal() as err_db:
                 crud.update_assessment_status(err_db, assessment_id, "FAILED")
-        except Exception:
-            pass
+        except Exception as err_exc:
+            logger.error(f"Failed to update assessment status to FAILED: {err_exc}", exc_info=True)
 
 
 def _process_submit_data(db: Session, assessment: AiPrepAssessmentORM, payload: SubmitAssessmentDataRequest):
@@ -835,11 +838,12 @@ def _process_submit_data(db: Session, assessment: AiPrepAssessmentORM, payload: 
         }
         updated = False
         new_questions = list(existing_questions)
-        for idx, q in enumerate(new_questions):
-            if isinstance(q, dict) and str(q.get("question_id")) == str(payload.question_id):
-                new_questions[idx] = q_entry
-                updated = True
-                break
+        if payload.question_id is not None:
+            for idx, q in enumerate(new_questions):
+                if isinstance(q, dict) and q.get("question_id") is not None and str(q.get("question_id")) == str(payload.question_id):
+                    new_questions[idx] = q_entry
+                    updated = True
+                    break
         if not updated:
             new_questions.append(q_entry)
         questions_to_save = new_questions
@@ -1608,11 +1612,14 @@ def get_question_from_bank_logic(db: Session, question_id: int) -> QuestionRespo
 
 
 def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, Any]:
-    """Deactivates/deletes a question from ai_prep_question_bank."""
+    """Permanently deletes a question from ai_prep_questions table."""
     q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
     if not q_row:
         raise HTTPException(status_code=404, detail="Question not found")
-    q_row.is_active = False
-    q_row.updated_at = datetime.utcnow()
-    db.commit()
-    return {"message": "Question deactivated successfully", "id": question_id}
+    try:
+        db.delete(q_row)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"message": "Question deleted successfully", "id": question_id}
