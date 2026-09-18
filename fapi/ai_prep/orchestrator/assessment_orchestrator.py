@@ -125,8 +125,8 @@ def _load_assessment_context(
 
 
 async def run_full_evaluation(
-    db: "Session",
-    assessment_id: Union[int, str],
+    db: Optional["Session"] = None,
+    assessment_id: Union[int, str] = None,
 ) -> Dict[str, Any]:
     """
     Full async evaluation pipeline: load → build contexts → LLM eval → save report.

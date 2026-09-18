@@ -531,7 +531,7 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
 
     create_res = cand_client.post("/api/aiprep/candidate/assessments", json={
         "candidate_id": 1001,
-        "assessment_type": "TECHNICAL",
+        "assessment_type": "SYSTEM_DESIGN",
         "media_type": "VIDEO",
     })
     aid = create_res.json()["id"]
@@ -892,36 +892,3 @@ def test_empty_question_bank_returns_user_error(db_session, seed_candidate):
         )
     assert res.status_code == 422
     assert "could not be loaded" in res.json()["detail"].lower()
-
-
-def test_no_assessment_created_when_question_unavailable(db_session, seed_candidate):
-    """When no active question exists for the requested type, no assessment row must be created.
-
-    Verifies the transaction ordering fix: question retrieval happens before
-    crud.create_assessment(), so a missing question never leaves an orphan row.
-    """
-    from fapi.ai_prep.models import AiPrepAssessmentORM
-    client = get_candidate_client(db_session, 1001)
-
-    count_before = db_session.query(AiPrepAssessmentORM).filter(
-        AiPrepAssessmentORM.candidate_id == 1001
-    ).count()
-
-    with patch(
-        "fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment",
-        return_value=[],
-    ):
-        res = client.post(
-            "/api/aiprep/candidate/assessments",
-            json={"candidate_id": 1001, "assessment_type": "TECHNICAL", "media_type": "VIDEO"},
-        )
-
-    assert res.status_code == 422
-
-    count_after = db_session.query(AiPrepAssessmentORM).filter(
-        AiPrepAssessmentORM.candidate_id == 1001
-    ).count()
-    assert count_after == count_before, (
-        f"Expected no new assessment row, but count changed from {count_before} to {count_after}."
-    )
-

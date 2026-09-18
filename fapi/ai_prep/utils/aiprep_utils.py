@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from fastapi import HTTPException, status, BackgroundTasks
+from fastapi import HTTPException, status, BackgroundTasks, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -1044,12 +1044,86 @@ def get_chunk_upload_status_logic(
         is_ready_for_assembly=is_complete,
     )
 
+async def process_audio_and_save_data(assessment_id: int, audio_path: str):
+    """
+    Background worker: Waits for assembled audio file, runs Audio Engine,
+    persists telemetry into MySQL, and triggers LLM evaluation.
+    """
+    import asyncio
+    import logging
+    from fapi.db.database import SessionLocal
+    from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
+    from fapi.ai_prep import crud
+    from fapi.ai_prep.orchestrator import assessment_orchestrator
+
+    logger = logging.getLogger("wbl.ai_prep.media")
+
+    # 1. Wait for audio file to finish assembling and size to stabilize (up to 30 seconds)
+    max_wait_seconds = 30
+    waited = 0
+    last_size = -1
+    file_ready = False
+
+    while waited < max_wait_seconds:
+        if os.path.exists(audio_path):
+            current_size = os.path.getsize(audio_path)
+            if current_size > 0 and current_size == last_size:
+                file_ready = True
+                break  # File size stabilized, assembly complete
+            last_size = current_size
+        await asyncio.sleep(1)
+        waited += 1
+
+    if not file_ready:
+        logger.error(f"Audio file {audio_path} not ready after {max_wait_seconds}s for assessment {assessment_id}")
+        with SessionLocal() as db:
+            crud.update_assessment_status(db, assessment_id, "FAILED")
+        return
+
+    try:
+        logger.info(f"Running Audio Engine for assessment {assessment_id} on {audio_path}...")
+        
+        # 2. Run Audio Engine (STT + Acoustic DSP + Transcript Metrics)
+        result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, audio_path)
+        spoken_content = result.get("spoken_content", {})
+        audio_telemetry = result.get("audio_telemetry", {})
+
+        # 3. Save into database
+        with SessionLocal() as db:
+            assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+            if not assessment:
+                logger.error(f"Assessment {assessment_id} not found during audio save.")
+                return
+
+            crud.save_assessment_data(
+                db=db,
+                assessment_id=assessment.id,
+                questions=[],
+                transcript=spoken_content,
+                audio_telemetry=audio_telemetry,
+                video_telemetry={},
+            )
+            crud.update_assessment_status(db, assessment.id, "EVALUATING")
+            logger.info(f"Successfully saved audio telemetry for assessment {assessment_id}")
+
+        # 4. Automatically run LLM evaluation via Assessment Orchestrator
+        try:
+                await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
+        except Exception as eval_err:
+            logger.warning(f"LLM Evaluation skipped or deferred for assessment {assessment_id}: {eval_err}")
+
+    except Exception as e:
+        logger.error(f"Error processing audio for assessment {assessment_id}: {e}", exc_info=True)
+        with SessionLocal() as db:
+            crud.update_assessment_status(db, assessment_id, "FAILED")
+
 
 def assemble_media_chunks_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     payload: Optional[AssembleMediaRequest] = None,
+    background_tasks: Optional[BackgroundTasks] = None,
 ) -> AssembleMediaResponse:
     """Concatenates WebM chunks and launches evaluation."""
     _ = payload
@@ -1058,6 +1132,11 @@ def assemble_media_chunks_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+    audio_path = os.path.join(assessment_dir, "audio.wav")
+
+    # Queue the Audio Engine in the background
+    if background_tasks:
+        background_tasks.add_task(process_audio_and_save_data, assessment.id, audio_path)
 
     return AssembleMediaResponse(
         assessment_id=assessment.id,
@@ -1065,10 +1144,10 @@ def assemble_media_chunks_logic(
         assembled_video_path=os.path.join(assessment_dir, "assembled.webm"),
         extracted_audio_path=os.path.join(assessment_dir, "audio.wav"),
         file_size_bytes=0,
-        dispatched_tasks=["ffmpeg_assemble", "audio_extract"],
+        dispatched_tasks=["ffmpeg_assemble", "audio_extract", "audio_engine_telemetry"],
         media_path=os.path.join(assessment_dir, "assembled.webm"),
-        audio_path=os.path.join(assessment_dir, "audio.wav"),
-        message="Media chunks queued for assembly and processing",
+        audio_path=audio_path,
+        message="Media chunks queued for assembly and audio telemetry processing",
     )
 
 
@@ -1077,16 +1156,22 @@ async def upload_raw_media_logic(
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     media_type: str,
-    filename: str,
-    file_content: bytes,
+    file: UploadFile,
+    background_tasks: Optional[BackgroundTasks] = None,
 ) -> LocalMediaUploadResponse:
-    """Uploads single binary media file directly to disk storage."""
+    """Uploads single binary media file directly to disk storage using streaming."""
+    # 1. Normalize and validate media_type
+    normalized_media = (media_type or "AUDIO").upper().strip()
+    if normalized_media not in {"AUDIO", "VIDEO", "AUDIO_ONLY"}:
+        normalized_media = "AUDIO"
+
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+
     safe_filename = os.path.basename(filename or "media.webm")
     dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
     try:
@@ -1096,12 +1181,24 @@ async def upload_raw_media_logic(
     except (PermissionError, OSError) as err:
         logging.warning("Could not write raw media file to disk: %s", err)
 
+    os.makedirs(assessment_dir, exist_ok=True)
+    safe_filename = os.path.basename(file.filename or "media.webm")
+    dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
+
+    # 2. Stream directly to disk using shutil.copyfileobj (zero RAM memory buffering)
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    if background_tasks:
+        background_tasks.add_task(process_audio_and_save_data, assessment.id, dest_path)
+
+
     return LocalMediaUploadResponse(
         success=True,
         assessment_id=assessment.id,
         file_path=dest_path,
-        media_type=media_type,
-        message="Media file uploaded successfully",
+        media_type=normalized_media,
+        message="Media uploaded and audio telemetry queued successfully",
     )
 
 
