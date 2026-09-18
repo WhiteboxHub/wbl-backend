@@ -446,52 +446,54 @@ def test_media_pipeline_complete_flow(db_session, seed_candidate):
     cand_client = get_candidate_client(db_session, 1001)
     emp_client = get_employee_client(db_session, 50)
 
-    # 1. Create assessment
-    create_res = cand_client.post("/api/aiprep/assessments", json={
-        "candidate_id": 1001,
-        "assessment_type": "INTRO",
-        "media_type": "VIDEO",
-    })
-    assert create_res.status_code == 201
-    aid = create_res.json()["id"]
+    from unittest.mock import patch
+    with patch("fapi.ai_prep.utils.aiprep_utils.process_audio_and_save_data"):
+        # 1. Create assessment
+        create_res = cand_client.post("/api/aiprep/assessments", json={
+            "candidate_id": 1001,
+            "assessment_type": "INTRO",
+            "media_type": "VIDEO",
+        })
+        assert create_res.status_code == 201
+        aid = create_res.json()["id"]
 
-    # 2. Upload chunk 1
-    chunk_file = ("chunk_0001.webm", b"RIFF....webm_dummy_chunk_content", "video/webm")
-    upload_res = cand_client.post(
-        "/api/aiprep/media/upload-chunk",
-        data={"assessment_id": aid, "chunk_number": 1, "total_chunks": 2},
-        files={"file": chunk_file},
-    )
-    assert upload_res.status_code == 200
-    assert upload_res.json()["status"] == "uploaded"
+        # 2. Upload chunk 1
+        chunk_file = ("chunk_0001.webm", b"RIFF....webm_dummy_chunk_content", "video/webm")
+        upload_res = cand_client.post(
+            "/api/aiprep/media/upload-chunk",
+            data={"assessment_id": aid, "chunk_number": 1, "total_chunks": 2},
+            files={"file": chunk_file},
+        )
+        assert upload_res.status_code == 200
+        assert upload_res.json()["status"] == "uploaded"
 
-    # 3. Check chunk status
-    status_res = cand_client.get(f"/api/aiprep/media/chunk-status?assessment_id={aid}")
-    assert status_res.status_code == 200
-    assert status_res.json()["uploaded_chunks_count"] >= 1
+        # 3. Check chunk status
+        status_res = cand_client.get(f"/api/aiprep/media/chunk-status?assessment_id={aid}")
+        assert status_res.status_code == 200
+        assert status_res.json()["uploaded_chunks_count"] >= 1
 
-    # 4. Assemble chunks
-    assemble_res = cand_client.post(
-        "/api/aiprep/media/assemble",
-        json={"assessment_id": str(aid), "total_chunks": 2}
-    )
-    assert assemble_res.status_code == 200
-    assert assemble_res.json()["status"] == "ASSEMBLING"
+        # 4. Assemble chunks
+        assemble_res = cand_client.post(
+            "/api/aiprep/media/assemble",
+            json={"assessment_id": str(aid), "total_chunks": 2}
+        )
+        assert assemble_res.status_code == 200
+        assert assemble_res.json()["status"] == "ASSEMBLING"
 
-    # 5. Raw direct media upload
-    raw_file = ("raw_sample.webm", b"raw_single_file_content", "video/webm")
-    raw_res = cand_client.post(
-        "/api/aiprep/media/upload",
-        data={"assessment_id": aid},
-        files={"file": raw_file},
-    )
-    assert raw_res.status_code == 200
-    assert raw_res.json()["success"] is True
+        # 5. Raw direct media upload
+        raw_file = ("raw_sample.webm", b"raw_single_file_content", "video/webm")
+        raw_res = cand_client.post(
+            "/api/aiprep/media/upload",
+            data={"assessment_id": aid},
+            files={"file": raw_file},
+        )
+        assert raw_res.status_code == 200
+        assert raw_res.json()["success"] is True
 
-    # 6. Storage info
-    storage_res = emp_client.get("/api/aiprep/media/storage-info")
-    assert storage_res.status_code == 200
-    assert "total_bytes" in storage_res.json()
+        # 6. Storage info
+        storage_res = emp_client.get("/api/aiprep/media/storage-info")
+        assert storage_res.status_code == 200
+        assert "total_bytes" in storage_res.json()
 
 
 def test_assessment_status_and_streaming(db_session, seed_candidate):

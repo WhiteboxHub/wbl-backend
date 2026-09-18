@@ -26443,18 +26443,23 @@
           {
             "name": "assessment_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "anyOf": [
+                {
+                  "type": "string"
+                },
                 {
                   "type": "integer"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
+              "description": "Optional assessment ID query param if not in JSON body",
               "title": "Assessment Id"
-            }
+            },
+            "description": "Optional assessment ID query param if not in JSON body"
           }
         ],
         "requestBody": {

@@ -702,8 +702,8 @@ def get_chunk_upload_status(
 )
 def assemble_media_chunks(
     background_tasks: BackgroundTasks,
-    assessment_id: Union[int, str] = Query(...),
     payload: Optional[AssembleMediaRequest] = None,
+    assessment_id: Optional[Union[int, str]] = Query(None, description="Optional assessment ID query param if not in JSON body"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
