@@ -1171,23 +1171,16 @@ async def upload_raw_media_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-
-    safe_filename = os.path.basename(filename or "media.webm")
-    dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
-    try:
-        os.makedirs(assessment_dir, exist_ok=True)
-        with open(dest_path, "wb") as f:
-            f.write(file_content)
-    except (PermissionError, OSError) as err:
-        logging.warning("Could not write raw media file to disk: %s", err)
-
-    os.makedirs(assessment_dir, exist_ok=True)
     safe_filename = os.path.basename(file.filename or "media.webm")
     dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
 
     # 2. Stream directly to disk using shutil.copyfileobj (zero RAM memory buffering)
-    with open(dest_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        os.makedirs(assessment_dir, exist_ok=True)
+        with open(dest_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except (PermissionError, OSError) as err:
+        logging.warning("Could not write raw media file to disk: %s", err)
 
     if background_tasks:
         background_tasks.add_task(process_audio_and_save_data, assessment.id, dest_path)
