@@ -67,11 +67,13 @@ def calculate_mean_pitch_hz(
         # Outlier rejection via Interquartile Range (IQR)
         q25, q75 = np.percentile(valid_f0, [25, 75])
         iqr = q75 - q25
-        lower_bound = q25 - (AUDIO_CONFIG.IQR_MULTIPLIER * iqr)
-        upper_bound = q75 + (AUDIO_CONFIG.IQR_MULTIPLIER * iqr)
-
-        filtered_f0 = valid_f0[(valid_f0 >= lower_bound) & (valid_f0 <= upper_bound)]
-        if len(filtered_f0) == 0:
+        if iqr > 1e-5:
+            lower_bound = q25 - (AUDIO_CONFIG.IQR_MULTIPLIER * iqr)
+            upper_bound = q75 + (AUDIO_CONFIG.IQR_MULTIPLIER * iqr)
+            filtered_f0 = valid_f0[(valid_f0 >= lower_bound) & (valid_f0 <= upper_bound)]
+            if len(filtered_f0) == 0:
+                filtered_f0 = valid_f0
+        else:
             filtered_f0 = valid_f0
 
         return round(float(np.mean(filtered_f0)), 1)

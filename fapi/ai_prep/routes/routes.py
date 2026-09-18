@@ -665,15 +665,13 @@ async def upload_raw_media(
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads single binary media file directly to disk storage."""
-    content = await file.read()
+    """Uploads single binary media file directly to disk storage using streaming."""
     return await aiprep_utils.upload_raw_media_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         media_type=media_type,
-        filename=file.filename,
-        file_content=content,
+        file=file,
         background_tasks=background_tasks,
     )
 

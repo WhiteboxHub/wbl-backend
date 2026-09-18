@@ -27357,7 +27357,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_api_aiprep_media_upload_post",
         "requestBody": {
           "content": {
@@ -30230,7 +30230,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_aiprep_media_upload_post",
         "requestBody": {
           "content": {

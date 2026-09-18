@@ -98,7 +98,8 @@ def calculate_filler_rate_per_min(
         return 0.0, 0, {}
 
     clean_text = transcript_text.lower()
-    words = re.findall(r"\b[a-z']+\b", clean_text)
+    normalized_text = re.sub(r"[^\w\s']", " ", clean_text)
+    words = re.findall(r"\b[a-z']+\b", normalized_text)
     total_words = len(words)
 
     if total_words == 0:
@@ -118,8 +119,8 @@ def calculate_filler_rate_per_min(
         if cm in TRANSCRIPT_CONFIG.PURE_FILLERS:
             continue  # Prevent double-counting if present in both
 
-        pattern = r"\b" + re.escape(cm) + r"\b"
-        matches = re.findall(pattern, clean_text)
+        pattern = r"\b" + r"\s+".join(re.escape(word) for word in cm.split()) + r"\b"
+        matches = re.findall(pattern, normalized_text)
         if matches:
             count = len(matches)
             # For any single-word contextual marker, only flag frequent repetition (>2)

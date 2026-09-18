@@ -9,6 +9,7 @@ import string
 import tempfile
 import threading
 import logging
+import time
 from typing import Dict, Any, List, Optional, Tuple, Union
 import numpy as np
 from faster_whisper import WhisperModel
@@ -215,13 +216,21 @@ def transcribe_audio(
         device=device,
         compute_type=compute_type,
     )
-
-
 class LiveSTTStore:
-    """Thread-safe in-memory session manager for live chunked STT streams."""
+    """Thread-safe in-memory session manager for live chunked STT streams with TTL auto-cleanup."""
     _lock = threading.Lock()
     _sessions: Dict[Union[int, str], Dict[str, Any]] = {}
-
+    SESSION_TTL_SECONDS: float = 3600.0  # 1 hour auto-expiration
+    @classmethod
+    def _cleanup_expired_sessions_locked(cls) -> None:
+        """Evicts sessions that have been inactive for more than SESSION_TTL_SECONDS."""
+        now = time.time()
+        expired = [
+            sid for sid, data in cls._sessions.items()
+            if now - data.get("last_updated", now) > cls.SESSION_TTL_SECONDS
+        ]
+        for sid in expired:
+            del cls._sessions[sid]
     @classmethod
     def add_chunk(
         cls,
@@ -236,15 +245,16 @@ class LiveSTTStore:
             chunk_start_time=chunk_start_time,
             model_size=model_size,
         )
-
         with cls._lock:
+            # Auto-purge abandoned sessions
+            cls._cleanup_expired_sessions_locked()
             if session_id not in cls._sessions:
                 cls._sessions[session_id] = {
                     "word_timestamps": [],
                     "chunks_count": 0,
                     "last_chunk_start": 0.0,
+                    "last_updated": time.time(),
                 }
-
             session = cls._sessions[session_id]
             merged_words = merge_word_timestamps(
                 existing_words=session["word_timestamps"],
@@ -253,10 +263,9 @@ class LiveSTTStore:
             session["word_timestamps"] = merged_words
             session["chunks_count"] += 1
             session["last_chunk_start"] = chunk_start_time
-
+            session["last_updated"] = time.time()
             live_transcript = " ".join(w["word"] for w in merged_words).strip()
             session["live_transcript"] = live_transcript
-
         return {
             "session_id": session_id,
             "chunk_index": chunk_index,
