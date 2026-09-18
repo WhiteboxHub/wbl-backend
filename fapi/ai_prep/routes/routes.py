@@ -3,7 +3,7 @@ Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backen
 Standardized canonical REST endpoints under /api/aiprep with unified JWT authentication.
 """
 import logging
-from typing import Optional
+from typing import Optional, Union
 from fastapi import (
     APIRouter,
     Depends,
@@ -626,22 +626,24 @@ def delete_question(
     "/media/upload",
     response_model=LocalMediaUploadResponse,
     tags=["AI Prep - Media"],
-    summary="Media: Direct Video/Audio File Upload",
+    summary="Media: Direct Single Media Upload",
 )
 async def upload_raw_media(
-    assessment_id: str = Form(...),
+    background_tasks: BackgroundTasks,
+    assessment_id: Union[int, str] = Form(...),
+    media_type: str = Form("VIDEO"),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Accepts full recording file from browser and saves to storage directory."""
-    content = await file.read()
+    """Uploads single binary media file directly to disk storage using streaming."""
     return await aiprep_utils.upload_raw_media_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
-        filename=file.filename or "recording.webm",
-        file_content=content,
+        media_type=media_type,
+        file=file,
+        background_tasks=background_tasks,
     )
 
 
@@ -699,8 +701,9 @@ def get_chunk_upload_status(
     summary="Media: Assemble Uploaded Chunks",
 )
 def assemble_media_chunks(
+    background_tasks: BackgroundTasks,
+    assessment_id: Union[int, str] = Query(...),
     payload: Optional[AssembleMediaRequest] = None,
-    assessment_id: Optional[str] = Query(None, description="Optional assessment ID query param if not in JSON body"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -713,9 +716,8 @@ def assemble_media_chunks(
         current_user=current_user,
         assessment_id=target_aid,
         payload=payload,
+        background_tasks=background_tasks,
     )
-
-
 @router.get(
     "/media/storage-info",
     response_model=StorageInfoResponse,

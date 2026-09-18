@@ -26267,8 +26267,8 @@
           "AI Prep Tool",
           "AI Prep - Media"
         ],
-        "summary": "Media: Direct Video/Audio File Upload",
-        "description": "Accepts full recording file from browser and saves to storage directory.",
+        "summary": "Media: Direct Single Media Upload",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_api_aiprep_media_upload_post",
         "requestBody": {
           "content": {
@@ -26443,20 +26443,18 @@
           {
             "name": "assessment_id",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "integer"
                 },
                 {
-                  "type": "null"
+                  "type": "string"
                 }
               ],
-              "description": "Optional assessment ID query param if not in JSON body",
               "title": "Assessment Id"
-            },
-            "description": "Optional assessment ID query param if not in JSON body"
+            }
           }
         ],
         "requestBody": {
@@ -30833,8 +30831,20 @@
       "Body_upload_raw_media_api_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "title": "Assessment Id"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type",
+            "default": "VIDEO"
           },
           "file": {
             "type": "string",
