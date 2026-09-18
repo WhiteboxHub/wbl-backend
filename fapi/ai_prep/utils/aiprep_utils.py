@@ -137,68 +137,6 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
 # Dynamic DB & Authorization Helpers
 # ---------------------------------------------------------------------------
 
-def _normalize_skills(raw_skills: Any) -> List[str]:
-    """Extracts and flattens skills into a clean, deduplicated list of strings."""
-    if not raw_skills:
-        return []
-    extracted: List[str] = []
-
-    def _add(val: Any):
-        if val is None:
-            return
-        if isinstance(val, str):
-            s = val.strip()
-            if s and s not in extracted:
-                extracted.append(s)
-        elif isinstance(val, (int, float)):
-            s = str(val).strip()
-            if s and s not in extracted:
-                extracted.append(s)
-
-    if isinstance(raw_skills, str):
-        for part in raw_skills.replace("\n", ",").split(","):
-            _add(part)
-    elif isinstance(raw_skills, dict):
-        for k, v in raw_skills.items():
-            if isinstance(v, list):
-                for sub in v:
-                    if isinstance(sub, str):
-                        _add(sub)
-                    elif isinstance(sub, dict):
-                        _add(sub.get("name") or sub.get("skill"))
-                        if isinstance(sub.get("keywords"), list):
-                            for kw in sub["keywords"]:
-                                _add(kw)
-            elif isinstance(v, str):
-                _add(v)
-            else:
-                _add(k)
-    elif isinstance(raw_skills, list):
-        for item in raw_skills:
-            if isinstance(item, str):
-                _add(item)
-            elif isinstance(item, dict):
-                name = item.get("name") or item.get("skill") or item.get("title")
-                keywords = item.get("keywords")
-                if isinstance(keywords, list) and keywords:
-                    if name:
-                        _add(name)
-                    for kw in keywords:
-                        _add(kw)
-                elif name:
-                    _add(name)
-                else:
-                    for v in item.values():
-                        if isinstance(v, str):
-                            _add(v)
-                        elif isinstance(v, list):
-                            for sub in v:
-                                _add(sub)
-            else:
-                _add(str(item))
-    return extracted
-
-
 def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: Optional[int] = None) -> int:
     """Enforces authorization: Candidates can only access their own ID; employees can specify any."""
     uname = (getattr(current_user, "uname", "") or "").lower()
@@ -260,13 +198,8 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
             "message": "Candidate has not uploaded or synced a resume.",
         }
 
-    skills: List[str] = []
     current_title: Optional[str] = None
     if parsed_json:
-        raw_skills = parsed_json.get("skills")
-        if not raw_skills and isinstance(parsed_json.get("personal"), dict):
-            raw_skills = parsed_json.get("personal", {}).get("skills")
-        skills = _normalize_skills(raw_skills)
         raw_title = parsed_json.get("current_title") or parsed_json.get("title")
         current_title = str(raw_title).strip() if raw_title else None
 
@@ -276,7 +209,7 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
         "has_parsed_json": bool(parsed_json),
         "candidate_name": candidate_name,
         "current_title": current_title,
-        "skills": skills,
+        "skills": [],
         "message": "Candidate resume is verified and ready.",
     }
 
@@ -400,25 +333,15 @@ def candidate_create_assessment_logic(
     candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
     _verify_prerequisites(db, candidate_id)
 
-    db_assessment = crud.create_assessment(
-        db=db,
-        candidate_id=candidate_id,
-        assessment_type=payload.assessment_type.value if hasattr(payload.assessment_type, "value") else str(payload.assessment_type),
-        media_type=payload.media_type.value if hasattr(payload.media_type, "value") else str(payload.media_type),
-        job_description=payload.job_description,
-        ip_address=ip_address,
-        user_agent=user_agent,
-    )
-
     assessment_type_str = (
         payload.assessment_type.value
         if hasattr(payload.assessment_type, "value")
         else str(payload.assessment_type)
     ).upper().strip()
 
-    # Load questions from the question bank via the orchestrator.
-    # Both a DB/query exception and an empty result are treated as hard failures.
-    # The assessment must not be created without a question.
+    # Step 1: Retrieve the question BEFORE creating the assessment row.
+    # If no active question exists for this type the function must fail here
+    # without creating any database record.
     try:
         questions_list = assessment_orchestrator.get_questions_for_assessment(
             db=db,
@@ -444,7 +367,18 @@ def candidate_create_assessment_logic(
             detail="The question could not be loaded. Please try again or contact support.",
         )
 
-    # Persist the assigned question set into ai_prep_assessment_data
+    # Step 2: Question confirmed — now create the assessment record.
+    db_assessment = crud.create_assessment(
+        db=db,
+        candidate_id=candidate_id,
+        assessment_type=assessment_type_str,
+        media_type=payload.media_type.value if hasattr(payload.media_type, "value") else str(payload.media_type),
+        job_description=payload.job_description,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
+    # Step 3: Persist the selected question snapshot into ai_prep_assessment_data.
     try:
         crud.save_assessment_data(
             db=db,
@@ -1019,6 +953,9 @@ def employee_get_assessment_report_logic(
 # 3. Media Pipeline, Chunks & Streaming Logic
 # ---------------------------------------------------------------------------
 
+_IN_MEMORY_CHUNK_STORE: Dict[Tuple[int, int], set] = {}
+
+
 async def upload_media_chunk_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -1032,15 +969,20 @@ async def upload_media_chunk_logic(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
-    os.makedirs(chunk_dir, exist_ok=True)
     chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_number:04d}.webm")
+    uploaded_files = []
+    key = (candidate_id, assessment.id)
+    try:
+        os.makedirs(chunk_dir, exist_ok=True)
+        with open(chunk_path, "wb") as f:
+            f.write(file_content)
+        uploaded_files = [f for f in os.listdir(chunk_dir) if f.startswith("chunk_") and f.endswith(".webm")]
+    except (PermissionError, OSError) as err:
+        logging.warning("Could not write media chunk to disk: %s", err)
+        _IN_MEMORY_CHUNK_STORE.setdefault(key, set()).add(chunk_number)
+        uploaded_files = [f"chunk_{num:04d}.webm" for num in _IN_MEMORY_CHUNK_STORE[key]]
 
-    with open(chunk_path, "wb") as f:
-        f.write(file_content)
-
-    uploaded_files = [f for f in os.listdir(chunk_dir) if f.startswith("chunk_") and f.endswith(".webm")]
     is_ready = bool(total_chunks and len(uploaded_files) >= total_chunks)
 
     return ChunkUploadResponse(
@@ -1068,16 +1010,24 @@ def get_chunk_upload_status_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
-    uploaded = []
+    uploaded_set = set()
     if os.path.exists(chunk_dir):
-        for fname in os.listdir(chunk_dir):
-            if fname.startswith("chunk_") and fname.endswith(".webm"):
-                try:
-                    num = int(fname.replace("chunk_", "").replace(".webm", ""))
-                    uploaded.append(num)
-                except ValueError:
-                    pass
-    uploaded.sort()
+        try:
+            for fname in os.listdir(chunk_dir):
+                if fname.startswith("chunk_") and fname.endswith(".webm"):
+                    try:
+                        num = int(fname.replace("chunk_", "").replace(".webm", ""))
+                        uploaded_set.add(num)
+                    except ValueError:
+                        pass
+        except (PermissionError, OSError):
+            pass
+
+    key = (candidate_id, assessment.id)
+    if key in _IN_MEMORY_CHUNK_STORE:
+        uploaded_set.update(_IN_MEMORY_CHUNK_STORE[key])
+
+    uploaded = sorted(list(uploaded_set))
     missing = [i for i in range(1, total_chunks + 1) if i not in uploaded] if total_chunks else []
     is_complete = bool(total_chunks and len(missing) == 0 and len(uploaded) >= total_chunks)
 
@@ -1137,12 +1087,14 @@ async def upload_raw_media_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    os.makedirs(assessment_dir, exist_ok=True)
     safe_filename = os.path.basename(filename or "media.webm")
     dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
-
-    with open(dest_path, "wb") as f:
-        f.write(file_content)
+    try:
+        os.makedirs(assessment_dir, exist_ok=True)
+        with open(dest_path, "wb") as f:
+            f.write(file_content)
+    except (PermissionError, OSError) as err:
+        logging.warning("Could not write raw media file to disk: %s", err)
 
     return LocalMediaUploadResponse(
         success=True,
