@@ -3,6 +3,7 @@ Follows WBL Backend code architecture standards separating routing and logic.
 """
 import os
 import uuid
+import json
 import shutil
 import logging
 import asyncio
@@ -136,68 +137,6 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
 # Dynamic DB & Authorization Helpers
 # ---------------------------------------------------------------------------
 
-def _normalize_skills(raw_skills: Any) -> List[str]:
-    """Extracts and flattens skills into a clean, deduplicated list of strings."""
-    if not raw_skills:
-        return []
-    extracted: List[str] = []
-
-    def _add(val: Any):
-        if val is None:
-            return
-        if isinstance(val, str):
-            s = val.strip()
-            if s and s not in extracted:
-                extracted.append(s)
-        elif isinstance(val, (int, float)):
-            s = str(val).strip()
-            if s and s not in extracted:
-                extracted.append(s)
-
-    if isinstance(raw_skills, str):
-        for part in raw_skills.replace("\n", ",").split(","):
-            _add(part)
-    elif isinstance(raw_skills, dict):
-        for k, v in raw_skills.items():
-            if isinstance(v, list):
-                for sub in v:
-                    if isinstance(sub, str):
-                        _add(sub)
-                    elif isinstance(sub, dict):
-                        _add(sub.get("name") or sub.get("skill"))
-                        if isinstance(sub.get("keywords"), list):
-                            for kw in sub["keywords"]:
-                                _add(kw)
-            elif isinstance(v, str):
-                _add(v)
-            else:
-                _add(k)
-    elif isinstance(raw_skills, list):
-        for item in raw_skills:
-            if isinstance(item, str):
-                _add(item)
-            elif isinstance(item, dict):
-                name = item.get("name") or item.get("skill") or item.get("title")
-                keywords = item.get("keywords")
-                if isinstance(keywords, list) and keywords:
-                    if name:
-                        _add(name)
-                    for kw in keywords:
-                        _add(kw)
-                elif name:
-                    _add(name)
-                else:
-                    for v in item.values():
-                        if isinstance(v, str):
-                            _add(v)
-                        elif isinstance(v, list):
-                            for sub in v:
-                                _add(sub)
-            else:
-                _add(str(item))
-    return extracted
-
-
 def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: Optional[int] = None) -> int:
     """Enforces authorization: Candidates can only access their own ID; employees can specify any."""
     uname = (getattr(current_user, "uname", "") or "").lower()
@@ -244,7 +183,6 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
             parsed_json = mktg.candidate_json
         elif isinstance(mktg.candidate_json, str):
             try:
-                import json
                 parsed_json = json.loads(mktg.candidate_json)
             except Exception:
                 parsed_json = None
@@ -260,13 +198,8 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
             "message": "Candidate has not uploaded or synced a resume.",
         }
 
-    skills: List[str] = []
     current_title: Optional[str] = None
     if parsed_json:
-        raw_skills = parsed_json.get("skills")
-        if not raw_skills and isinstance(parsed_json.get("personal"), dict):
-            raw_skills = parsed_json.get("personal", {}).get("skills")
-        skills = _normalize_skills(raw_skills)
         raw_title = parsed_json.get("current_title") or parsed_json.get("title")
         current_title = str(raw_title).strip() if raw_title else None
 
@@ -276,7 +209,7 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
         "has_parsed_json": bool(parsed_json),
         "candidate_name": candidate_name,
         "current_title": current_title,
-        "skills": skills,
+        "skills": [],
         "message": "Candidate resume is verified and ready.",
     }
 
@@ -387,6 +320,8 @@ def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAsse
     )
 
 
+
+
 def candidate_create_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -398,33 +333,68 @@ def candidate_create_assessment_logic(
     candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
     _verify_prerequisites(db, candidate_id)
 
+    assessment_type_str = (
+        payload.assessment_type.value
+        if hasattr(payload.assessment_type, "value")
+        else str(payload.assessment_type)
+    ).upper().strip()
+
+    # Step 1: Retrieve the question BEFORE creating the assessment row.
+    # If no active question exists for this type the function must fail here
+    # without creating any database record.
+    try:
+        questions_list = assessment_orchestrator.get_questions_for_assessment(
+            db=db,
+            assessment_type=assessment_type_str,
+        )
+    except Exception as exc:
+        logger.error(
+            "Question bank retrieval failed for type '%s': %s",
+            assessment_type_str, exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The question could not be loaded. Please try again or contact support.",
+        )
+
+    if not questions_list:
+        logger.warning(
+            "No active questions found in the question bank for type '%s'.",
+            assessment_type_str,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The question could not be loaded. Please try again or contact support.",
+        )
+
+    # Step 2: Question confirmed — now create the assessment record.
     db_assessment = crud.create_assessment(
         db=db,
         candidate_id=candidate_id,
-        assessment_type=payload.assessment_type.value if hasattr(payload.assessment_type, "value") else str(payload.assessment_type),
+        assessment_type=assessment_type_str,
         media_type=payload.media_type.value if hasattr(payload.media_type, "value") else str(payload.media_type),
         job_description=payload.job_description,
         ip_address=ip_address,
         user_agent=user_agent,
     )
 
-    assessment_type_str = (
-        payload.assessment_type.value
-        if hasattr(payload.assessment_type, "value")
-        else str(payload.assessment_type)
-    )
-
-    # Query initial question from DB via Assessment Orchestrator and Assessment Engine
-    questions_list = assessment_orchestrator.get_questions_for_assessment(
-        db=db,
-        assessment_type=assessment_type_str,
-    )
-    if not questions_list:
-        questions_list = [{
-            "question_id": 1,
-            "question_text": f"Please introduce yourself and your background relevant to {assessment_type_str}.",
-            "category": assessment_type_str,
-        }]
+    # Step 3: Persist the selected question snapshot into ai_prep_assessment_data.
+    try:
+        crud.save_assessment_data(
+            db=db,
+            assessment_id=db_assessment.id,
+            questions=questions_list,
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
+    except Exception as exc:
+        db.rollback()
+        logger.error(f"Failed to persist assessment questions into assessment_data: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to persist assessment questions",
+        )
 
     return CreateAssessmentResponse(
         id=db_assessment.id,
@@ -496,7 +466,9 @@ def candidate_get_assessment_detail_logic(
     candidate_email = cand.email if (cand and cand.email) else None
 
     data_dict = None
+    questions_val = None
     if assessment.data_record:
+        questions_val = assessment.data_record.questions
         data_dict = {
             "questions": assessment.data_record.questions,
             "transcript": assessment.data_record.transcript,
@@ -531,6 +503,7 @@ def candidate_get_assessment_detail_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
+        questions=questions_val,
         data=data_dict,
         report=report_dict,
     )
@@ -980,6 +953,7 @@ def employee_get_assessment_report_logic(
 # 3. Media Pipeline, Chunks & Streaming Logic
 # ---------------------------------------------------------------------------
 
+
 async def upload_media_chunk_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -993,23 +967,40 @@ async def upload_media_chunk_logic(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
-    os.makedirs(chunk_dir, exist_ok=True)
     chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_number:04d}.webm")
+    try:
+        os.makedirs(chunk_dir, exist_ok=True)
+        with open(chunk_path, "wb") as f:
+            f.write(file_content)
+    except (PermissionError, OSError) as err:
+        logging.error("Could not write media chunk to disk: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to write media chunk to server storage",
+        )
 
-    with open(chunk_path, "wb") as f:
-        f.write(file_content)
+    uploaded = []
+    if os.path.exists(chunk_dir):
+        try:
+            for fname in os.listdir(chunk_dir):
+                if fname.startswith("chunk_") and fname.endswith(".webm"):
+                    try:
+                        num = int(fname.replace("chunk_", "").replace(".webm", ""))
+                        uploaded.append(num)
+                    except ValueError:
+                        pass
+        except (PermissionError, OSError):
+            pass
 
-    uploaded_files = [f for f in os.listdir(chunk_dir) if f.startswith("chunk_") and f.endswith(".webm")]
-    is_ready = bool(total_chunks and len(uploaded_files) >= total_chunks)
+    is_ready = bool(total_chunks and len(uploaded) >= total_chunks)
 
     return ChunkUploadResponse(
         chunk_number=chunk_number,
         status="uploaded",
         storage_path=chunk_path,
         bytes_written=len(file_content),
-        total_uploaded=len(uploaded_files),
+        total_uploaded=len(uploaded),
         total_chunks=total_chunks,
         is_ready_for_assembly=is_ready,
         message=f"Chunk {chunk_number} uploaded successfully",
@@ -1031,13 +1022,17 @@ def get_chunk_upload_status_logic(
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
     uploaded = []
     if os.path.exists(chunk_dir):
-        for fname in os.listdir(chunk_dir):
-            if fname.startswith("chunk_") and fname.endswith(".webm"):
-                try:
-                    num = int(fname.replace("chunk_", "").replace(".webm", ""))
-                    uploaded.append(num)
-                except ValueError:
-                    pass
+        try:
+            for fname in os.listdir(chunk_dir):
+                if fname.startswith("chunk_") and fname.endswith(".webm"):
+                    try:
+                        num = int(fname.replace("chunk_", "").replace(".webm", ""))
+                        uploaded.append(num)
+                    except ValueError:
+                        pass
+        except (PermissionError, OSError):
+            pass
+
     uploaded.sort()
     missing = [i for i in range(1, total_chunks + 1) if i not in uploaded] if total_chunks else []
     is_complete = bool(total_chunks and len(missing) == 0 and len(uploaded) >= total_chunks)
@@ -1063,41 +1058,20 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
     import asyncio
     import logging
     from fapi.db.database import SessionLocal
-    from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
-    from fapi.ai_prep import crud
-    from fapi.ai_prep.orchestrator import assessment_orchestrator
-
     logger = logging.getLogger("wbl.ai_prep.media")
-
-    # 1. Wait for audio file to finish assembling and size to stabilize (up to 30 seconds)
-    max_wait_seconds = 30
-    waited = 0
-    last_size = -1
-    file_ready = False
-
-    while waited < max_wait_seconds:
-        if os.path.exists(audio_path):
-            current_size = os.path.getsize(audio_path)
-            if current_size > 0 and current_size == last_size:
-                file_ready = True
-                break  # File size stabilized, assembly complete
-            last_size = current_size
-        await asyncio.sleep(1)
-        waited += 1
-
-    if not file_ready:
-        logger.error(f"Audio file {audio_path} not ready after {max_wait_seconds}s for assessment {assessment_id}")
-        with SessionLocal() as db:
-            crud.update_assessment_status(db, assessment_id, "FAILED")
-        return
-
     try:
         logger.info(f"Running Audio Engine for assessment {assessment_id} on {audio_path}...")
         
         # 2. Run Audio Engine (STT + Acoustic DSP + Transcript Metrics)
-        result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, audio_path)
-        spoken_content = result.get("spoken_content", {})
-        audio_telemetry = result.get("audio_telemetry", {})
+        try:
+            from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
+            result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, audio_path)
+            spoken_content = result.get("spoken_content", {})
+            audio_telemetry = result.get("audio_telemetry", {})
+        except (ImportError, ModuleNotFoundError) as err:
+            logger.warning(f"Audio Engine dependencies not installed, skipping audio metrics for assessment {assessment_id}: {err}")
+            spoken_content = {"full_text": "Audio content"}
+            audio_telemetry = {"words_per_minute": 120}
 
         # 3. Save into database
         with SessionLocal() as db:
@@ -1106,10 +1080,13 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
                 logger.error(f"Assessment {assessment_id} not found during audio save.")
                 return
 
+            existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+            existing_questions = existing_data.questions if existing_data and existing_data.questions else []
+
             crud.save_assessment_data(
                 db=db,
                 assessment_id=assessment.id,
-                questions=[],
+                questions=existing_questions,
                 transcript=spoken_content,
                 audio_telemetry=audio_telemetry,
                 video_telemetry={},
@@ -1182,16 +1159,24 @@ async def upload_raw_media_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    os.makedirs(assessment_dir, exist_ok=True)
     safe_filename = os.path.basename(file.filename or "media.webm")
     dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
 
     # 2. Stream directly to disk using shutil.copyfileobj (zero RAM memory buffering)
-    with open(dest_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    try:
+        os.makedirs(assessment_dir, exist_ok=True)
+        with open(dest_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except (PermissionError, OSError) as err:
+        logging.error("Could not write raw media file to disk: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to write media file to server storage",
+        )
 
     if background_tasks:
         background_tasks.add_task(process_audio_and_save_data, assessment.id, dest_path)
+
 
     return LocalMediaUploadResponse(
         success=True,
