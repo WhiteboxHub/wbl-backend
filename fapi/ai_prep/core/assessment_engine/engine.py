@@ -9,8 +9,8 @@ Architecture Rules (MUST NOT VIOLATE):
   - The ONLY way to communicate with this engine is through the Assessment Orchestrator.
 
 Responsibilities:
-  1. Question selection — filter, cap, and prepare questions for a given assessment type.
-     INTRO and JD_INTRO types are capped at 1 question by design.
+  1. Question selection — filter and prepare questions for a given assessment type.
+     INTRO and JD_INTRO types always receive exactly 1 question.
   2. Context building — transform raw telemetry/transcript dicts into structured text
      contexts that the LLMEvaluationEngine (Srimanth) can consume.
   3. Candidate eligibility — pure pre-flight rule checks before an assessment starts.
@@ -35,9 +35,6 @@ class AssessmentEngine:
 
     # Assessment types that serve exactly 1 question (intro/jd-intro scope)
     SINGLE_QUESTION_TYPES: set = {"INTRO", "JD_INTRO"}
-
-    # Default max for all other assessment types
-    MAX_QUESTIONS_PER_ASSESSMENT: int = 5
 
     # Valid status transitions allowed by business rules
     VALID_TRANSITIONS: Dict[str, List[str]] = {
@@ -64,7 +61,7 @@ class AssessmentEngine:
         Selects and sanitizes questions for a given assessment type.
 
         INTRO and JD_INTRO types are always capped at 1 question.
-        All other types use `limit` or MAX_QUESTIONS_PER_ASSESSMENT.
+        All other types pass through available questions (or use explicit `limit` if specified).
 
         Args:
             assessment_type:     Category code (e.g. "INTRO", "JD_INTRO", "TECHNICAL").
@@ -80,8 +77,10 @@ class AssessmentEngine:
         # INTRO and JD_INTRO always get exactly 1 question
         if normalized_type in self.SINGLE_QUESTION_TYPES:
             max_q = 1
+        elif limit is not None:
+            max_q = limit
         else:
-            max_q = limit or self.MAX_QUESTIONS_PER_ASSESSMENT
+            max_q = None
 
         # Filter to matching category and active only
         matched = [
@@ -91,7 +90,7 @@ class AssessmentEngine:
         ]
 
         # Preserve question order from available_questions without unapproved difficulty sorting
-        selected = matched[:max_q]
+        selected = matched[:max_q] if max_q is not None else matched
 
         logger.info(
             "[AssessmentEngine] Selected %d question(s) for type '%s' (from %d available).",
@@ -297,14 +296,6 @@ class AssessmentEngine:
         allowed = self.VALID_TRANSITIONS.get(current_status.upper(), [])
         return target_status.upper() in allowed
 
-    def resolve_question_limit(self, assessment_type: str) -> int:
-        """
-        Returns the correct question limit for a given assessment type.
-        INTRO and JD_INTRO → 1.  All others → MAX_QUESTIONS_PER_ASSESSMENT.
-        """
-        if assessment_type.upper() in self.SINGLE_QUESTION_TYPES:
-            return 1
-        return self.MAX_QUESTIONS_PER_ASSESSMENT
 
 
 # Module-level alias for compatibility with orchestrator imports

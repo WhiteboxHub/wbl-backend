@@ -216,11 +216,11 @@ class TestAssessmentEngineQuestionSelection:
         assert "category" in q
         assert "difficulty_level" in q
 
-    def test_default_max_questions_cap(self):
-        """Should not return more than MAX_QUESTIONS_PER_ASSESSMENT by default."""
+    def test_explicit_limit_cap(self):
+        """Should respect explicit limit parameter when passed."""
         questions = self._make_questions(["TECHNICAL"] * 20)
-        result = self.engine.select_questions_for_assessment("TECHNICAL", questions)
-        assert len(result) <= AssessmentEngine.MAX_QUESTIONS_PER_ASSESSMENT
+        result = self.engine.select_questions_for_assessment("TECHNICAL", questions, limit=3)
+        assert len(result) == 3
 
 
 # =============================================================================
