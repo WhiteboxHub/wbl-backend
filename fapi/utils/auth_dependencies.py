@@ -18,7 +18,7 @@ ALGORITHM = jwt_algorithm
 
 
 def decode_token(token: str):
-    secret = os.getenv("SECRET_KEY") or SECRET_KEY
+    secret = os.getenv("SECRET_KEY")
     if not secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

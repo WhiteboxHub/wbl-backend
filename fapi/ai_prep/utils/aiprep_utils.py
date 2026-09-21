@@ -1138,6 +1138,7 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
 
             existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
             existing_questions = existing_data.questions if existing_data and existing_data.questions else []
+            existing_video = existing_data.video_telemetry if existing_data and existing_data.video_telemetry else {}
 
             crud.save_assessment_data(
                 db=db,
@@ -1145,7 +1146,7 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
                 questions=existing_questions,
                 transcript=spoken_content,
                 audio_telemetry=audio_telemetry,
-                video_telemetry={},
+                video_telemetry=existing_video,
             )
             crud.update_assessment_status(db, assessment.id, "EVALUATING")
             logger.info(f"Successfully saved audio telemetry for assessment {assessment_id}")
