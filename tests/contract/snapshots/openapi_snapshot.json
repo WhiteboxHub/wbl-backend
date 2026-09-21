@@ -27296,7 +27296,14 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
               "title": "Assessment Id"
             }
           }
@@ -27350,7 +27357,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_api_aiprep_media_upload_post",
         "requestBody": {
           "content": {
@@ -30162,7 +30169,14 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
               "title": "Assessment Id"
             }
           }
@@ -30216,7 +30230,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_aiprep_media_upload_post",
         "requestBody": {
           "content": {
@@ -34679,7 +34693,14 @@
       "Body_upload_raw_media_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "title": "Assessment Id"
           },
           "media_type": {
@@ -34703,7 +34724,14 @@
       "Body_upload_raw_media_api_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "title": "Assessment Id"
           },
           "media_type": {

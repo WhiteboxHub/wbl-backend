@@ -450,17 +450,6 @@ def list_questions(
         query = query.filter(AiPrepQuestionORM.is_active == is_active)
 
     total = query.count()
-    if total == 0:
-        seed_default_questions(db)
-        query = db.query(AiPrepQuestionORM)
-        if category:
-            query = query.filter(AiPrepQuestionORM.category == category)
-        if difficulty_level:
-            query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
-        if is_active is not None:
-            query = query.filter(AiPrepQuestionORM.is_active == is_active)
-        total = query.count()
-
     items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
     return items, total
 
@@ -553,8 +542,6 @@ def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
 
 def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
     """Checks whether the candidate has an uploaded and parsed resume."""
-    from fapi.ai_prep.utils.aiprep_utils import _normalize_skills
-
     candidate = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
     if not candidate:
         return {
@@ -582,7 +569,6 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             parsed_json = mktg.candidate_json
         elif isinstance(mktg.candidate_json, str):
             try:
-                import json
                 parsed_json = json.loads(mktg.candidate_json)
             except Exception:
                 parsed_json = None
@@ -598,13 +584,8 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             "message": "Candidate has not uploaded or synced a resume. Please complete resume setup before starting.",
         }
 
-    skills: List[str] = []
     current_title: Optional[str] = None
     if parsed_json:
-        raw_skills = parsed_json.get("skills")
-        if not raw_skills and isinstance(parsed_json.get("personal"), dict):
-            raw_skills = parsed_json.get("personal", {}).get("skills")
-        skills = _normalize_skills(raw_skills)
         raw_title = parsed_json.get("current_title") or parsed_json.get("title")
         current_title = str(raw_title).strip() if raw_title else None
 
@@ -614,7 +595,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         "has_parsed_json": bool(parsed_json),
         "candidate_name": candidate_name,
         "current_title": current_title,
-        "skills": skills,
+        "skills": [],
         "message": "Candidate resume is verified and ready.",
     }
 

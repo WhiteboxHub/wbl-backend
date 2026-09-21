@@ -311,6 +311,7 @@ class AssessmentDetailResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    questions: Optional[List[Dict[str, Any]]] = None
     data: Optional[Dict[str, Any]] = None
     report: Optional[Dict[str, Any]] = None
 
