@@ -443,6 +443,14 @@ class LocalMediaUploadResponse(BaseModel):
     message: str
 
 
+class AudioUploadResponse(BaseModel):
+    success: bool = True
+    assessment_id: int
+    message: str = "Audio recording uploaded and stored in database successfully"
+    size_bytes: int
+    mime_type: str = "audio/wav"
+
+
 class StorageInfoResponse(BaseModel):
     storage_dir: str
     total_bytes: int

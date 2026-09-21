@@ -15,7 +15,9 @@ from sqlalchemy import (
     ForeignKey,
     JSON,
     Enum,
+    LargeBinary,
 )
+from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import relationship
 
 from fapi.db.models import Base

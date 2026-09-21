@@ -13,3 +13,10 @@ temp_candidates.json
 # Google OAuth Secrets & Scripts
 client_secret.json
 get_refresh_token.py
+
+# Local Media Storage
+storage/
+*.wav
+*.webm
+*.mp4
+swagger_endpoint_test_report.json

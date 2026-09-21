@@ -25082,11 +25082,11 @@
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Get Assessment Details, Telemetry & Scores",
-        "description": "Admin: Fetches full assessment details, telemetry, questions, and evaluation scores.",
-        "operationId": "admin_get_assessment_detail_api_aiprep_assessments__assessment_id__get",
+        "summary": "Get Assessment Details, Telemetry & Scores",
+        "description": "Fetches full assessment details, telemetry, questions, and evaluation scores.",
+        "operationId": "get_assessment_detail_api_aiprep_assessments__assessment_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -25132,11 +25132,11 @@
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Get Assessment Telemetry & Questions",
-        "description": "Admin: Fetches submitted telemetry, transcript, and questions for an assessment.",
-        "operationId": "admin_get_assessment_data_api_aiprep_assessments__assessment_id__data_get",
+        "summary": "Get Assessment Telemetry & Questions",
+        "description": "Fetches submitted telemetry, transcript, and questions for an assessment.",
+        "operationId": "get_assessment_data_api_aiprep_assessments__assessment_id__data_get",
         "security": [
           {
             "HTTPBearer": []
@@ -25180,11 +25180,11 @@
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Submit Assessment Telemetry & Answers",
-        "description": "Admin: Persists telemetry, transcript, and answers into ai_prep_assessment_data.",
-        "operationId": "admin_submit_assessment_data_api_aiprep_assessments__assessment_id__data_post",
+        "summary": "Submit Assessment Telemetry & Answers",
+        "description": "Persists telemetry, transcript, and answers into ai_prep_assessment_data.",
+        "operationId": "submit_assessment_data_api_aiprep_assessments__assessment_id__data_post",
         "security": [
           {
             "HTTPBearer": []
@@ -25240,11 +25240,11 @@
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Get Assessment Evaluation Report",
-        "description": "Admin: Fetches generated evaluation report for an assessment.",
-        "operationId": "admin_get_assessment_report_api_aiprep_assessments__assessment_id__report_get",
+        "summary": "Get Assessment Evaluation Report",
+        "description": "Fetches generated evaluation report for an assessment.",
+        "operationId": "get_assessment_report_api_aiprep_assessments__assessment_id__report_get",
         "security": [
           {
             "HTTPBearer": []
@@ -25290,11 +25290,11 @@
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Update Assessment Media Stream URL",
-        "description": "Admin: Updates media stream URL on assessment in DB.",
-        "operationId": "admin_update_assessment_media_url_api_aiprep_assessments__assessment_id__media_patch",
+        "summary": "Update Assessment Media Stream URL",
+        "description": "Updates media stream URL on assessment in DB.",
+        "operationId": "update_assessment_media_url_api_aiprep_assessments__assessment_id__media_patch",
         "security": [
           {
             "HTTPBearer": []
@@ -25345,16 +25345,74 @@
         }
       }
     },
-    "/api/aiprep/assessments/{assessment_id}/evaluate": {
+    "/api/aiprep/assessments/{assessment_id}/audio": {
       "post": {
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Trigger Assessment Evaluation (POST)",
-        "description": "Admin: Transitions status to EVALUATING in DB and queues background LLM evaluation.",
-        "operationId": "admin_trigger_assessment_evaluation_api_aiprep_assessments__assessment_id__evaluate_post",
+        "summary": "Upload Assessment Audio Directly to Server Storage",
+        "description": "Uploads audio recording binary file directly to server storage.",
+        "operationId": "upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Assessments"
+        ],
+        "summary": "Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "operationId": "get_assessment_audio_api_aiprep_assessments__assessment_id__audio_get",
         "security": [
           {
             "HTTPBearer": []
@@ -25372,13 +25430,11 @@
           }
         ],
         "responses": {
-          "202": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TriggerEvaluationResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -25393,16 +25449,66 @@
             }
           }
         }
-      },
-      "put": {
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/video": {
+      "get": {
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Admin Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Admin: Submit & Evaluate Assessment (PUT)",
-        "description": "Admin: Saves telemetry if provided, transitions status to EVALUATING, and queues evaluation.",
-        "operationId": "admin_submit_and_evaluate_assessment_api_aiprep_assessments__assessment_id__evaluate_put",
+        "summary": "Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_api_aiprep_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/evaluate": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Assessments"
+        ],
+        "summary": "Trigger Assessment Evaluation",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
+        "operationId": "trigger_assessment_evaluation_post",
         "security": [
           {
             "HTTPBearer": []
@@ -25458,334 +25564,16 @@
             }
           }
         }
-      }
-    },
-    "/api/aiprep/candidate/assessments/{assessment_id}": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
-        ],
-        "summary": "Candidate: Get Assessment Details & Report",
-        "description": "Candidate: Fetches assessment detail, telemetry, and evaluation scores.",
-        "operationId": "candidate_get_assessment_detail_api_aiprep_candidate_assessments__assessment_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/candidate/assessments/{assessment_id}/data": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
-        ],
-        "summary": "Candidate: Get Assessment Telemetry & Questions",
-        "description": "Candidate: Fetches submitted telemetry, transcript, and questions for own assessment.",
-        "operationId": "candidate_get_assessment_data_api_aiprep_candidate_assessments__assessment_id__data_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentDataResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
-        ],
-        "summary": "Candidate: Submit Assessment Telemetry & Answers",
-        "description": "Candidate: Persists telemetry, transcript, and answers for own assessment.",
-        "operationId": "candidate_submit_assessment_data_api_aiprep_candidate_assessments__assessment_id__data_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SubmitAssessmentDataRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubmitAssessmentDataResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/candidate/assessments/{assessment_id}/report": {
-      "get": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
-        ],
-        "summary": "Candidate: Get Assessment Evaluation Report",
-        "description": "Candidate: Fetches evaluation report for own evaluated assessment.",
-        "operationId": "candidate_get_assessment_report_api_aiprep_candidate_assessments__assessment_id__report_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssessmentReportResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/candidate/assessments/{assessment_id}/media": {
-      "patch": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
-        ],
-        "summary": "Candidate: Update Assessment Media Stream URL",
-        "description": "Candidate: Updates media stream URL on own in-progress assessment.",
-        "operationId": "candidate_update_assessment_media_url_api_aiprep_candidate_assessments__assessment_id__media_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMediaURLRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateMediaURLResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/aiprep/candidate/assessments/{assessment_id}/evaluate": {
-      "post": {
-        "tags": [
-          "AI Prep Tool",
-          "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
-        ],
-        "summary": "Candidate: Trigger Assessment Evaluation (POST)",
-        "description": "Candidate: Transitions status to EVALUATING and queues background LLM evaluation.",
-        "operationId": "candidate_trigger_assessment_evaluation_api_aiprep_candidate_assessments__assessment_id__evaluate_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "assessment_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Assessment Id"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TriggerEvaluationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       },
       "put": {
         "tags": [
           "AI Prep Tool",
           "AI Prep Tool",
-          "AI Prep - Candidate Assessments"
+          "AI Prep - Assessments"
         ],
-        "summary": "Candidate: Submit & Evaluate Assessment (PUT)",
-        "description": "Candidate: Saves telemetry, transitions status to EVALUATING, and queues background LLM evaluation.",
-        "operationId": "candidate_submit_and_evaluate_assessment_api_aiprep_candidate_assessments__assessment_id__evaluate_put",
+        "summary": "Submit Answers and Trigger Evaluation",
+        "description": "Atomically submits answers and triggers LLM evaluation pipeline.",
+        "operationId": "submit_and_evaluate_assessment_put",
         "security": [
           {
             "HTTPBearer": []
@@ -27099,6 +26887,21 @@
             ],
             "title": "Created At"
           },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
           "data": {
             "anyOf": [
               {
@@ -27562,6 +27365,39 @@
           "id"
         ],
         "title": "AssessmentTypeResponse"
+      },
+      "AudioUploadResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "default": true
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Audio recording uploaded and stored in database successfully"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type",
+            "default": "audio/wav"
+          }
+        },
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "size_bytes"
+        ],
+        "title": "AudioUploadResponse"
       },
       "AuthUserCreate": {
         "properties": {
@@ -30757,6 +30593,31 @@
           "password"
         ],
         "title": "Body_login_for_access_token_api_login_post"
+      },
+      "Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post"
       },
       "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post": {
         "properties": {

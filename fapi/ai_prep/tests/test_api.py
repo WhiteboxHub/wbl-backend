@@ -2,14 +2,15 @@
 import os
 import secrets
 
-os.environ["SECRET_KEY"] = secrets.token_urlsafe(32)
-os.environ["ALGORITHM"] = "HS256"
-os.environ["DB_PASSWORD"] = secrets.token_urlsafe(16)
-os.environ["DB_HOST"] = "localhost"
-os.environ["DB_NAME"] = "wbl_test"
-os.environ["ENV"] = "test"
-os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
-os.environ["UPSTASH_REDIS_REST_TOKEN"] = secrets.token_urlsafe(32)
+os.environ.setdefault("SECRET_KEY", "mock_test_secret_key_12345")
+os.environ.setdefault("ALGORITHM", "HS256")
+os.environ.setdefault("DB_PASSWORD", "mock_password")
+os.environ.setdefault("DB_HOST", "localhost")
+os.environ.setdefault("DB_NAME", "wbl_test")
+os.environ.setdefault("ENV", "test")
+os.environ.setdefault("UPSTASH_REDIS_REST_URL", "https://mock-redis.upstash.io")
+os.environ.setdefault("UPSTASH_REDIS_REST_TOKEN", "mock_token")
+
 
 import datetime
 from unittest.mock import patch
@@ -231,19 +232,19 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
         "audio_telemetry": {"words_per_minute": 135, "silence_ratio_pct": 12.0},
         "video_telemetry": {"face_visible_pct": 98.0, "head_nods_count": 8},
     }
-    submit_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data", json=telemetry_payload)
+    submit_res = client.post(f"/api/aiprep/assessments/{assessment_id}/data", json=telemetry_payload)
     assert submit_res.status_code == 200
     assert submit_res.json()["message"] == "Data saved successfully"
 
     # 2. Update media URL
-    patch_res = client.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
+    patch_res = client.patch(f"/api/aiprep/assessments/{assessment_id}/media", json={
         "youtube_url": "https://youtube.com/watch?v=cand_video_101"
     })
     assert patch_res.status_code == 200
     assert patch_res.json()["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
 
     # 3. Get Details
-    detail_res = client.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    detail_res = client.get(f"/api/aiprep/assessments/{assessment_id}")
     assert detail_res.status_code == 200
     detail = detail_res.json()
     assert detail["candidate_id"] == 1001
@@ -255,7 +256,7 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     assert "completed_at" in detail
 
     # 4. Trigger Evaluation
-    eval_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate")
+    eval_res = client.post(f"/api/aiprep/assessments/{assessment_id}/evaluate")
     assert eval_res.status_code == 202
     assert eval_res.json()["status"] == "EVALUATING"
 
@@ -896,11 +897,11 @@ def test_question_loading_persistence_and_fallback_flow(db_session, seed_candida
     assert data_rec.questions[0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
 
     # Verify GET detail returns persisted question via numeric ID & UUID string
-    res_intro_det = client.get(f"/api/aiprep/candidate/assessments/{intro_data['id']}")
+    res_intro_det = client.get(f"/api/aiprep/assessments/{intro_data['id']}")
     assert res_intro_det.status_code == 200
     assert res_intro_det.json()["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
 
-    res_intro_uuid = client.get(f"/api/aiprep/candidate/assessments/{intro_data['assessment_uuid']}")
+    res_intro_uuid = client.get(f"/api/aiprep/assessments/{intro_data['assessment_uuid']}")
     assert res_intro_uuid.status_code == 200
     assert res_intro_uuid.json()["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
 
@@ -973,3 +974,127 @@ def test_empty_question_bank_returns_user_error(db_session, seed_candidate):
         )
     assert res.status_code == 422
     assert "could not be loaded" in res.json()["detail"].lower()
+
+
+def test_save_and_get_assessment_audio_storage(db_session, seed_candidate, tmp_path):
+    """Verifies that audio is stored on server disk storage and retrieved cleanly."""
+    from fapi.ai_prep import config
+    assessment = crud.create_assessment(
+        db=db_session,
+        candidate_id=1001,
+        assessment_type="INTRO",
+        media_type="AUDIO",
+    )
+    fake_audio_bytes = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00data\x00\x00\x00\x00"
+    
+    assessment_dir = os.path.join(config.STORAGE_BASE_DIR, "1001", str(assessment.id))
+    os.makedirs(assessment_dir, exist_ok=True)
+    audio_path = os.path.join(assessment_dir, "audio.wav")
+    with open(audio_path, "wb") as f:
+        f.write(fake_audio_bytes)
+
+    try:
+        assert os.path.exists(audio_path)
+        with open(audio_path, "rb") as f:
+            assert f.read() == fake_audio_bytes
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+
+
+def test_candidate_upload_and_get_audio_endpoints(db_session, seed_candidate):
+    """Verifies uploading an audio file via POST /candidate/assessments/{id}/audio and streaming back via GET."""
+    client = get_candidate_client(db_session, 1001)
+
+    with patch("fapi.ai_prep.utils.aiprep_utils.process_audio_and_save_data"):
+        # 1. Create assessment
+        res = client.post(
+            "/api/aiprep/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "AUDIO"},
+        )
+        assert res.status_code == 201
+        assessment_id = res.json()["id"]
+
+        # 2. Upload audio file
+        fake_audio = b"fake-audio-recording-bytes-12345"
+        files = {"file": ("recording.wav", fake_audio, "audio/wav")}
+        upload_res = client.post(
+            f"/api/aiprep/assessments/{assessment_id}/audio",
+            files=files,
+            data={"mime_type": "audio/wav"},
+        )
+        assert upload_res.status_code == 200
+        upload_data = upload_res.json()
+        assert upload_data["success"] is True
+        assert upload_data["assessment_id"] == assessment_id
+        assert upload_data["size_bytes"] == len(fake_audio)
+        assert upload_data["mime_type"] == "audio/wav"
+
+        # 3. Retrieve/Stream audio back
+        get_res = client.get(f"/api/aiprep/assessments/{assessment_id}/audio")
+        assert get_res.status_code == 200
+        assert get_res.content == fake_audio
+        assert "audio/wav" in get_res.headers["content-type"]
+
+
+def test_candidate_get_audio_not_found(db_session, seed_candidate):
+    """Verifies that requesting audio for an assessment without stored audio returns 404."""
+    client = get_candidate_client(db_session, 1001)
+
+    res = client.post(
+        "/api/aiprep/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "AUDIO"},
+    )
+    assessment_id = res.json()["id"]
+
+    get_res = client.get(f"/api/aiprep/assessments/{assessment_id}/audio")
+    assert get_res.status_code == 404
+    assert "No audio recording found" in get_res.json()["detail"]
+
+
+
+def test_candidate_get_video_endpoint(db_session, seed_candidate):
+    """Verifies streaming video from server storage via GET /assessments/{id}/video."""
+    client = get_candidate_client(db_session, 1001)
+
+    res = client.post(
+        "/api/aiprep/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+    )
+    assert res.status_code == 201
+    assessment_id = res.json()["id"]
+
+    # 1. 404 when file not on disk
+    get_res = client.get(f"/api/aiprep/assessments/{assessment_id}/video")
+    assert get_res.status_code == 404
+
+    # 2. Write video file to storage directory
+    from fapi.ai_prep import config
+    assessment_dir = os.path.join(config.STORAGE_BASE_DIR, "1001", str(assessment_id))
+    os.makedirs(assessment_dir, exist_ok=True)
+    video_path = os.path.join(assessment_dir, "assembled.mp4")
+    fake_data = b"0123456789ABCDEF" * 100  # 1600 bytes
+    with open(video_path, "wb") as f:
+        f.write(fake_data)
+
+    try:
+        # Full content request
+        get_res2 = client.get(f"/api/aiprep/assessments/{assessment_id}/video")
+        assert get_res2.status_code == 200
+        assert get_res2.content == fake_data
+        assert "video/mp4" in get_res2.headers["content-type"]
+
+        # Range request
+        get_res_range = client.get(
+            f"/api/aiprep/assessments/{assessment_id}/video",
+            headers={"Range": "bytes=0-15"},
+        )
+        assert get_res_range.status_code == 206
+        assert get_res_range.content == fake_data[:16]
+        assert get_res_range.headers["content-range"] == f"bytes 0-15/{len(fake_data)}"
+    finally:
+        # Cleanup
+        if os.path.exists(video_path):
+            os.remove(video_path)
+
+

@@ -14,7 +14,7 @@ logger = logging.getLogger("wbl")
 security = HTTPBearer(auto_error=False)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ALGORITHM = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or "HS256"
 
 
 def decode_token(token: str):
@@ -24,7 +24,7 @@ def decode_token(token: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication secret key is not configured",
         )
-    algorithm = os.getenv("JWT_ALGORITHM") or ALGORITHM or "HS256"
+    algorithm = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or ALGORITHM or "HS256"
     try:
         return jwt.decode(token, secret, algorithms=[algorithm])
     except JWTError:
@@ -41,12 +41,26 @@ def get_current_user(
 ):
     token = None
 
-    if credentials and credentials.credentials:
+    if credentials and isinstance(credentials.credentials, str):
         token = credentials.credentials
     else:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
+        auth_header = request.headers.get("Authorization") if hasattr(request, "headers") and hasattr(request.headers, "get") else None
+        if isinstance(auth_header, str) and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+        else:
+            query_token = None
+            if hasattr(request, "query_params") and hasattr(request.query_params, "get"):
+                raw_q = request.query_params.get("token")
+                if isinstance(raw_q, str) and raw_q:
+                    query_token = raw_q
+
+            cookie_token = None
+            if not query_token and hasattr(request, "cookies") and hasattr(request.cookies, "get"):
+                raw_c = request.cookies.get("access_token") or request.cookies.get("token")
+                if isinstance(raw_c, str) and raw_c:
+                    cookie_token = raw_c
+
+            token = query_token or cookie_token
 
     if not token:
         internal_secret = request.headers.get("X-Internal-Secret")

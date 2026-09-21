@@ -46,6 +46,7 @@ from fapi.ai_prep.schemas import (
     AssembleMediaRequest,
     AssembleMediaResponse,
     LocalMediaUploadResponse,
+    AudioUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
     QuestionCreateRequest,
@@ -204,23 +205,24 @@ def list_assessments(
 
 
 # ---------------------------------------------------------------------------
-# Admin Assessment Lifecycle & Inspection
+# Assessments Resource Operations
 # ---------------------------------------------------------------------------
 
 @router.get(
     "/assessments/{assessment_id}",
     response_model=AssessmentDetailResponse,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Get Assessment Details, Telemetry & Scores",
+    tags=["AI Prep - Assessments"],
+    summary="Get Assessment Details, Telemetry & Scores",
 )
-def admin_get_assessment_detail(
+def get_assessment_detail(
     assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Admin: Fetches full assessment details, telemetry, questions, and evaluation scores."""
-    return aiprep_utils.admin_get_assessment_detail_logic(
+    """Fetches full assessment details, telemetry, questions, and evaluation scores."""
+    return aiprep_utils.get_assessment_detail_logic(
         db=db,
+        current_user=current_user,
         assessment_id=assessment_id,
     )
 
@@ -228,17 +230,18 @@ def admin_get_assessment_detail(
 @router.get(
     "/assessments/{assessment_id}/data",
     response_model=AssessmentDataResponse,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Get Assessment Telemetry & Questions",
+    tags=["AI Prep - Assessments"],
+    summary="Get Assessment Telemetry & Questions",
 )
-def admin_get_assessment_data(
+def get_assessment_data(
     assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Admin: Fetches submitted telemetry, transcript, and questions for an assessment."""
-    return aiprep_utils.admin_get_assessment_data_logic(
+    """Fetches submitted telemetry, transcript, and questions for an assessment."""
+    return aiprep_utils.get_assessment_data_logic(
         db=db,
+        current_user=current_user,
         assessment_id=assessment_id,
     )
 
@@ -246,18 +249,19 @@ def admin_get_assessment_data(
 @router.post(
     "/assessments/{assessment_id}/data",
     response_model=SubmitAssessmentDataResponse,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Submit Assessment Telemetry & Answers",
+    tags=["AI Prep - Assessments"],
+    summary="Submit Assessment Telemetry & Answers",
 )
-def admin_submit_assessment_data(
+def submit_assessment_data(
     assessment_id: str,
     payload: SubmitAssessmentDataRequest,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Admin: Persists telemetry, transcript, and answers into ai_prep_assessment_data."""
-    return aiprep_utils.admin_submit_data_logic(
+    """Persists telemetry, transcript, and answers into ai_prep_assessment_data."""
+    return aiprep_utils.submit_assessment_data_logic(
         db=db,
+        current_user=current_user,
         assessment_id=assessment_id,
         payload=payload,
     )
@@ -266,17 +270,18 @@ def admin_submit_assessment_data(
 @router.get(
     "/assessments/{assessment_id}/report",
     response_model=AssessmentReportResponse,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Get Assessment Evaluation Report",
+    tags=["AI Prep - Assessments"],
+    summary="Get Assessment Evaluation Report",
 )
-def admin_get_assessment_report(
+def get_assessment_report(
     assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Admin: Fetches generated evaluation report for an assessment."""
-    return aiprep_utils.admin_get_assessment_report_logic(
+    """Fetches generated evaluation report for an assessment."""
+    return aiprep_utils.get_assessment_report_logic(
         db=db,
+        current_user=current_user,
         assessment_id=assessment_id,
     )
 
@@ -284,20 +289,85 @@ def admin_get_assessment_report(
 @router.patch(
     "/assessments/{assessment_id}/media",
     response_model=UpdateMediaURLResponse,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Update Assessment Media Stream URL",
+    tags=["AI Prep - Assessments"],
+    summary="Update Assessment Media Stream URL",
 )
-def admin_update_assessment_media_url(
+def update_assessment_media_url(
     assessment_id: str,
     payload: UpdateMediaURLRequest,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Admin: Updates media stream URL on assessment in DB."""
-    return aiprep_utils.admin_update_media_url_logic(
+    """Updates media stream URL on assessment in DB."""
+    return aiprep_utils.update_assessment_media_url_logic(
         db=db,
+        current_user=current_user,
         assessment_id=assessment_id,
         payload=payload,
+    )
+
+
+@router.post(
+    "/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Assessments"],
+    summary="Upload Assessment Audio Directly to Server Storage",
+)
+async def upload_assessment_audio(
+    background_tasks: BackgroundTasks,
+    assessment_id: str,
+    file: UploadFile = File(...),
+    mime_type: Optional[str] = Form(None),
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Uploads audio recording binary file directly to server storage."""
+    return await aiprep_utils.upload_assessment_audio_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        file=file,
+        mime_type=mime_type,
+        background_tasks=background_tasks,
+    )
+
+
+@router.get(
+    "/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Assessments"],
+    summary="Stream Assessment Audio from Storage",
+)
+def get_assessment_audio(
+    assessment_id: str,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored audio recording binary from server storage."""
+    return aiprep_utils.get_assessment_audio_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+    )
+
+
+@router.get(
+    "/assessments/{assessment_id}/video",
+    tags=["AI Prep - Assessments"],
+    summary="Stream Assessment Video Recording from Storage",
+)
+def get_assessment_video(
+    assessment_id: str,
+    request: Request,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored video recording from server storage with range seeking support."""
+    range_header = request.headers.get("range")
+    return aiprep_utils.get_assessment_video_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        range_header=range_header,
     )
 
 
@@ -305,20 +375,24 @@ def admin_update_assessment_media_url(
     "/assessments/{assessment_id}/evaluate",
     response_model=TriggerEvaluationResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Trigger Assessment Evaluation (POST)",
+    tags=["AI Prep - Assessments"],
+    summary="Trigger Assessment Evaluation",
+    operation_id="trigger_assessment_evaluation_post",
 )
-def admin_trigger_assessment_evaluation(
+def trigger_assessment_evaluation_post(
     assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
+    payload: Optional[SubmitAssessmentRequest] = None,
+    current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
 ):
-    """Admin: Transitions status to EVALUATING in DB and queues background LLM evaluation."""
-    return aiprep_utils.admin_trigger_eval_post_logic(
+    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
+    return aiprep_utils.trigger_assessment_evaluation_logic(
         db=db,
+        current_user=current_user,
         assessment_id=assessment_id,
         background_tasks=background_tasks,
+        payload=payload,
     )
 
 
@@ -326,171 +400,24 @@ def admin_trigger_assessment_evaluation(
     "/assessments/{assessment_id}/evaluate",
     response_model=TriggerEvaluationResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    tags=["AI Prep - Admin Assessments"],
-    summary="Admin: Submit & Evaluate Assessment (PUT)",
+    tags=["AI Prep - Assessments"],
+    summary="Submit Answers and Trigger Evaluation",
+    operation_id="submit_and_evaluate_assessment_put",
 )
-def admin_submit_and_evaluate_assessment(
-    assessment_id: str,
-    payload: Optional[SubmitAssessmentRequest] = None,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = None,
-):
-    """Admin: Saves telemetry if provided, transitions status to EVALUATING, and queues evaluation."""
-    return aiprep_utils.admin_trigger_eval_put_logic(
-        db=db,
-        assessment_id=assessment_id,
-        payload=payload,
-        background_tasks=background_tasks,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Candidate Assessment Lifecycle & Execution
-# ---------------------------------------------------------------------------
-
-@router.get(
-    "/candidate/assessments/{assessment_id}",
-    response_model=AssessmentDetailResponse,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Get Assessment Details & Report",
-)
-def candidate_get_assessment_detail(
-    assessment_id: str,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Candidate: Fetches assessment detail, telemetry, and evaluation scores."""
-    return aiprep_utils.candidate_get_assessment_detail_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-    )
-
-
-@router.get(
-    "/candidate/assessments/{assessment_id}/data",
-    response_model=AssessmentDataResponse,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Get Assessment Telemetry & Questions",
-)
-def candidate_get_assessment_data(
-    assessment_id: str,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Candidate: Fetches submitted telemetry, transcript, and questions for own assessment."""
-    return aiprep_utils.candidate_get_assessment_data_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-    )
-
-
-@router.post(
-    "/candidate/assessments/{assessment_id}/data",
-    response_model=SubmitAssessmentDataResponse,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Submit Assessment Telemetry & Answers",
-)
-def candidate_submit_assessment_data(
-    assessment_id: str,
-    payload: SubmitAssessmentDataRequest,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Candidate: Persists telemetry, transcript, and answers for own assessment."""
-    return aiprep_utils.candidate_submit_data_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-        payload=payload,
-    )
-
-
-@router.get(
-    "/candidate/assessments/{assessment_id}/report",
-    response_model=AssessmentReportResponse,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Get Assessment Evaluation Report",
-)
-def candidate_get_assessment_report(
-    assessment_id: str,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Candidate: Fetches evaluation report for own evaluated assessment."""
-    return aiprep_utils.candidate_get_assessment_report_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-    )
-
-
-@router.patch(
-    "/candidate/assessments/{assessment_id}/media",
-    response_model=UpdateMediaURLResponse,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Update Assessment Media Stream URL",
-)
-def candidate_update_assessment_media_url(
-    assessment_id: str,
-    payload: UpdateMediaURLRequest,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Candidate: Updates media stream URL on own in-progress assessment."""
-    return aiprep_utils.candidate_update_media_url_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-        payload=payload,
-    )
-
-
-@router.post(
-    "/candidate/assessments/{assessment_id}/evaluate",
-    response_model=TriggerEvaluationResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Trigger Assessment Evaluation (POST)",
-)
-def candidate_trigger_assessment_evaluation(
-    assessment_id: str,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = None,
-):
-    """Candidate: Transitions status to EVALUATING and queues background LLM evaluation."""
-    return aiprep_utils.candidate_trigger_eval_post_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-        background_tasks=background_tasks,
-    )
-
-
-@router.put(
-    "/candidate/assessments/{assessment_id}/evaluate",
-    response_model=TriggerEvaluationResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    tags=["AI Prep - Candidate Assessments"],
-    summary="Candidate: Submit & Evaluate Assessment (PUT)",
-)
-def candidate_submit_and_evaluate_assessment(
+def submit_and_evaluate_assessment_put(
     assessment_id: str,
     payload: Optional[SubmitAssessmentRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
 ):
-    """Candidate: Saves telemetry, transitions status to EVALUATING, and queues background LLM evaluation."""
-    return aiprep_utils.candidate_trigger_eval_put_logic(
+    """Atomically submits answers and triggers LLM evaluation pipeline."""
+    return aiprep_utils.trigger_assessment_evaluation_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
-        payload=payload,
         background_tasks=background_tasks,
+        payload=payload,
     )
 
 

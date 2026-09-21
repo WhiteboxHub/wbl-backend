@@ -293,7 +293,9 @@ def create_or_update_assessment_data(
     audio_telemetry: Dict[str, Any],
     video_telemetry: Dict[str, Any],
 ) -> AiPrepAssessmentDataORM:
-    return save_assessment_data(db, assessment_id, questions, transcript, audio_telemetry, video_telemetry)
+    return save_assessment_data(
+        db, assessment_id, questions, transcript, audio_telemetry, video_telemetry
+    )
 
 
 def get_assessment_data_by_assessment_id(db: Session, assessment_id: Union[int, str]) -> Optional[AiPrepAssessmentDataORM]:
