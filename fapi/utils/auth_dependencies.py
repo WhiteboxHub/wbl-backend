@@ -13,8 +13,8 @@ from fapi.db.models import AuthUserORM
 logger = logging.getLogger("wbl")
 security = HTTPBearer(auto_error=False)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or "HS256"
+jwt_algorithm = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or "HS256"
+ALGORITHM = jwt_algorithm
 
 
 def decode_token(token: str):
@@ -24,9 +24,9 @@ def decode_token(token: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication secret key is not configured",
         )
-    algorithm = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or ALGORITHM or "HS256"
+    jwt_algo = os.getenv("JWT_ALGORITHM") or os.getenv("ALGORITHM") or ALGORITHM
     try:
-        return jwt.decode(token, secret, algorithms=[algorithm])
+        return jwt.decode(token, secret, algorithms=[jwt_algo])
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
