@@ -530,8 +530,9 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
             del data["difficulty_level"]
 
     for field, val in data.items():
-        if val is not None and hasattr(q, field):
-            setattr(q, field, val)
+        if hasattr(q, field):
+            if val is not None or field == "sub_category":
+                setattr(q, field, val)
     q.updated_at = datetime.utcnow()
     try:
         db.commit()

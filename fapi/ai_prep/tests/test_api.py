@@ -152,6 +152,7 @@ def get_candidate_client(db_session, candidate_id: int = 1001):
 
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides.pop(staff_or_admin_required, None)
     return TestClient(app)
 
 
@@ -1091,5 +1092,52 @@ def test_candidate_get_video_endpoint(db_session, seed_candidate):
         # Cleanup
         if os.path.exists(video_path):
             os.remove(video_path)
+
+
+def test_question_bank_rbac_and_category_update(db_session, seed_candidate):
+    """Verifies RBAC protection on question bank and category update from TECHNICAL to non-technical."""
+    candidate_client = get_candidate_client(db_session, 1001)
+
+    # 1. Candidate is forbidden from accessing question bank
+    res_cand_list = candidate_client.get("/api/aiprep/questions")
+    assert res_cand_list.status_code == 403
+
+    res_cand_create = candidate_client.post(
+        "/api/aiprep/questions",
+        json={"category": "TECHNICAL", "sub_category": "Agentic AI", "difficulty_level": "HARD", "question_text": "Test question?"},
+    )
+    assert res_cand_create.status_code == 403
+
+    # 2. Admin creates a TECHNICAL question with a sub_category
+    admin_client = get_employee_client(db_session, 50)
+    res_create = admin_client.post(
+        "/api/aiprep/questions",
+        json={"category": "TECHNICAL", "sub_category": "Agentic AI", "difficulty_level": "HARD", "question_text": "What is ReAct?"},
+    )
+    assert res_create.status_code == 201
+    q_data = res_create.json()
+    q_id = q_data["id"]
+    assert q_data["category"] == "TECHNICAL"
+    assert q_data["sub_category"] == "Agentic AI"
+
+    # 3. Admin updates category from TECHNICAL to INTRO -> sub_category must become None
+    res_update = admin_client.patch(
+        f"/api/aiprep/questions/{q_id}",
+        json={"category": "INTRO"},
+    )
+    assert res_update.status_code == 200
+    updated_q = res_update.json()
+    assert updated_q["category"] == "INTRO"
+    assert updated_q["sub_category"] is None
+
+    # 4. Admin retrieves question by ID
+    res_get = admin_client.get(f"/api/aiprep/questions/{q_id}")
+    assert res_get.status_code == 200
+    assert res_get.json()["sub_category"] is None
+
+    # 5. Admin deletes question
+    res_del = admin_client.delete(f"/api/aiprep/questions/{q_id}")
+    assert res_del.status_code == 200
+
 
 
