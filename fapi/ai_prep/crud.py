@@ -692,3 +692,58 @@ def save_candidate_resume_json(db: Session, candidate_id: int, resume_data: Dict
             db.rollback()
             raise
     return False
+
+
+def get_candidate_by_id(db: Session, candidate_id: int) -> Optional[CandidateORM]:
+    """Looks up CandidateORM by candidate_id."""
+    return db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+
+
+def get_candidate_by_email_or_id(
+    db: Session, email: Optional[str] = None, candidate_id: Optional[int] = None
+) -> Optional[CandidateORM]:
+    """Looks up CandidateORM by email or candidate_id."""
+    if email:
+        cand = db.query(CandidateORM).filter(CandidateORM.email == email).first()
+        if cand:
+            return cand
+    if candidate_id is not None:
+        return db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    return None
+
+
+def get_candidates_by_ids(db: Session, candidate_ids: List[int]) -> List[CandidateORM]:
+    """Batch looks up CandidateORM rows for a list of candidate IDs."""
+    if not candidate_ids:
+        return []
+    return db.query(CandidateORM).filter(CandidateORM.id.in_(candidate_ids)).all()
+
+
+def filter_assessments(
+    db: Session,
+    candidate_id: Optional[int] = None,
+    status: Optional[str] = None,
+    assessment_type: Optional[str] = None,
+    media_type: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Tuple[List[AiPrepAssessmentORM], int]:
+    """Filters assessments by candidate, status, category, media type, and search query."""
+    query = db.query(AiPrepAssessmentORM)
+    if candidate_id is not None:
+        query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+    if status and str(status).lower() != "all":
+        query = query.filter(AiPrepAssessmentORM.status == status)
+    if assessment_type and str(assessment_type).lower() != "all":
+        query = query.filter(AiPrepAssessmentORM.assessment_type == assessment_type)
+    if media_type and str(media_type).lower() != "all":
+        query = query.filter(AiPrepAssessmentORM.media_type == media_type)
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+        query = query.filter(AiPrepAssessmentORM.job_description.ilike(search_term))
+
+    total = query.count()
+    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+    return items, total
+

@@ -148,10 +148,8 @@ def _resolve_candidate_id(db: Session, current_user: Optional[AuthUserORM] = Non
     role = getattr(current_user, "role", None) or ("admin" if uname == "admin" else "candidate")
     is_employee = bool(getattr(current_user, "is_employee", False) or role in ("admin", "staff", "employee") or uname == "admin")
 
-    # Match Candidate by email or ID
-    candidate = db.query(CandidateORM).filter(CandidateORM.email == current_user.uname).first()
-    if not candidate:
-        candidate = db.query(CandidateORM).filter(CandidateORM.id == current_user.id).first()
+    # Match Candidate by email or ID via CRUD
+    candidate = crud.get_candidate_by_email_or_id(db, email=current_user.uname, candidate_id=current_user.id)
     if not candidate and not is_employee:
         raise HTTPException(status_code=403, detail="Access denied to this assessment")
 
@@ -170,53 +168,8 @@ def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
 
 
 def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]:
-    """Queries candidate_marketing and candidate tables dynamically."""
-    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
-    candidate_name = cand.full_name if (cand and cand.full_name) else f"Candidate #{candidate_id}"
-
-    mktg = (
-        db.query(CandidateMarketingORM)
-        .filter(CandidateMarketingORM.candidate_id == candidate_id)
-        .order_by(desc(CandidateMarketingORM.id))
-        .first()
-    )
-
-    has_resume = bool(mktg and mktg.resume_url)
-    parsed_json = None
-    if mktg and mktg.candidate_json:
-        if isinstance(mktg.candidate_json, dict):
-            parsed_json = mktg.candidate_json
-        elif isinstance(mktg.candidate_json, str):
-            try:
-                parsed_json = json.loads(mktg.candidate_json)
-            except Exception:
-                parsed_json = None
-
-    if not has_resume and not parsed_json:
-        return {
-            "status": "failure",
-            "has_resume": False,
-            "has_parsed_json": False,
-            "candidate_name": candidate_name,
-            "current_title": None,
-            "skills": [],
-            "message": "Candidate has not uploaded or synced a resume.",
-        }
-
-    current_title: Optional[str] = None
-    if parsed_json:
-        raw_title = parsed_json.get("current_title") or parsed_json.get("title")
-        current_title = str(raw_title).strip() if raw_title else None
-
-    return {
-        "status": "valid",
-        "has_resume": True,
-        "has_parsed_json": bool(parsed_json),
-        "candidate_name": candidate_name,
-        "current_title": current_title,
-        "skills": [],
-        "message": "Candidate resume is verified and ready.",
-    }
+    """Queries candidate_marketing and candidate tables dynamically via crud."""
+    return crud.check_candidate_resume(db, candidate_id)
 
 
 def _verify_prerequisites(db: Session, candidate_id: int):
@@ -394,7 +347,6 @@ def candidate_create_assessment_logic(
             video_telemetry={},
         )
     except Exception as exc:
-        db.rollback()
         logger.error(f"Failed to persist assessment questions into assessment_data: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -430,32 +382,27 @@ def candidate_list_assessments_logic(
     role = getattr(current_user, "role", None) or ("admin" if uname == "admin" else "candidate")
     is_employee = bool(getattr(current_user, "is_employee", False) or role in ("admin", "staff", "employee") or uname == "admin")
 
-    query = db.query(AiPrepAssessmentORM)
-
+    target_cand_id = None
     if not is_employee:
-        cand_id = _resolve_candidate_id(db, current_user)
-        query = query.filter(AiPrepAssessmentORM.candidate_id == cand_id)
-    else:
-        if candidate_id:
-            query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+        target_cand_id = _resolve_candidate_id(db, current_user)
+    elif candidate_id:
+        target_cand_id = candidate_id
 
-    if status_filter and status_filter.lower() != "all":
-        query = query.filter(AiPrepAssessmentORM.status == status_filter)
-    if assessment_type and assessment_type.lower() != "all":
-        query = query.filter(AiPrepAssessmentORM.assessment_type == assessment_type)
-    if media_type and media_type.lower() != "all":
-        query = query.filter(AiPrepAssessmentORM.media_type == media_type)
-    if search and search.strip():
-        search_term = f"%{search.strip()}%"
-        query = query.filter(AiPrepAssessmentORM.job_description.ilike(search_term))
+    items, total = crud.filter_assessments(
+        db=db,
+        candidate_id=target_cand_id,
+        status=status_filter,
+        assessment_type=assessment_type,
+        media_type=media_type,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
 
-    total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
-
-    candidate_ids = {a.candidate_id for a in items if a.candidate_id is not None}
+    candidate_ids = list({a.candidate_id for a in items if a.candidate_id is not None})
     cand_map = {}
     if candidate_ids:
-        candidates = db.query(CandidateORM).filter(CandidateORM.id.in_(candidate_ids)).all()
+        candidates = crud.get_candidates_by_ids(db, candidate_ids)
         cand_map = {c.id: c for c in candidates}
 
     result_items = []
@@ -502,7 +449,7 @@ def get_assessment_detail_logic(
 
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
-    cand = db.query(CandidateORM).filter(CandidateORM.id == assessment.candidate_id).first() if assessment.candidate_id else None
+    cand = crud.get_candidate_by_id(db, assessment.candidate_id) if assessment.candidate_id else None
     candidate_name = cand.full_name if (cand and cand.full_name) else None
     candidate_email = cand.email if (cand and cand.email) else None
 
@@ -886,20 +833,19 @@ def employee_list_assessments_table_logic(
     limit: int = 50,
     offset: int = 0,
 ) -> AssessmentListResponse:
-    """Employee/Admin Grid: lists all candidate assessments from DB with filtering."""
-    query = db.query(AiPrepAssessmentORM)
-    if candidate_id:
-        query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
-    if status_filter:
-        query = query.filter(AiPrepAssessmentORM.status == status_filter)
+    """Employee/Admin Grid: lists all candidate assessments from DB with filtering via crud."""
+    items, total = crud.filter_assessments(
+        db=db,
+        candidate_id=candidate_id,
+        status=status_filter,
+        limit=limit,
+        offset=offset,
+    )
 
-    total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
-
-    candidate_ids = {a.candidate_id for a in items if a.candidate_id is not None}
+    candidate_ids = list({a.candidate_id for a in items if a.candidate_id is not None})
     cand_map = {}
     if candidate_ids:
-        candidates = db.query(CandidateORM).filter(CandidateORM.id.in_(candidate_ids)).all()
+        candidates = crud.get_candidates_by_ids(db, candidate_ids)
         cand_map = {c.id: c for c in candidates}
 
     result_items = []
@@ -935,14 +881,12 @@ def employee_list_assessments_table_logic(
 
 
 def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) -> AssessmentListResponse:
-    """Employee view of assessment history for any specific candidate ID."""
-    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first() if candidate_id else None
+    """Employee view of assessment history for any specific candidate ID via crud."""
+    cand = crud.get_candidate_by_id(db, candidate_id) if candidate_id else None
     candidate_name = cand.full_name if (cand and cand.full_name) else None
     candidate_email = cand.email if (cand and cand.email) else None
 
-    query = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == candidate_id)
-    total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).all()
+    items, total = crud.filter_assessments(db=db, candidate_id=candidate_id, limit=1000, offset=0)
 
     return AssessmentListResponse(
         items=[
@@ -1514,18 +1458,15 @@ def list_questions_from_bank_logic(
     limit: int = 50,
     offset: int = 0,
 ) -> QuestionListResponse:
-    """Fetches questions dynamically from ai_prep_questions DB table."""
-    query = db.query(AiPrepQuestionORM)
-    if category:
-        query = query.filter(AiPrepQuestionORM.category == category)
-    if difficulty_level:
-        query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
-    if is_active is not None:
-        query = query.filter(AiPrepQuestionORM.is_active == is_active)
-
-    total = query.count()
-    items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
-
+    """Fetches questions dynamically from ai_prep_questions DB table via crud."""
+    items, total = crud.list_questions(
+        db=db,
+        category=category,
+        difficulty_level=difficulty_level,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
     return QuestionListResponse(
         items=[QuestionResponse.from_orm(q) for q in items],
         total=total,
@@ -1533,26 +1474,13 @@ def list_questions_from_bank_logic(
 
 
 def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> QuestionResponse:
-    """Adds a new question to the ai_prep_question_bank table in DB."""
-    cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
-    sub_cat = payload.sub_category
-    if cat != "TECHNICAL":
-        sub_cat = None
-    elif not sub_cat:
-        sub_cat = "General"
-
-    diff = payload.difficulty_level.value if hasattr(payload.difficulty_level, "value") else str(payload.difficulty_level)
-
-    new_q = AiPrepQuestionORM(
-        category=cat,
-        sub_category=sub_cat,
-        difficulty_level=diff,
-        question_text=payload.question_text,
-        is_active=payload.is_active,
-    )
-    db.add(new_q)
-    db.commit()
-    db.refresh(new_q)
+    """Adds a new question to the ai_prep_question_bank table in DB via crud."""
+    question_dict = payload.dict()
+    if hasattr(payload.category, "value"):
+        question_dict["category"] = payload.category.value
+    if hasattr(payload.difficulty_level, "value"):
+        question_dict["difficulty_level"] = payload.difficulty_level.value
+    new_q = crud.create_question(db=db, question_in=question_dict)
     return QuestionResponse.from_orm(new_q)
 
 
@@ -1561,45 +1489,29 @@ def update_question_in_bank_logic(
     question_id: int,
     payload: QuestionUpdateRequest,
 ) -> QuestionResponse:
-    """Updates fields on an existing question dynamically in DB."""
-    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    """Updates fields on an existing question dynamically in DB via crud."""
+    update_dict = {
+        k: (v.value if hasattr(v, "value") else v)
+        for k, v in payload.dict(exclude_unset=True).items()
+        if v is not None
+    }
+    q_row = crud.update_question(db=db, question_id=question_id, question_in=update_dict)
     if not q_row:
         raise HTTPException(status_code=404, detail="Question not found")
-
-    for k, v in payload.dict(exclude_unset=True).items():
-        if v is not None and hasattr(q_row, k):
-            setattr(q_row, k, v.value if hasattr(v, "value") else v)
-
-    # Enforce DDL chk_qb_subcategory constraint
-    cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
-    if cat != "TECHNICAL":
-        q_row.sub_category = None
-    elif not q_row.sub_category:
-        q_row.sub_category = "General"
-
-    q_row.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(q_row)
     return QuestionResponse.from_orm(q_row)
 
 
 def get_question_from_bank_logic(db: Session, question_id: int) -> QuestionResponse:
-    """Fetches a specific question by ID from ai_prep_question_bank."""
-    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    """Fetches a specific question by ID from ai_prep_question_bank via crud."""
+    q_row = crud.get_question_by_id(db=db, question_id=question_id)
     if not q_row:
         raise HTTPException(status_code=404, detail="Question not found")
     return QuestionResponse.from_orm(q_row)
 
 
 def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, Any]:
-    """Permanently deletes a question from ai_prep_questions table."""
-    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
-    if not q_row:
+    """Permanently deletes a question from ai_prep_questions table via crud."""
+    success = crud.delete_question(db=db, question_id=question_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Question not found")
-    try:
-        db.delete(q_row)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
     return {"message": "Question deleted successfully", "id": question_id}

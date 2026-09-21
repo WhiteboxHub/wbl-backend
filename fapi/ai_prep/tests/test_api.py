@@ -1,30 +1,15 @@
 """Dynamic API Endpoints and Schemas Test Suite for AI Prep Tool."""
+import datetime
 import os
 import secrets
-
-os.environ.setdefault("SECRET_KEY", "mock_test_secret_key_12345")
-os.environ.setdefault("ALGORITHM", "HS256")
-os.environ.setdefault("DB_PASSWORD", "mock_password")
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_NAME", "wbl_test")
-os.environ.setdefault("ENV", "test")
-os.environ.setdefault("UPSTASH_REDIS_REST_URL", "https://mock-redis.upstash.io")
-os.environ.setdefault("UPSTASH_REDIS_REST_TOKEN", "mock_token")
-
-
-import datetime
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from fapi.main import app
-from fapi.db.database import get_db
-from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
-from fapi.db.models import Base, AuthUserORM, CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
 from fapi.ai_prep.core.scores_engine import ScoresEngine
@@ -34,6 +19,16 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentReportORM,
     AiPrepQuestionORM,
 )
+from fapi.db.database import get_db
+from fapi.db.models import (
+    Base,
+    AuthUserORM,
+    CandidateORM,
+    CandidateMarketingORM,
+    CandidateLlmApiKeyORM,
+)
+from fapi.main import app
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 
 # In-memory SQLite for isolated test execution
 sqlite_test_db_url = "sqlite:///:memory:"
