@@ -110,7 +110,14 @@ class AssessmentEngine:
             and q.get("is_active", True)
             and q.get("id") not in excluded
         ]
-        selected = matched[:1] if matched else questions[:1]
+        if matched:
+            selected = matched[:1]
+        else:
+            selected = [
+                q for q in questions
+                if str(q.get("category", "")).upper() == category
+                and q.get("is_active", True)
+            ][:1]
         return [self._sanitize_question_for_candidate(q) for q in selected]
 
     def _select_adaptive_questions(
