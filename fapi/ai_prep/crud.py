@@ -400,6 +400,30 @@ def get_assessment_report_by_assessment_id(db: Session, assessment_id: Union[int
         numeric_id = int(assessment_id)
     return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == numeric_id).first()
 
+def get_candidate_completed_reports(
+    db: Session,
+    candidate_id: int,
+    assessment_type: Optional[str] = None,
+    limit: int = 5,
+) -> List[AiPrepAssessmentReportORM]:
+    """
+    Fetches completed assessment reports for a candidate.
+    Used by orchestrator to read past readiness performance.
+    """
+    query = (
+        db.query(AiPrepAssessmentReportORM)
+        .join(
+            AiPrepAssessmentORM,
+            AiPrepAssessmentReportORM.assessment_id == AiPrepAssessmentORM.id,
+        )
+        .filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+        .filter(AiPrepAssessmentORM.status == "COMPLETED")
+    )
+    if assessment_type:
+        query = query.filter(
+            AiPrepAssessmentORM.assessment_type == assessment_type.upper()
+        )
+    return query.order_by(desc(AiPrepAssessmentORM.id)).limit(limit).all()
 
 # ---------------------------------------------------------------------------
 # Questions Bank CRUD

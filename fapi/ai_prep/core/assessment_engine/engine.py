@@ -43,12 +43,24 @@ class AssessmentEngine:
         "COMPLETED":   [],
         "FAILED":      [],
     }
+    
+    # Number of questions for multi-question assessment types
+    MULTI_QUESTION_LIMIT: int = 10
+
+    # Difficulty distribution target counts keyed by readiness band
+    DIFFICULTY_DISTRIBUTION: Dict[str, Dict[str, int]] = {
+        "STRONG":       {"EXPERT": 3, "HARD": 4, "MEDIUM": 3, "EASY": 0},
+        "GOOD":         {"EXPERT": 1, "HARD": 2, "MEDIUM": 6, "EASY": 1},
+        "NEEDS_POLISH": {"EXPERT": 0, "HARD": 1, "MEDIUM": 4, "EASY": 5},
+        "WEAK":         {"EXPERT": 0, "HARD": 0, "MEDIUM": 4, "EASY": 6},
+        "DEFAULT":      {"EXPERT": 0, "HARD": 2, "MEDIUM": 5, "EASY": 3},
+    }
 
     def __init__(self) -> None:
         pass
 
     # =========================================================================
-    # 1. QUESTION SELECTION
+    # 1. QUESTION SELECTION & ROUND-ROBIN
     # =========================================================================
 
     def select_questions_for_assessment(
@@ -56,48 +68,123 @@ class AssessmentEngine:
         assessment_type: str,
         available_questions: List[Dict[str, Any]],
         limit: Optional[int] = None,
+        previous_readiness: Optional[str] = None,
+        previously_asked_ids: Optional[List[int]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Selects and sanitizes questions for a given assessment type.
-
-        INTRO and JD_INTRO types are always capped at 1 question.
-        All other types pass through available questions (or use explicit `limit` if specified).
-
-        Args:
-            assessment_type:     Category code (e.g. "INTRO", "JD_INTRO", "TECHNICAL").
-            available_questions: Raw list of question dicts from CRUD layer.
-            limit:               Explicit cap (ignored for INTRO/JD_INTRO — always 1).
-
-        Returns:
-            List of candidate-safe question dicts (no internal columns exposed).
-            If no matching questions exist for the category, returns an empty list [].
-        """
+        """Selects questions for an assessment type using adaptive distribution."""
         normalized_type = assessment_type.upper().strip()
+        excluded_ids = set(previously_asked_ids or [])
 
-        # INTRO and JD_INTRO always get exactly 1 question
+        # INTRO and JD_INTRO are single-question assessments
         if normalized_type in self.SINGLE_QUESTION_TYPES:
-            max_q = 1
-        elif limit is not None:
-            max_q = limit
-        else:
-            max_q = None
+            return self._select_single_intro_question(
+                available_questions, normalized_type, excluded_ids
+            )
 
-        # Filter to matching category and active only
+        max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
         matched = [
+            q for q in available_questions
+            if str(q.get("category", "")).upper() == normalized_type
+            and q.get("is_active", True)
+            and q.get("id") not in excluded_ids
+        ] or [
             q for q in available_questions
             if str(q.get("category", "")).upper() == normalized_type
             and q.get("is_active", True)
         ]
 
-        # Preserve question order from available_questions without unapproved difficulty sorting
-        selected = matched[:max_q] if max_q is not None else matched
+        if not matched:
+            logger.warning("[AssessmentEngine] No questions found for type '%s'.", normalized_type)
+            return []
 
-        logger.info(
-            "[AssessmentEngine] Selected %d question(s) for type '%s' (from %d available).",
-            len(selected), normalized_type, len(available_questions),
+        selected = self._select_adaptive_questions(matched, previous_readiness, max_q)
+        return [self._sanitize_question_for_candidate(q) for q in selected]
+
+    def _select_single_intro_question(
+        self, questions: List[Dict[str, Any]], category: str, excluded: set
+    ) -> List[Dict[str, Any]]:
+        """Handles single-question selection for INTRO / JD_INTRO."""
+        matched = [
+            q for q in questions
+            if str(q.get("category", "")).upper() == category
+            and q.get("is_active", True)
+            and q.get("id") not in excluded
+        ]
+        selected = matched[:1] if matched else questions[:1]
+        return [self._sanitize_question_for_candidate(q) for q in selected]
+
+    def _select_adaptive_questions(
+        self, matched: List[Dict[str, Any]], readiness: Optional[str], max_q: int
+    ) -> List[Dict[str, Any]]:
+        """Applies adaptive difficulty and round-robin subcategory selection."""
+        import random
+        from collections import defaultdict
+
+        dist = self.DIFFICULTY_DISTRIBUTION.get(
+            (readiness or "").upper(), self.DIFFICULTY_DISTRIBUTION["DEFAULT"]
         )
 
-        return [self._sanitize_question_for_candidate(q) for q in selected]
+        pools: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
+        for q in matched:
+            diff = str(q.get("difficulty_level", "MEDIUM")).upper()
+            pools[diff][q.get("sub_category") or "General"].append(q)
+
+        for diff_dict in pools.values():
+            for q_list in diff_dict.values():
+                random.shuffle(q_list)
+
+        selected: List[Dict[str, Any]] = []
+        selected_ids: set = set()
+
+        for diff, target_count in dist.items():
+            picked = self._round_robin_pick(pools[diff], target_count, selected_ids)
+            selected.extend(picked)
+
+        if len(selected) < max_q:
+            remaining = [q for q in matched if q.get("id") not in selected_ids]
+            random.shuffle(remaining)
+            selected.extend(remaining[: max_q - len(selected)])
+
+        return selected[:max_q]
+
+    def _round_robin_pick(
+        self,
+        subcat_pools: Dict[str, List[Dict[str, Any]]],
+        target_count: int,
+        selected_ids: set,
+    ) -> List[Dict[str, Any]]:
+        """Picks up to target_count questions rotating fairly across sub-categories."""
+        import random
+        sub_cats = list(subcat_pools.keys())
+        if not sub_cats:
+            return []
+
+        random.shuffle(sub_cats)
+        picked: List[Dict[str, Any]] = []
+        cat_idx = 0
+
+        while len(picked) < target_count:
+            progress = False
+            for _ in range(len(sub_cats)):
+                cat = sub_cats[cat_idx % len(sub_cats)]
+                cat_idx += 1
+                pool = subcat_pools[cat]
+
+                while pool:
+                    q = pool.pop(0)
+                    if q.get("id") not in selected_ids:
+                        picked.append(q)
+                        selected_ids.add(q.get("id"))
+                        progress = True
+                        break
+
+                if len(picked) >= target_count:
+                    break
+
+            if not progress:
+                break
+
+        return picked
 
     def _sanitize_question_for_candidate(self, question: Dict[str, Any]) -> Dict[str, Any]:
         """
