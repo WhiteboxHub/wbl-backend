@@ -54,16 +54,18 @@ def extract_role_and_team_from_token(token: str):
         return None, None, False
 
 
+from fapi.utils.auth_dependencies import get_current_user_optional
+
 @router.head("/course-content")
 def check_course_content_version(
     db: Session = Depends(get_db),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
+    current_user=Depends(get_current_user_optional),
 ):
     return generate_version_for_model(db, CourseContentORM)
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
+    current_user=Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     def _get_content():
