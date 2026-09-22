@@ -44,7 +44,11 @@ def get_course_content_by_id(
 
 
 @router.post("/course-contents", response_model=schemas.CourseContentResponse, status_code=status.HTTP_201_CREATED)
-def create_course_content(course_content: schemas.CourseContentCreate, db: Session = Depends(get_db)):
+def create_course_content(
+    course_content: schemas.CourseContentCreate,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     try:
         db_course_content = course_content_utils.create_course_content(db, course_content)
         return db_course_content
@@ -55,7 +59,8 @@ def create_course_content(course_content: schemas.CourseContentCreate, db: Sessi
 def update_course_content(
     content_id: int, 
     course_content_update: schemas.CourseContentUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
 ):
     """
     Update a course content
@@ -69,7 +74,11 @@ def update_course_content(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 @router.delete("/course-contents/{content_id}")
-def delete_course_content(content_id: int, db: Session = Depends(get_db)):
+def delete_course_content(
+    content_id: int,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+):
     try:
         course_content_utils.delete_course_content(db, content_id)
         return {"status": "success", "message": "Course content deleted successfully"}
