@@ -1061,28 +1061,28 @@ async def process_media_and_upload_pipeline(
     """
     Unified Background Pipeline:
     1. Runs Audio Engine on media_path (works with both audio and video containers).
-    2. Saves transcript + audio/video telemetry to database.
+    2. Saves transcript + audio/video telemetry to database and updates status to EVALUATING.
     3. If media_type == "AUDIO", converts audio to video format for YouTube ingestion.
     4. Uploads to YouTube as Unlisted using youtube_client.
     5. Persists youtube_url into ai_prep_assessment table.
     6. Storage Cleanup: Once youtube_url is verified and persisted in DB, cleans up the assessment storage directory.
     7. Triggers LLM evaluation orchestrator.
+    If a critical failure occurs, transitions assessment status to 'FAILED'.
     """
     logger.info("Starting media processing & YouTube upload pipeline for assessment %s (type: %s)...", assessment_id, media_type)
-    
-    # 1. Run Audio Engine (STT + Acoustic DSP)
-    spoken_content = {"full_text": "Assessment audio content"}
-    audio_telemetry = {"words_per_minute": 120}
     try:
-        from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
-        result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, media_path)
-        spoken_content = result.get("spoken_content", spoken_content)
-        audio_telemetry = result.get("audio_telemetry", audio_telemetry)
-    except Exception as err:
-        logger.warning("Audio Engine metrics note for assessment %s: %s", assessment_id, err)
+        # 1. Run Audio Engine (STT + Acoustic DSP)
+        spoken_content = {"full_text": "Assessment audio content"}
+        audio_telemetry = {"words_per_minute": 120}
+        try:
+            from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
+            result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, media_path)
+            spoken_content = result.get("spoken_content", spoken_content)
+            audio_telemetry = result.get("audio_telemetry", audio_telemetry)
+        except Exception as err:
+            logger.warning("Audio Engine metrics note for assessment %s: %s", assessment_id, err)
 
-    # 2. Save Telemetry into DB
-    try:
+        # 2. Save Telemetry into DB & Transition Status to EVALUATING
         with SessionLocal() as db:
             assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
             if assessment:
@@ -1099,68 +1099,80 @@ async def process_media_and_upload_pipeline(
                 crud.update_assessment_status(db, assessment.id, "EVALUATING")
                 if not candidate_id:
                     candidate_id = assessment.candidate_id
-    except Exception as db_err:
-        logger.warning("DB session note while saving telemetry for assessment %s: %s", assessment_id, db_err)
+            else:
+                logger.error("Assessment %s not found during media processing pipeline", assessment_id)
+                return
 
-    # 3. YouTube Upload Pre-Flight & Conversion
-    youtube_upload_file = media_path
-    if media_type.upper() == "AUDIO":
+        # 3. YouTube Upload Pre-Flight & Conversion (Best-effort)
+        youtube_upload_file = media_path
+        if media_type.upper() == "AUDIO":
+            try:
+                from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
+                youtube_upload_file = await asyncio.to_thread(
+                    VideoProcessorEngine.convert_audio_for_youtube,
+                    media_path,
+                )
+            except Exception as conv_err:
+                logger.warning("Audio to video conversion note for assessment %s: %s", assessment_id, conv_err)
+
+        # 4. Upload to YouTube as Unlisted (Best-effort)
+        youtube_url = None
         try:
-            from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
-            youtube_upload_file = await asyncio.to_thread(
-                VideoProcessorEngine.convert_audio_for_youtube,
-                media_path,
+            from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
+            upload_res = await asyncio.to_thread(
+                youtube_client.upload_unlisted_media,
+                assessment_id=assessment_id,
+                file_path=youtube_upload_file,
+                media_type=media_type,
             )
-        except Exception as conv_err:
-            logger.warning("Audio to video conversion note for assessment %s: %s", assessment_id, conv_err)
+            youtube_url = upload_res.get("youtube_url")
+            logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
+        except YouTubeQuotaExceededError as quota_err:
+            logger.warning(
+                "YouTube daily upload quota reached during assessment %s processing (%s). Evaluation pipeline will proceed.",
+                assessment_id,
+                quota_err,
+            )
+        except Exception as yt_err:
+            logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
 
-    # 4. Upload to YouTube as Unlisted
-    youtube_url = None
-    try:
-        from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
-        upload_res = await asyncio.to_thread(
-            youtube_client.upload_unlisted_media,
-            assessment_id=assessment_id,
-            file_path=youtube_upload_file,
-            media_type=media_type,
-        )
-        youtube_url = upload_res.get("youtube_url")
-        logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
-    except YouTubeQuotaExceededError as quota_err:
-        logger.warning(
-            "YouTube daily upload quota reached during assessment %s processing (%s). Evaluation pipeline will proceed.",
-            assessment_id,
-            quota_err,
-        )
-    except Exception as yt_err:
-        logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
+        # 5. Persist youtube_url to DB
+        if youtube_url:
+            try:
+                with SessionLocal() as db:
+                    crud.update_assessment_media_url(db, assessment_id, youtube_url)
+                    logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
+            except Exception as db_url_err:
+                logger.warning("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
-    # 5. Persist youtube_url to DB
-    if youtube_url:
+        # 6. Storage Cleanup: Once uploaded to YouTube and persisted in DB
         try:
-            with SessionLocal() as db:
-                crud.update_assessment_media_url(db, assessment_id, youtube_url)
-                logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
-        except Exception as db_url_err:
-            logger.warning("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
+            from fapi.ai_prep.config import settings
+            should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
+            if youtube_url and should_cleanup and candidate_id:
+                assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+                if os.path.exists(assessment_dir):
+                    logger.info("Purging server storage for assessment %s at %s following successful YouTube upload", assessment_id, assessment_dir)
+                    shutil.rmtree(assessment_dir, ignore_errors=True)
+        except Exception as clean_err:
+            logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
 
-    # 6. Storage Cleanup: Once uploaded to YouTube and persisted in DB
-    try:
-        from fapi.ai_prep.config import settings
-        should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
-        if youtube_url and should_cleanup and candidate_id:
-            assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
-            if os.path.exists(assessment_dir):
-                logger.info("Purging server storage for assessment %s at %s following successful YouTube upload", assessment_id, assessment_dir)
-                shutil.rmtree(assessment_dir, ignore_errors=True)
-    except Exception as clean_err:
-        logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
-
-    # 7. Trigger LLM Evaluation Orchestrator
-    try:
+        # 7. Trigger LLM Evaluation Orchestrator (Critical)
         await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
-    except Exception as eval_err:
-        logger.warning("LLM evaluation execution note for assessment %s: %s", assessment_id, eval_err)
+
+    except Exception as pipeline_err:
+        logger.error(
+            "Background media processing & evaluation pipeline failed for assessment %s: %s",
+            assessment_id,
+            pipeline_err,
+            exc_info=True,
+        )
+        try:
+            with SessionLocal() as fallback_db:
+                crud.update_assessment_status(fallback_db, assessment_id, "FAILED")
+                logger.info("Assessment %s status updated to FAILED", assessment_id)
+        except Exception as status_err:
+            logger.error("Failed to update assessment %s status to FAILED: %s", assessment_id, status_err)
 
 
 # Alias for backward compatibility
