@@ -1,5 +1,7 @@
 import os
+import secrets
 import logging
+from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -10,9 +12,28 @@ from fapi.db.models import AuthUserORM
 
 logger = logging.getLogger("wbl")
 security = HTTPBearer(auto_error=False)
+security_optional = HTTPBearer(auto_error=False)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+INTERNAL_WORKFLOW_SECRET = os.getenv("INTERNAL_WORKFLOW_SECRET")
+
+
+def _check_internal_secret(request: Request):
+    internal_secret = request.headers.get("X-Internal-Secret")
+    if (
+        INTERNAL_WORKFLOW_SECRET
+        and internal_secret
+        and secrets.compare_digest(internal_secret, INTERNAL_WORKFLOW_SECRET)
+    ):
+        class DummyInternalUser:
+            id = 0
+            uname = "scheduler_worker"
+            role = "admin"
+            is_admin = True
+            is_employee = True
+        return DummyInternalUser()
+    return None
 
 
 def decode_token(token: str):
@@ -27,7 +48,7 @@ def decode_token(token: str):
 
 def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db)
 ):
     token = None
@@ -40,15 +61,9 @@ def get_current_user(
             token = auth_header.split(" ")[1]
 
     if not token:
-        internal_secret = request.headers.get("X-Internal-Secret")
-        if internal_secret == "super-secret-weekly-workflow-key":
-            class DummyInternalUser:
-                id = 0
-                uname = "scheduler_worker"
-                role = "admin"
-                is_admin = True
-                is_employee = True
-            return DummyInternalUser()
+        internal_user = _check_internal_secret(request)
+        if internal_user:
+            return internal_user
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     payload = decode_token(token)
@@ -81,12 +96,13 @@ User = AuthUserORM
 
 def get_current_user_optional(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
     db: Session = Depends(get_db)
-):
+) -> Optional[AuthUserORM]:
     """Like get_current_user but returns None instead of raising 401 when no token
     is provided. Used by enforce_access to allow unauthenticated access to public
-    GET routes (e.g. /api/course-content, /api/course-contents).
+    GET/HEAD routes (e.g. /api/course-content, /api/course-contents).
+    If a token is provided but invalid/expired, raises HTTP 401.
     """
     token = None
 
@@ -98,27 +114,18 @@ def get_current_user_optional(
             token = auth_header.split(" ")[1]
 
     if not token:
-        internal_secret = request.headers.get("X-Internal-Secret")
-        if internal_secret == "super-secret-weekly-workflow-key":
-            class DummyInternalUser:
-                id = 0
-                uname = "scheduler_worker"
-                role = "admin"
-                is_admin = True
-                is_employee = True
-            return DummyInternalUser()
-        # No token — return None so public routes can proceed unauthenticated
+        internal_user = _check_internal_secret(request)
+        if internal_user:
+            return internal_user
+        # No token provided -> return None for unauthenticated requests
         return None
 
-    try:
-        payload = decode_token(token)
-    except HTTPException:
-        # Bad/expired token — treat as unauthenticated (None) rather than crashing
-        return None
+    # Token provided: decode_token raises 401 if token is invalid or expired
+    payload = decode_token(token)
 
     user_id_or_name = payload.get("sub") or payload.get("user_id")
     if not user_id_or_name:
-        return None
+        raise HTTPException(status_code=401, detail="Invalid token payload")
 
     user = None
     try:
@@ -127,7 +134,16 @@ def get_current_user_optional(
         user = db.query(AuthUserORM).filter(AuthUserORM.uname == str(user_id_or_name)).first()
 
     if not user:
-        return None
+        raise HTTPException(status_code=401, detail="User not found")
+
+    for attr in ["role", "is_admin", "is_employee"]:
+        if attr in payload:
+            try:
+                setattr(user, attr, payload[attr])
+            except Exception:
+                pass
+
+    return user
 
     for attr in ["role", "is_admin", "is_employee"]:
         if attr in payload:

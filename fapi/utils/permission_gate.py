@@ -60,7 +60,7 @@ def _is_employee(user) -> bool:
 
 # Routes accessible without authentication (read-only GET/HEAD only).
 # Write operations (POST/PUT/PATCH/DELETE) always require a valid login.
-PUBLIC_GET_PREFIXES = {
+PUBLIC_GET_PATHS = {
     "/api/course-content",
     "/api/course-contents",
 }
@@ -70,13 +70,11 @@ def enforce_access(request: Request, current_user=Depends(get_current_user_optio
     path = request.url.path.rstrip("/")
 
     # --- Unauthenticated requests (no token provided) ---
-    # Allow GET/HEAD to public prefixes without requiring login.
+    # Allow GET/HEAD only to explicitly approved public course-content paths.
     if current_user is None:
-        if method in ("GET", "HEAD"):
-            for prefix in PUBLIC_GET_PREFIXES:
-                if path == prefix or path.startswith(prefix + "/"):
-                    return None  # public read-only access granted
-        # All other paths or methods require authentication
+        if method in ("GET", "HEAD") and path in PUBLIC_GET_PATHS:
+            return None  # public read-only access granted
+        # All other paths or non-GET/HEAD methods require authentication
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     if _is_admin(current_user):

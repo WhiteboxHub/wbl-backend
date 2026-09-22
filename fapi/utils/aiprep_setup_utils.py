@@ -611,7 +611,10 @@ def get_resume_summary_logic(session_id: str, db):
     try:
         if session_id == "null" or not session_id:
             raise HTTPException(status_code=404, detail="Invalid session ID")
-        marketing_id = int(session_id)
+        try:
+            marketing_id = int(session_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=404, detail="Session/Candidate not found")
         from fapi.db.models import CandidateMarketingORM, CandidateORM
         cand_result = db.query(
             CandidateORM.full_name.label("name"),
@@ -664,7 +667,7 @@ def get_resume_summary_logic(session_id: str, db):
         raise
     except Exception as e:
         logger.error("ERROR in get_resume_summary: " + str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 def init_session_logic(data: SetupInit, db):
     try:
@@ -676,7 +679,7 @@ def init_session_logic(data: SetupInit, db):
         raise
     except Exception as e:
         logger.error("ERROR in init_session: " + str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 def init_and_summary_logic(data: SetupInit, db):
     try:
@@ -693,7 +696,7 @@ def init_and_summary_logic(data: SetupInit, db):
         raise
     except Exception as e:
         logger.error("ERROR in init_and_summary: " + str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 async def sync_from_wbl_logic(data: SyncFromWblRequest, db):
     session_id = data.prep_token

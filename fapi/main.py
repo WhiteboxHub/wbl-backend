@@ -47,15 +47,24 @@ from fastapi.responses import JSONResponse
 import logging
 logger = logging.getLogger("wbl")
 
-# CORS headers to attach on every error response (Fixes Bugs #7, #8, #9).
-# FastAPI exception handlers run BEFORE CORSMiddleware, so the middleware
-# never gets a chance to inject these headers on error paths.
-_CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "*",
-    "Access-Control-Allow-Headers": "*",
-}
+def _get_cors_headers(request: Request) -> dict:
+    """Return appropriate CORS headers for exception responses.
+    If an Origin header is present, mirror it with Allow-Credentials: true.
+    Otherwise, return Allow-Origin: * without Allow-Credentials to avoid unsafe combinations.
+    """
+    origin = request.headers.get("origin")
+    if origin:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+    }
 
 
 @app.exception_handler(FastAPIHTTPException)
@@ -64,7 +73,7 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
-        headers=_CORS_HEADERS,
+        headers=_get_cors_headers(request),
     )
 
 
@@ -75,7 +84,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
-        headers=_CORS_HEADERS,
+        headers=_get_cors_headers(request),
     )
 
 @app.on_event("startup")
