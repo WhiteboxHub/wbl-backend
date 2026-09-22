@@ -36,6 +36,7 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentReportORM,
     AiPrepQuestionORM,
 )
+from fapi.ai_prep.config import settings
 from fapi.ai_prep.clients.youtube_quota_manager import youtube_quota_manager
 from fapi.ai_prep.clients.youtube_client import youtube_client
 from fapi.ai_prep.utils.aiprep_utils import process_media_and_upload_pipeline
@@ -440,3 +441,175 @@ def test_audio_assessment_unauthorized_isolation(e2e_db_session, seed_candidate_
 
     res_unauth = client_b.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
     assert res_unauth.status_code in (403, 404)
+
+
+def test_chunk_upload_rejects_oversized_payload_413(e2e_db_session, seed_candidate_e2e, monkeypatch):
+    """Verifies that chunks exceeding MAX_CHUNK_SIZE_MB are rejected with HTTP 413."""
+    client = get_e2e_client(e2e_db_session, candidate_id=2001)
+
+    res_create = client.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 2001,
+        "assessment_type": "INTRO",
+        "media_type": "VIDEO",
+    })
+    assessment_id = res_create.json()["id"]
+
+    # Temporarily set max chunk size to 1 MB for testing
+    monkeypatch.setattr(settings, "MAX_CHUNK_SIZE_MB", 1)
+
+    oversized_data = b"\x1a\x45\xdf\xa3" + (b"\x00" * (2 * 1024 * 1024))  # 2MB
+    res_upload = client.post(
+        "/api/aiprep/media/upload-chunk",
+        data={
+            "assessment_id": str(assessment_id),
+            "chunk_number": 1,
+            "total_chunks": 1,
+        },
+        files={"file": ("chunk_0001.webm", io.BytesIO(oversized_data), "video/webm")},
+    )
+    assert res_upload.status_code == 413
+    assert "exceeds maximum allowed size" in res_upload.json()["detail"]
+
+
+def test_assemble_rejects_missing_chunks_409(e2e_db_session, seed_candidate_e2e):
+    """Verifies that assembling an incomplete chunk sequence is rejected with HTTP 409 Conflict."""
+    client = get_e2e_client(e2e_db_session, candidate_id=2001)
+
+    res_create = client.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 2001,
+        "assessment_type": "INTRO",
+        "media_type": "VIDEO",
+    })
+    assessment_id = res_create.json()["id"]
+
+    chunk_data = b"\x1a\x45\xdf\xa3" + (b"\x00" * 200)
+
+    # Upload chunk 1
+    res1 = client.post(
+        "/api/aiprep/media/upload-chunk",
+        data={"assessment_id": str(assessment_id), "chunk_number": 1, "total_chunks": 3},
+        files={"file": ("chunk_0001.webm", io.BytesIO(chunk_data), "video/webm")},
+    )
+    assert res1.status_code == 200
+
+    # Upload chunk 3 (Chunk 2 is missing!)
+    res3 = client.post(
+        "/api/aiprep/media/upload-chunk",
+        data={"assessment_id": str(assessment_id), "chunk_number": 3, "total_chunks": 3},
+        files={"file": ("chunk_0003.webm", io.BytesIO(chunk_data), "video/webm")},
+    )
+    assert res3.status_code == 200
+
+    # Attempt assembly with missing chunk 2
+    res_assemble = client.post(
+        f"/api/aiprep/media/assemble?assessment_id={assessment_id}",
+        json={"total_chunks": 3},
+    )
+    assert res_assemble.status_code == 409
+    assert "Missing" in res_assemble.json()["detail"] or "Incomplete" in res_assemble.json()["detail"]
+
+
+def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidate_e2e):
+    """Verifies local storage is NOT deleted if updating the YouTube URL in the DB fails."""
+    client = get_e2e_client(e2e_db_session, candidate_id=2001)
+
+    res_create = client.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 2001,
+        "assessment_type": "INTRO",
+        "media_type": "AUDIO",
+    })
+    assessment_id = res_create.json()["id"]
+
+    dummy_wav_content = b"RIFF" + b"\x24\x00\x00\x00" + b"WAVEfmt " + b"\x10\x00\x00\x00" + b"\x01\x00\x01\x00" + b"\x44\xac\x00\x00" + b"\x88\x58\x01\x00" + b"\x02\x00\x10\x00" + b"data" + b"\x00\x00\x00\x00" + (b"\x00" * 400)
+    res_upload = client.post(
+        f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
+        files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+    )
+    assert res_upload.status_code == 200
+    upload_file_path = res_upload.json()["file_path"]
+    assessment_dir = os.path.dirname(upload_file_path)
+
+    mock_audio = {"spoken_content": {"full_text": "Audio text"}, "audio_telemetry": {"words_per_minute": 120}}
+    mock_eval = {"transcript_evaluation": {}, "audio_evaluation": {}, "video_evaluation": None}
+
+    def failing_update_media_url(*args, **kwargs):
+        raise RuntimeError("Database connection lost during update_assessment_media_url")
+
+    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
+         patch("fapi.ai_prep.core.video_processor_engine.VideoProcessorEngine.convert_audio_for_youtube", return_value=upload_file_path), \
+         patch("fapi.ai_prep.crud.update_assessment_media_url", side_effect=failing_update_media_url), \
+         patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value=mock_eval), \
+         patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", E2ESessionLocal):
+
+        import asyncio
+        asyncio.run(
+            process_media_and_upload_pipeline(
+                assessment_id=assessment_id,
+                media_path=upload_file_path,
+                media_type="AUDIO",
+                candidate_id=2001,
+            )
+        )
+
+    # Assessment directory must be preserved because DB URL update failed
+    assert os.path.exists(assessment_dir)
+
+
+def test_audio_engine_failure_marks_assessment_failed_without_dummy_data(e2e_db_session, seed_candidate_e2e):
+    """Verifies that audio engine errors mark the assessment as FAILED and never save fake telemetry."""
+    client = get_e2e_client(e2e_db_session, candidate_id=2001)
+
+    res_create = client.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 2001,
+        "assessment_type": "INTRO",
+        "media_type": "AUDIO",
+    })
+    assessment_id = res_create.json()["id"]
+
+    dummy_wav_content = b"RIFF" + (b"\x00" * 400)
+
+    def failing_audio_engine(*args, **kwargs):
+        raise RuntimeError("Whisper STT model failed to decode audio")
+
+    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", side_effect=failing_audio_engine), \
+         patch("fapi.db.database.SessionLocal", E2ESessionLocal), \
+         patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", E2ESessionLocal):
+
+        res_upload = client.post(
+            f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
+            files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+        )
+        assert res_upload.status_code == 200
+
+    e2e_db_session.expire_all()
+    assessment = e2e_db_session.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    assert assessment.status == "FAILED"
+    # Verify no fake dummy telemetry or transcript was persisted
+    assessment_data = e2e_db_session.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
+    if assessment_data:
+        assert assessment_data.transcript != {"full_text": "Assessment audio content"}
+        assert assessment_data.audio_telemetry != {"words_per_minute": 120}
+
+
+def test_direct_upload_rejects_invalid_media_type_400(e2e_db_session, seed_candidate_e2e):
+    """Verifies direct media upload rejects invalid media_type with 400."""
+    client = get_e2e_client(e2e_db_session, candidate_id=2001)
+
+    res_create = client.post("/api/aiprep/candidate/assessments", json={
+        "candidate_id": 2001,
+        "assessment_type": "INTRO",
+        "media_type": "VIDEO",
+    })
+    assessment_id = res_create.json()["id"]
+
+    res_upload = client.post(
+        "/api/aiprep/media/upload",
+        data={
+            "assessment_id": str(assessment_id),
+            "media_type": "INVALID_TYPE",
+        },
+        files={"file": ("test.webm", io.BytesIO(b"\x1a\x45\xdf\xa3" + b"\x00" * 100), "video/webm")},
+    )
+    assert res_upload.status_code == 400
+    assert "Invalid media_type" in res_upload.json()["detail"]
+

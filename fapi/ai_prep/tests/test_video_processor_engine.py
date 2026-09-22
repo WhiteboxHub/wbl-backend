@@ -93,19 +93,51 @@ def test_media_verifier():
             os.remove(v_path)
 
 
-def test_audio_to_video_conversion():
+def test_audio_to_video_conversion_failure_raises_error():
+    from fapi.ai_prep.core.video_processor_engine import MediaConversionError
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+        tf.write(b"INVALID_WAV_HEADER_DATA" * 10)
+        a_path = tf.name
+
+    try:
+        # Converting corrupt/invalid audio must raise MediaConversionError instead of silently returning audio_path
+        with pytest.raises(MediaConversionError):
+            VideoProcessorEngine.convert_audio_for_youtube(a_path)
+    finally:
+        if os.path.exists(a_path):
+            os.remove(a_path)
+
+
+def test_audio_to_video_conversion_success(monkeypatch):
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
         tf.write(b"RIFF" + b"\x00" * 300)
         a_path = tf.name
 
+    dummy_mp4 = f"{os.path.splitext(a_path)[0]}_youtube.mp4"
     try:
-        # Convert audio for YouTube
+        # Mock subprocess.run to simulate successful ffmpeg execution
+        import subprocess
+        class MockCompletedProcess:
+            returncode = 0
+            stdout = b""
+            stderr = b""
+
+        def mock_run(cmd, **kwargs):
+            # Create valid output file
+            with open(dummy_mp4, "wb") as f:
+                f.write(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 200)
+            return MockCompletedProcess()
+
+        monkeypatch.setattr(subprocess, "run", mock_run)
+
         out_v = VideoProcessorEngine.convert_audio_for_youtube(a_path)
-        assert out_v is not None
+        assert out_v == dummy_mp4
         assert os.path.exists(out_v)
     finally:
         if os.path.exists(a_path):
             os.remove(a_path)
+        if os.path.exists(dummy_mp4):
+            os.remove(dummy_mp4)
 
 
 def test_youtube_client_upload():

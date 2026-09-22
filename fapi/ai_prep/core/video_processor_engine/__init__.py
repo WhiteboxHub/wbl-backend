@@ -22,6 +22,7 @@ from fapi.ai_prep.core.video_processor_engine.preflight_checker import (
 )
 from fapi.ai_prep.core.video_processor_engine.audio_to_video import (
     convert_audio_to_youtube_video,
+    MediaConversionError,
 )
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "detect_container_format",
     "inspect_youtube_upload_readiness",
     "convert_audio_to_youtube_video",
+    "MediaConversionError",
 ]

@@ -27168,7 +27168,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Upload 30s WebM Chunk",
-        "description": "Uploads sequential WebM media chunk to server storage directory.",
+        "description": "Uploads sequential WebM media chunk to server storage directory using streaming.",
         "operationId": "upload_media_chunk_api_aiprep_media_upload_chunk_post",
         "requestBody": {
           "content": {
@@ -30349,7 +30349,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Upload 30s WebM Chunk",
-        "description": "Uploads sequential WebM media chunk to server storage directory.",
+        "description": "Uploads sequential WebM media chunk to server storage directory using streaming.",
         "operationId": "upload_media_chunk_aiprep_media_upload_chunk_post",
         "requestBody": {
           "content": {
@@ -35383,12 +35383,14 @@
           },
           "chunk_number": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Chunk Number"
           },
           "total_chunks": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -35418,12 +35420,14 @@
           },
           "chunk_number": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Chunk Number"
           },
           "total_chunks": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": 1.0
               },
               {
                 "type": "null"

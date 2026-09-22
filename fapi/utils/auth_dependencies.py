@@ -40,6 +40,14 @@ def get_current_user(
             token = auth_header.split(" ")[1]
 
     if not token:
+        token = (
+            request.query_params.get("token")
+            or request.query_params.get("access_token")
+            or request.cookies.get("token")
+            or request.cookies.get("access_token")
+        )
+
+    if not token:
         internal_secret = request.headers.get("X-Internal-Secret")
         if internal_secret == "super-secret-weekly-workflow-key":
             class DummyInternalUser:

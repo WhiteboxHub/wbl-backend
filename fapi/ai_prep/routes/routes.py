@@ -590,21 +590,20 @@ def delete_question_from_bank(
 )
 async def upload_media_chunk(
     assessment_id: str = Form(...),
-    chunk_number: int = Form(...),
-    total_chunks: Optional[int] = Form(None),
+    chunk_number: int = Form(..., ge=1),
+    total_chunks: Optional[int] = Form(None, ge=1),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads sequential WebM media chunk to server storage directory."""
-    content = await file.read()
+    """Uploads sequential WebM media chunk to server storage directory using streaming."""
     return await aiprep_utils.upload_media_chunk_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         chunk_number=chunk_number,
         total_chunks=total_chunks,
-        file_content=content,
+        file=file,
     )
 
 

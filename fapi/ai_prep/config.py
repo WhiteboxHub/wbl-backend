@@ -34,6 +34,14 @@ class AiPrepSettings(BaseSettings):
         default_factory=lambda: int(os.getenv("AIPREP_MAX_CHUNK_SIZE_MB", "50")),
         description="Maximum allowed chunk upload size in megabytes",
     )
+    MAX_MEDIA_UPLOAD_MB: int = Field(
+        default_factory=lambda: int(os.getenv("AIPREP_MAX_MEDIA_UPLOAD_MB", "500")),
+        description="Maximum allowed direct media upload size in megabytes",
+    )
+    MAX_AUDIO_UPLOAD_MB: int = Field(
+        default_factory=lambda: int(os.getenv("AIPREP_MAX_AUDIO_UPLOAD_MB", "100")),
+        description="Maximum allowed direct audio recording upload size in megabytes",
+    )
     ABANDONED_CHUNK_TTL_HOURS: int = Field(
         default_factory=lambda: int(os.getenv("AIPREP_ABANDONED_CHUNK_TTL_HOURS", "24")),
         description="Time-to-live in hours before orphan chunks from abandoned sessions are purged",
@@ -85,6 +93,26 @@ class AiPrepSettings(BaseSettings):
     YOUTUBE_PRIVACY_STATUS: str = Field(
         default_factory=lambda: os.getenv("YOUTUBE_PRIVACY_STATUS", "unlisted"),
         description="Privacy status for assessment videos (strictly unlisted)",
+    )
+    YOUTUBE_CATEGORY_ID: str = Field(
+        default_factory=lambda: os.getenv("AIPREP_YOUTUBE_CATEGORY_ID", os.getenv("YOUTUBE_CATEGORY_ID", "27")),
+        description="YouTube video category ID (default: 27 for Education)",
+    )
+    YOUTUBE_DEFAULT_TAGS: list = Field(
+        default_factory=lambda: [t.strip() for t in os.getenv("AIPREP_YOUTUBE_DEFAULT_TAGS", "AIPrep,WhiteboxLearning,PracticeAssessment").split(",") if t.strip()],
+        description="Default metadata tags for uploaded assessment videos",
+    )
+    YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES: int = Field(
+        default_factory=lambda: int(os.getenv("AIPREP_YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES", str(5 * 1024 * 1024))),
+        description="Chunk size in bytes for resumable YouTube media upload",
+    )
+    STREAMING_CHUNK_SIZE_BYTES: int = Field(
+        default_factory=lambda: int(os.getenv("AIPREP_STREAMING_CHUNK_SIZE_BYTES", str(64 * 1024))),
+        description="Buffer chunk size in bytes for audio/video streaming responses",
+    )
+    REDIS_URL: Optional[str] = Field(
+        default_factory=lambda: os.getenv("REDIS_URL", os.getenv("AIPREP_REDIS_URL")),
+        description="Optional Redis connection URL for distributed YouTube quota accounting",
     )
     YOUTUBE_DAILY_QUOTA_LIMIT: int = Field(
         default_factory=lambda: int(os.getenv("AIPREP_YOUTUBE_DAILY_QUOTA_LIMIT", os.getenv("YOUTUBE_DAILY_QUOTA_LIMIT", "10000"))),

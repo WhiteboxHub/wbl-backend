@@ -17,6 +17,7 @@ from sqlalchemy import desc
 
 from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
+from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
 
 from fapi.db.models import (
@@ -637,8 +638,12 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
         try:
             with SessionLocal() as err_db:
                 crud.update_assessment_status(err_db, assessment_id, "FAILED")
-        except Exception:
-            pass
+        except Exception as status_err:
+            logger.warning(
+                "[LLMOrchestrator Worker] Failed to update assessment %s status to FAILED: %s",
+                str(assessment_id),
+                status_err,
+            )
 
 
 def candidate_submit_data_logic(
@@ -954,26 +959,61 @@ def employee_get_assessment_report_logic(
 # 3. Media Pipeline, Chunks & Streaming Logic
 # ---------------------------------------------------------------------------
 
-
 async def upload_media_chunk_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     chunk_number: int,
     total_chunks: Optional[int],
-    file_content: bytes,
+    file: Union[UploadFile, bytes],
 ) -> ChunkUploadResponse:
-    """Uploads sequential WebM media chunk to server storage directory."""
+    """Uploads sequential WebM media chunk to server storage directory using streaming with strict size limits."""
+    if chunk_number < 1:
+        raise HTTPException(status_code=400, detail="chunk_number must be >= 1")
+    if total_chunks is not None and total_chunks < 1:
+        raise HTTPException(status_code=400, detail="total_chunks must be >= 1")
+
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
     chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
     chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_number:04d}.webm")
+
+    max_chunk_size_bytes = int(getattr(settings, "MAX_CHUNK_SIZE_MB", 50)) * 1024 * 1024
+    total_written = 0
+
     try:
         os.makedirs(chunk_dir, exist_ok=True)
         with open(chunk_path, "wb") as f:
-            f.write(file_content)
+            if isinstance(file, bytes):
+                total_written = len(file)
+                if total_written > max_chunk_size_bytes:
+                    f.close()
+                    if os.path.exists(chunk_path):
+                        os.remove(chunk_path)
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
+                    )
+                f.write(file)
+            else:
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_written += len(chunk)
+                    if total_written > max_chunk_size_bytes:
+                        f.close()
+                        if os.path.exists(chunk_path):
+                            os.remove(chunk_path)
+                        raise HTTPException(
+                            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                            detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
+                        )
+                    f.write(chunk)
+    except HTTPException:
+        raise
     except (PermissionError, OSError) as err:
         logging.error("Could not write media chunk to disk: %s", err)
         raise HTTPException(
@@ -994,13 +1034,14 @@ async def upload_media_chunk_logic(
         except (PermissionError, OSError):
             pass
 
+    uploaded.sort()
     is_ready = bool(total_chunks and len(uploaded) >= total_chunks)
 
     return ChunkUploadResponse(
         chunk_number=chunk_number,
         status="uploaded",
         storage_path=chunk_path,
-        bytes_written=len(file_content),
+        bytes_written=total_written,
         total_uploaded=len(uploaded),
         total_chunks=total_chunks,
         is_ready_for_assembly=is_ready,
@@ -1052,6 +1093,73 @@ def get_chunk_upload_status_logic(
     )
 
 
+async def _process_youtube_upload_and_cleanup(
+    assessment_id: int,
+    media_path: str,
+    media_type: str,
+    candidate_id: Optional[int],
+) -> Optional[str]:
+    """
+    Background helper to package media, upload to YouTube as Unlisted, persist URL to DB,
+    and safely purge local scratch storage once persistence is confirmed.
+    """
+    youtube_url = None
+    youtube_upload_file = media_path
+
+    # 1. Conversion for YouTube if audio
+    if media_type.upper() in {"AUDIO", "AUDIO_ONLY"}:
+        try:
+            from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
+            youtube_upload_file = await asyncio.to_thread(
+                VideoProcessorEngine.convert_audio_for_youtube,
+                media_path,
+            )
+        except Exception as conv_err:
+            logger.warning("Audio-to-video conversion failed for assessment %s: %s", assessment_id, conv_err)
+            return None
+
+    # 2. Upload to YouTube
+    try:
+        from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
+        upload_res = await asyncio.to_thread(
+            youtube_client.upload_unlisted_media,
+            assessment_id=assessment_id,
+            file_path=youtube_upload_file,
+            media_type=media_type,
+        )
+        youtube_url = upload_res.get("youtube_url")
+        logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
+    except Exception as yt_err:
+        logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
+
+    # 3. Persist youtube_url to DB
+    youtube_persisted = False
+    if youtube_url:
+        try:
+            with SessionLocal() as db:
+                crud.update_assessment_media_url(db, assessment_id, youtube_url)
+                youtube_persisted = True
+                logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
+        except Exception as db_url_err:
+            logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
+
+    # 4. Storage Cleanup: ONLY once uploaded to YouTube and verified persisted in DB
+    try:
+        from fapi.ai_prep.config import settings
+        should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
+        if youtube_persisted and should_cleanup and candidate_id:
+            assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+            if os.path.exists(assessment_dir):
+                logger.info("Purging server storage for assessment %s at %s following verified YouTube DB update", assessment_id, assessment_dir)
+                shutil.rmtree(assessment_dir, ignore_errors=True)
+        elif not youtube_persisted:
+            logger.info("Retaining local storage for assessment %s (YouTube URL not persisted in DB)", assessment_id)
+    except Exception as clean_err:
+        logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
+
+    return youtube_url
+
+
 async def process_media_and_upload_pipeline(
     assessment_id: int,
     media_path: str,
@@ -1061,26 +1169,29 @@ async def process_media_and_upload_pipeline(
     """
     Unified Background Pipeline:
     1. Runs Audio Engine on media_path (works with both audio and video containers).
-    2. Saves transcript + audio/video telemetry to database and updates status to EVALUATING.
+    2. Saves real transcript + audio/video telemetry to database and updates status to EVALUATING.
     3. If media_type == "AUDIO", converts audio to video format for YouTube ingestion.
     4. Uploads to YouTube as Unlisted using youtube_client.
     5. Persists youtube_url into ai_prep_assessment table.
-    6. Storage Cleanup: Once youtube_url is verified and persisted in DB, cleans up the assessment storage directory.
+    6. Storage Cleanup: Once youtube_url is verified and persisted in DB, cleans up local storage.
     7. Triggers LLM evaluation orchestrator.
-    If a critical failure occurs, transitions assessment status to 'FAILED'.
+    If any critical failure occurs, transitions assessment status to 'FAILED'.
     """
     logger.info("Starting media processing & YouTube upload pipeline for assessment %s (type: %s)...", assessment_id, media_type)
     try:
         # 1. Run Audio Engine (STT + Acoustic DSP)
-        spoken_content = {"full_text": "Assessment audio content"}
-        audio_telemetry = {"words_per_minute": 120}
+        from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
         try:
-            from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
             result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, media_path)
-            spoken_content = result.get("spoken_content", spoken_content)
-            audio_telemetry = result.get("audio_telemetry", audio_telemetry)
+            spoken_content = result.get("spoken_content")
+            audio_telemetry = result.get("audio_telemetry")
+            if not spoken_content or not audio_telemetry:
+                raise ValueError("Audio Engine returned incomplete transcription or telemetry")
         except Exception as err:
-            logger.warning("Audio Engine metrics note for assessment %s: %s", assessment_id, err)
+            logger.error("Audio Engine execution failed for assessment %s: %s", assessment_id, err, exc_info=True)
+            with SessionLocal() as err_db:
+                crud.update_assessment_status(err_db, assessment_id, "FAILED")
+            return
 
         # 2. Save Telemetry into DB & Transition Status to EVALUATING
         with SessionLocal() as db:
@@ -1103,62 +1214,21 @@ async def process_media_and_upload_pipeline(
                 logger.error("Assessment %s not found during media processing pipeline", assessment_id)
                 return
 
-        # 3. YouTube Upload Pre-Flight & Conversion (Best-effort)
-        youtube_upload_file = media_path
-        if media_type.upper() == "AUDIO":
-            try:
-                from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
-                youtube_upload_file = await asyncio.to_thread(
-                    VideoProcessorEngine.convert_audio_for_youtube,
-                    media_path,
-                )
-            except Exception as conv_err:
-                logger.warning("Audio to video conversion note for assessment %s: %s", assessment_id, conv_err)
+        # 3. Concurrent Execution: Trigger LLM Evaluation & YouTube Ingestion in Parallel
+        eval_coro = assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
+        yt_coro = _process_youtube_upload_and_cleanup(
+            assessment_id=assessment_id,
+            media_path=media_path,
+            media_type=media_type,
+            candidate_id=candidate_id,
+        )
 
-        # 4. Upload to YouTube as Unlisted (Best-effort)
-        youtube_url = None
-        try:
-            from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
-            upload_res = await asyncio.to_thread(
-                youtube_client.upload_unlisted_media,
-                assessment_id=assessment_id,
-                file_path=youtube_upload_file,
-                media_type=media_type,
-            )
-            youtube_url = upload_res.get("youtube_url")
-            logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
-        except YouTubeQuotaExceededError as quota_err:
-            logger.warning(
-                "YouTube daily upload quota reached during assessment %s processing (%s). Evaluation pipeline will proceed.",
-                assessment_id,
-                quota_err,
-            )
-        except Exception as yt_err:
-            logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
+        eval_result, yt_url = await asyncio.gather(eval_coro, yt_coro, return_exceptions=True)
 
-        # 5. Persist youtube_url to DB
-        if youtube_url:
-            try:
-                with SessionLocal() as db:
-                    crud.update_assessment_media_url(db, assessment_id, youtube_url)
-                    logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
-            except Exception as db_url_err:
-                logger.warning("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
-
-        # 6. Storage Cleanup: Once uploaded to YouTube and persisted in DB
-        try:
-            from fapi.ai_prep.config import settings
-            should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
-            if youtube_url and should_cleanup and candidate_id:
-                assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
-                if os.path.exists(assessment_dir):
-                    logger.info("Purging server storage for assessment %s at %s following successful YouTube upload", assessment_id, assessment_dir)
-                    shutil.rmtree(assessment_dir, ignore_errors=True)
-        except Exception as clean_err:
-            logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
-
-        # 7. Trigger LLM Evaluation Orchestrator (Critical)
-        await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
+        if isinstance(eval_result, Exception):
+            logger.error("LLM evaluation encountered exception for assessment %s: %s", assessment_id, eval_result)
+        if isinstance(yt_url, Exception):
+            logger.warning("YouTube upload task encountered exception for assessment %s: %s", assessment_id, yt_url)
 
     except Exception as pipeline_err:
         logger.error(
@@ -1186,8 +1256,9 @@ def assemble_media_chunks_logic(
     payload: Optional[AssembleMediaRequest] = None,
     background_tasks: Optional[BackgroundTasks] = None,
 ) -> AssembleMediaResponse:
-    """Concatenates WebM chunks and launches evaluation & YouTube upload pipeline."""
-    _ = payload
+    """Validates sequence continuity, concatenates WebM chunks with streaming, and launches evaluation pipeline."""
+    from fapi.ai_prep.core.video_processor_engine import validate_chunk_sequence
+
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -1195,22 +1266,52 @@ def assemble_media_chunks_logic(
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
     video_path = os.path.join(assessment_dir, "assembled.webm")
     audio_path = os.path.join(assessment_dir, "audio.wav")
-
-    # If chunks exist, assemble them
     chunk_dir = os.path.join(assessment_dir, "chunks")
-    if os.path.exists(chunk_dir):
-        try:
-            chunk_files = sorted(
-                [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir) if f.endswith(".webm")]
-            )
-            if chunk_files:
-                os.makedirs(assessment_dir, exist_ok=True)
-                with open(video_path, "wb") as outfile:
-                    for cf in chunk_files:
-                        with open(cf, "rb") as infile:
-                            outfile.write(infile.read())
-        except Exception as asm_err:
-            logger.warning("Chunk assembly note for assessment %s: %s", assessment.id, asm_err)
+
+    if not os.path.exists(chunk_dir):
+        raise HTTPException(status_code=400, detail="No chunks directory found for this assessment")
+
+    uploaded = []
+    try:
+        for fname in os.listdir(chunk_dir):
+            if fname.startswith("chunk_") and fname.endswith(".webm"):
+                try:
+                    num = int(fname.replace("chunk_", "").replace(".webm", ""))
+                    uploaded.append(num)
+                except ValueError:
+                    pass
+    except (PermissionError, OSError) as err:
+        logger.error("Could not read chunk directory %s: %s", chunk_dir, err)
+        raise HTTPException(status_code=500, detail="Failed to access chunk storage on server")
+
+    if not uploaded:
+        raise HTTPException(status_code=400, detail="No media chunks found to assemble")
+
+    uploaded.sort()
+    total_expected = payload.total_chunks if (payload and payload.total_chunks) else len(uploaded)
+
+    # Validate complete chunk sequence
+    seq_val = validate_chunk_sequence(existing_chunks=uploaded, total_expected=total_expected)
+    if not seq_val["is_valid"]:
+        logger.warning("Chunk assembly rejected for assessment %s: %s", assessment.id, seq_val["error"])
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Incomplete chunk sequence. {seq_val['error']}",
+        )
+
+    # Assemble chunks in memory-efficient 1MB streaming blocks
+    chunk_files = [os.path.join(chunk_dir, f"chunk_{i:04d}.webm") for i in range(1, total_expected + 1)]
+    try:
+        os.makedirs(assessment_dir, exist_ok=True)
+        with open(video_path, "wb") as outfile:
+            for cf in chunk_files:
+                if not os.path.exists(cf):
+                    raise FileNotFoundError(f"Chunk file missing: {cf}")
+                with open(cf, "rb") as infile:
+                    shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+    except Exception as asm_err:
+        logger.error("Chunk assembly failed for assessment %s: %s", assessment.id, asm_err)
+        raise HTTPException(status_code=500, detail=f"Failed to assemble media chunks: {asm_err}")
 
     target_media = video_path if (os.path.exists(video_path) and os.path.getsize(video_path) > 0) else audio_path
 
@@ -1230,10 +1331,10 @@ def assemble_media_chunks_logic(
         assembled_video_path=video_path,
         extracted_audio_path=audio_path,
         file_size_bytes=os.path.getsize(target_media) if os.path.exists(target_media) else 0,
-        dispatched_tasks=["ffmpeg_assemble", "audio_extract", "youtube_upload", "audio_engine_telemetry"],
+        dispatched_tasks=["media_processing_pipeline"],
         media_path=video_path,
         audio_path=audio_path,
-        message="Media chunks queued for assembly, YouTube upload, and audio telemetry processing",
+        message="Media chunks successfully validated, assembled, and queued for processing",
     )
 
 
@@ -1245,10 +1346,13 @@ async def upload_raw_media_logic(
     file: UploadFile,
     background_tasks: Optional[BackgroundTasks] = None,
 ) -> LocalMediaUploadResponse:
-    """Uploads single binary media file directly to disk storage using streaming."""
-    normalized_media = (media_type or "AUDIO").upper().strip()
+    """Uploads single binary media file directly to disk storage using streaming with size limits."""
+    normalized_media = (media_type or "").upper().strip()
     if normalized_media not in {"AUDIO", "VIDEO", "AUDIO_ONLY"}:
-        normalized_media = "AUDIO"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid media_type '{media_type}'. Allowed values: AUDIO, VIDEO, AUDIO_ONLY",
+        )
 
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
@@ -1259,10 +1363,28 @@ async def upload_raw_media_logic(
     safe_filename = os.path.basename(file.filename or "media.webm")
     dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
 
+    max_media_bytes = int(getattr(settings, "MAX_MEDIA_UPLOAD_MB", 500)) * 1024 * 1024
+    total_written = 0
+
     try:
         os.makedirs(assessment_dir, exist_ok=True)
         with open(dest_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if total_written > max_media_bytes:
+                    buffer.close()
+                    if os.path.exists(dest_path):
+                        os.remove(dest_path)
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail=f"Media file ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_MEDIA_UPLOAD_MB}MB)",
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        raise
     except (PermissionError, OSError) as err:
         logging.error("Could not write raw media file to disk: %s", err)
         raise HTTPException(
@@ -1288,6 +1410,19 @@ async def upload_raw_media_logic(
     )
 
 
+AUDIO_MIME_TO_EXTENSION: Dict[str, str] = {
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/webm": "webm",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/ogg": "ogg",
+    "audio/m4a": "m4a",
+    "audio/aac": "aac",
+    "audio/flac": "flac",
+}
+
+
 async def upload_assessment_audio_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -1296,7 +1431,7 @@ async def upload_assessment_audio_logic(
     mime_type: Optional[str] = None,
     background_tasks: Optional[BackgroundTasks] = None,
 ) -> AudioUploadResponse:
-    """Uploads direct audio recording binary to server storage and queues YouTube upload."""
+    """Uploads direct audio recording binary to server storage with extension detection and size limits."""
     from fapi.ai_prep.schemas import AudioUploadResponse
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
@@ -1305,20 +1440,45 @@ async def upload_assessment_audio_logic(
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
     os.makedirs(assessment_dir, exist_ok=True)
-    ext = "webm" if (mime_type and "webm" in mime_type) or (file.filename and file.filename.endswith(".webm")) else "wav"
+
+    ext = None
+    if mime_type and mime_type.lower() in AUDIO_MIME_TO_EXTENSION:
+        ext = AUDIO_MIME_TO_EXTENSION[mime_type.lower()]
+    elif file.filename and "." in file.filename:
+        file_ext = file.filename.rsplit(".", 1)[-1].lower()
+        if file_ext in {"wav", "webm", "mp3", "ogg", "m4a", "aac", "flac"}:
+            ext = file_ext
+    if not ext:
+        ext = "webm" if (mime_type and "webm" in mime_type) else "wav"
+
     dest_path = os.path.join(assessment_dir, f"audio.{ext}")
+    max_audio_bytes = int(getattr(settings, "MAX_AUDIO_UPLOAD_MB", 100)) * 1024 * 1024
+    total_written = 0
 
     try:
         with open(dest_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_written += len(chunk)
+                if total_written > max_audio_bytes:
+                    buffer.close()
+                    if os.path.exists(dest_path):
+                        os.remove(dest_path)
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail=f"Audio file ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_AUDIO_UPLOAD_MB}MB)",
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        raise
     except (PermissionError, OSError) as err:
         logging.error("Could not write audio recording file to disk: %s", err)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to write audio file to server storage",
         )
-
-    file_size = os.path.getsize(dest_path)
 
     if background_tasks:
         background_tasks.add_task(
@@ -1333,10 +1493,38 @@ async def upload_assessment_audio_logic(
         success=True,
         assessment_id=assessment.id,
         message="Audio recording uploaded and processing pipeline queued successfully",
-        size_bytes=file_size,
+        size_bytes=total_written,
         mime_type=mime_type or f"audio/{ext}",
         file_path=dest_path,
     )
+
+
+def _auto_assemble_chunks_if_present(assessment_dir: str) -> Optional[str]:
+    """Auto-assembles sequential WebM chunks from chunks/ into assembled.webm if top-level media is absent."""
+    chunk_dir = os.path.join(assessment_dir, "chunks")
+    if not os.path.exists(chunk_dir):
+        return None
+    try:
+        chunk_files = sorted(
+            [
+                os.path.join(chunk_dir, f)
+                for f in os.listdir(chunk_dir)
+                if f.startswith("chunk_") and f.endswith(".webm")
+            ]
+        )
+        if chunk_files:
+            assembled_path = os.path.join(assessment_dir, "assembled.webm")
+            os.makedirs(assessment_dir, exist_ok=True)
+            with open(assembled_path, "wb") as outfile:
+                for cf in chunk_files:
+                    with open(cf, "rb") as infile:
+                        shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+            if os.path.exists(assembled_path) and os.path.getsize(assembled_path) > 0:
+                logger.info("Auto-assembled %d chunks into %s", len(chunk_files), assembled_path)
+                return assembled_path
+    except Exception as auto_err:
+        logger.warning("Auto-assembling chunks failed: %s", auto_err)
+    return None
 
 
 def get_assessment_audio_logic(
@@ -1356,6 +1544,7 @@ def get_assessment_audio_logic(
         os.path.join(assessment_dir, "audio.webm"),
         os.path.join(assessment_dir, "recording.webm"),
         os.path.join(assessment_dir, "audio.mp3"),
+        os.path.join(assessment_dir, "audio.ogg"),
         os.path.join(assessment_dir, "assembled.webm"),
     ]
     target_file = None
@@ -1367,19 +1556,23 @@ def get_assessment_audio_logic(
     if not target_file and os.path.exists(assessment_dir):
         for fname in os.listdir(assessment_dir):
             fpath = os.path.join(assessment_dir, fname)
-            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and (fname.endswith(".wav") or fname.endswith(".webm") or fname.endswith(".mp3")):
+            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(s) for s in (".wav", ".webm", ".mp3", ".ogg")):
                 target_file = fpath
                 break
+
+    if not target_file and os.path.exists(assessment_dir):
+        target_file = _auto_assemble_chunks_if_present(assessment_dir)
 
     if not target_file or not os.path.exists(target_file):
         raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
 
-    mime_type = "audio/wav" if target_file.endswith(".wav") else "audio/webm"
+    mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
     file_size = os.path.getsize(target_file)
+    stream_buf_size = int(getattr(settings, "STREAMING_CHUNK_SIZE_BYTES", 64 * 1024))
 
     def iterfile():
         with open(target_file, "rb") as f:
-            while chunk := f.read(64 * 1024):
+            while chunk := f.read(stream_buf_size):
                 yield chunk
 
     return StreamingResponse(
@@ -1424,11 +1617,15 @@ def get_assessment_video_logic(
                 target_file = fpath
                 break
 
+    if not target_file and os.path.exists(assessment_dir):
+        target_file = _auto_assemble_chunks_if_present(assessment_dir)
+
     if not target_file or not os.path.exists(target_file):
         raise HTTPException(status_code=404, detail="Assessment video recording not found in server storage")
 
     file_size = os.path.getsize(target_file)
     mime_type = "video/webm" if target_file.endswith(".webm") else "video/mp4"
+    stream_buf_size = int(getattr(settings, "STREAMING_CHUNK_SIZE_BYTES", 64 * 1024))
 
     # Support HTTP 206 Partial Content for video range seeking
     if range_header:
@@ -1445,7 +1642,7 @@ def get_assessment_video_logic(
                     f.seek(start)
                     remaining = content_length
                     while remaining > 0:
-                        chunk_size = min(remaining, 64 * 1024)
+                        chunk_size = min(remaining, stream_buf_size)
                         data = f.read(chunk_size)
                         if not data:
                             break
@@ -1467,7 +1664,7 @@ def get_assessment_video_logic(
 
     def full_stream():
         with open(target_file, "rb") as f:
-            while chunk := f.read(64 * 1024):
+            while chunk := f.read(stream_buf_size):
                 yield chunk
 
     return StreamingResponse(
@@ -1506,17 +1703,35 @@ def get_assessment_processing_status_logic(
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
     status_str = assessment.status if assessment.status else "IN_PROGRESS"
 
-    progress_map = {"IN_PROGRESS": 25.0, "EVALUATING": 65.0, "COMPLETED": 100.0, "FAILED": 0.0}
+    progress_map = {"IN_PROGRESS": 25.0, "EVALUATING": 70.0, "COMPLETED": 100.0, "FAILED": 0.0}
+    active_step = (
+        "Evaluation Completed" if status_str == "COMPLETED"
+        else ("Processing Failed" if status_str == "FAILED"
+        else ("Evaluating Responses with LLM" if status_str == "EVALUATING"
+        else "Processing Ingested Media"))
+    )
     return ProcessingStatusResponse(
         assessment_id=assessment.id,
         status=status_str,
         progress_percentage=int(progress_map.get(status_str, 50.0)),
-        active_step="Evaluation Completed" if status_str == "COMPLETED" else "Processing Ingested Media",
-        step="Evaluation Completed" if status_str == "COMPLETED" else "Processing Ingested Media",
+        active_step=active_step,
+        step=active_step,
         progress_pct=progress_map.get(status_str, 50.0),
         youtube_url=assessment.youtube_url,
         message=f"Assessment is {status_str}",
     )
+
+
+def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str, Optional[str]]]:
+    """Helper to query assessment status in an isolated short-lived DB session without holding connection pool."""
+    try:
+        with SessionLocal() as poll_db:
+            rec = crud.get_assessment_by_id_or_uuid(poll_db, assessment_id)
+            if rec:
+                return rec.status or "IN_PROGRESS", rec.youtube_url
+    except Exception as exc:
+        logger.debug("SSE status poll error for assessment %s: %s", assessment_id, exc)
+    return None
 
 
 def stream_assessment_processing_sse_logic(
@@ -1524,18 +1739,46 @@ def stream_assessment_processing_sse_logic(
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
 ) -> StreamingResponse:
-    """Real-time SSE event stream for live UI progress updates."""
+    """Real-time SSE event stream for live UI progress updates reflecting true DB state."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     internal_id = assessment.id
+    ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
+
     async def event_generator():
-        for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 50), ("YouTube Upload", 75), ("LLM Evaluation", 90), ("Report Generated", 100)]:
-            data = f'{{"assessment_id": {internal_id}, "step": "{step}", "progress": {pct}}}\n\n'
-            yield f"data: {data}"
-            await asyncio.sleep(0.5)
+        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))  # Prevent infinite hanging connections
+        polls = 0
+        while polls < max_polls:
+            polls += 1
+            snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
+            if not snapshot:
+                break
+            curr_status, yt_url = snapshot
+            progress_map = {"IN_PROGRESS": 35, "EVALUATING": 75, "COMPLETED": 100, "FAILED": 0}
+            pct = progress_map.get(curr_status, 50)
+            active_step = (
+                "Report Generated" if curr_status == "COMPLETED"
+                else ("Processing Failed" if curr_status == "FAILED"
+                else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
+                else "Media Processing & YouTube Ingestion"))
+            )
+
+            data = json.dumps({
+                "assessment_id": internal_id,
+                "status": curr_status,
+                "step": active_step,
+                "progress": pct,
+                "youtube_url": yt_url,
+            })
+            yield f"data: {data}\n\n"
+
+            if curr_status in {"COMPLETED", "FAILED"}:
+                break
+
+            await asyncio.sleep(min(ping_interval, 2.0))
 
     return StreamingResponse(
         event_generator(),

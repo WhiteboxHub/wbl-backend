@@ -89,8 +89,8 @@ def _resilient_getaddrinfo(host, port, *args, **kwargs):
             if fallback_ip:
                 try:
                     return _ORIGINAL_GETADDRINFO(fallback_ip, port, *args, **kwargs)
-                except Exception:
-                    pass
+                except Exception as ip_err:
+                    logger.debug("DNS fallback resolution to IP %s failed: %s", fallback_ip, ip_err)
         raise err
 
 

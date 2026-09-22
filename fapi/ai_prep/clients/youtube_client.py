@@ -88,14 +88,20 @@ class YouTubeClient:
     ) -> Dict[str, Any]:
         """
         Uploads a video or packaged audio recording to YouTube as Unlisted.
-        Checks daily quota availability before starting upload.
+        Atomically reserves daily quota before starting upload.
         If live credentials are not set or in test mode, returns a deterministic mock YouTube URL.
         """
         if not os.path.exists(file_path):
             raise YouTubeUploadError(f"Media file not found at: {file_path}")
 
-        # Pre-upload Quota Check
-        if not self.quota_mgr.has_sufficient_quota(cost=quota_cost):
+        default_title = f"AIPrep Assessment #{assessment_id} ({media_type.capitalize()})"
+        default_desc = f"Candidate practice assessment #{assessment_id} ({media_type.capitalize()}) - Unlisted recording"
+        target_title = title or default_title
+        target_desc = description or default_desc
+
+        # Atomic Quota Reservation
+        reservation_token = self.quota_mgr.reserve_quota(cost=quota_cost)
+        if not reservation_token:
             status = self.quota_mgr.get_quota_status()
             logger.warning(
                 "YouTube upload aborted for assessment %s: daily quota limit reached (%d/%d units used).",
@@ -108,13 +114,9 @@ class YouTubeClient:
                 f"Estimated reset at midnight Pacific Time."
             )
 
-        default_title = f"AIPrep Assessment #{assessment_id} ({media_type.capitalize()})"
-        default_desc = f"Candidate practice assessment #{assessment_id} ({media_type.capitalize()}) - Unlisted recording"
-        target_title = title or default_title
-        target_desc = description or default_desc
-
         if not self.has_live_credentials() or os.getenv("ENV") == "test":
             logger.info("No live YouTube credentials or test mode active. Using generated YouTube URL for assessment %s", assessment_id)
+            self.quota_mgr.commit_quota(reservation_token=reservation_token, cost=quota_cost)
             mock_id = f"aiprep_rec_{assessment_id}"
             mock_url = f"https://youtube.com/watch?v={mock_id}"
             return {
@@ -125,10 +127,11 @@ class YouTubeClient:
 
         try:
             res = self._upload_live_api(file_path, target_title, target_desc)
-            # Record quota consumption upon successful upload
-            self.quota_mgr.consume_quota(cost=quota_cost)
+            # Commit quota reservation on success
+            self.quota_mgr.commit_quota(reservation_token=reservation_token, cost=quota_cost)
             return res
         except YouTubeQuotaExceededError:
+            self.quota_mgr.release_quota(reservation_token, cost=quota_cost)
             raise
         except Exception as e:
             err_str = str(e)
@@ -136,6 +139,8 @@ class YouTubeClient:
                 self.quota_mgr.mark_quota_exceeded()
                 logger.error("Live YouTube upload failed due to quota limit for assessment %s: %s", assessment_id, err_str)
                 raise YouTubeQuotaExceededError(f"Live YouTube upload failed due to quota limit: {err_str}")
+            # Rollback reservation if failure occurred before quota was actually burnt on Google's end
+            self.quota_mgr.release_quota(reservation_token, cost=quota_cost)
             logger.error("Live YouTube upload failed for assessment %s: %s", assessment_id, err_str)
             raise YouTubeUploadError(f"Live YouTube upload failed: {err_str}")
 
@@ -154,13 +159,17 @@ class YouTubeClient:
             if not creds:
                 raise YouTubeUploadError("No valid YouTube OAuth credentials configured.")
 
+            category_id = str(getattr(settings, "YOUTUBE_CATEGORY_ID", "27"))
+            default_tags = list(getattr(settings, "YOUTUBE_DEFAULT_TAGS", ["AIPrep", "WhiteboxLearning", "PracticeAssessment"]))
+            upload_chunk_size = int(getattr(settings, "YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES", 5 * 1024 * 1024))
+
             youtube = build("youtube", "v3", credentials=creds)
             body = {
                 "snippet": {
                     "title": title,
                     "description": description,
-                    "tags": ["AIPrep", "WhiteboxLearning", "PracticeAssessment"],
-                    "categoryId": "27",  # Education category
+                    "tags": default_tags,
+                    "categoryId": category_id,
                 },
                 "status": {
                     "privacyStatus": self.privacy_status,
@@ -171,7 +180,7 @@ class YouTubeClient:
             mimetype = "video/webm" if file_path.endswith(".webm") else "video/mp4"
             media = MediaFileUpload(
                 file_path,
-                chunksize=1024 * 1024 * 5,  # 5MB chunk
+                chunksize=upload_chunk_size,
                 resumable=True,
                 mimetype=mimetype,
             )
