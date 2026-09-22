@@ -1364,3 +1364,18 @@ def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, 
     q_row.updated_at = datetime.utcnow()
     db.commit()
     return {"message": "Question deactivated successfully", "id": question_id}
+
+async def run_audio_engine_benchmark(
+    audio_path: str,
+    provider_name: Optional[str] = None,
+    model_size: str = "base"
+) -> Dict[str, Any]:
+    """Runs AudioMetricsEngine inside an async thread pool to avoid blocking the FastAPI event loop."""
+    import asyncio
+    from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
+    return await asyncio.to_thread(
+        AudioMetricsEngine.process_audio_file,
+        audio_path=audio_path,
+        model_size=model_size,
+        provider_name=provider_name
+    )

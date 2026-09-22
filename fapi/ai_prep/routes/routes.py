@@ -1,6 +1,9 @@
 """FastAPI Routes and API Endpoints for AI Prep Tool.
 Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
+import os
+import shutil
+import tempfile
 import logging
 from typing import Optional, Union
 from fastapi import (
@@ -13,6 +16,7 @@ from fastapi import (
     status,
     Request,
     BackgroundTasks,
+    HTTPException,
 )
 from sqlalchemy.orm import Session
 
@@ -711,3 +715,68 @@ def stream_assessment_processing_sse(
         current_user=current_user,
         assessment_id=assessment_id,
     )
+
+# ===========================================================================
+# 4. PERFORMANCE TESTING & BENCHMARKING
+# ===========================================================================
+
+@router.post(
+    "/audio-engine/process",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Performance: Audio Engine Benchmark & Process",
+)
+async def process_audio_engine_endpoint(
+    background_tasks: BackgroundTasks,
+    file: Optional[UploadFile] = File(None),
+    audio_path: Optional[str] = Form(None),
+    provider: Optional[str] = Form(None),
+    model_size: str = Form("base"),
+    async_mode: bool = Form(False)
+):
+    """
+    Performance Testing Endpoint:
+    Directly triggers the AudioMetricsEngine pipeline with configurable transcription providers.
+    Supports either direct audio file upload or a server-side audio file path.
+    """
+    target_path = audio_path
+
+    # If file uploaded, save to a temporary location
+    if file:
+        temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
+        temp_file_path = os.path.join(temp_dir, file.filename or "test_audio.webm")
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        target_path = temp_file_path
+
+    if not target_path or not os.path.exists(target_path):
+        raise HTTPException(status_code=400, detail=f"Valid audio file or audio_path required. Given: {target_path}")
+
+    try:
+        if async_mode:
+            # Non-blocking background task mode
+            background_tasks.add_task(
+                aiprep_utils.run_audio_engine_benchmark,
+                audio_path=target_path,
+                provider_name=provider,
+                model_size=model_size
+            )
+            return {
+                "status": "ACCEPTED",
+                "message": "Audio processing queued in background",
+                "audio_path": target_path,
+                "provider": provider or os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
+            }
+        else:
+            # Synchronous benchmark return (runs off-thread)
+            result = await aiprep_utils.run_audio_engine_benchmark(
+                audio_path=target_path,
+                provider_name=provider,
+                model_size=model_size
+            )
+            return {
+                "status": "SUCCESS",
+                "data": result
+            }
+    except Exception as e:
+        logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

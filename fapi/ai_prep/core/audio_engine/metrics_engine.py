@@ -4,7 +4,7 @@ Audio Metrics Engine: Central orchestrator combining acoustic signal metrics and
 import os
 import logging
 from typing import Dict, Any, Optional, List
-from .stt import transcribe_audio
+from .providers import get_transcription_provider, BaseTranscriptionProvider
 from .audio_metrics import calculate_audio_metrics
 from .transcript_metrics import calculate_transcript_metrics
 
@@ -19,6 +19,7 @@ class AudioMetricsEngine:
         cls,
         audio_path: str,
         model_size: str = "base",
+        provider_name: Optional[str] = None,
         precomputed_transcript_text: Optional[str] = None,
         precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
@@ -26,17 +27,18 @@ class AudioMetricsEngine:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         # 1. Obtain STT results (reuse live results or run once)
-        if precomputed_transcript_text is not None and precomputed_word_timestamps is not None:
-            logger.info("Reusing precomputed live STT transcript & word timestamps (skipping duplicate Whisper run)")
-            transcript_text = precomputed_transcript_text
-            word_timestamps = precomputed_word_timestamps
-            total_duration = 0.0
-        else:
-            logger.info(f"Running faster-whisper STT on complete file: {audio_path}")
-            stt_result = transcribe_audio(audio_path=audio_path, model_size=model_size)
-            transcript_text = stt_result["transcript_text"]
-            word_timestamps = stt_result["word_timestamps"]
-            total_duration = stt_result.get("duration", 0.0)
+        provider: BaseTranscriptionProvider = get_transcription_provider(provider_name)
+        logger.info(f"Running transcription using provider: '{provider.provider_name}' on audio: {audio_path}")
+        
+        stt_result = provider.transcribe(
+            audio_path=audio_path,
+            model_size=model_size,
+            precomputed_transcript_text=precomputed_transcript_text,
+            precomputed_word_timestamps=precomputed_word_timestamps,
+        )
+        transcript_text = stt_result.get("transcript_text", "")
+        word_timestamps = stt_result.get("word_timestamps", [])
+        total_duration = stt_result.get("duration", 0.0)
 
         # 2. Acoustic waveform metrics
         acoustic_metrics = calculate_audio_metrics(audio_path)
