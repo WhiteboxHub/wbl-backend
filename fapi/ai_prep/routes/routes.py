@@ -744,7 +744,8 @@ async def process_audio_engine_endpoint(
     # If file uploaded, save to a temporary location
     if file:
         temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
-        temp_file_path = os.path.join(temp_dir, file.filename or "test_audio.webm")
+        safe_filename = os.path.basename(file.filename or "test_audio.webm")
+        temp_file_path = os.path.join(temp_dir, safe_filename)
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         target_path = temp_file_path
