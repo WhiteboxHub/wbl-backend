@@ -27562,7 +27562,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
         "operationId": "get_assessment_audio_api_aiprep_assessments__assessment_id__audio_get",
         "security": [
           {
@@ -27668,7 +27668,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Candidate: Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
         "operationId": "get_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_get",
         "security": [
           {
@@ -30743,7 +30743,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
         "operationId": "get_assessment_audio_aiprep_assessments__assessment_id__audio_get",
         "security": [
           {
@@ -30849,7 +30849,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Candidate: Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
         "operationId": "get_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_get",
         "security": [
           {

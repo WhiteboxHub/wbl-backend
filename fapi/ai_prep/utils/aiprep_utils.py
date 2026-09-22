@@ -1382,7 +1382,7 @@ async def upload_raw_media_logic(
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         detail=f"Media file ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_MEDIA_UPLOAD_MB}MB)",
                     )
-                buffer.write(chunk)
+                await asyncio.to_thread(buffer.write, chunk)
     except HTTPException:
         raise
     except (PermissionError, OSError) as err:
@@ -1470,7 +1470,7 @@ async def upload_assessment_audio_logic(
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         detail=f"Audio file ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_AUDIO_UPLOAD_MB}MB)",
                     )
-                buffer.write(chunk)
+                await asyncio.to_thread(buffer.write, chunk)
     except HTTPException:
         raise
     except (PermissionError, OSError) as err:
@@ -1531,8 +1531,9 @@ def get_assessment_audio_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
+    range_header: Optional[str] = None,
 ) -> StreamingResponse:
-    """Retrieves and streams stored audio recording binary from server storage."""
+    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -1569,6 +1570,41 @@ def get_assessment_audio_logic(
     mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
     file_size = os.path.getsize(target_file)
     stream_buf_size = int(getattr(settings, "STREAMING_CHUNK_SIZE_BYTES", 64 * 1024))
+
+    # Support HTTP 206 Partial Content for audio range seeking
+    if range_header:
+        try:
+            byte_range = range_header.replace("bytes=", "").split("-")
+            start = int(byte_range[0]) if byte_range[0] else 0
+            end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
+            start = max(0, min(start, file_size - 1))
+            end = max(start, min(end, file_size - 1))
+            content_length = end - start + 1
+
+            def audio_range_stream():
+                with open(target_file, "rb") as f:
+                    f.seek(start)
+                    remaining = content_length
+                    while remaining > 0:
+                        chunk_size = min(remaining, stream_buf_size)
+                        data = f.read(chunk_size)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+
+            return StreamingResponse(
+                audio_range_stream(),
+                status_code=status.HTTP_206_PARTIAL_CONTENT,
+                media_type=mime_type,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Content-Length": str(content_length),
+                    "Accept-Ranges": "bytes",
+                },
+            )
+        except Exception:
+            pass
 
     def iterfile():
         with open(target_file, "rb") as f:

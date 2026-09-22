@@ -756,14 +756,17 @@ async def upload_assessment_audio(
 )
 def get_assessment_audio(
     assessment_id: str,
+    request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Retrieves and streams stored audio recording binary from server storage."""
+    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
+    range_header = request.headers.get("range")
     return aiprep_utils.get_assessment_audio_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
+        range_header=range_header,
     )
 
 

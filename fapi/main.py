@@ -158,7 +158,7 @@ async def redis_health():
 # Configurable CORS
 cors_allowed_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
 cors_allowed_origins = [orig.strip() for orig in cors_allowed_origins_env.split(",") if orig.strip()]
-cors_regex_env = os.getenv("CORS_ORIGIN_REGEX", ".*" if not cors_allowed_origins else None)
+cors_regex_env = os.getenv("CORS_ORIGIN_REGEX", None)
 
 if cors_allowed_origins:
     app.add_middleware(
@@ -169,10 +169,24 @@ if cors_allowed_origins:
         allow_headers=["*"],
         expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
     )
-else:
+elif cors_regex_env:
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=cors_regex_env,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

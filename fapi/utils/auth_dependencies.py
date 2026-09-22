@@ -49,7 +49,8 @@ def get_current_user(
 
     if not token:
         internal_secret = request.headers.get("X-Internal-Secret")
-        if internal_secret == "super-secret-weekly-workflow-key":
+        configured_secret = os.getenv("INTERNAL_WORKFLOW_SECRET")
+        if configured_secret and internal_secret == configured_secret:
             class DummyInternalUser:
                 id = 0
                 uname = "scheduler_worker"
