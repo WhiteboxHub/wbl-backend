@@ -58,6 +58,7 @@ from fapi.ai_prep.schemas import (
     LocalMediaUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
+    AudioUploadResponse,
     QuestionCreateRequest,
     QuestionUpdateRequest,
     QuestionResponse,
