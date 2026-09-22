@@ -345,8 +345,8 @@ def candidate_create_assessment_logic(
     try:
         questions_list = assessment_orchestrator.get_questions_for_assessment(
             db=db,
-            assessment_type=payload.assessment_type,
-            candidate_id=payload.candidate_id,
+            assessment_type=assessment_type_str,
+            candidate_id=candidate_id,
         )
     except Exception as exc:
         logger.error(
