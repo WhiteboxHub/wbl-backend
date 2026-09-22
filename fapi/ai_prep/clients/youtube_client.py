@@ -36,13 +36,42 @@ class YouTubeClient:
     def has_live_credentials(self) -> bool:
         """Checks if configured single YouTube account has credentials."""
         refresh_tok = getattr(settings, "YOUTUBE_REFRESH_TOKEN", None)
+        client_id = getattr(settings, "YOUTUBE_CLIENT_ID", None)
+        client_secret = getattr(settings, "YOUTUBE_CLIENT_SECRET", None)
         creds_file = getattr(settings, "YOUTUBE_CREDENTIALS_FILE", None)
-        api_key = getattr(settings, "YOUTUBE_API_KEY", None)
         return bool(
-            refresh_tok or
-            (creds_file and os.path.exists(creds_file)) or
-            api_key
+            (refresh_tok and client_id and client_secret)
+            or (creds_file and os.path.exists(creds_file))
         )
+
+    def _get_credentials(self):
+        """Loads and returns Google OAuth2 Credentials from file or environment settings."""
+        from google.oauth2.credentials import Credentials
+
+        creds_file = getattr(settings, "YOUTUBE_CREDENTIALS_FILE", None)
+        if creds_file and os.path.exists(creds_file):
+            try:
+                return Credentials.from_authorized_user_file(
+                    creds_file,
+                    scopes=[getattr(settings, "YOUTUBE_API_SCOPE", "https://www.googleapis.com/auth/youtube.upload")],
+                )
+            except Exception as e:
+                logger.warning("Failed to load credentials from %s: %s", creds_file, e)
+
+        refresh_tok = getattr(settings, "YOUTUBE_REFRESH_TOKEN", None)
+        client_id = getattr(settings, "YOUTUBE_CLIENT_ID", None)
+        client_secret = getattr(settings, "YOUTUBE_CLIENT_SECRET", None)
+
+        if refresh_tok and client_id and client_secret:
+            return Credentials(
+                None,
+                refresh_token=refresh_tok,
+                token_uri=getattr(settings, "YOUTUBE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+                client_id=client_id,
+                client_secret=client_secret,
+            )
+
+        return None
 
     def get_quota_status(self) -> Dict[str, Any]:
         """Returns real-time YouTube Data API quota metrics."""
@@ -120,21 +149,10 @@ class YouTubeClient:
         try:
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
-            from google.oauth2.credentials import Credentials
 
-            creds = None
-            refresh_tok = getattr(settings, "YOUTUBE_REFRESH_TOKEN", None)
-            client_id = getattr(settings, "YOUTUBE_CLIENT_ID", None)
-            client_secret = getattr(settings, "YOUTUBE_CLIENT_SECRET", None)
-
-            if refresh_tok and client_id and client_secret:
-                creds = Credentials(
-                    None,
-                    refresh_token=refresh_tok,
-                    token_uri=getattr(settings, "YOUTUBE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-                    client_id=client_id,
-                    client_secret=client_secret,
-                )
+            creds = self._get_credentials()
+            if not creds:
+                raise YouTubeUploadError("No valid YouTube OAuth credentials configured.")
 
             youtube = build("youtube", "v3", credentials=creds)
             body = {
@@ -190,15 +208,11 @@ class YouTubeClient:
 
         try:
             from googleapiclient.discovery import build
-            from google.oauth2.credentials import Credentials
 
-            creds = Credentials(
-                None,
-                refresh_token=getattr(settings, "YOUTUBE_REFRESH_TOKEN", None),
-                token_uri=getattr(settings, "YOUTUBE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
-                client_id=getattr(settings, "YOUTUBE_CLIENT_ID", None),
-                client_secret=getattr(settings, "YOUTUBE_CLIENT_SECRET", None),
-            )
+            creds = self._get_credentials()
+            if not creds:
+                return False
+
             youtube = build("youtube", "v3", credentials=creds)
             youtube.videos().delete(id=video_id).execute()
             logger.info("Deleted YouTube video %s successfully", video_id)
