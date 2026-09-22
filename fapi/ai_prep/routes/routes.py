@@ -731,7 +731,8 @@ async def process_audio_engine_endpoint(
     audio_path: Optional[str] = Form(None),
     provider: Optional[str] = Form(None),
     model_size: str = Form("base"),
-    async_mode: bool = Form(False)
+    async_mode: bool = Form(False),
+    current_user: AuthUserORM = Depends(get_current_user),
 ):
     """
     Performance Testing Endpoint:
