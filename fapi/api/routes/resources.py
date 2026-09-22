@@ -37,6 +37,7 @@ from fapi.utils.table_fingerprint import generate_version_for_model
 
 router = APIRouter()
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)  # allows unauthenticated GET requests
 
 def extract_role_and_team_from_token(token: str):
     """
@@ -59,7 +60,7 @@ def check_course_content_version(db: Session = Depends(get_db)):
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security_optional),
     db: Session = Depends(get_db),
 ):
     def _get_content():

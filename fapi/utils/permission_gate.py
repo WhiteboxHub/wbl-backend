@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, Request, status
-from fapi.utils.auth_dependencies import get_current_user
+from fapi.utils.auth_dependencies import get_current_user, get_current_user_optional
 
 ALLOWED_GET_PREFIXES = {
     "/api/course-content",
@@ -58,10 +58,27 @@ def _is_admin(user) -> bool:
 def _is_employee(user) -> bool:
     return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
 
-def enforce_access(request: Request, current_user=Depends(get_current_user)):
+# Routes accessible without authentication (read-only GET/HEAD only).
+# Write operations (POST/PUT/PATCH/DELETE) always require a valid login.
+PUBLIC_GET_PREFIXES = {
+    "/api/course-content",
+    "/api/course-contents",
+}
+
+def enforce_access(request: Request, current_user=Depends(get_current_user_optional)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
-    
+
+    # --- Unauthenticated requests (no token provided) ---
+    # Allow GET/HEAD to public prefixes without requiring login.
+    if current_user is None:
+        if method in ("GET", "HEAD"):
+            for prefix in PUBLIC_GET_PREFIXES:
+                if path == prefix or path.startswith(prefix + "/"):
+                    return None  # public read-only access granted
+        # All other paths or methods require authentication
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
     if _is_admin(current_user):
         return current_user
 

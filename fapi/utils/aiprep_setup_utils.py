@@ -660,6 +660,8 @@ def get_resume_summary_logic(session_id: str, db):
             "llm_keys": llm_keys,
             "has_binary_resume": has_binary_resume,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("ERROR in get_resume_summary: " + str(e))
         raise HTTPException(status_code=500, detail=str(e))

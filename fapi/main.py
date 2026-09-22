@@ -27,7 +27,7 @@ import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow s
 import asyncio
 from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import traceback
@@ -47,6 +47,26 @@ from fastapi.responses import JSONResponse
 import logging
 logger = logging.getLogger("wbl")
 
+# CORS headers to attach on every error response (Fixes Bugs #7, #8, #9).
+# FastAPI exception handlers run BEFORE CORSMiddleware, so the middleware
+# never gets a chance to inject these headers on error paths.
+_CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "*",
+    "Access-Control-Allow-Headers": "*",
+}
+
+
+@app.exception_handler(FastAPIHTTPException)
+async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    """Return HTTPException responses with CORS headers so browsers don't block them."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=_CORS_HEADERS,
+    )
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -54,7 +74,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error"}
+        content={"detail": "Internal Server Error"},
+        headers=_CORS_HEADERS,
     )
 
 @app.on_event("startup")
