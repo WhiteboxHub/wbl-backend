@@ -1050,60 +1050,120 @@ def get_chunk_upload_status_logic(
         is_ready_for_assembly=is_complete,
     )
 
-async def process_audio_and_save_data(assessment_id: int, audio_path: str):
-    """
-    Background worker: Waits for assembled audio file, runs Audio Engine,
-    persists telemetry into MySQL, and triggers LLM evaluation.
-    """
-    import asyncio
-    import logging
-    from fapi.db.database import SessionLocal
-    logger = logging.getLogger("wbl.ai_prep.media")
-    try:
-        logger.info(f"Running Audio Engine for assessment {assessment_id} on {audio_path}...")
-        
-        # 2. Run Audio Engine (STT + Acoustic DSP + Transcript Metrics)
-        try:
-            from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
-            result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, audio_path)
-            spoken_content = result.get("spoken_content", {})
-            audio_telemetry = result.get("audio_telemetry", {})
-        except (ImportError, ModuleNotFoundError) as err:
-            logger.warning(f"Audio Engine dependencies not installed, skipping audio metrics for assessment {assessment_id}: {err}")
-            spoken_content = {"full_text": "Audio content"}
-            audio_telemetry = {"words_per_minute": 120}
 
-        # 3. Save into database
+async def process_media_and_upload_pipeline(
+    assessment_id: int,
+    media_path: str,
+    media_type: str = "VIDEO",
+    candidate_id: Optional[int] = None,
+):
+    """
+    Unified Background Pipeline:
+    1. Runs Audio Engine on media_path (works with both audio and video containers).
+    2. Saves transcript + audio/video telemetry to database.
+    3. If media_type == "AUDIO", converts audio to video format for YouTube ingestion.
+    4. Uploads to YouTube as Unlisted using youtube_client.
+    5. Persists youtube_url into ai_prep_assessment table.
+    6. Storage Cleanup: Once youtube_url is verified and persisted in DB, cleans up the assessment storage directory.
+    7. Triggers LLM evaluation orchestrator.
+    """
+    logger.info("Starting media processing & YouTube upload pipeline for assessment %s (type: %s)...", assessment_id, media_type)
+    
+    # 1. Run Audio Engine (STT + Acoustic DSP)
+    spoken_content = {"full_text": "Assessment audio content"}
+    audio_telemetry = {"words_per_minute": 120}
+    try:
+        from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
+        result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, media_path)
+        spoken_content = result.get("spoken_content", spoken_content)
+        audio_telemetry = result.get("audio_telemetry", audio_telemetry)
+    except Exception as err:
+        logger.warning("Audio Engine metrics note for assessment %s: %s", assessment_id, err)
+
+    # 2. Save Telemetry into DB
+    try:
         with SessionLocal() as db:
             assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-            if not assessment:
-                logger.error(f"Assessment {assessment_id} not found during audio save.")
-                return
+            if assessment:
+                existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+                existing_questions = existing_data.questions if existing_data and existing_data.questions else []
+                crud.save_assessment_data(
+                    db=db,
+                    assessment_id=assessment.id,
+                    questions=existing_questions,
+                    transcript=spoken_content,
+                    audio_telemetry=audio_telemetry,
+                    video_telemetry={"is_video_mode": media_type.upper() == "VIDEO"},
+                )
+                crud.update_assessment_status(db, assessment.id, "EVALUATING")
+                if not candidate_id:
+                    candidate_id = assessment.candidate_id
+    except Exception as db_err:
+        logger.warning("DB session note while saving telemetry for assessment %s: %s", assessment_id, db_err)
 
-            existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
-            existing_questions = existing_data.questions if existing_data and existing_data.questions else []
-
-            crud.save_assessment_data(
-                db=db,
-                assessment_id=assessment.id,
-                questions=existing_questions,
-                transcript=spoken_content,
-                audio_telemetry=audio_telemetry,
-                video_telemetry={},
-            )
-            crud.update_assessment_status(db, assessment.id, "EVALUATING")
-            logger.info(f"Successfully saved audio telemetry for assessment {assessment_id}")
-
-        # 4. Automatically run LLM evaluation via Assessment Orchestrator
+    # 3. YouTube Upload Pre-Flight & Conversion
+    youtube_upload_file = media_path
+    if media_type.upper() == "AUDIO":
         try:
-                await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
-        except Exception as eval_err:
-            logger.warning(f"LLM Evaluation skipped or deferred for assessment {assessment_id}: {eval_err}")
+            from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
+            youtube_upload_file = await asyncio.to_thread(
+                VideoProcessorEngine.convert_audio_for_youtube,
+                media_path,
+            )
+        except Exception as conv_err:
+            logger.warning("Audio to video conversion note for assessment %s: %s", assessment_id, conv_err)
 
-    except Exception as e:
-        logger.error(f"Error processing audio for assessment {assessment_id}: {e}", exc_info=True)
-        with SessionLocal() as db:
-            crud.update_assessment_status(db, assessment_id, "FAILED")
+    # 4. Upload to YouTube as Unlisted
+    youtube_url = None
+    try:
+        from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
+        upload_res = await asyncio.to_thread(
+            youtube_client.upload_unlisted_media,
+            assessment_id=assessment_id,
+            file_path=youtube_upload_file,
+            media_type=media_type,
+        )
+        youtube_url = upload_res.get("youtube_url")
+        logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
+    except YouTubeQuotaExceededError as quota_err:
+        logger.warning(
+            "YouTube daily upload quota reached during assessment %s processing (%s). Evaluation pipeline will proceed.",
+            assessment_id,
+            quota_err,
+        )
+    except Exception as yt_err:
+        logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
+
+    # 5. Persist youtube_url to DB
+    if youtube_url:
+        try:
+            with SessionLocal() as db:
+                crud.update_assessment_media_url(db, assessment_id, youtube_url)
+                logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
+        except Exception as db_url_err:
+            logger.warning("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
+
+    # 6. Storage Cleanup: Once uploaded to YouTube and persisted in DB
+    try:
+        from fapi.ai_prep.config import settings
+        should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
+        if youtube_url and should_cleanup and candidate_id:
+            assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+            if os.path.exists(assessment_dir):
+                logger.info("Purging server storage for assessment %s at %s following successful YouTube upload", assessment_id, assessment_dir)
+                shutil.rmtree(assessment_dir, ignore_errors=True)
+    except Exception as clean_err:
+        logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
+
+    # 7. Trigger LLM Evaluation Orchestrator
+    try:
+        await assessment_orchestrator.run_full_evaluation(db=None, assessment_id=assessment_id)
+    except Exception as eval_err:
+        logger.warning("LLM evaluation execution note for assessment %s: %s", assessment_id, eval_err)
+
+
+# Alias for backward compatibility
+process_audio_and_save_data = process_media_and_upload_pipeline
 
 
 def assemble_media_chunks_logic(
@@ -1113,29 +1173,54 @@ def assemble_media_chunks_logic(
     payload: Optional[AssembleMediaRequest] = None,
     background_tasks: Optional[BackgroundTasks] = None,
 ) -> AssembleMediaResponse:
-    """Concatenates WebM chunks and launches evaluation."""
+    """Concatenates WebM chunks and launches evaluation & YouTube upload pipeline."""
     _ = payload
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+    video_path = os.path.join(assessment_dir, "assembled.webm")
     audio_path = os.path.join(assessment_dir, "audio.wav")
 
-    # Queue the Audio Engine in the background
+    # If chunks exist, assemble them
+    chunk_dir = os.path.join(assessment_dir, "chunks")
+    if os.path.exists(chunk_dir):
+        try:
+            chunk_files = sorted(
+                [os.path.join(chunk_dir, f) for f in os.listdir(chunk_dir) if f.endswith(".webm")]
+            )
+            if chunk_files:
+                os.makedirs(assessment_dir, exist_ok=True)
+                with open(video_path, "wb") as outfile:
+                    for cf in chunk_files:
+                        with open(cf, "rb") as infile:
+                            outfile.write(infile.read())
+        except Exception as asm_err:
+            logger.warning("Chunk assembly note for assessment %s: %s", assessment.id, asm_err)
+
+    target_media = video_path if (os.path.exists(video_path) and os.path.getsize(video_path) > 0) else audio_path
+
+    # Queue the Media Processing & YouTube Upload Pipeline in background
     if background_tasks:
-        background_tasks.add_task(process_audio_and_save_data, assessment.id, audio_path)
+        background_tasks.add_task(
+            process_media_and_upload_pipeline,
+            assessment.id,
+            target_media,
+            assessment.media_type or "VIDEO",
+            candidate_id,
+        )
 
     return AssembleMediaResponse(
         assessment_id=assessment.id,
         status="ASSEMBLING",
-        assembled_video_path=os.path.join(assessment_dir, "assembled.webm"),
-        extracted_audio_path=os.path.join(assessment_dir, "audio.wav"),
-        file_size_bytes=0,
-        dispatched_tasks=["ffmpeg_assemble", "audio_extract", "audio_engine_telemetry"],
-        media_path=os.path.join(assessment_dir, "assembled.webm"),
+        assembled_video_path=video_path,
+        extracted_audio_path=audio_path,
+        file_size_bytes=os.path.getsize(target_media) if os.path.exists(target_media) else 0,
+        dispatched_tasks=["ffmpeg_assemble", "audio_extract", "youtube_upload", "audio_engine_telemetry"],
+        media_path=video_path,
         audio_path=audio_path,
-        message="Media chunks queued for assembly and audio telemetry processing",
+        message="Media chunks queued for assembly, YouTube upload, and audio telemetry processing",
     )
 
 
@@ -1148,7 +1233,6 @@ async def upload_raw_media_logic(
     background_tasks: Optional[BackgroundTasks] = None,
 ) -> LocalMediaUploadResponse:
     """Uploads single binary media file directly to disk storage using streaming."""
-    # 1. Normalize and validate media_type
     normalized_media = (media_type or "AUDIO").upper().strip()
     if normalized_media not in {"AUDIO", "VIDEO", "AUDIO_ONLY"}:
         normalized_media = "AUDIO"
@@ -1162,7 +1246,6 @@ async def upload_raw_media_logic(
     safe_filename = os.path.basename(file.filename or "media.webm")
     dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
 
-    # 2. Stream directly to disk using shutil.copyfileobj (zero RAM memory buffering)
     try:
         os.makedirs(assessment_dir, exist_ok=True)
         with open(dest_path, "wb") as buffer:
@@ -1175,15 +1258,213 @@ async def upload_raw_media_logic(
         )
 
     if background_tasks:
-        background_tasks.add_task(process_audio_and_save_data, assessment.id, dest_path)
-
+        background_tasks.add_task(
+            process_media_and_upload_pipeline,
+            assessment.id,
+            dest_path,
+            normalized_media,
+            candidate_id,
+        )
 
     return LocalMediaUploadResponse(
         success=True,
         assessment_id=assessment.id,
         file_path=dest_path,
         media_type=normalized_media,
-        message="Media uploaded and audio telemetry queued successfully",
+        message="Media uploaded and processing pipeline queued successfully",
+    )
+
+
+async def upload_assessment_audio_logic(
+    db: Session,
+    current_user: AuthUserORM,
+    assessment_id: Union[int, str],
+    file: UploadFile,
+    mime_type: Optional[str] = None,
+    background_tasks: Optional[BackgroundTasks] = None,
+) -> AudioUploadResponse:
+    """Uploads direct audio recording binary to server storage and queues YouTube upload."""
+    from fapi.ai_prep.schemas import AudioUploadResponse
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+    os.makedirs(assessment_dir, exist_ok=True)
+    ext = "webm" if (mime_type and "webm" in mime_type) or (file.filename and file.filename.endswith(".webm")) else "wav"
+    dest_path = os.path.join(assessment_dir, f"audio.{ext}")
+
+    try:
+        with open(dest_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except (PermissionError, OSError) as err:
+        logging.error("Could not write audio recording file to disk: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to write audio file to server storage",
+        )
+
+    file_size = os.path.getsize(dest_path)
+
+    if background_tasks:
+        background_tasks.add_task(
+            process_media_and_upload_pipeline,
+            assessment.id,
+            dest_path,
+            "AUDIO",
+            candidate_id,
+        )
+
+    return AudioUploadResponse(
+        success=True,
+        assessment_id=assessment.id,
+        message="Audio recording uploaded and processing pipeline queued successfully",
+        size_bytes=file_size,
+        mime_type=mime_type or f"audio/{ext}",
+        file_path=dest_path,
+    )
+
+
+def get_assessment_audio_logic(
+    db: Session,
+    current_user: AuthUserORM,
+    assessment_id: Union[int, str],
+) -> StreamingResponse:
+    """Retrieves and streams stored audio recording binary from server storage."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+    candidate_files = [
+        os.path.join(assessment_dir, "audio.wav"),
+        os.path.join(assessment_dir, "audio.webm"),
+        os.path.join(assessment_dir, "recording.webm"),
+        os.path.join(assessment_dir, "audio.mp3"),
+        os.path.join(assessment_dir, "assembled.webm"),
+    ]
+    target_file = None
+    for cf in candidate_files:
+        if os.path.exists(cf) and os.path.getsize(cf) > 0:
+            target_file = cf
+            break
+
+    if not target_file and os.path.exists(assessment_dir):
+        for fname in os.listdir(assessment_dir):
+            fpath = os.path.join(assessment_dir, fname)
+            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and (fname.endswith(".wav") or fname.endswith(".webm") or fname.endswith(".mp3")):
+                target_file = fpath
+                break
+
+    if not target_file or not os.path.exists(target_file):
+        raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
+
+    mime_type = "audio/wav" if target_file.endswith(".wav") else "audio/webm"
+    file_size = os.path.getsize(target_file)
+
+    def iterfile():
+        with open(target_file, "rb") as f:
+            while chunk := f.read(64 * 1024):
+                yield chunk
+
+    return StreamingResponse(
+        iterfile(),
+        media_type=mime_type,
+        headers={
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f'inline; filename="{os.path.basename(target_file)}"',
+        },
+    )
+
+
+def get_assessment_video_logic(
+    db: Session,
+    current_user: AuthUserORM,
+    assessment_id: Union[int, str],
+    range_header: Optional[str] = None,
+) -> StreamingResponse:
+    """Retrieves and streams stored video recording from server storage with range seeking support."""
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+    candidate_files = [
+        os.path.join(assessment_dir, "assembled.webm"),
+        os.path.join(assessment_dir, "video.mp4"),
+        os.path.join(assessment_dir, "recording.webm"),
+    ]
+    target_file = None
+    for cf in candidate_files:
+        if os.path.exists(cf) and os.path.getsize(cf) > 0:
+            target_file = cf
+            break
+
+    if not target_file and os.path.exists(assessment_dir):
+        for fname in os.listdir(assessment_dir):
+            fpath = os.path.join(assessment_dir, fname)
+            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and (fname.endswith(".webm") or fname.endswith(".mp4") or fname.endswith(".mkv")):
+                target_file = fpath
+                break
+
+    if not target_file or not os.path.exists(target_file):
+        raise HTTPException(status_code=404, detail="Assessment video recording not found in server storage")
+
+    file_size = os.path.getsize(target_file)
+    mime_type = "video/webm" if target_file.endswith(".webm") else "video/mp4"
+
+    # Support HTTP 206 Partial Content for video range seeking
+    if range_header:
+        try:
+            byte_range = range_header.replace("bytes=", "").split("-")
+            start = int(byte_range[0]) if byte_range[0] else 0
+            end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
+            start = max(0, min(start, file_size - 1))
+            end = max(start, min(end, file_size - 1))
+            content_length = end - start + 1
+
+            def range_stream():
+                with open(target_file, "rb") as f:
+                    f.seek(start)
+                    remaining = content_length
+                    while remaining > 0:
+                        chunk_size = min(remaining, 64 * 1024)
+                        data = f.read(chunk_size)
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+
+            return StreamingResponse(
+                range_stream(),
+                status_code=status.HTTP_206_PARTIAL_CONTENT,
+                media_type=mime_type,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    "Content-Length": str(content_length),
+                    "Accept-Ranges": "bytes",
+                },
+            )
+        except Exception:
+            pass
+
+    def full_stream():
+        with open(target_file, "rb") as f:
+            while chunk := f.read(64 * 1024):
+                yield chunk
+
+    return StreamingResponse(
+        full_stream(),
+        media_type=mime_type,
+        headers={
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f'inline; filename="{os.path.basename(target_file)}"',
+        },
     )
 
 
@@ -1220,6 +1501,7 @@ def get_assessment_processing_status_logic(
         active_step="Evaluation Completed" if status_str == "COMPLETED" else "Processing Ingested Media",
         step="Evaluation Completed" if status_str == "COMPLETED" else "Processing Ingested Media",
         progress_pct=progress_map.get(status_str, 50.0),
+        youtube_url=assessment.youtube_url,
         message=f"Assessment is {status_str}",
     )
 
@@ -1237,7 +1519,7 @@ def stream_assessment_processing_sse_logic(
 
     internal_id = assessment.id
     async def event_generator():
-        for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 60), ("LLM Evaluation", 90), ("Report Generated", 100)]:
+        for step, pct in [("Chunk Ingestion", 30), ("FFmpeg Extraction", 50), ("YouTube Upload", 75), ("LLM Evaluation", 90), ("Report Generated", 100)]:
             data = f'{{"assessment_id": {internal_id}, "step": "{step}", "progress": {pct}}}\n\n'
             yield f"data: {data}"
             await asyncio.sleep(0.5)

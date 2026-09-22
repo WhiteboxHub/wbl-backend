@@ -27496,6 +27496,314 @@
         }
       }
     },
+    "/api/aiprep/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "operationId": "get_assessment_audio_api_aiprep_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/candidate/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "operationId": "get_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_api_aiprep_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/candidate/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_api_aiprep_candidate_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/aiprep/llm-keys": {
       "get": {
         "tags": [
@@ -30368,6 +30676,314 @@
           }
         }
       }
+    },
+    "/aiprep/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_aiprep_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_aiprep_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "operationId": "get_assessment_audio_aiprep_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/candidate/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage.",
+        "operationId": "get_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_aiprep_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/candidate/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_aiprep_candidate_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -30921,6 +31537,21 @@
             ],
             "title": "Created At"
           },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
           "data": {
             "anyOf": [
               {
@@ -31384,6 +32015,56 @@
           "id"
         ],
         "title": "AssessmentTypeResponse"
+      },
+      "AudioUploadResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "assessment_id",
+          "message",
+          "size_bytes"
+        ],
+        "title": "AudioUploadResponse"
       },
       "AuthUserCreate": {
         "properties": {
@@ -34579,6 +35260,106 @@
           "password"
         ],
         "title": "Body_login_for_access_token_api_login_post"
+      },
+      "Body_upload_assessment_audio_aiprep_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_aiprep_assessments__assessment_id__audio_post"
+      },
+      "Body_upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post"
+      },
+      "Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post"
+      },
+      "Body_upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post"
       },
       "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post": {
         "properties": {
@@ -52426,7 +53207,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Amount"
@@ -52452,6 +53234,7 @@
           },
           "amount": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)",
             "title": "Amount"
           },
           "id": {
@@ -52560,7 +53343,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Installment Amount"
@@ -52607,6 +53391,7 @@
           },
           "installment_amount": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)",
             "title": "Installment Amount"
           },
           "scheduled_date": {
@@ -52656,7 +53441,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52698,7 +53484,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52756,7 +53543,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52860,7 +53648,8 @@
           "deposit_amount": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52982,7 +53771,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"

@@ -544,3 +544,13 @@ class ScoresEngineOutput(BaseModel):
     is_valid: bool
     parsed_report: Optional[ParsedReportOutput] = None
     error: Optional[str] = None
+
+
+class AudioUploadResponse(BaseModel):
+    success: bool
+    assessment_id: int
+    message: str
+    size_bytes: int
+    mime_type: Optional[str] = None
+    file_path: Optional[str] = None
+

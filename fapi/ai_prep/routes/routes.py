@@ -46,6 +46,7 @@ from fapi.ai_prep.schemas import (
     LocalMediaUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
+    AudioUploadResponse,
     QuestionCreateRequest,
     QuestionUpdateRequest,
     QuestionResponse,
@@ -711,3 +712,84 @@ def stream_assessment_processing_sse(
         current_user=current_user,
         assessment_id=assessment_id,
     )
+
+
+@router.post(
+    "/candidate/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Direct Audio Recording Upload",
+)
+@router.post(
+    "/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Media & Streaming"],
+    summary="Direct Audio Recording Upload",
+)
+async def upload_assessment_audio(
+    background_tasks: BackgroundTasks,
+    assessment_id: str,
+    file: UploadFile = File(...),
+    mime_type: Optional[str] = Form(None),
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Uploads audio recording binary file directly to server storage and queues YouTube upload."""
+    return await aiprep_utils.upload_assessment_audio_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        file=file,
+        mime_type=mime_type,
+        background_tasks=background_tasks,
+    )
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Audio from Storage",
+)
+@router.get(
+    "/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Stream Assessment Audio from Storage",
+)
+def get_assessment_audio(
+    assessment_id: str,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored audio recording binary from server storage."""
+    return aiprep_utils.get_assessment_audio_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+    )
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/video",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Video Recording from Storage",
+)
+@router.get(
+    "/assessments/{assessment_id}/video",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Stream Assessment Video Recording from Storage",
+)
+def get_assessment_video(
+    assessment_id: str,
+    request: Request,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored video recording from server storage with range seeking support."""
+    range_header = request.headers.get("range")
+    return aiprep_utils.get_assessment_video_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        range_header=range_header,
+    )
+
