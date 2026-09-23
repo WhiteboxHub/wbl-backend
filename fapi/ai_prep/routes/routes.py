@@ -56,6 +56,7 @@ from fapi.ai_prep.schemas import (
     QuestionListResponse,
 )
 from fapi.ai_prep.utils import aiprep_utils
+from fapi.ai_prep.core.audio_engine import InvalidProviderConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -732,14 +733,15 @@ async def process_audio_engine_endpoint(
     provider: Optional[str] = Form(None),
     model_size: str = Form("base"),
     async_mode: bool = Form(False),
-    current_user: AuthUserORM = Depends(get_current_user),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
 ):
     """
     Performance Testing Endpoint:
     Directly triggers the AudioMetricsEngine pipeline with configurable transcription providers.
-    Supports either direct audio file upload or a server-side audio file path.
+    Supports direct audio file upload or a server-side storage path.
+    Gated to staff/admin to prevent resource abuse.
     """
-    target_path = audio_path
+    target_path = None
     temp_dir = None
 
     # 1. Handle direct file upload
@@ -751,10 +753,10 @@ async def process_audio_engine_endpoint(
             shutil.copyfileobj(file.file, buffer)
         target_path = temp_file_path
 
-    # 2. Handle server-side audio_path (sandboxed to storage directory to prevent filesystem probing)
+    # 2. Handle server-side audio_path (sandboxed via realpath to prevent symlink escape)
     elif audio_path:
-        base_dir = os.path.abspath(aiprep_utils.STORAGE_BASE_DIR)
-        resolved_path = os.path.abspath(audio_path)
+        base_dir = os.path.realpath(aiprep_utils.STORAGE_BASE_DIR)
+        resolved_path = os.path.realpath(audio_path)
         if not (resolved_path == base_dir or resolved_path.startswith(base_dir + os.sep)):
             raise HTTPException(
                 status_code=400,
@@ -762,10 +764,11 @@ async def process_audio_engine_endpoint(
             )
         target_path = resolved_path
 
+    # Validate file existence without leaking server filesystem paths in error messages
     if not target_path or not os.path.exists(target_path):
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
-        raise HTTPException(status_code=400, detail=f"Valid audio file or audio_path required. Given: {target_path}")
+        raise HTTPException(status_code=400, detail="Valid audio file or storage audio_path is required.")
 
     try:
         if async_mode:
@@ -781,13 +784,19 @@ async def process_audio_engine_endpoint(
                     if dir_to_clean and os.path.exists(dir_to_clean):
                         shutil.rmtree(dir_to_clean, ignore_errors=True)
 
-            background_tasks.add_task(
-                _benchmark_with_cleanup,
-                path=target_path,
-                prov=provider,
-                sz=model_size,
-                dir_to_clean=temp_dir,
-            )
+            try:
+                background_tasks.add_task(
+                    _benchmark_with_cleanup,
+                    path=target_path,
+                    prov=provider,
+                    sz=model_size,
+                    dir_to_clean=temp_dir,
+                )
+            except Exception:
+                if temp_dir and os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                raise
+
             return {
                 "status": "ACCEPTED",
                 "message": "Audio processing queued in background",
@@ -805,6 +814,8 @@ async def process_audio_engine_endpoint(
                 "status": "SUCCESS",
                 "data": result
             }
+    except InvalidProviderConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -812,3 +823,4 @@ async def process_audio_engine_endpoint(
         # In synchronous mode, delete the temp folder immediately once done
         if not async_mode and temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
+

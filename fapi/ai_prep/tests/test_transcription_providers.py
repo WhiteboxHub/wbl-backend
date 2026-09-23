@@ -7,6 +7,7 @@ from fapi.ai_prep.core.audio_engine.providers import (
     SocketTranscriptionProvider,
     BrowserTranscriptionProvider,
     InvalidProviderConfigError,
+    TranscriptionProviderError,
 )
 from fapi.ai_prep.core.audio_engine.metrics_engine import AudioMetricsEngine
 
@@ -28,6 +29,25 @@ def test_provider_factory_selection():
 def test_invalid_provider_raises_error():
     with pytest.raises(InvalidProviderConfigError):
         get_transcription_provider("unsupported_provider_xyz")
+
+def test_socket_provider_raises_when_not_connected():
+    provider = SocketTranscriptionProvider()
+    with pytest.raises(TranscriptionProviderError):
+        provider.transcribe(audio_path="dummy.wav")
+
+
+def test_whisper_provider_missing_file_raises():
+    provider = WhisperTranscriptionProvider()
+    with pytest.raises(FileNotFoundError):
+        provider.transcribe(audio_path="non_existent_file_123.wav")
+
+
+def test_browser_provider_empty_string():
+    provider = BrowserTranscriptionProvider()
+    res = provider.transcribe(precomputed_transcript_text="")
+    assert res["transcript_text"] == ""
+    assert res["word_timestamps"] == []
+
 
 
 @patch("fapi.ai_prep.core.audio_engine.providers.transcribe_audio")
