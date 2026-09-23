@@ -11,19 +11,12 @@ import threading
 import logging
 import time
 from typing import Dict, Any, List, Optional, Tuple, Union
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
-try:
-    from faster_whisper import WhisperModel
-except ImportError:
-    WhisperModel = None  # type: ignore
+import numpy as np
+from faster_whisper import WhisperModel
 
 logger = logging.getLogger("wbl.ai_prep.audio_engine.stt")
 
-_WHISPER_MODELS: Dict[Tuple[str, str, str], Any] = {}
+_WHISPER_MODELS: Dict[Tuple[str, str, str], WhisperModel] = {}
 _MODEL_LOCK = threading.Lock()
 
 
@@ -31,7 +24,7 @@ def get_whisper_model(
     model_size: str = "base",
     device: str = "cpu",
     compute_type: str = "int8",
-) -> Any:
+) -> WhisperModel:
     """Returns singleton cached instance of WhisperModel keyed by configuration."""
     if WhisperModel is None:
         raise RuntimeError("faster_whisper is not installed in the current environment.")
@@ -144,7 +137,7 @@ def merge_word_timestamps(
 
 
 def transcribe_audio_chunk(
-    audio_input: Union[str, bytes, Any],
+    audio_input: Union[str, bytes, np.ndarray],
     chunk_start_time: float = 0.0,
     model_size: str = "base",
     device: str = "cpu",
