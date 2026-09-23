@@ -740,8 +740,9 @@ async def process_audio_engine_endpoint(
     Supports either direct audio file upload or a server-side audio file path.
     """
     target_path = audio_path
+    temp_dir = None
 
-    # If file uploaded, save to a temporary location
+    # 1. Handle direct file upload
     if file:
         temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
         safe_filename = os.path.basename(file.filename or "test_audio.webm")
@@ -750,17 +751,42 @@ async def process_audio_engine_endpoint(
             shutil.copyfileobj(file.file, buffer)
         target_path = temp_file_path
 
+    # 2. Handle server-side audio_path (sandboxed to storage directory to prevent filesystem probing)
+    elif audio_path:
+        base_dir = os.path.abspath(aiprep_utils.STORAGE_BASE_DIR)
+        resolved_path = os.path.abspath(audio_path)
+        if not resolved_path.startswith(base_dir):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid audio_path. Path must reside within the application storage directory."
+            )
+        target_path = resolved_path
+
     if not target_path or not os.path.exists(target_path):
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail=f"Valid audio file or audio_path required. Given: {target_path}")
 
     try:
         if async_mode:
-            # Non-blocking background task mode
+            # Background task wrapper that guarantees temp cleanup after processing
+            async def _benchmark_with_cleanup(path: str, prov: Optional[str], sz: str, dir_to_clean: Optional[str]):
+                try:
+                    await aiprep_utils.run_audio_engine_benchmark(
+                        audio_path=path,
+                        provider_name=prov,
+                        model_size=sz,
+                    )
+                finally:
+                    if dir_to_clean and os.path.exists(dir_to_clean):
+                        shutil.rmtree(dir_to_clean, ignore_errors=True)
+                        
             background_tasks.add_task(
-                aiprep_utils.run_audio_engine_benchmark,
-                audio_path=target_path,
-                provider_name=provider,
-                model_size=model_size
+                _benchmark_with_cleanup,
+                path=target_path,
+                prov=provider,
+                sz=model_size,
+                dir_to_clean=temp_dir,
             )
             return {
                 "status": "ACCEPTED",
@@ -782,3 +808,7 @@ async def process_audio_engine_endpoint(
     except Exception as e:
         logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # In synchronous mode, delete the temp folder immediately once done
+        if not async_mode and temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
