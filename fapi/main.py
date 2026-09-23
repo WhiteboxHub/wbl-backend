@@ -56,8 +56,18 @@ async def lifespan(app: FastAPI):
     from fapi.db.models import Base
     Base.metadata.create_all(bind=engine, checkfirst=True)
 
-    # Allowed table names for column migration safety
-    allowed_tables = {"candidate_marketing", "candidate", "candidate_interview", "candidate_llm_api_keys"}
+    # Allowed table names and schema updates with strict identifier validation
+    import re
+    from sqlalchemy import inspect
+    _SAFE_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
+
+    allowed_tables = {
+        "candidate_marketing",
+        "candidate",
+        "candidate_interview",
+        "candidate_llm_api_keys",
+        "application_report",
+    }
     cm_cols = [
         ("candidate_marketing", [
             ("outreach_date", "DATE"),
@@ -86,28 +96,26 @@ async def lifespan(app: FastAPI):
             ("failure_reason", "TEXT NULL"),
             ("failure_code", "VARCHAR(100) NULL"),
             ("last_validated_at", "DATETIME NULL"),
-        ])
+        ]),
+        ("application_report", [
+            ("user_id", "INT NULL"),
+        ]),
     ]
     with engine.connect() as conn:
+        inspector = inspect(conn)
         for tbl, cols in cm_cols:
-            if tbl not in allowed_tables:
+            if tbl not in allowed_tables or not _SAFE_IDENTIFIER_PATTERN.match(tbl):
                 continue
             try:
-                existing = [row[0] for row in conn.execute(text(f"SHOW COLUMNS FROM `{tbl}`"))]
+                existing_columns = {col["name"] for col in inspector.get_columns(tbl)}
                 for col_name, col_type in cols:
-                    if col_name not in existing:
+                    if not _SAFE_IDENTIFIER_PATTERN.match(col_name):
+                        continue
+                    if col_name not in existing_columns:
                         conn.execute(text(f"ALTER TABLE `{tbl}` ADD COLUMN `{col_name}` {col_type}"))
                         conn.commit()
             except Exception as e:
                 logger.info(f"Column sync check error for {tbl}: {e}")
-
-    # Ensure user_id column exists in application_report (for older DB schemas)
-    try:
-        with engine.connect() as conn:
-            getattr(conn, "execute")(text("ALTER TABLE application_report ADD COLUMN user_id INT NULL"))
-            conn.commit()
-    except Exception as e:
-        logger.info(f"user_id column in application_report may already exist or failed to add: {e}")
     # Coderpad Tables
     try:
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
