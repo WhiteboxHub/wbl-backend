@@ -12,6 +12,11 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, Tuple, Union
 try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
     from faster_whisper import WhisperModel
 except ImportError:
     WhisperModel = None  # type: ignore
@@ -139,7 +144,7 @@ def merge_word_timestamps(
 
 
 def transcribe_audio_chunk(
-    audio_input: Union[str, bytes, np.ndarray],
+    audio_input: Union[str, bytes, Any],
     chunk_start_time: float = 0.0,
     model_size: str = "base",
     device: str = "cpu",
