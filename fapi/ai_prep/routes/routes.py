@@ -703,11 +703,9 @@ def get_assessment_processing_status(
 def stream_assessment_processing_sse(
     assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
-    """Real-time SSE event stream for live UI progress updates."""
+    """Real-time SSE event stream for live UI progress updates without holding connection pool."""
     return aiprep_utils.stream_assessment_processing_sse_logic(
-        db=db,
         current_user=current_user,
         assessment_id=assessment_id,
     )

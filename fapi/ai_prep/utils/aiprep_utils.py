@@ -1704,17 +1704,25 @@ def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str,
 
 
 def stream_assessment_processing_sse_logic(
-    db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
+    db: Optional[Session] = None,
 ) -> StreamingResponse:
-    """Real-time SSE event stream for live UI progress updates reflecting true DB state."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    """Real-time SSE event stream for live UI progress updates reflecting true DB state without holding DB connection pool."""
+    if db is not None:
+        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+        if not assessment:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+        _resolve_candidate_id(db, current_user, assessment.candidate_id)
+        internal_id = assessment.id
+    else:
+        with SessionLocal() as init_db:
+            assessment = crud.get_assessment_by_id_or_uuid(init_db, assessment_id)
+            if not assessment:
+                raise HTTPException(status_code=404, detail="Assessment not found")
+            _resolve_candidate_id(init_db, current_user, assessment.candidate_id)
+            internal_id = assessment.id
 
-    internal_id = assessment.id
     ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
 
     async def event_generator():

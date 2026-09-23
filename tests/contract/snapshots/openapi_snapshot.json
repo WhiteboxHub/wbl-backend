@@ -27456,7 +27456,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Progress: Real-Time SSE Status Stream",
-        "description": "Real-time SSE event stream for live UI progress updates.",
+        "description": "Real-time SSE event stream for live UI progress updates without holding connection pool.",
         "operationId": "stream_assessment_processing_sse_api_aiprep_assessments__assessment_id__stream_get",
         "security": [
           {
@@ -30637,7 +30637,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Progress: Real-Time SSE Status Stream",
-        "description": "Real-time SSE event stream for live UI progress updates.",
+        "description": "Real-time SSE event stream for live UI progress updates without holding connection pool.",
         "operationId": "stream_assessment_processing_sse_aiprep_assessments__assessment_id__stream_get",
         "security": [
           {
