@@ -38,11 +38,27 @@ from fapi.core.config import limiter
 import logging
 import traceback
 
-import os
-from contextlib import asynccontextmanager
+app = FastAPI(title="WBL Backend")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+
+from fastapi.responses import JSONResponse
+import logging
+logger = logging.getLogger("wbl")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception during request: %s %s: %s", request.method, request.url, exc)
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"}
+    )
+
+@app.on_event("startup")
+async def startup_event():
     redis_client.get_client()
     from fapi.db.models import (
         CodeSnippetORM,
@@ -56,18 +72,8 @@ async def lifespan(app: FastAPI):
     from fapi.db.models import Base
     Base.metadata.create_all(bind=engine, checkfirst=True)
 
-    # Allowed table names and schema updates with strict identifier validation
-    import re
-    from sqlalchemy import inspect
-    _SAFE_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
-
-    allowed_tables = {
-        "candidate_marketing",
-        "candidate",
-        "candidate_interview",
-        "candidate_llm_api_keys",
-        "application_report",
-    }
+        
+    # Ensure missing columns exist (for older DB schemas)
     cm_cols = [
         ("candidate_marketing", [
             ("outreach_date", "DATE"),
@@ -96,26 +102,26 @@ async def lifespan(app: FastAPI):
             ("failure_reason", "TEXT NULL"),
             ("failure_code", "VARCHAR(100) NULL"),
             ("last_validated_at", "DATETIME NULL"),
-        ]),
-        ("application_report", [
-            ("user_id", "INT NULL"),
-        ]),
+        ])
     ]
     with engine.connect() as conn:
-        inspector = inspect(conn)
         for tbl, cols in cm_cols:
-            if tbl not in allowed_tables or not _SAFE_IDENTIFIER_PATTERN.match(tbl):
-                continue
             try:
-                existing_columns = {col["name"] for col in inspector.get_columns(tbl)}
+                existing = [row[0] for row in conn.execute(text(f"SHOW COLUMNS FROM {tbl}"))]
                 for col_name, col_type in cols:
-                    if not _SAFE_IDENTIFIER_PATTERN.match(col_name):
-                        continue
-                    if col_name not in existing_columns:
-                        conn.execute(text(f"ALTER TABLE `{tbl}` ADD COLUMN `{col_name}` {col_type}"))
+                    if col_name not in existing:
+                        conn.execute(text(f"ALTER TABLE {tbl} ADD COLUMN {col_name} {col_type}"))
                         conn.commit()
             except Exception as e:
                 logger.info(f"Column sync check error for {tbl}: {e}")
+
+    # Ensure user_id column exists in application_report (for older DB schemas)
+    try:
+        with engine.connect() as conn:
+            getattr(conn, "execute")(text("ALTER TABLE application_report ADD COLUMN user_id INT NULL"))
+            conn.commit()
+    except Exception as e:
+        logger.info(f"user_id column in application_report may already exist or failed to add: {e}")
     # Coderpad Tables
     try:
         CodeSnippetORM.__table__.create(bind=engine, checkfirst=True)
@@ -131,26 +137,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
 
-    yield
-
-app = FastAPI(title="WBL Backend", lifespan=lifespan)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-from fastapi.responses import JSONResponse
-import logging
-logger = logging.getLogger("wbl")
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled exception during request: %s %s: %s", request.method, request.url, exc)
-    logger.error(traceback.format_exc())
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal Server Error"}
-    )
+@app.on_event("shutdown")
+async def shutdown_event():
+    pass  # Upstash Redis is HTTP-based; no persistent connection to close
 
 @app.get("/api/redis-health", tags=["Health"])
 async def redis_health():
@@ -163,43 +154,14 @@ async def redis_health():
             return {"status": "error", "message": str(e)}
     return {"status": "disconnected", "message": "Redis client not initialized"}
 
-# Configurable CORS
-cors_allowed_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
-cors_allowed_origins = [orig.strip() for orig in cors_allowed_origins_env.split(",") if orig.strip()]
-cors_regex_env = os.getenv("CORS_ORIGIN_REGEX", None)
-
-if cors_allowed_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
-    )
-elif cors_regex_env:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=cors_regex_env,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:8000",
-            "http://127.0.0.1:8000",
-        ],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=".*",  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Data-Version", "Last-Modified", "Content-Length"],
+)
 
 @app.middleware("http")
 async def log_exceptions(request: Request, call_next):
