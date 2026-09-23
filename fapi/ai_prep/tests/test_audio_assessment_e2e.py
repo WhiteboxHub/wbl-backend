@@ -69,7 +69,8 @@ def setup_e2e_db():
 
 
 @pytest.fixture(autouse=True)
-def clean_overrides():
+def clean_overrides(monkeypatch):
+    monkeypatch.setenv("ENV", "test")
     youtube_quota_manager.reset_quota()
     yield
     app.dependency_overrides.clear()

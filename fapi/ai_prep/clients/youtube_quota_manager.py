@@ -20,7 +20,11 @@ try:
     from zoneinfo import ZoneInfo
     PT_TZ = ZoneInfo("America/Los_Angeles")
 except ImportError:
-    PT_TZ = timezone(timedelta(hours=-7))
+    try:
+        from dateutil.tz import gettz
+        PT_TZ = gettz("America/Los_Angeles")
+    except ImportError:
+        PT_TZ = timezone(timedelta(hours=-7))
 
 try:
     import redis

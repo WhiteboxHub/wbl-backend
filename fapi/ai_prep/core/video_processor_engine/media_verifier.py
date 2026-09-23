@@ -38,6 +38,18 @@ def detect_container_format(header_bytes: bytes) -> Optional[str]:
     if header_bytes.startswith(CONTAINER_SIGNATURES["wav"]):
         return "wav"
 
+    # Check OGG container
+    if header_bytes.startswith(CONTAINER_SIGNATURES.get("ogg", b"OggS")):
+        return "ogg"
+
+    # Check FLAC container
+    if header_bytes.startswith(CONTAINER_SIGNATURES.get("flac", b"fLaC")):
+        return "flac"
+
+    # Check MP3 (ID3 tag header or MPEG sync frame)
+    if header_bytes.startswith(b"ID3") or (len(header_bytes) >= 2 and header_bytes[0] == 0xFF and (header_bytes[1] & 0xE0) == 0xE0):
+        return "mp3"
+
     # Check MP4 (ftyp box at offset 4)
     if len(header_bytes) >= 8 and CONTAINER_SIGNATURES["mp4"] in header_bytes[:16]:
         return "mp4"
@@ -164,9 +176,12 @@ def verify_audio_file(
 
         detected_format = detect_container_format(header_bytes)
         is_header_valid = (
-            detected_format in ("wav", "webm")
+            detected_format in ("wav", "webm", "mp3", "ogg", "flac")
             or header_bytes.startswith(b"RIFF")
             or header_bytes.startswith(b"\x1a\x45\xdf\xa3")
+            or header_bytes.startswith(b"ID3")
+            or header_bytes.startswith(b"OggS")
+            or header_bytes.startswith(b"fLaC")
         )
 
         if not is_header_valid and os.getenv("ENV") == "test":

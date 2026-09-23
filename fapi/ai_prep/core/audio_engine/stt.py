@@ -12,7 +12,10 @@ import logging
 import time
 from typing import Dict, Any, List, Optional, Tuple, Union
 import numpy as np
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+except ImportError:
+    WhisperModel = None
 
 logger = logging.getLogger("wbl.ai_prep.audio_engine.stt")
 

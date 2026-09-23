@@ -1124,6 +1124,10 @@ async def _process_youtube_upload_and_cleanup(
     # 2. Upload to YouTube
     try:
         from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
+        if not youtube_client.has_live_credentials() and os.getenv("ENV") != "test":
+            logger.info("No live YouTube credentials configured. Retaining server storage for local media playback for assessment %s", assessment_id)
+            return None
+
         upload_res = await asyncio.to_thread(
             youtube_client.upload_unlisted_media,
             assessment_id=assessment_id,
@@ -1592,6 +1596,11 @@ def get_assessment_audio_logic(
         target_file = _auto_assemble_chunks_if_present(assessment_dir)
 
     if not target_file or not os.path.exists(target_file):
+        if getattr(assessment, "youtube_url", None):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Local audio recording purged following YouTube ingestion. Media stream available at: {assessment.youtube_url}",
+            )
         raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
 
     mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
@@ -1639,6 +1648,11 @@ def get_assessment_video_logic(
         target_file = _auto_assemble_chunks_if_present(assessment_dir)
 
     if not target_file or not os.path.exists(target_file):
+        if getattr(assessment, "youtube_url", None):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Local video recording purged following YouTube ingestion. Media stream available at: {assessment.youtube_url}",
+            )
         raise HTTPException(status_code=404, detail="Assessment video recording not found in server storage")
 
     mime_type = "video/webm" if target_file.endswith(".webm") else "video/mp4"

@@ -18,6 +18,8 @@ CONTAINER_SIGNATURES: Dict[str, bytes] = {
     "mkv": b"\x1a\x45\xdf\xa3",   # Matroska / EBML
     "wav": b"RIFF",               # RIFF container
     "mp4": b"ftyp",               # ISO base media file (offset 4)
+    "ogg": b"OggS",               # Ogg container
+    "flac": b"fLaC",              # Free Lossless Audio Codec
 }
 
 # Minimum byte size thresholds
