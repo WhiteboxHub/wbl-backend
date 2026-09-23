@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -1500,8 +1500,12 @@ async def upload_assessment_audio_logic(
 
 
 def _auto_assemble_chunks_if_present(assessment_dir: str) -> Optional[str]:
-    """Auto-assembles sequential WebM chunks from chunks/ into assembled.webm if top-level media is absent."""
+    """Auto-assembles sequential WebM chunks from chunks/ into assembled.webm atomically if top-level media is absent."""
     chunk_dir = os.path.join(assessment_dir, "chunks")
+    assembled_path = os.path.join(assessment_dir, "assembled.webm")
+    if os.path.exists(assembled_path) and os.path.getsize(assembled_path) > 0:
+        return assembled_path
+
     if not os.path.exists(chunk_dir):
         return None
     try:
@@ -1513,15 +1517,23 @@ def _auto_assemble_chunks_if_present(assessment_dir: str) -> Optional[str]:
             ]
         )
         if chunk_files:
-            assembled_path = os.path.join(assessment_dir, "assembled.webm")
             os.makedirs(assessment_dir, exist_ok=True)
-            with open(assembled_path, "wb") as outfile:
-                for cf in chunk_files:
-                    with open(cf, "rb") as infile:
-                        shutil.copyfileobj(infile, outfile, length=1024 * 1024)
-            if os.path.exists(assembled_path) and os.path.getsize(assembled_path) > 0:
-                logger.info("Auto-assembled %d chunks into %s", len(chunk_files), assembled_path)
-                return assembled_path
+            temp_assembled = os.path.join(assessment_dir, f"assembled_{uuid.uuid4().hex}.tmp")
+            try:
+                with open(temp_assembled, "wb") as outfile:
+                    for cf in chunk_files:
+                        with open(cf, "rb") as infile:
+                            shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+                if os.path.exists(temp_assembled) and os.path.getsize(temp_assembled) > 0:
+                    os.replace(temp_assembled, assembled_path)
+                    logger.info("Atomically auto-assembled %d chunks into %s", len(chunk_files), assembled_path)
+                    return assembled_path
+            finally:
+                if os.path.exists(temp_assembled):
+                    try:
+                        os.remove(temp_assembled)
+                    except OSError:
+                        pass
     except Exception as auto_err:
         logger.warning("Auto-assembling chunks failed: %s", auto_err)
     return None
@@ -1532,7 +1544,7 @@ def get_assessment_audio_logic(
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     range_header: Optional[str] = None,
-) -> StreamingResponse:
+) -> FileResponse:
     """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
@@ -1568,57 +1580,12 @@ def get_assessment_audio_logic(
         raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
 
     mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
-    file_size = os.path.getsize(target_file)
-    stream_buf_size = int(getattr(settings, "STREAMING_CHUNK_SIZE_BYTES", 64 * 1024))
 
-    # Support HTTP 206 Partial Content for audio range seeking
-    if range_header:
-        try:
-            byte_range = range_header.replace("bytes=", "").split("-")
-            start = int(byte_range[0]) if byte_range[0] else 0
-            end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
-            start = max(0, min(start, file_size - 1))
-            end = max(start, min(end, file_size - 1))
-            content_length = end - start + 1
-
-            def audio_range_stream():
-                with open(target_file, "rb") as f:
-                    f.seek(start)
-                    remaining = content_length
-                    while remaining > 0:
-                        chunk_size = min(remaining, stream_buf_size)
-                        data = f.read(chunk_size)
-                        if not data:
-                            break
-                        remaining -= len(data)
-                        yield data
-
-            return StreamingResponse(
-                audio_range_stream(),
-                status_code=status.HTTP_206_PARTIAL_CONTENT,
-                media_type=mime_type,
-                headers={
-                    "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    "Content-Length": str(content_length),
-                    "Accept-Ranges": "bytes",
-                },
-            )
-        except Exception:
-            pass
-
-    def iterfile():
-        with open(target_file, "rb") as f:
-            while chunk := f.read(stream_buf_size):
-                yield chunk
-
-    return StreamingResponse(
-        iterfile(),
+    return FileResponse(
+        path=target_file,
         media_type=mime_type,
-        headers={
-            "Content-Length": str(file_size),
-            "Accept-Ranges": "bytes",
-            "Content-Disposition": f'inline; filename="{os.path.basename(target_file)}"',
-        },
+        filename=os.path.basename(target_file),
+        content_disposition_type="inline",
     )
 
 
@@ -1627,7 +1594,7 @@ def get_assessment_video_logic(
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     range_header: Optional[str] = None,
-) -> StreamingResponse:
+) -> FileResponse:
     """Retrieves and streams stored video recording from server storage with range seeking support."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
@@ -1659,58 +1626,13 @@ def get_assessment_video_logic(
     if not target_file or not os.path.exists(target_file):
         raise HTTPException(status_code=404, detail="Assessment video recording not found in server storage")
 
-    file_size = os.path.getsize(target_file)
     mime_type = "video/webm" if target_file.endswith(".webm") else "video/mp4"
-    stream_buf_size = int(getattr(settings, "STREAMING_CHUNK_SIZE_BYTES", 64 * 1024))
 
-    # Support HTTP 206 Partial Content for video range seeking
-    if range_header:
-        try:
-            byte_range = range_header.replace("bytes=", "").split("-")
-            start = int(byte_range[0]) if byte_range[0] else 0
-            end = int(byte_range[1]) if len(byte_range) > 1 and byte_range[1] else file_size - 1
-            start = max(0, min(start, file_size - 1))
-            end = max(start, min(end, file_size - 1))
-            content_length = end - start + 1
-
-            def range_stream():
-                with open(target_file, "rb") as f:
-                    f.seek(start)
-                    remaining = content_length
-                    while remaining > 0:
-                        chunk_size = min(remaining, stream_buf_size)
-                        data = f.read(chunk_size)
-                        if not data:
-                            break
-                        remaining -= len(data)
-                        yield data
-
-            return StreamingResponse(
-                range_stream(),
-                status_code=status.HTTP_206_PARTIAL_CONTENT,
-                media_type=mime_type,
-                headers={
-                    "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    "Content-Length": str(content_length),
-                    "Accept-Ranges": "bytes",
-                },
-            )
-        except Exception:
-            pass
-
-    def full_stream():
-        with open(target_file, "rb") as f:
-            while chunk := f.read(stream_buf_size):
-                yield chunk
-
-    return StreamingResponse(
-        full_stream(),
+    return FileResponse(
+        path=target_file,
         media_type=mime_type,
-        headers={
-            "Content-Length": str(file_size),
-            "Accept-Ranges": "bytes",
-            "Content-Disposition": f'inline; filename="{os.path.basename(target_file)}"',
-        },
+        filename=os.path.basename(target_file),
+        content_disposition_type="inline",
     )
 
 

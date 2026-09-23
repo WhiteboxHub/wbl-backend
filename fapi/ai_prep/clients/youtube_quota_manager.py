@@ -142,9 +142,18 @@ class YouTubeQuotaManager:
         pt_date = self._get_current_pt_date()
         if self._redis_client:
             try:
+                pipe = self._redis_client.pipeline()
                 key_uploads = f"aiprep:yt_quota:uploads:{pt_date}"
-                self._redis_client.incrby(key_uploads, 1)
-                self._redis_client.expire(key_uploads, 172800)
+                pipe.incrby(key_uploads, 1)
+                pipe.expire(key_uploads, 172800)
+
+                if not reservation_token:
+                    applied_cost = cost if cost is not None else self.upload_cost
+                    key_units = f"aiprep:yt_quota:units:{pt_date}"
+                    pipe.incrby(key_units, applied_cost)
+                    pipe.expire(key_units, 172800)
+
+                pipe.execute()
                 return
             except Exception as e:
                 logger.warning("Redis commit_quota failed (%s)", e)

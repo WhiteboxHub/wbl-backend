@@ -177,3 +177,30 @@ def test_youtube_client_single_account_credentials():
     # Deleting without video id or credentials returns False safely
     assert client.delete_video("") is False
 
+
+def test_atomic_auto_assemble_chunks():
+    """Verify that _auto_assemble_chunks_if_present creates assembled.webm atomically."""
+    from fapi.ai_prep.utils.aiprep_utils import _auto_assemble_chunks_if_present
+    import shutil
+    temp_dir = tempfile.mkdtemp()
+    try:
+        chunks_dir = os.path.join(temp_dir, "chunks")
+        os.makedirs(chunks_dir, exist_ok=True)
+        # Create dummy chunk files
+        with open(os.path.join(chunks_dir, "chunk_0001.webm"), "wb") as f:
+            f.write(b"\x1a\x45\xdf\xa3" + b"A" * 100)
+        with open(os.path.join(chunks_dir, "chunk_0002.webm"), "wb") as f:
+            f.write(b"\x1a\x45\xdf\xa3" + b"B" * 100)
+
+        assembled = _auto_assemble_chunks_if_present(temp_dir)
+        assert assembled is not None
+        assert os.path.exists(assembled)
+        assert os.path.getsize(assembled) == 208
+
+        # Calling again returns existing assembled file immediately
+        assembled_again = _auto_assemble_chunks_if_present(temp_dir)
+        assert assembled_again == assembled
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+

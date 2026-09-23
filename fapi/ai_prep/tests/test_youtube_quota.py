@@ -127,3 +127,20 @@ def test_preflight_checker_with_quota():
     finally:
         if os.path.exists(v_path):
             os.remove(v_path)
+
+
+def test_redis_quota_manager_direct_consume():
+    """Verify that when Redis is used, direct consumption charges units and uploads atomically."""
+    from unittest.mock import MagicMock
+    mgr = YouTubeQuotaManager()
+    mock_redis = MagicMock()
+    mock_pipe = MagicMock()
+    mock_redis.pipeline.return_value = mock_pipe
+    mgr._redis_client = mock_redis
+
+    # Direct commit without prior reservation
+    mgr.commit_quota(reservation_token=None, cost=1600)
+
+    assert mock_redis.pipeline.called
+    assert mock_pipe.incrby.call_count == 2  # 1 for uploads, 1 for units
+    assert mock_pipe.execute.called
