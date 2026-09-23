@@ -755,7 +755,7 @@ async def process_audio_engine_endpoint(
     elif audio_path:
         base_dir = os.path.abspath(aiprep_utils.STORAGE_BASE_DIR)
         resolved_path = os.path.abspath(audio_path)
-        if not resolved_path.startswith(base_dir):
+        if not (resolved_path == base_dir or resolved_path.startswith(base_dir + os.sep)):
             raise HTTPException(
                 status_code=400,
                 detail="Invalid audio_path. Path must reside within the application storage directory."
@@ -780,7 +780,7 @@ async def process_audio_engine_endpoint(
                 finally:
                     if dir_to_clean and os.path.exists(dir_to_clean):
                         shutil.rmtree(dir_to_clean, ignore_errors=True)
-                        
+
             background_tasks.add_task(
                 _benchmark_with_cleanup,
                 path=target_path,
