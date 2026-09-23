@@ -498,7 +498,7 @@ def list_questions_from_bank(
     is_active: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: AuthUserORM = Depends(get_current_user),
+    _staff: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Fetches questions dynamically from ai_prep_questions DB table."""
@@ -603,7 +603,7 @@ async def upload_media_chunk(
         assessment_id=assessment_id,
         chunk_number=chunk_number,
         total_chunks=total_chunks,
-        file=file,
+        file_content=file,
     )
 
 

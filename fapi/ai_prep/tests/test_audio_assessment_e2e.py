@@ -521,13 +521,6 @@ def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidat
     assessment_id = res_create.json()["id"]
 
     dummy_wav_content = b"RIFF" + b"\x24\x00\x00\x00" + b"WAVEfmt " + b"\x10\x00\x00\x00" + b"\x01\x00\x01\x00" + b"\x44\xac\x00\x00" + b"\x88\x58\x01\x00" + b"\x02\x00\x10\x00" + b"data" + b"\x00\x00\x00\x00" + (b"\x00" * 400)
-    res_upload = client.post(
-        f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
-        files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
-    )
-    assert res_upload.status_code == 200
-    upload_file_path = res_upload.json()["file_path"]
-    assessment_dir = os.path.dirname(upload_file_path)
 
     mock_audio = {"spoken_content": {"full_text": "Audio text"}, "audio_telemetry": {"words_per_minute": 120}}
     mock_eval = {"transcript_evaluation": {}, "audio_evaluation": {}, "video_evaluation": None}
@@ -536,20 +529,19 @@ def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidat
         raise RuntimeError("Database connection lost during update_assessment_media_url")
 
     with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
-         patch("fapi.ai_prep.core.video_processor_engine.VideoProcessorEngine.convert_audio_for_youtube", return_value=upload_file_path), \
+         patch("fapi.ai_prep.core.video_processor_engine.VideoProcessorEngine.convert_audio_for_youtube", side_effect=lambda x: x), \
+         patch("fapi.ai_prep.clients.youtube_client.youtube_client.upload_unlisted_media", return_value={"youtube_url": "https://youtu.be/dummy"}), \
          patch("fapi.ai_prep.crud.update_assessment_media_url", side_effect=failing_update_media_url), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value=mock_eval), \
          patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", E2ESessionLocal):
 
-        import asyncio
-        asyncio.run(
-            process_media_and_upload_pipeline(
-                assessment_id=assessment_id,
-                media_path=upload_file_path,
-                media_type="AUDIO",
-                candidate_id=2001,
-            )
+        res_upload = client.post(
+            f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
+            files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
         )
+        assert res_upload.status_code == 200
+        upload_file_path = res_upload.json()["file_path"]
+        assessment_dir = os.path.dirname(upload_file_path)
 
     # Assessment directory must be preserved because DB URL update failed
     assert os.path.exists(assessment_dir)

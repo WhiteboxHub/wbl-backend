@@ -965,9 +965,12 @@ async def upload_media_chunk_logic(
     assessment_id: Union[int, str],
     chunk_number: int,
     total_chunks: Optional[int],
-    file: Union[UploadFile, bytes],
+    file_content: Union[UploadFile, bytes],
 ) -> ChunkUploadResponse:
     """Uploads sequential WebM media chunk to server storage directory using streaming with strict size limits."""
+    if file_content is None:
+        raise HTTPException(status_code=400, detail="Missing media chunk upload file")
+
     if chunk_number < 1:
         raise HTTPException(status_code=400, detail="chunk_number must be >= 1")
     if total_chunks is not None and total_chunks < 1:
@@ -986,8 +989,8 @@ async def upload_media_chunk_logic(
     try:
         os.makedirs(chunk_dir, exist_ok=True)
         with open(chunk_path, "wb") as f:
-            if isinstance(file, bytes):
-                total_written = len(file)
+            if isinstance(file_content, bytes):
+                total_written = len(file_content)
                 if total_written > max_chunk_size_bytes:
                     f.close()
                     if os.path.exists(chunk_path):
@@ -996,10 +999,10 @@ async def upload_media_chunk_logic(
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
                     )
-                f.write(file)
+                f.write(file_content)
             else:
                 while True:
-                    chunk = await file.read(1024 * 1024)
+                    chunk = await file_content.read(1024 * 1024)
                     if not chunk:
                         break
                     total_written += len(chunk)
@@ -1245,8 +1248,20 @@ async def process_media_and_upload_pipeline(
             logger.error("Failed to update assessment %s status to FAILED: %s", assessment_id, status_err)
 
 
-# Alias for backward compatibility
-process_audio_and_save_data = process_media_and_upload_pipeline
+async def process_audio_and_save_data(
+    assessment_id: int,
+    audio_path: str,
+):
+    """
+    Background worker for backward compatibility: Runs Audio Engine, persists telemetry,
+    converts for YouTube ingestion, and triggers LLM evaluation.
+    """
+    return await process_media_and_upload_pipeline(
+        assessment_id=assessment_id,
+        media_path=audio_path,
+        media_type="AUDIO",
+        candidate_id=None,
+    )
 
 
 def assemble_media_chunks_logic(
@@ -1645,10 +1660,14 @@ def get_media_storage_info_logic() -> StorageInfoResponse:
             for cand_dir in os.listdir(STORAGE_BASE_DIR):
                 cand_path = os.path.join(STORAGE_BASE_DIR, cand_dir)
                 if os.path.isdir(cand_path):
-                    assessment_count += len([
-                        item for item in os.listdir(cand_path)
-                        if os.path.isdir(os.path.join(cand_path, item))
-                    ])
+                    try:
+                        valid_assessments = [
+                            item for item in os.listdir(cand_path)
+                            if os.path.isdir(os.path.join(cand_path, item))
+                        ]
+                        assessment_count += len(valid_assessments)
+                    except (PermissionError, OSError):
+                        pass
         except (PermissionError, OSError) as err:
             logger.warning("Error calculating storage assessment count: %s", err)
     return StorageInfoResponse(
@@ -1713,6 +1732,12 @@ def stream_assessment_processing_sse_logic(
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    # Immediately release connection back to pool so long-lived SSE stream does not hold an idle connection
+    try:
+        db.close()
+    except Exception:
+        pass
 
     internal_id = assessment.id
     ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
