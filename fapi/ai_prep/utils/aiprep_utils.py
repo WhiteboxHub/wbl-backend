@@ -1637,9 +1637,20 @@ def get_assessment_video_logic(
 
 
 def get_media_storage_info_logic() -> StorageInfoResponse:
-    """Returns real storage directory disk usage and assessment folder count."""
+    """Returns real storage directory disk usage and assessment folder count across nested candidate partitions."""
     total, used, free = shutil.disk_usage(STORAGE_BASE_DIR if os.path.exists(STORAGE_BASE_DIR) else ".")
-    assessment_count = len(os.listdir(STORAGE_BASE_DIR)) if os.path.exists(STORAGE_BASE_DIR) else 0
+    assessment_count = 0
+    if os.path.exists(STORAGE_BASE_DIR):
+        try:
+            for cand_dir in os.listdir(STORAGE_BASE_DIR):
+                cand_path = os.path.join(STORAGE_BASE_DIR, cand_dir)
+                if os.path.isdir(cand_path):
+                    assessment_count += len([
+                        item for item in os.listdir(cand_path)
+                        if os.path.isdir(os.path.join(cand_path, item))
+                    ])
+        except (PermissionError, OSError) as err:
+            logger.warning("Error calculating storage assessment count: %s", err)
     return StorageInfoResponse(
         storage_dir=os.path.abspath(STORAGE_BASE_DIR),
         total_bytes=total,

@@ -40,12 +40,19 @@ def get_current_user(
             token = auth_header.split(" ")[1]
 
     if not token:
-        token = (
-            request.query_params.get("token")
-            or request.query_params.get("access_token")
-            or request.cookies.get("token")
-            or request.cookies.get("access_token")
-        )
+        # Check cookies first (preferred over query params for browser sessions)
+        token = request.cookies.get("token") or request.cookies.get("access_token")
+
+    if not token:
+        # Fallback to query params ONLY for media streaming / SSE endpoints (HTML5 <video>/<audio>/EventSource)
+        query_token = request.query_params.get("token") or request.query_params.get("access_token")
+        if query_token:
+            req_path = request.url.path
+            allowed_streaming_suffixes = ("/audio", "/video", "/stream")
+            if any(req_path.endswith(suffix) for suffix in allowed_streaming_suffixes) or "/media/" in req_path:
+                token = query_token
+            else:
+                logger.warning("Query parameter token rejected on non-streaming endpoint: %s", req_path)
 
     if not token:
         internal_secret = request.headers.get("X-Internal-Secret")
