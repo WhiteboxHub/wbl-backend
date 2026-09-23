@@ -498,7 +498,7 @@ def list_questions_from_bank(
     is_active: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    _staff: AuthUserORM = Depends(get_current_user),
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
     """Fetches questions dynamically from ai_prep_questions DB table."""
