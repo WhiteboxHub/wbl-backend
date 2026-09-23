@@ -107,7 +107,7 @@ def search_candidates(
 @router.get("/candidates/credentials")
 def list_candidate_credentials(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     search: str = Query(None),
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Security(security),
