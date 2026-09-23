@@ -62,6 +62,15 @@ class WhisperTranscriptionProvider(BaseTranscriptionProvider):
         precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
+         # 1. Reuse precomputed transcript and word timestamps if provided (skips redundant Whisper run)
+        if precomputed_transcript_text is not None and precomputed_word_timestamps is not None:
+            logger.info("[WhisperProvider] Reusing precomputed live STT transcript & word timestamps (skipping duplicate Whisper run)")
+            return {
+                "transcript_text": precomputed_transcript_text,
+                "word_timestamps": precomputed_word_timestamps,
+                "duration": kwargs.get("duration", 0.0),
+            }
+            
         if not audio_path or not os.path.exists(audio_path):
             raise FileNotFoundError(f"WhisperProvider requires a valid audio_path. Given: {audio_path}")
 
