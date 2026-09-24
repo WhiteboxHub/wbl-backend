@@ -398,7 +398,8 @@ async def _call_gemini(
     timeout_seconds: float,
 ) -> str:
     """Dispatches completion request to Google Gemini API."""
-    url = f"{GEMINI_BASE_ENDPOINT.format(model=model)}?key={api_key}"
+    sanitized_key = urllib.parse.quote((api_key or "").strip(), safe="")
+    url = f"{GEMINI_BASE_ENDPOINT.format(model=model)}?key={sanitized_key}"
 
     generation_config: Dict[str, Any] = {
         "temperature": temperature,
@@ -559,7 +560,8 @@ async def test_llm_connection(
     response_text = ""
 
     if resolved_provider == "gemini":
-        url = f"{GEMINI_BASE_ENDPOINT.format(model=selected_model)}?key={clean_key}"
+        sanitized_key = urllib.parse.quote(clean_key, safe="")
+        url = f"{GEMINI_BASE_ENDPOINT.format(model=selected_model)}?key={sanitized_key}"
         payload = {
             "contents": [{"role": "user", "parts": [{"text": test_user}]}],
             "systemInstruction": {"parts": [{"text": test_system}]},

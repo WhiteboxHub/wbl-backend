@@ -31,6 +31,8 @@ try:
 except ImportError:
     redis = None
 
+UNTRACKED_RESERVATION_ID = "MOCK_UNTRACKED_RESERVATION"
+
 
 class YouTubeQuotaManager:
     """
@@ -213,7 +215,7 @@ class YouTubeQuotaManager:
         - If reservation_token is None (direct consumption path), increments both units and uploads count.
         Idempotent: repeating commit with the same token is a no-op.
         """
-        if not self.is_enabled or reservation_token == "untracked_quota_token":
+        if not self.is_enabled or (reservation_token and reservation_token in (UNTRACKED_RESERVATION_ID, "untracked_quota_token")):
             return
 
         pt_date = self._get_current_pt_date()
@@ -265,7 +267,7 @@ class YouTubeQuotaManager:
         Rolls back a quota reservation if an upload fails before hitting Google API.
         Idempotent: repeating release with the same token is a no-op and will not restore units twice.
         """
-        if not self.is_enabled or not reservation_token or reservation_token == "untracked_quota_token":
+        if not self.is_enabled or not reservation_token or reservation_token in (UNTRACKED_RESERVATION_ID, "untracked_quota_token"):
             return
 
         pt_date = self._get_current_pt_date()

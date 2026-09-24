@@ -63,19 +63,19 @@ class AiPrepSettings(BaseSettings):
 
     # YouTube API Configuration (Single Account Unlisted Upload)
     YOUTUBE_API_KEY: Optional[str] = Field(
-        default_factory=lambda: os.getenv("YOUTUBE_API_KEY"),
+        default=None,
         description="Google / YouTube Data API key",
     )
     YOUTUBE_CLIENT_ID: Optional[str] = Field(
-        default_factory=lambda: os.getenv("YOUTUBE_CLIENT_ID"),
+        default=None,
         description="OAuth2 Client ID for YouTube Upload",
     )
     YOUTUBE_CLIENT_SECRET: Optional[str] = Field(
-        default_factory=lambda: os.getenv("YOUTUBE_CLIENT_SECRET"),
+        default=None,
         description="OAuth2 Client Secret for YouTube Upload",
     )
     YOUTUBE_REFRESH_TOKEN: Optional[str] = Field(
-        default_factory=lambda: os.getenv("YOUTUBE_REFRESH_TOKEN"),
+        default=None,
         description="OAuth2 Refresh Token for automated background uploads",
     )
     YOUTUBE_TOKEN_URI: str = Field(
@@ -87,7 +87,7 @@ class AiPrepSettings(BaseSettings):
         description="OAuth2 scope for YouTube uploads",
     )
     YOUTUBE_CREDENTIALS_FILE: Optional[str] = Field(
-        default_factory=lambda: os.getenv("YOUTUBE_CREDENTIALS_FILE"),
+        default=None,
         description="Path to client_secrets.json or credentials file if used",
     )
     YOUTUBE_PRIVACY_STATUS: str = Field(
@@ -142,6 +142,16 @@ class AiPrepSettings(BaseSettings):
     def model_post_init(self, __context: Any) -> None:
         if not self.LOCAL_STORAGE_DIR:
             self.LOCAL_STORAGE_DIR = self.LOCAL_STORAGE_BASE_PATH
+        if not self.YOUTUBE_API_KEY:
+            self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+        if not self.YOUTUBE_CLIENT_ID:
+            self.YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID")
+        if not self.YOUTUBE_CLIENT_SECRET:
+            self.YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET")
+        if not self.YOUTUBE_REFRESH_TOKEN:
+            self.YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN")
+        if not self.YOUTUBE_CREDENTIALS_FILE:
+            self.YOUTUBE_CREDENTIALS_FILE = os.getenv("YOUTUBE_CREDENTIALS_FILE")
 
     class Config:
         env_prefix = "AIPREP_"
