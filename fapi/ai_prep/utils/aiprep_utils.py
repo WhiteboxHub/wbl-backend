@@ -26,7 +26,7 @@ def SessionLocal():
 from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
-
+from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
 from fapi.db.models import (
     AuthUserORM,
     CandidateORM,
@@ -355,6 +355,7 @@ def candidate_create_assessment_logic(
         questions_list = assessment_orchestrator.get_questions_for_assessment(
             db=db,
             assessment_type=assessment_type_str,
+            candidate_id=candidate_id,
         )
     except Exception as exc:
         logger.error(
@@ -1101,6 +1102,7 @@ def get_chunk_upload_status_logic(
         is_complete=is_complete,
         is_ready_for_assembly=is_complete,
     )
+
 
 
 async def _process_youtube_upload_and_cleanup(
@@ -1934,3 +1936,16 @@ def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, 
     q_row.updated_at = datetime.utcnow()
     db.commit()
     return {"message": "Question deactivated successfully", "id": question_id}
+
+async def run_audio_engine_benchmark(
+    audio_path: str,
+    provider_name: Optional[str] = None,
+    model_size: str = "base"
+) -> Dict[str, Any]:
+    """Runs AudioMetricsEngine inside an async thread pool to avoid blocking the FastAPI event loop."""
+    return await asyncio.to_thread(
+        AudioMetricsEngine.process_audio_file,
+        audio_path=audio_path,
+        model_size=model_size,
+        provider_name=provider_name
+    )
