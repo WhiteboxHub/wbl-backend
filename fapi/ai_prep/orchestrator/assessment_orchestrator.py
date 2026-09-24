@@ -298,13 +298,10 @@ def get_questions_for_assessment(
         if past_reports:
             latest_report = past_reports[0]
             transcript_eval = latest_report.transcript_evaluation or {}
-            eval_body = (
-                transcript_eval.get(f"{normalized_type.lower()}_evaluation")
-                or transcript_eval.get("intro_evaluation")
-                or transcript_eval
-            )
-            overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body, dict) else {}
-            previous_readiness = overall.get("readiness") or (eval_body.get("readiness") if isinstance(eval_body, dict) else None)
+            eval_body = transcript_eval.get(f"{normalized_type.lower()}_evaluation")
+            if isinstance(eval_body, dict):
+                overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body.get("overall_assessment"), dict) else {}
+                previous_readiness = overall.get("readiness") or eval_body.get("readiness")
 
             logger.info(
                 "[AssessmentOrchestrator] Candidate %d previous %s readiness: '%s'",
@@ -312,15 +309,11 @@ def get_questions_for_assessment(
             )
 
         # 2. Collect question IDs already asked to this candidate for COMPLETED assessments of this round type
-        past_assessments, _ = crud.list_candidate_assessments(db, candidate_id=candidate_id)
-        for past_assess in past_assessments:
-            if str(past_assess.assessment_type or "").upper() == normalized_type and past_assess.status == "COMPLETED":
-                data_rec = crud.get_assessment_data_by_assessment_id(db, past_assess.id)
-                if data_rec and data_rec.questions:
-                    for q in data_rec.questions:
-                        qid = q.get("question_id") or q.get("id")
-                        if qid:
-                            previously_asked_ids.append(qid)
+        previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
+            db,
+            candidate_id=candidate_id,
+            assessment_type=normalized_type,
+        )
 
         logger.info(
             "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",

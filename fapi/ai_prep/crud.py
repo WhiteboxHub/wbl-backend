@@ -425,6 +425,44 @@ def get_candidate_completed_reports(
         )
     return query.order_by(desc(AiPrepAssessmentORM.id)).limit(limit).all()
 
+
+def get_candidate_previously_asked_question_ids(
+    db: Session,
+    candidate_id: int,
+    assessment_type: str,
+) -> List[int]:
+    """
+    Fetches all question IDs previously asked to a candidate for completed assessments
+    of a specific round type in a single DB query, avoiding N+1 overhead.
+    """
+    records = (
+        db.query(AiPrepAssessmentDataORM.questions)
+        .join(
+            AiPrepAssessmentORM,
+            AiPrepAssessmentDataORM.assessment_id == AiPrepAssessmentORM.id,
+        )
+        .filter(
+            AiPrepAssessmentORM.candidate_id == candidate_id,
+            AiPrepAssessmentORM.assessment_type == assessment_type.upper(),
+            AiPrepAssessmentORM.status == "COMPLETED",
+            AiPrepAssessmentDataORM.questions.isnot(None),
+        )
+        .all()
+    )
+
+    question_ids: List[int] = []
+    for (q_list,) in records:
+        if isinstance(q_list, list):
+            for q in q_list:
+                if isinstance(q, dict):
+                    qid = q.get("question_id") or q.get("id")
+                    if qid:
+                        try:
+                            question_ids.append(int(qid))
+                        except (ValueError, TypeError):
+                            pass
+    return question_ids
+
 # ---------------------------------------------------------------------------
 # Questions Bank CRUD
 # ---------------------------------------------------------------------------
