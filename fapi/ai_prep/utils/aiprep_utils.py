@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -1240,3 +1240,77 @@ def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, 
     q_row.updated_at = datetime.utcnow()
     db.commit()
     return {"message": "Question deactivated successfully", "id": question_id}
+
+
+def get_assessment_playback_logic(db: Session, assessment_id: int):
+    """Streams the recorded audio/video media file for an assessment."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    if assessment.youtube_url and assessment.youtube_url.strip():
+        return RedirectResponse(url=assessment.youtube_url)
+
+    candidate_id = assessment.candidate_id
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    
+    # Fallback search if directory not in candidate_id path
+    if not os.path.exists(assessment_dir) and os.path.exists(STORAGE_BASE_DIR):
+        for entry in os.listdir(STORAGE_BASE_DIR):
+            cand_path = os.path.join(STORAGE_BASE_DIR, entry)
+            if os.path.isdir(cand_path):
+                potential_dir = os.path.join(cand_path, str(assessment_id))
+                if os.path.exists(potential_dir):
+                    assessment_dir = potential_dir
+                    break
+
+    is_audio = getattr(assessment, "media_type", "VIDEO") == "AUDIO"
+    media_mime = "audio/webm" if is_audio else "video/webm"
+    range_headers = {"Accept-Ranges": "bytes"}
+
+    # 1. Assembled media
+    assembled = os.path.join(assessment_dir, "assembled.webm")
+    if os.path.exists(assembled) and os.path.getsize(assembled) > 0:
+        return FileResponse(assembled, media_type=media_mime, headers=range_headers)
+
+    # 2. Extracted audio wav
+    audio_wav = os.path.join(assessment_dir, "audio.wav")
+    if os.path.exists(audio_wav) and os.path.getsize(audio_wav) > 0:
+        return FileResponse(audio_wav, media_type="audio/wav", headers=range_headers)
+
+    # 3. Recorded chunks
+    chunk_dir = os.path.join(assessment_dir, "chunks")
+    if os.path.exists(chunk_dir):
+        chunks = sorted([f for f in os.listdir(chunk_dir) if f.startswith("chunk_") and f.endswith(".webm")])
+        if len(chunks) == 1:
+            chunk_file = os.path.join(chunk_dir, chunks[0])
+            if os.path.exists(chunk_file) and os.path.getsize(chunk_file) > 0:
+                return FileResponse(chunk_file, media_type=media_mime, headers=range_headers)
+        elif len(chunks) > 1:
+            # Concatenate chunks into assembled.webm if not already done
+            if not os.path.exists(assembled) or os.path.getsize(assembled) == 0:
+                try:
+                    with open(assembled, "wb") as out_f:
+                        for c in chunks:
+                            c_path = os.path.join(chunk_dir, c)
+                            with open(c_path, "rb") as in_f:
+                                out_f.write(in_f.read())
+                except Exception as e:
+                    logger.warning(f"Failed to concatenate chunks for assessment {assessment_id}: {e}")
+            if os.path.exists(assembled) and os.path.getsize(assembled) > 0:
+                return FileResponse(assembled, media_type=media_mime, headers=range_headers)
+            # Fallback to first chunk
+            chunk_file = os.path.join(chunk_dir, chunks[0])
+            if os.path.exists(chunk_file) and os.path.getsize(chunk_file) > 0:
+                return FileResponse(chunk_file, media_type=media_mime, headers=range_headers)
+
+    # 4. Raw media
+    if os.path.exists(assessment_dir):
+        raw_files = [f for f in os.listdir(assessment_dir) if f.startswith("raw_") or f.endswith(".webm") or f.endswith(".mp3")]
+        if raw_files:
+            raw_path = os.path.join(assessment_dir, raw_files[0])
+            if os.path.exists(raw_path) and os.path.getsize(raw_path) > 0:
+                return FileResponse(raw_path, media_type=media_mime, headers=range_headers)
+
+    raise HTTPException(status_code=404, detail="No recorded media available for this assessment")
+
