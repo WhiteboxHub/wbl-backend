@@ -743,6 +743,7 @@ async def process_audio_engine_endpoint(
     """
     target_path = None
     temp_dir = None
+    task_queued = False
 
     MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB limit
     # 1. Handle direct file upload
@@ -799,6 +800,7 @@ async def process_audio_engine_endpoint(
                     sz=model_size,
                     dir_to_clean=temp_dir,
                 )
+                task_queued = True  
             except Exception:
                 if temp_dir and os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -827,7 +829,9 @@ async def process_audio_engine_endpoint(
         logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # In synchronous mode, delete the temp folder immediately once done
-        if not async_mode and temp_dir and os.path.exists(temp_dir):
+
+        # Delete temp folder in sync mode, or if async task failed to queue
+        if (not async_mode or not task_queued) and temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
+
 
