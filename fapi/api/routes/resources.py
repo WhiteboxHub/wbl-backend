@@ -1,6 +1,5 @@
 import logging
 import traceback
-import jwt
 import os
 import anyio
 import httpx
@@ -17,6 +16,7 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import jwt as jose_jwt, JWTError
 from sqlalchemy.future import select
 from sqlalchemy.orm import Session
 
@@ -38,12 +38,48 @@ from fapi.utils.table_fingerprint import generate_version_for_model
 router = APIRouter()
 security = HTTPBearer()
 
+# ---------------------------------------------------------------------------
+# Optional-auth bearer: same pattern as auth_dependencies.security but
+# applied inline to routes that serve mixed (public + authenticated) traffic.
+# auto_error=False means FastAPI will not reject the request when the
+# Authorization header is absent — we handle that logic ourselves.
+# ---------------------------------------------------------------------------
+_optional_bearer = HTTPBearer(auto_error=False)
+_OPTIONAL_AUTH_SECRET = os.getenv("SECRET_KEY")
+_OPTIONAL_AUTH_ALGORITHM = os.getenv("ALGORITHM", "HS256")
+
+
+def _is_request_authenticated(
+    credentials: Optional[HTTPAuthorizationCredentials],
+) -> bool:
+    """
+    Return True only when the request carries a non-empty, valid, non-expired
+    Bearer JWT signed with the project's SECRET_KEY.
+
+    This intentionally mirrors the decode logic in
+    fapi/utils/auth_dependencies.py:decode_token so that both paths use the
+    same secret and algorithm without duplicating business logic.
+    """
+    if not credentials or not credentials.credentials:
+        return False
+    try:
+        jose_jwt.decode(
+            credentials.credentials,
+            _OPTIONAL_AUTH_SECRET,
+            algorithms=[_OPTIONAL_AUTH_ALGORITHM],
+        )
+        return True
+    except JWTError:
+        # Expired, tampered, or otherwise invalid — treat as unauthenticated
+        return False
+
+
 def extract_role_and_team_from_token(token: str):
     """
     Extract role, team, and is_employee from JWT token.
     """
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        payload = jose_jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         role = payload.get("role")
         team = payload.get("team")
         is_employee = payload.get("is_employee", False)
@@ -140,9 +176,10 @@ async def get_sessions(
 @router.get("/materials")
 @limiter.limit("60/minute")
 async def get_materials(
-    request: Request, 
+    request: Request,
     course: str = Query(..., description="Course name: QA, UI, or ML"),
-    search: str = Query(..., description="Type of material: Presentations, Cheatsheets, etc.")
+    search: str = Query(..., description="Type of material: Presentations, Cheatsheets, etc."),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(_optional_bearer),
 ):
     valid_courses = ["QA", "UI", "ML"]
     if course.upper() not in valid_courses:
@@ -152,6 +189,14 @@ async def get_materials(
         )
 
     data = fetch_keyword_presentation(search, course)
+
+    authenticated = _is_request_authenticated(credentials)
+    if not authenticated:
+        # Strip the protected material URL so unauthenticated callers cannot
+        # obtain direct PDF/Drive links.  The listing (name, type, etc.) is
+        # still returned so the UI can display the course catalogue.
+        data = [{**item, "link": None} for item in (data or [])]
+
     return JSONResponse(content=data)
 
 @router.get("/github-classroom-repos")
@@ -159,6 +204,7 @@ async def get_materials(
 async def get_github_classroom_repos(
     request: Request,
     course: str = Query("ML", description="Course name: ML"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(_optional_bearer),
 ):
     # 1. Fetch manually added Git materials from the DB
     def _fetch_manual_git():
@@ -181,7 +227,7 @@ async def get_github_classroom_repos(
             response = await client.get(url, headers=headers, timeout=10.0)
             response.raise_for_status()
             data = response.json()
-            
+
             items = data.get("items", [])
             for i, repo in enumerate(items):
                 formatted_repos.append({
@@ -194,11 +240,17 @@ async def get_github_classroom_repos(
                 })
         except Exception as e:
             logging.error(f"Error fetching GitHub repos: {str(e)}")
-            # We don't raise an exception here so that manual repos can still load if GitHub fails
+            # We don't raise an exception here so manual repos can still load
             pass
-            
+
     # Combine manual repos (from DB) and dynamic repos (from GitHub API)
     combined = manual_repos + formatted_repos
+
+    authenticated = _is_request_authenticated(credentials)
+    if not authenticated:
+        # Strip repo URLs for unauthenticated callers
+        combined = [{**item, "link": None} for item in combined]
+
     return JSONResponse(content=combined)
 
 
