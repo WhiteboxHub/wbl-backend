@@ -450,17 +450,19 @@ def get_candidate_previously_asked_question_ids(
         .all()
     )
 
-    question_ids: List[int] = []
+    question_ids: List = []
     for (q_list,) in records:
         if isinstance(q_list, list):
             for q in q_list:
                 if isinstance(q, dict):
                     qid = q.get("question_id") or q.get("id")
-                    if qid:
-                        try:
-                            question_ids.append(int(qid))
-                        except (ValueError, TypeError):
-                            pass
+                    if qid is not None:
+                        # Prefer int representation for DB IDs; fall back to
+                        # raw value (str/UUID) so non-numeric IDs are never
+                        # silently dropped from the exclusion set.
+                        question_ids.append(
+                            int(qid) if str(qid).isdigit() else qid
+                        )
     return question_ids
 
 # ---------------------------------------------------------------------------
