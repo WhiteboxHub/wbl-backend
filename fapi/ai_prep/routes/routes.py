@@ -768,7 +768,7 @@ async def process_audio_engine_endpoint(
         try:
             resolved_path = Path(audio_path).resolve()
         except (OSError, RuntimeError) as exc:
-            logger.warning(f"Failed to resolve audio path: {exc}")
+            logger.warning("Failed to resolve audio_path — invalid format or path characters")
             raise HTTPException(status_code=400, detail="Invalid audio_path format.") from exc
 
         if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
@@ -816,7 +816,6 @@ async def process_audio_engine_endpoint(
             return {
                 "status": "ACCEPTED",
                 "message": "Audio processing queued in background",
-                "audio_path": target_path,
                 "provider": provider or os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
             }
         else:
@@ -834,7 +833,7 @@ async def process_audio_engine_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An error occurred while processing the audio benchmark.")
     finally:
 
         # Delete temp folder in sync mode, or if async task failed to queue
