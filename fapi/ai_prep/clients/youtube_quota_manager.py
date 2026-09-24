@@ -166,6 +166,7 @@ class YouTubeQuotaManager:
         Atomically reserves quota units for an upload operation.
         Returns a reservation token if successful, or None if quota is insufficient.
         Units are accounted for at reservation time.
+        In multi-container environments with Redis, operates in authoritative fail-closed mode.
         """
         if not self.is_enabled:
             return "untracked_quota_token"
@@ -174,6 +175,7 @@ class YouTubeQuotaManager:
         pt_date = self._get_current_pt_date()
         reservation_token = str(uuid.uuid4())
 
+        # 1. Authoritative Multi-Pod Redis Backend (Fail-Closed)
         if self._redis_client:
             try:
                 key_units = f"aiprep:yt_quota:units:{pt_date}"
@@ -193,15 +195,15 @@ class YouTubeQuotaManager:
                 )
                 if res == 1:
                     return reservation_token
-                return None
+                return None  # Daily limit reached in Redis
             except Exception as e:
-                logger.warning("Redis reserve_quota failed (%s), falling back to in-memory lock", e)
+                logger.error("Redis reserve_quota failed (%s). Failing closed to prevent multi-pod quota overrun.", e)
+                return None  # Fail-closed in multi-pod production
 
+        # 2. In-Memory Backend (Only used when Redis is not configured, e.g. local dev / testing)
         with self._lock:
             self._check_and_reset_if_new_day()
-            if self._quota_exceeded_flag:
-                return None
-            if (self._units_used + required_cost) > self.daily_limit:
+            if self._quota_exceeded_flag or (self._units_used + required_cost) > self.daily_limit:
                 return None
 
             self._units_used += required_cost
@@ -244,7 +246,8 @@ class YouTubeQuotaManager:
                     )
                 return
             except Exception as e:
-                logger.warning("Redis commit_quota failed (%s)", e)
+                logger.error("Redis commit_quota failed (%s)", e)
+                return
 
         with self._lock:
             self._check_and_reset_if_new_day()
@@ -283,7 +286,8 @@ class YouTubeQuotaManager:
                 )
                 return
             except Exception as e:
-                logger.warning("Redis release_quota failed (%s)", e)
+                logger.error("Redis release_quota failed (%s)", e)
+                return
 
         with self._lock:
             self._check_and_reset_if_new_day()
@@ -308,7 +312,8 @@ class YouTubeQuotaManager:
                 used = int(self._redis_client.get(key_units) or 0)
                 return (used + required_cost) <= self.daily_limit
             except Exception as e:
-                logger.warning("Redis has_sufficient_quota query failed (%s)", e)
+                logger.error("Redis has_sufficient_quota query failed (%s). Failing closed.", e)
+                return False
 
         with self._lock:
             self._check_and_reset_if_new_day()
@@ -333,7 +338,7 @@ class YouTubeQuotaManager:
                 key_exceeded = f"aiprep:yt_quota:exceeded:{pt_date}"
                 self._redis_client.set(key_exceeded, "1", ex=172800)
             except Exception as e:
-                logger.warning("Redis mark_quota_exceeded failed (%s)", e)
+                logger.error("Redis mark_quota_exceeded failed (%s)", e)
 
         with self._lock:
             self._check_and_reset_if_new_day()
@@ -352,7 +357,7 @@ class YouTubeQuotaManager:
                     f"aiprep:yt_quota:exceeded:{pt_date}",
                 )
             except Exception as e:
-                logger.warning("Redis reset_quota failed (%s)", e)
+                logger.error("Redis reset_quota failed (%s)", e)
 
         with self._lock:
             self._units_used = 0

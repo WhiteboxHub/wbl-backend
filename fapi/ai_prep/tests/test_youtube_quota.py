@@ -266,6 +266,23 @@ def test_redis_quota_manager_eval_pipeline():
     assert mock_redis.eval.call_count == 4
 
 
+def test_redis_quota_manager_fail_closed_on_error():
+    """Verify that when Redis is configured and encounters errors, it fails closed rather than leaking quota."""
+    mgr = YouTubeQuotaManager()
+    mock_redis = MagicMock()
+    mock_redis.eval.side_effect = Exception("Redis Connection Timeout")
+    mock_redis.get.side_effect = Exception("Redis Connection Timeout")
+    mgr._redis_client = mock_redis
+
+    # 1. reserve_quota fails closed -> returns None
+    token = mgr.reserve_quota(1600)
+    assert token is None
+
+    # 2. has_sufficient_quota fails closed -> returns False
+    assert mgr.has_sufficient_quota(1600) is False
+
+
+
 @pytest.mark.asyncio
 async def test_sse_streaming_generator_short_lived_sessions_and_disconnect():
     """Verify that SSE stream does not hold open long-lived DB sessions and terminates on disconnect."""
