@@ -51,6 +51,7 @@ from fapi.ai_prep.schemas import (
     LocalMediaUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
+    AudioUploadResponse,
     QuestionCreateRequest,
     QuestionUpdateRequest,
     QuestionResponse,
@@ -595,21 +596,20 @@ def delete_question_from_bank(
 )
 async def upload_media_chunk(
     assessment_id: str = Form(...),
-    chunk_number: int = Form(...),
-    total_chunks: Optional[int] = Form(None),
+    chunk_number: int = Form(..., ge=1),
+    total_chunks: Optional[int] = Form(None, ge=1),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads sequential WebM media chunk to server storage directory."""
-    content = await file.read()
+    """Uploads sequential WebM media chunk to server storage directory using streaming."""
     return await aiprep_utils.upload_media_chunk_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         chunk_number=chunk_number,
         total_chunks=total_chunks,
-        file_content=content,
+        file_content=file,
     )
 
 
@@ -708,16 +708,98 @@ def get_assessment_processing_status(
 )
 def stream_assessment_processing_sse(
     assessment_id: str,
+    request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
     """Real-time SSE event stream for live UI progress updates."""
     return aiprep_utils.stream_assessment_processing_sse_logic(
+        current_user=current_user,
+        assessment_id=assessment_id,
+        request=request,
+    )
+
+
+@router.post(
+    "/candidate/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Direct Audio Recording Upload",
+)
+@router.post(
+    "/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Media & Streaming"],
+    summary="Direct Audio Recording Upload",
+)
+async def upload_assessment_audio(
+    background_tasks: BackgroundTasks,
+    assessment_id: str,
+    file: UploadFile = File(...),
+    mime_type: Optional[str] = Form(None),
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Uploads audio recording binary file directly to server storage and queues YouTube upload."""
+    return await aiprep_utils.upload_assessment_audio_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
+        file=file,
+        mime_type=mime_type,
+        background_tasks=background_tasks,
     )
 
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Audio from Storage",
+)
+@router.get(
+    "/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Stream Assessment Audio from Storage",
+)
+def get_assessment_audio(
+    assessment_id: str,
+    request: Request,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
+    range_header = request.headers.get("range")
+    return aiprep_utils.get_assessment_audio_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        range_header=range_header,
+    )
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/video",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Video Recording from Storage",
+)
+@router.get(
+    "/assessments/{assessment_id}/video",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Stream Assessment Video Recording from Storage",
+)
+def get_assessment_video(
+    assessment_id: str,
+    request: Request,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored video recording from server storage with range seeking support."""
+    range_header = request.headers.get("range")
+    return aiprep_utils.get_assessment_video_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        range_header=range_header,
+    )
 # ===========================================================================
 # 4. PERFORMANCE TESTING & BENCHMARKING
 # ===========================================================================
