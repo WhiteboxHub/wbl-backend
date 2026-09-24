@@ -1,6 +1,10 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
+from pathlib import Path
+from fastapi.testclient import TestClient
+from fapi.main import app
+from fapi.ai_prep.utils import aiprep_utils
 from fapi.ai_prep.core.audio_engine.providers import (
     get_transcription_provider,
     WhisperTranscriptionProvider,
@@ -120,3 +124,56 @@ def test_audio_metrics_engine_pipeline(mock_stt, mock_t_metrics, mock_a_metrics,
     assert result["spoken_content"]["transcript_text"] == "Test transcript"
     assert result["audio_telemetry"]["wpm"] == 120.0
     assert result["audio_telemetry"]["avg_volume_db"] == -20.0
+
+def test_audio_path_traversal_rejected(monkeypatch, tmp_path):
+    """Verifies that ../ path traversal outside storage is rejected with 400."""
+    storage = tmp_path / "aiprep_storage"
+    storage.mkdir()
+    
+    secret_file = tmp_path / "secret.wav"
+    secret_file.write_bytes(b"secret audio content")
+    
+    malicious_path = storage / ".." / "secret.wav"
+    
+    monkeypatch.setattr(aiprep_utils, "STORAGE_BASE_DIR", str(storage))
+    
+    from fapi.utils.auth_dependencies import staff_or_admin_required
+    from fapi.utils.permission_gate import enforce_access
+    app.dependency_overrides[enforce_access] = lambda: {"role": "admin", "id": 1}
+    app.dependency_overrides[staff_or_admin_required] = lambda: {"role": "admin", "id": 1}
+    
+    client = TestClient(app)
+    response = client.post(
+        "/api/aiprep/audio-engine/process",
+        data={"audio_path": str(malicious_path)}
+    )
+    
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    assert "storage directory" in response.json()["detail"]
+def test_audio_path_sibling_directory_rejected(monkeypatch, tmp_path):
+    """Verifies that sibling prefix directory escapes (e.g. /storage_evil) are rejected."""
+    storage = tmp_path / "storage"
+    storage.mkdir()
+    
+    evil_storage = tmp_path / "storage_evil"
+    evil_storage.mkdir()
+    evil_file = evil_storage / "sample.wav"
+    evil_file.write_bytes(b"evil audio content")
+    
+    monkeypatch.setattr(aiprep_utils, "STORAGE_BASE_DIR", str(storage))
+    
+    from fapi.utils.auth_dependencies import staff_or_admin_required
+    from fapi.utils.permission_gate import enforce_access
+    app.dependency_overrides[enforce_access] = lambda: {"role": "admin", "id": 1}
+    app.dependency_overrides[staff_or_admin_required] = lambda: {"role": "admin", "id": 1}
+    
+    client = TestClient(app)
+    response = client.post(
+        "/api/aiprep/audio-engine/process",
+        data={"audio_path": str(evil_file)}
+    )
+    
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    assert "storage directory" in response.json()["detail"]
