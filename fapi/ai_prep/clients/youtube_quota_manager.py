@@ -31,7 +31,7 @@ try:
 except ImportError:
     redis = None
 
-UNTRACKED_RESERVATION_ID = "MOCK_UNTRACKED_RESERVATION"
+UNTRACKED_RESERVATION_IDS = ("MOCK_UNTRACKED_RESERVATION", "untracked_quota_token")
 
 
 class YouTubeQuotaManager:
@@ -95,7 +95,7 @@ class YouTubeQuotaManager:
         return getattr(settings, "YOUTUBE_ENABLE_QUOTA_TRACKING", True)
 
     # Lua scripts for atomic Redis quota operations
-    _LUA_RESERVE = """
+    _lua_reserve = """
     local key_units = KEYS[1]
     local key_exceeded = KEYS[2]
     local key_res = KEYS[3]
@@ -120,7 +120,7 @@ class YouTubeQuotaManager:
     return 1
     """
 
-    _LUA_COMMIT_RESERVATION = """
+    _lua_commit_reservation = """
     local key_uploads = KEYS[1]
     local key_res = KEYS[2]
     local ttl = tonumber(ARGV[1])
@@ -134,7 +134,7 @@ class YouTubeQuotaManager:
     end
     """
 
-    _LUA_COMMIT_DIRECT = """
+    _lua_commit_direct = """
     local key_uploads = KEYS[1]
     local key_units = KEYS[2]
     local cost = tonumber(ARGV[1])
@@ -147,7 +147,7 @@ class YouTubeQuotaManager:
     return 1
     """
 
-    _LUA_RELEASE = """
+    _lua_release = """
     local key_units = KEYS[1]
     local key_res = KEYS[2]
 
@@ -181,7 +181,7 @@ class YouTubeQuotaManager:
                 key_res = f"aiprep:yt_quota:res:{reservation_token}"
 
                 res = self._redis_client.eval(
-                    self._LUA_RESERVE,
+                    self._lua_reserve,
                     3,
                     key_units,
                     key_exceeded,
@@ -215,7 +215,7 @@ class YouTubeQuotaManager:
         - If reservation_token is None (direct consumption path), increments both units and uploads count.
         Idempotent: repeating commit with the same token is a no-op.
         """
-        if not self.is_enabled or (reservation_token and reservation_token in (UNTRACKED_RESERVATION_ID, "untracked_quota_token")):
+        if not self.is_enabled or (reservation_token and reservation_token in UNTRACKED_RESERVATION_IDS):
             return
 
         pt_date = self._get_current_pt_date()
@@ -225,7 +225,7 @@ class YouTubeQuotaManager:
                 if reservation_token:
                     key_res = f"aiprep:yt_quota:res:{reservation_token}"
                     self._redis_client.eval(
-                        self._LUA_COMMIT_RESERVATION,
+                        self._lua_commit_reservation,
                         2,
                         key_uploads,
                         key_res,
@@ -235,7 +235,7 @@ class YouTubeQuotaManager:
                     applied_cost = cost if cost is not None else self.upload_cost
                     key_units = f"aiprep:yt_quota:units:{pt_date}"
                     self._redis_client.eval(
-                        self._LUA_COMMIT_DIRECT,
+                        self._lua_commit_direct,
                         2,
                         key_uploads,
                         key_units,
@@ -267,7 +267,7 @@ class YouTubeQuotaManager:
         Rolls back a quota reservation if an upload fails before hitting Google API.
         Idempotent: repeating release with the same token is a no-op and will not restore units twice.
         """
-        if not self.is_enabled or not reservation_token or reservation_token in (UNTRACKED_RESERVATION_ID, "untracked_quota_token"):
+        if not self.is_enabled or not reservation_token or reservation_token in UNTRACKED_RESERVATION_IDS:
             return
 
         pt_date = self._get_current_pt_date()
@@ -276,7 +276,7 @@ class YouTubeQuotaManager:
                 key_units = f"aiprep:yt_quota:units:{pt_date}"
                 key_res = f"aiprep:yt_quota:res:{reservation_token}"
                 self._redis_client.eval(
-                    self._LUA_RELEASE,
+                    self._lua_release,
                     2,
                     key_units,
                     key_res,
