@@ -36,15 +36,7 @@ from fapi.utils.avatar_dashboard_utils import get_batch_metrics
 from fapi.utils.table_fingerprint import generate_version_for_model
 
 router = APIRouter()
-security = HTTPBearer()
-
-# ---------------------------------------------------------------------------
-# Optional-auth bearer: same pattern as auth_dependencies.security but
-# applied inline to routes that serve mixed (public + authenticated) traffic.
-# auto_error=False means FastAPI will not reject the request when the
-# Authorization header is absent — we handle that logic ourselves.
-# ---------------------------------------------------------------------------
-_optional_bearer = HTTPBearer(auto_error=False)
+security = HTTPBearer(auto_error=False)
 _OPTIONAL_AUTH_SECRET = os.getenv("SECRET_KEY")
 _OPTIONAL_AUTH_ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
@@ -90,7 +82,10 @@ def extract_role_and_team_from_token(token: str):
 
 
 @router.head("/course-content")
-def check_course_content_version(db: Session = Depends(get_db)):
+def check_course_content_version(
+    db: Session = Depends(get_db),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+):
     return generate_version_for_model(db, CourseContentORM)
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
@@ -98,6 +93,9 @@ async def get_course_content(
     credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db),
 ):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     def _get_content():
         result = db.execute(select(CourseContent))
         return result.scalars().all()
@@ -111,6 +109,8 @@ async def get_session_types(
     credentials: HTTPAuthorizationCredentials = Security(security),  
     db: Session = Depends(get_db),
 ):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     token = credentials.credentials
     
     # Extract role, team, and is_employee from token
@@ -136,6 +136,8 @@ async def get_sessions(
     credentials: HTTPAuthorizationCredentials = Security(security),  
     db: Session = Depends(get_db),
 ):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     token = credentials.credentials
     
     # Extract role, team, and is_employee from token
@@ -179,7 +181,7 @@ async def get_materials(
     request: Request,
     course: str = Query(..., description="Course name: QA, UI, or ML"),
     search: str = Query(..., description="Type of material: Presentations, Cheatsheets, etc."),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(_optional_bearer),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
 ):
     valid_courses = ["QA", "UI", "ML"]
     if course.upper() not in valid_courses:
@@ -204,7 +206,7 @@ async def get_materials(
 async def get_github_classroom_repos(
     request: Request,
     course: str = Query("ML", description="Course name: ML"),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(_optional_bearer),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
 ):
     # 1. Fetch manually added Git materials from the DB
     def _fetch_manual_git():
