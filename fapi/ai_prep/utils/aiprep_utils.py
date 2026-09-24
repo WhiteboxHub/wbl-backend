@@ -580,6 +580,10 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 return
 
             internal_id = assessment.id
+            if assessment.status == "COMPLETED":
+                logger.info("[LLMOrchestrator Worker] Assessment %s already COMPLETED. Skipping duplicate evaluation.", str(assessment_id))
+                return
+
             data_rec = crud.get_assessment_data_by_assessment_id(db, internal_id)
             transcript_data = (data_rec.transcript if data_rec else {}) or {}
             transcript_text = ""
@@ -706,6 +710,9 @@ def candidate_trigger_eval_post_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    if assessment.status in ("EVALUATING", "COMPLETED"):
+        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=assessment.status)
+
     crud.update_assessment_status(db, assessment.id, "EVALUATING")
 
     if background_tasks:
@@ -736,6 +743,9 @@ def candidate_trigger_eval_put_logic(
             audio_telemetry=payload.audio_telemetry or {},
             video_telemetry=payload.video_telemetry or {},
         )
+
+    if assessment.status in ("EVALUATING", "COMPLETED"):
+        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=assessment.status)
 
     crud.update_assessment_status(db, assessment.id, "EVALUATING")
 
@@ -1545,6 +1555,13 @@ def _auto_assemble_chunks_if_present(assessment_dir: str) -> Optional[str]:
             ]
         )
         if chunk_files:
+            # Validate contiguous sequence starting from chunk_0001.webm without gaps
+            chunk_names = [os.path.basename(f) for f in chunk_files]
+            expected_names = [f"chunk_{i:04d}.webm" for i in range(1, len(chunk_files) + 1)]
+            if chunk_names != expected_names:
+                logger.warning("Auto-assemble skipped: chunk sequence is incomplete or contains gaps (%s)", chunk_names)
+                return None
+
             os.makedirs(assessment_dir, exist_ok=True)
             temp_assembled = os.path.join(assessment_dir, f"assembled_{uuid.uuid4().hex}.tmp")
             try:
