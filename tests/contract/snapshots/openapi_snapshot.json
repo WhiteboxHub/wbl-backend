@@ -27496,6 +27496,52 @@
         }
       }
     },
+    "/api/aiprep/audio-engine/process": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Performance: Audio Engine Benchmark & Process",
+        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports direct audio file upload or a server-side storage path.\nGated to staff/admin to prevent resource abuse.",
+        "operationId": "process_audio_engine_endpoint_api_aiprep_audio_engine_process_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/aiprep/llm-keys": {
       "get": {
         "tags": [
@@ -30368,6 +30414,52 @@
           }
         }
       }
+    },
+    "/aiprep/audio-engine/process": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Performance: Audio Engine Benchmark & Process",
+        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports direct audio file upload or a server-side storage path.\nGated to staff/admin to prevent resource abuse.",
+        "operationId": "process_audio_engine_endpoint_aiprep_audio_engine_process_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -30920,6 +31012,21 @@
               }
             ],
             "title": "Created At"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
           },
           "data": {
             "anyOf": [
@@ -34579,6 +34686,106 @@
           "password"
         ],
         "title": "Body_login_for_access_token_api_login_post"
+      },
+      "Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Path"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model_size": {
+            "type": "string",
+            "title": "Model Size",
+            "default": "base"
+          },
+          "async_mode": {
+            "type": "boolean",
+            "title": "Async Mode",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post"
+      },
+      "Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Path"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model_size": {
+            "type": "string",
+            "title": "Model Size",
+            "default": "base"
+          },
+          "async_mode": {
+            "type": "boolean",
+            "title": "Async Mode",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post"
       },
       "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post": {
         "properties": {

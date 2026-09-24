@@ -254,27 +254,23 @@ async def run_full_evaluation(
 def get_questions_for_assessment(
     db: "Session",
     assessment_type: str,
+    candidate_id: Optional[int] = None,
     limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Fetches questions from DB and delegates selection + sanitization to AssessmentEngine.
+    Fetches questions from DB and delegates adaptive selection to AssessmentEngine.
 
-    This is called by routes when creating a new assessment session, so the candidate
-    receives their question set at the start.
-
-    Args:
-        db:              Database session.
-        assessment_type: The category code (e.g. "TECHNICAL", "INTRO").
-        limit:           Optional cap on number of questions returned.
-
-    Returns:
-        List of candidate-safe question dicts.
+    For INTRO and JD_INTRO: always returns 1 question.
+    For TECHNICAL and other rounds:
+        - Looks up the candidate's most recent completed report strictly for
+          THIS same assessment round type (e.g. previous TECHNICAL attempt).
+        - Extracts the previous readiness verdict ('STRONG', 'GOOD', etc.).
+        - Collects question IDs already asked to this candidate in this round type.
+        - Delegates to AssessmentEngine for difficulty adaptation and Round-Robin selection.
     """
-    # Normalize assessment_type before querying the database
     normalized_type = (assessment_type or "").upper().strip()
 
-    # Load all active questions for this normalized type
-    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=100)
+    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=200)
     available = [
         {
             "id": q.id,
@@ -287,12 +283,51 @@ def get_questions_for_assessment(
         for q in items
     ]
 
-    engine = AssessmentEngine()
-    return engine.select_questions_for_assessment(
+    previous_readiness: Optional[str] = None
+    previously_asked_ids: List[int] = []
+
+    engine_cls = AssessmentEngine()
+    if normalized_type not in engine_cls.SINGLE_QUESTION_TYPES and candidate_id:
+        # 1. Fetch previous completed report strictly for THIS assessment type
+        past_reports = crud.get_candidate_completed_reports(
+            db,
+            candidate_id=candidate_id,
+            assessment_type=normalized_type,
+            limit=1,
+        )
+        if past_reports:
+            latest_report = past_reports[0]
+            transcript_eval = latest_report.transcript_evaluation or {}
+            eval_body = transcript_eval.get(f"{normalized_type.lower()}_evaluation")
+            if isinstance(eval_body, dict):
+                overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body.get("overall_assessment"), dict) else {}
+                previous_readiness = overall.get("readiness") or eval_body.get("readiness")
+
+            logger.info(
+                "[AssessmentOrchestrator] Candidate %d previous %s readiness: '%s'",
+                candidate_id, normalized_type, previous_readiness,
+            )
+
+        # 2. Collect question IDs already asked to this candidate for COMPLETED assessments of this round type
+        previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
+            db,
+            candidate_id=candidate_id,
+            assessment_type=normalized_type,
+        )
+
+        logger.info(
+            "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
+            candidate_id, len(previously_asked_ids), normalized_type,
+        )
+
+    return engine_cls.select_questions_for_assessment(
         assessment_type=normalized_type,
         available_questions=available,
         limit=limit,
+        previous_readiness=previous_readiness,
+        previously_asked_ids=previously_asked_ids,
     )
+
 
 
 # =============================================================================

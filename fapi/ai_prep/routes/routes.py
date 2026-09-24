@@ -1,6 +1,10 @@
 """FastAPI Routes and API Endpoints for AI Prep Tool.
 Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
+import os
+from pathlib import Path
+import shutil
+import tempfile
 import logging
 from typing import Optional, Union
 from fastapi import (
@@ -13,6 +17,7 @@ from fastapi import (
     status,
     Request,
     BackgroundTasks,
+    HTTPException,
 )
 from sqlalchemy.orm import Session
 
@@ -52,6 +57,7 @@ from fapi.ai_prep.schemas import (
     QuestionListResponse,
 )
 from fapi.ai_prep.utils import aiprep_utils
+from fapi.ai_prep.core.audio_engine import InvalidProviderConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -711,3 +717,127 @@ def stream_assessment_processing_sse(
         current_user=current_user,
         assessment_id=assessment_id,
     )
+
+# ===========================================================================
+# 4. PERFORMANCE TESTING & BENCHMARKING
+# ===========================================================================
+
+@router.post(
+    "/audio-engine/process",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Performance: Audio Engine Benchmark & Process",
+)
+async def process_audio_engine_endpoint(
+    background_tasks: BackgroundTasks,
+    file: Optional[UploadFile] = File(None),
+    audio_path: Optional[str] = Form(None),
+    provider: Optional[str] = Form(None),
+    model_size: str = Form("base"),
+    async_mode: bool = Form(False),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+):
+    """
+    Performance Testing Endpoint:
+    Directly triggers the AudioMetricsEngine pipeline with configurable transcription providers.
+    Supports direct audio file upload or a server-side storage path.
+    Gated to staff/admin to prevent resource abuse.
+    """
+    target_path = None
+    temp_dir = None
+    task_queued = False
+
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB limit
+    # 1. Handle direct file upload
+    if file:
+        temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
+        safe_filename = os.path.basename(file.filename or "test_audio.webm")
+        temp_file_path = os.path.join(temp_dir, safe_filename)
+        file_size = 0
+        with open(temp_file_path, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):  # 1MB chunks
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
+                buffer.write(chunk)
+        target_path = temp_file_path        
+
+    # 2. Handle server-side audio_path and prevent storage-boundary escapes
+    elif audio_path:
+        base_dir = Path(aiprep_utils.STORAGE_BASE_DIR).resolve()
+        try:
+            resolved_path = Path(audio_path).resolve()
+        except (OSError, RuntimeError) as exc:
+            logger.warning("Failed to resolve audio_path — invalid format or path characters")
+            raise HTTPException(status_code=400, detail="Invalid audio_path format.") from exc
+
+        if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid audio_path. Path must reside within the application storage directory."
+            )
+        target_path = str(resolved_path)
+
+
+    # Validate file existence without leaking server filesystem paths in error messages
+    if not target_path or not os.path.exists(target_path):
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail="Valid audio file or storage audio_path is required.")
+
+    try:
+        if async_mode:
+            # Background task wrapper that guarantees temp cleanup after processing
+            async def _benchmark_with_cleanup(path: str, prov: Optional[str], sz: str, dir_to_clean: Optional[str]):
+                try:
+                    await aiprep_utils.run_audio_engine_benchmark(
+                        audio_path=path,
+                        provider_name=prov,
+                        model_size=sz,
+                    )
+                finally:
+                    if dir_to_clean and os.path.exists(dir_to_clean):
+                        shutil.rmtree(dir_to_clean, ignore_errors=True)
+
+            try:
+                background_tasks.add_task(
+                    _benchmark_with_cleanup,
+                    path=target_path,
+                    prov=provider,
+                    sz=model_size,
+                    dir_to_clean=temp_dir,
+                )
+                task_queued = True  
+            except Exception:
+                if temp_dir and os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                raise
+
+            return {
+                "status": "ACCEPTED",
+                "message": "Audio processing queued in background",
+                "provider": provider or os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
+            }
+        else:
+            # Synchronous benchmark return (runs off-thread)
+            result = await aiprep_utils.run_audio_engine_benchmark(
+                audio_path=target_path,
+                provider_name=provider,
+                model_size=model_size
+            )
+            return {
+                "status": "SUCCESS",
+                "data": result
+            }
+    except InvalidProviderConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred while processing the audio benchmark.")
+    finally:
+
+        # Delete temp folder in sync mode, or if async task failed to queue
+        if (not async_mode or not task_queued) and temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+

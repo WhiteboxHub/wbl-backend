@@ -18,7 +18,7 @@ from sqlalchemy import desc
 from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
-
+from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
 from fapi.db.models import (
     AuthUserORM,
     CandidateORM,
@@ -346,6 +346,7 @@ def candidate_create_assessment_logic(
         questions_list = assessment_orchestrator.get_questions_for_assessment(
             db=db,
             assessment_type=assessment_type_str,
+            candidate_id=candidate_id,
         )
     except Exception as exc:
         logger.error(
@@ -1055,16 +1056,12 @@ async def process_audio_and_save_data(assessment_id: int, audio_path: str):
     Background worker: Waits for assembled audio file, runs Audio Engine,
     persists telemetry into MySQL, and triggers LLM evaluation.
     """
-    import asyncio
-    import logging
-    from fapi.db.database import SessionLocal
     logger = logging.getLogger("wbl.ai_prep.media")
     try:
         logger.info(f"Running Audio Engine for assessment {assessment_id} on {audio_path}...")
         
         # 2. Run Audio Engine (STT + Acoustic DSP + Transcript Metrics)
         try:
-            from fapi.ai_prep.core.audio_engine import AudioMetricsEngine
             result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, audio_path)
             spoken_content = result.get("spoken_content", {})
             audio_telemetry = result.get("audio_telemetry", {})
@@ -1364,3 +1361,16 @@ def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, 
     q_row.updated_at = datetime.utcnow()
     db.commit()
     return {"message": "Question deactivated successfully", "id": question_id}
+
+async def run_audio_engine_benchmark(
+    audio_path: str,
+    provider_name: Optional[str] = None,
+    model_size: str = "base"
+) -> Dict[str, Any]:
+    """Runs AudioMetricsEngine inside an async thread pool to avoid blocking the FastAPI event loop."""
+    return await asyncio.to_thread(
+        AudioMetricsEngine.process_audio_file,
+        audio_path=audio_path,
+        model_size=model_size,
+        provider_name=provider_name
+    )

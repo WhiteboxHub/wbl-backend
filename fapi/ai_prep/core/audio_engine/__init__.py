@@ -1,8 +1,17 @@
 """
 Audio Engine Package Interface.
-Exposes acoustic metrics, STT transcript metrics, VAD, and central AudioMetricsEngine.
+Exposes acoustic metrics, STT transcript metrics, VAD, transcription providers, and central AudioMetricsEngine.
 """
 from .metrics_engine import AudioMetricsEngine
+from .providers import (
+    BaseTranscriptionProvider,
+    WhisperTranscriptionProvider,
+    SocketTranscriptionProvider,
+    BrowserTranscriptionProvider,
+    get_transcription_provider,
+    TranscriptionProviderError,
+    InvalidProviderConfigError,
+)
 from .stt import (
     transcribe_audio,
     transcribe_audio_chunk,
@@ -26,10 +35,17 @@ from .transcript_metrics import (
     calculate_transcript_metrics,
 )
 from .voice_activity_detector import VoiceActivityDetector
-from .config import AUDIO_CONFIG, TRANSCRIPT_CONFIG, VAD_CONFIG
+from .config import AUDIO_CONFIG, TRANSCRIPT_CONFIG, VAD_CONFIG, TRANSCRIPTION_CONFIG
 
 __all__ = [
     "AudioMetricsEngine",
+    "BaseTranscriptionProvider",
+    "WhisperTranscriptionProvider",
+    "SocketTranscriptionProvider",
+    "BrowserTranscriptionProvider",
+    "get_transcription_provider",
+    "TranscriptionProviderError",
+    "InvalidProviderConfigError",
     "transcribe_audio",
     "transcribe_audio_chunk",
     "merge_word_timestamps",
@@ -50,4 +66,5 @@ __all__ = [
     "AUDIO_CONFIG",
     "TRANSCRIPT_CONFIG",
     "VAD_CONFIG",
+    "TRANSCRIPTION_CONFIG",
 ]
