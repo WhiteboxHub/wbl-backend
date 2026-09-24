@@ -33,6 +33,10 @@ class YouTubeClient:
         self.privacy_status = getattr(settings, "YOUTUBE_PRIVACY_STATUS", "unlisted")
         self.quota_mgr = quota_manager or youtube_quota_manager
 
+    def _should_use_mock(self) -> bool:
+        """Determines whether to bypass live Google YouTube API and return mock responses."""
+        return not self.has_live_credentials() or os.getenv("ENV") == "test"
+
     def has_live_credentials(self) -> bool:
         """Checks if configured single YouTube account has credentials."""
         refresh_tok = getattr(settings, "YOUTUBE_REFRESH_TOKEN", None)
@@ -88,8 +92,8 @@ class YouTubeClient:
     ) -> Dict[str, Any]:
         """
         Uploads a video or packaged audio recording to YouTube as Unlisted.
-        Atomically reserves daily quota before starting upload.
-        If live credentials are not set or in test mode, returns a deterministic mock YouTube URL.
+        If live credentials are not set or in test mode, returns a deterministic mock YouTube URL without consuming quota.
+        Atomically reserves daily quota before starting live upload.
         """
         if not os.path.exists(file_path):
             raise YouTubeUploadError(f"Media file not found at: {file_path}")
@@ -99,7 +103,18 @@ class YouTubeClient:
         target_title = title or default_title
         target_desc = description or default_desc
 
-        # Atomic Quota Reservation
+        # 1. Fast Mock / Test Check: Never touch quota in test/mock mode
+        if self._should_use_mock():
+            logger.info("No live YouTube credentials or test mode active. Using generated YouTube URL for assessment %s", assessment_id)
+            mock_id = f"aiprep_rec_{assessment_id}"
+            mock_url = f"https://youtube.com/watch?v={mock_id}"
+            return {
+                "video_id": mock_id,
+                "youtube_url": mock_url,
+                "status": self.privacy_status,
+            }
+
+        # 2. Live API Quota Reservation
         reservation_token = self.quota_mgr.reserve_quota(cost=quota_cost)
         if not reservation_token:
             status = self.quota_mgr.get_quota_status()
@@ -114,35 +129,22 @@ class YouTubeClient:
                 f"Estimated reset at midnight Pacific Time."
             )
 
-        if not self.has_live_credentials() or os.getenv("ENV") == "test":
-            logger.info("No live YouTube credentials or test mode active. Using generated YouTube URL for assessment %s", assessment_id)
-            self.quota_mgr.commit_quota(reservation_token=reservation_token, cost=quota_cost)
-            mock_id = f"aiprep_rec_{assessment_id}"
-            mock_url = f"https://youtube.com/watch?v={mock_id}"
-            return {
-                "video_id": mock_id,
-                "youtube_url": mock_url,
-                "status": self.privacy_status,
-            }
-
         try:
             res = self._upload_live_api(file_path, target_title, target_desc)
             # Commit quota reservation on success
             self.quota_mgr.commit_quota(reservation_token=reservation_token, cost=quota_cost)
             return res
-        except YouTubeQuotaExceededError:
-            self.quota_mgr.release_quota(reservation_token, cost=quota_cost)
-            raise
         except Exception as e:
             err_str = str(e)
             if "quotaExceeded" in err_str or "dailyLimitExceeded" in err_str or "uploadLimitExceeded" in err_str:
                 self.quota_mgr.mark_quota_exceeded()
+                self.quota_mgr.release_quota(reservation_token, cost=quota_cost)
                 logger.error("Live YouTube upload failed due to quota limit for assessment %s: %s", assessment_id, err_str)
-                raise YouTubeQuotaExceededError(f"Live YouTube upload failed due to quota limit: {err_str}")
-            # Rollback reservation if failure occurred before quota was actually burnt on Google's end
+                raise YouTubeQuotaExceededError(f"Live YouTube upload failed due to quota limit: {err_str}") from e
+            # Rollback reservation on any other failure before quota is burnt
             self.quota_mgr.release_quota(reservation_token, cost=quota_cost)
             logger.error("Live YouTube upload failed for assessment %s: %s", assessment_id, err_str)
-            raise YouTubeUploadError(f"Live YouTube upload failed: {err_str}")
+            raise YouTubeUploadError(f"Live YouTube upload failed: {err_str}") from e
 
     def _upload_live_api(
         self,
@@ -212,7 +214,7 @@ class YouTubeClient:
 
     def delete_video(self, video_id: str) -> bool:
         """Deletes a video from YouTube (GDPR/retention compliance)."""
-        if not video_id or not self.has_live_credentials():
+        if not video_id or self._should_use_mock():
             return False
 
         try:

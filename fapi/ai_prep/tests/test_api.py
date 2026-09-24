@@ -43,6 +43,11 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+import fapi.db.database
+fapi.db.database.SessionLocal = TestingSessionLocal
+fapi.db.database.engine = engine
+
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():

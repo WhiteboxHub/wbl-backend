@@ -1,8 +1,9 @@
 """
-Unit Tests for YouTube Data API Quota Management & Pre-Flight Inspection
+Unit Tests for YouTube Data API Quota Management, Pre-Flight Inspection, and SSE Streaming
 """
 import os
 import tempfile
+from unittest.mock import MagicMock, patch
 import pytest
 from fapi.ai_prep.clients.youtube_quota_manager import YouTubeQuotaManager, youtube_quota_manager
 from fapi.ai_prep.clients.youtube_client import (
@@ -45,6 +46,59 @@ def test_quota_manager_consumption():
     assert status["can_upload"] is True
 
 
+def test_reserve_then_commit_usage_count():
+    """Verify that reserve(1600) followed by commit(token) results in total usage == 1600, NOT 3200."""
+    mgr = YouTubeQuotaManager()
+    token = mgr.reserve_quota(1600)
+    assert token is not None
+
+    # After reservation, units are counted
+    status_reserved = mgr.get_quota_status()
+    assert status_reserved["units_used"] == 1600
+    assert status_reserved["successful_uploads_today"] == 0
+
+    # Commit must NOT add units again (no double counting)
+    mgr.commit_quota(reservation_token=token, cost=1600)
+    status_committed = mgr.get_quota_status()
+    assert status_committed["units_used"] == 1600
+    assert status_committed["successful_uploads_today"] == 1
+
+
+def test_upload_failure_releases_reservation():
+    """Verify that releasing a reservation returns usage back to previous value."""
+    mgr = YouTubeQuotaManager()
+    token = mgr.reserve_quota(1600)
+    assert token is not None
+    assert mgr.get_quota_status()["units_used"] == 1600
+
+    # Simulate upload failure -> release
+    mgr.release_quota(token, cost=1600)
+    status = mgr.get_quota_status()
+    assert status["units_used"] == 0
+    assert status["successful_uploads_today"] == 0
+
+
+def test_commit_and_release_idempotency():
+    """Verify that calling commit or release multiple times for the same token is idempotent."""
+    mgr = YouTubeQuotaManager()
+
+    # 1. Commit idempotency
+    token1 = mgr.reserve_quota(1600)
+    mgr.commit_quota(reservation_token=token1, cost=1600)
+    mgr.commit_quota(reservation_token=token1, cost=1600)  # duplicate call
+    status1 = mgr.get_quota_status()
+    assert status1["units_used"] == 1600
+    assert status1["successful_uploads_today"] == 1
+
+    # 2. Release idempotency
+    token2 = mgr.reserve_quota(1600)
+    assert mgr.get_quota_status()["units_used"] == 3200
+    mgr.release_quota(token2, cost=1600)
+    mgr.release_quota(token2, cost=1600)  # duplicate call
+    status2 = mgr.get_quota_status()
+    assert status2["units_used"] == 1600  # released exactly once, not twice
+
+
 def test_quota_manager_exhaustion():
     mgr = YouTubeQuotaManager()
     # Consume 6 uploads (6 * 1600 = 9600 units)
@@ -83,6 +137,63 @@ def test_quota_manager_day_rollover():
     assert status["current_date_pt"] != "2020-01-01"
 
 
+def test_mock_test_upload_does_not_consume_quota():
+    """Verify that mock/test uploads do NOT reserve or consume any quota."""
+    mgr = YouTubeQuotaManager()
+    client = YouTubeClient(quota_manager=mgr)
+
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tf:
+        tf.write(b"\x1a\x45\xdf\xa3" + b"\x00" * 300)
+        media_file = tf.name
+
+    try:
+        with patch.object(mgr, "reserve_quota", wraps=mgr.reserve_quota) as mock_reserve, \
+             patch.object(mgr, "commit_quota", wraps=mgr.commit_quota) as mock_commit:
+            res = client.upload_unlisted_media(
+                assessment_id=123,
+                file_path=media_file,
+                media_type="VIDEO",
+            )
+            assert "youtube_url" in res
+            assert mock_reserve.call_count == 0
+            assert mock_commit.call_count == 0
+            assert mgr.get_quota_status()["units_used"] == 0
+            assert mgr.get_quota_status()["successful_uploads_today"] == 0
+    finally:
+        if os.path.exists(media_file):
+            os.remove(media_file)
+
+
+def test_live_upload_success_exact_reserve_and_commit():
+    """Verify that live upload success executes exactly one reserve and one commit, using 1600 units."""
+    mgr = YouTubeQuotaManager()
+    client = YouTubeClient(quota_manager=mgr)
+
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tf:
+        tf.write(b"\x1a\x45\xdf\xa3" + b"\x00" * 300)
+        media_file = tf.name
+
+    try:
+        with patch.object(client, "_should_use_mock", return_value=False), \
+             patch.object(client, "_upload_live_api", return_value={"video_id": "live123", "youtube_url": "https://youtube.com/watch?v=live123", "status": "unlisted"}), \
+             patch.object(mgr, "reserve_quota", wraps=mgr.reserve_quota) as mock_reserve, \
+             patch.object(mgr, "commit_quota", wraps=mgr.commit_quota) as mock_commit:
+            res = client.upload_unlisted_media(
+                assessment_id=456,
+                file_path=media_file,
+                media_type="VIDEO",
+            )
+            assert res["video_id"] == "live123"
+            assert mock_reserve.call_count == 1
+            assert mock_commit.call_count == 1
+            status = mgr.get_quota_status()
+            assert status["units_used"] == 1600
+            assert status["successful_uploads_today"] == 1
+    finally:
+        if os.path.exists(media_file):
+            os.remove(media_file)
+
+
 def test_youtube_client_quota_rejection():
     # Setup client with isolated quota manager
     mgr = YouTubeQuotaManager()
@@ -96,13 +207,14 @@ def test_youtube_client_quota_rejection():
         # Mark quota exceeded
         mgr.mark_quota_exceeded()
 
-        with pytest.raises(YouTubeQuotaExceededError) as exc_info:
-            client.upload_unlisted_media(
-                assessment_id=999,
-                file_path=media_file,
-                media_type="VIDEO",
-            )
-        assert "quota exceeded" in str(exc_info.value).lower()
+        with patch.object(client, "_should_use_mock", return_value=False):
+            with pytest.raises(YouTubeQuotaExceededError) as exc_info:
+                client.upload_unlisted_media(
+                    assessment_id=999,
+                    file_path=media_file,
+                    media_type="VIDEO",
+                )
+            assert "quota exceeded" in str(exc_info.value).lower()
     finally:
         if os.path.exists(media_file):
             os.remove(media_file)
@@ -129,18 +241,62 @@ def test_preflight_checker_with_quota():
             os.remove(v_path)
 
 
-def test_redis_quota_manager_direct_consume():
-    """Verify that when Redis is used, direct consumption charges units and uploads atomically."""
-    from unittest.mock import MagicMock
+def test_redis_quota_manager_eval_pipeline():
+    """Verify that when Redis is used, Lua eval is called for atomic reserve, commit, release."""
     mgr = YouTubeQuotaManager()
     mock_redis = MagicMock()
-    mock_pipe = MagicMock()
-    mock_redis.pipeline.return_value = mock_pipe
+    mock_redis.eval.return_value = 1
     mgr._redis_client = mock_redis
 
-    # Direct commit without prior reservation
-    mgr.commit_quota(reservation_token=None, cost=1600)
+    # 1. Reserve
+    token = mgr.reserve_quota(1600)
+    assert token is not None
+    assert mock_redis.eval.called
 
-    assert mock_redis.pipeline.called
-    assert mock_pipe.incrby.call_count == 2  # 1 for uploads, 1 for units
-    assert mock_pipe.execute.called
+    # 2. Commit
+    mgr.commit_quota(reservation_token=token, cost=1600)
+    assert mock_redis.eval.call_count == 2
+
+    # 3. Direct consume
+    mgr.consume_quota(1600)
+    assert mock_redis.eval.call_count == 3
+
+    # 4. Release
+    mgr.release_quota(token, cost=1600)
+    assert mock_redis.eval.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_sse_streaming_generator_short_lived_sessions_and_disconnect():
+    """Verify that SSE stream does not hold open long-lived DB sessions and terminates on disconnect."""
+    from unittest.mock import AsyncMock
+    from fapi.ai_prep.utils.aiprep_utils import stream_assessment_processing_sse_logic
+    from fapi.db.models import AuthUserORM
+
+    user = AuthUserORM(id=1, uname="candidate@example.com")
+    mock_request = MagicMock()
+    # Simulate client disconnect after 2 polls
+    mock_request.is_disconnected = AsyncMock(side_effect=[False, False, True])
+
+    with patch("fapi.ai_prep.utils.aiprep_utils.crud.get_assessment_by_id_or_uuid") as mock_get, \
+         patch("fapi.ai_prep.utils.aiprep_utils._resolve_candidate_id", return_value=1), \
+         patch("fapi.ai_prep.utils.aiprep_utils._fetch_assessment_status_snapshot", return_value=("IN_PROGRESS", None)) as mock_poll:
+
+        mock_assessment = MagicMock()
+        mock_assessment.id = 1001
+        mock_assessment.candidate_id = 1
+        mock_get.return_value = mock_assessment
+
+        streaming_resp = stream_assessment_processing_sse_logic(
+            current_user=user,
+            assessment_id=1001,
+            request=mock_request,
+        )
+
+        chunks = []
+        async for chunk in streaming_resp.body_iterator:
+            chunks.append(chunk)
+
+        # Should yield 2 events and then exit cleanly on disconnect
+        assert len(chunks) == 2
+        assert mock_poll.call_count == 2

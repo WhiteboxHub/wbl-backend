@@ -10,12 +10,19 @@ import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from fastapi import HTTPException, status, BackgroundTasks, UploadFile
+from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from fapi.db.database import SessionLocal
+from fapi.db import database as db_database
+
+
+def SessionLocal():
+    """Returns a short-lived SQLAlchemy Session dynamically resolved from database module."""
+    return db_database.SessionLocal()
+
+
 from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
@@ -1014,7 +1021,7 @@ async def upload_media_chunk_logic(
                             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                             detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
                         )
-                    f.write(chunk)
+                    await asyncio.to_thread(f.write, chunk)
     except HTTPException:
         raise
     except (PermissionError, OSError) as err:
@@ -1737,56 +1744,73 @@ def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str,
 
 
 def stream_assessment_processing_sse_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
+    db: Optional[Session] = None,
+    current_user: Optional[AuthUserORM] = None,
+    assessment_id: Optional[Union[int, str]] = None,
+    request: Optional[Request] = None,
 ) -> StreamingResponse:
-    """Real-time SSE event stream for live UI progress updates reflecting true DB state."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    """Real-time SSE event stream for live UI progress updates reflecting true DB state without leaking connection pool."""
+    if assessment_id is None:
+        raise HTTPException(status_code=400, detail="Missing assessment_id")
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-    # Immediately release connection back to pool so long-lived SSE stream does not hold an idle connection
-    try:
-        db.close()
-    except Exception:
-        pass
+    # One-off validation in a short-lived session
+    if db is not None:
+        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+        if not assessment:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+        _resolve_candidate_id(db, current_user, assessment.candidate_id)
+        internal_id = assessment.id
+    else:
+        with SessionLocal() as init_db:
+            assessment = crud.get_assessment_by_id_or_uuid(init_db, assessment_id)
+            if not assessment:
+                raise HTTPException(status_code=404, detail="Assessment not found")
+            _resolve_candidate_id(init_db, current_user, assessment.candidate_id)
+            internal_id = assessment.id
 
-    internal_id = assessment.id
     ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
 
     async def event_generator():
         max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))  # Prevent infinite hanging connections
         polls = 0
         while polls < max_polls:
+            if request and await request.is_disconnected():
+                logger.info("SSE client disconnected for assessment %s", internal_id)
+                break
+
             polls += 1
-            snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
-            if not snapshot:
+            try:
+                snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
+                if not snapshot:
+                    break
+                curr_status, yt_url = snapshot
+                progress_map = {"IN_PROGRESS": 35, "EVALUATING": 75, "COMPLETED": 100, "FAILED": 0}
+                pct = progress_map.get(curr_status, 50)
+                active_step = (
+                    "Report Generated" if curr_status == "COMPLETED"
+                    else ("Processing Failed" if curr_status == "FAILED"
+                    else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
+                    else "Media Processing & YouTube Ingestion"))
+                )
+
+                data = json.dumps({
+                    "assessment_id": internal_id,
+                    "status": curr_status,
+                    "step": active_step,
+                    "progress": pct,
+                    "youtube_url": yt_url,
+                })
+                yield f"data: {data}\n\n"
+
+                if curr_status in {"COMPLETED", "FAILED"}:
+                    break
+
+                await asyncio.sleep(min(ping_interval, 2.0))
+            except asyncio.CancelledError:
+                logger.info("SSE stream cancelled for assessment %s", internal_id)
                 break
-            curr_status, yt_url = snapshot
-            progress_map = {"IN_PROGRESS": 35, "EVALUATING": 75, "COMPLETED": 100, "FAILED": 0}
-            pct = progress_map.get(curr_status, 50)
-            active_step = (
-                "Report Generated" if curr_status == "COMPLETED"
-                else ("Processing Failed" if curr_status == "FAILED"
-                else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
-                else "Media Processing & YouTube Ingestion"))
-            )
-
-            data = json.dumps({
-                "assessment_id": internal_id,
-                "status": curr_status,
-                "step": active_step,
-                "progress": pct,
-                "youtube_url": yt_url,
-            })
-            yield f"data: {data}\n\n"
-
-            if curr_status in {"COMPLETED", "FAILED"}:
-                break
-
-            await asyncio.sleep(min(ping_interval, 2.0))
 
     return StreamingResponse(
         event_generator(),
