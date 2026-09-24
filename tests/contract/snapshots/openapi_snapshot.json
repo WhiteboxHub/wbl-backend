@@ -27504,7 +27504,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Performance: Audio Engine Benchmark & Process",
-        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports either direct audio file upload or a server-side audio file path.",
+        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports direct audio file upload or a server-side storage path.\nGated to staff/admin to prevent resource abuse.",
         "operationId": "process_audio_engine_endpoint_api_aiprep_audio_engine_process_post",
         "requestBody": {
           "content": {
@@ -30423,7 +30423,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Performance: Audio Engine Benchmark & Process",
-        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports either direct audio file upload or a server-side audio file path.",
+        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports direct audio file upload or a server-side storage path.\nGated to staff/admin to prevent resource abuse.",
         "operationId": "process_audio_engine_endpoint_aiprep_audio_engine_process_post",
         "requestBody": {
           "content": {
