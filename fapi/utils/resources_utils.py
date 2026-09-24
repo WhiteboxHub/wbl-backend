@@ -220,13 +220,12 @@ def course_content(session: Session):
     """
     Fetch course content for Fundamentals, AIML, UI, and QE.
     """
-    result = session.execute(select(
+    rows = session.query(
         CourseContent.Fundamentals,
         CourseContent.AIML,
         CourseContent.UI,
         CourseContent.QE
-    ))
-    rows = result.all()
+    ).all()
     return [
         dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3])
         for row in rows
