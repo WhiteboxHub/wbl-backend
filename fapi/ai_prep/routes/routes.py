@@ -744,14 +744,21 @@ async def process_audio_engine_endpoint(
     target_path = None
     temp_dir = None
 
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB limit
     # 1. Handle direct file upload
     if file:
         temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
         safe_filename = os.path.basename(file.filename or "test_audio.webm")
         temp_file_path = os.path.join(temp_dir, safe_filename)
+        file_size = 0
         with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        target_path = temp_file_path
+            while chunk := file.file.read(1024 * 1024):  # 1MB chunks
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
+                buffer.write(chunk)
+        target_path = temp_file_path        
 
     # 2. Handle server-side audio_path (sandboxed via realpath to prevent symlink escape)
     elif audio_path:
