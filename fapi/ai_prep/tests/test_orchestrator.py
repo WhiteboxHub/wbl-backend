@@ -348,7 +348,7 @@ class TestAssessmentOrchestratorQuestionSelection:
             for var in variations:
                 assessment_orchestrator.get_questions_for_assessment(db, var)
                 mock_crud.list_questions.assert_called_with(
-                    db, category="TECHNICAL", is_active=True, limit=100
+                    db, category="TECHNICAL", is_active=True, limit=200
                 )
 
     def test_returns_empty_list_when_no_questions_in_db(self):
@@ -364,7 +364,7 @@ class TestAssessmentOrchestratorQuestionSelection:
             mock_crud.list_questions.return_value = ([], 0)
             assessment_orchestrator.get_questions_for_assessment(db, "SYSTEM_DESIGN")
         mock_crud.list_questions.assert_called_once_with(
-            db, category="SYSTEM_DESIGN", is_active=True, limit=100
+            db, category="SYSTEM_DESIGN", is_active=True, limit=200
         )
 
 

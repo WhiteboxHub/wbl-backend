@@ -2,6 +2,7 @@
 Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
 import os
+from pathlib import Path
 import shutil
 import tempfile
 import logging
@@ -763,14 +764,17 @@ async def process_audio_engine_endpoint(
 
     # 2. Handle server-side audio_path (sandboxed via realpath to prevent symlink escape)
     elif audio_path:
-        base_dir = os.path.realpath(aiprep_utils.STORAGE_BASE_DIR)
-        resolved_path = os.path.realpath(audio_path)
-        if not (resolved_path == base_dir or resolved_path.startswith(base_dir + os.sep)):
+        base_dir = Path(aiprep_utils.STORAGE_BASE_DIR).resolve()
+        try:
+            resolved_path = Path(audio_path).resolve()
+            if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
+                raise ValueError("Path escapes storage boundary")
+        except Exception:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid audio_path. Path must reside within the application storage directory."
             )
-        target_path = resolved_path
+        target_path = str(resolved_path)
 
     # Validate file existence without leaking server filesystem paths in error messages
     if not target_path or not os.path.exists(target_path):
