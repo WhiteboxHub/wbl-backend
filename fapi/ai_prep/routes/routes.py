@@ -936,5 +936,4 @@ async def process_audio_engine_endpoint(
         if (not async_mode or not task_queued) and temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
->>>>>>> fc068235620a35b3348635e2b88bcad3d42a0e3c
 
