@@ -43,6 +43,11 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+import fapi.db.database
+fapi.db.database.SessionLocal = TestingSessionLocal
+fapi.db.database.engine = engine
+
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
@@ -892,3 +897,74 @@ def test_empty_question_bank_returns_user_error(db_session, seed_candidate):
         )
     assert res.status_code == 422
     assert "could not be loaded" in res.json()["detail"].lower()
+
+
+def test_audio_upload_and_streaming_endpoints(db_session, seed_candidate, tmp_path, monkeypatch):
+    """Verifies direct audio upload and storage streaming for video and audio."""
+    import io
+    from fapi.ai_prep.config import settings
+    monkeypatch.setenv("AIPREP_LOCAL_STORAGE_DIR", str(tmp_path))
+    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
+
+    client = get_candidate_client(db_session, 1001)
+
+    # 1. Seed active question
+    q_intro = AiPrepQuestionORM(
+        category="INTRO",
+        sub_category=None,
+        difficulty_level="EASY",
+        question_text="Tell me about yourself for audio assessment.",
+        is_active=True,
+    )
+    db_session.add(q_intro)
+    db_session.commit()
+
+    # 2. Create an assessment
+    create_res = client.post(
+        "/api/aiprep/candidate/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "AUDIO"},
+    )
+    assert create_res.status_code == 201
+    aid = create_res.json()["id"]
+
+    # 2. Write mock audio file before upload cleanup to test storage streaming
+    audio_dir = tmp_path / "1001" / str(aid)
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    audio_file = audio_dir / "audio.wav"
+    audio_file.write_bytes(b"RIFF" + b"\x00" * 500)
+
+    # Stream audio from server storage
+    stream_res = client.get(f"/api/aiprep/assessments/{aid}/audio")
+    assert stream_res.status_code == 200
+    assert len(stream_res.content) == 504
+
+    # 3. Write mock video file and test video streaming with HTTP 206 range
+    video_file = audio_dir / "assembled.webm"
+    video_file.write_bytes(b"\x1a\x45\xdf\xa3" + b"\x00" * 1000)
+
+    # Full video stream
+    v_res = client.get(f"/api/aiprep/assessments/{aid}/video")
+    assert v_res.status_code == 200
+    assert len(v_res.content) == 1004
+
+    # Range video stream (bytes=0-99)
+    range_res = client.get(
+        f"/api/aiprep/assessments/{aid}/video",
+        headers={"Range": "bytes=0-99"},
+    )
+    assert range_res.status_code == 206
+    assert len(range_res.content) == 100
+    assert "bytes 0-99/1004" in range_res.headers.get("Content-Range", "")
+
+    # 4. Upload direct audio recording
+    fake_audio = io.BytesIO(b"RIFF" + b"\x00" * 500)
+    upload_res = client.post(
+        f"/api/aiprep/assessments/{aid}/audio",
+        files={"file": ("recording.wav", fake_audio, "audio/wav")},
+        data={"mime_type": "audio/wav"},
+    )
+    assert upload_res.status_code == 200
+    assert upload_res.json()["success"] is True
+    assert upload_res.json()["assessment_id"] == aid
+
+
