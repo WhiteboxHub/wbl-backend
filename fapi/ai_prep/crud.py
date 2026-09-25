@@ -400,6 +400,70 @@ def get_assessment_report_by_assessment_id(db: Session, assessment_id: Union[int
         numeric_id = int(assessment_id)
     return db.query(AiPrepAssessmentReportORM).filter(AiPrepAssessmentReportORM.assessment_id == numeric_id).first()
 
+def get_candidate_completed_reports(
+    db: Session,
+    candidate_id: int,
+    assessment_type: Optional[str] = None,
+    limit: int = 5,
+) -> List[AiPrepAssessmentReportORM]:
+    """
+    Fetches completed assessment reports for a candidate.
+    Used by orchestrator to read past readiness performance.
+    """
+    query = (
+        db.query(AiPrepAssessmentReportORM)
+        .join(
+            AiPrepAssessmentORM,
+            AiPrepAssessmentReportORM.assessment_id == AiPrepAssessmentORM.id,
+        )
+        .filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+        .filter(AiPrepAssessmentORM.status == "COMPLETED")
+    )
+    if assessment_type:
+        query = query.filter(
+            AiPrepAssessmentORM.assessment_type == assessment_type.upper()
+        )
+    return query.order_by(desc(AiPrepAssessmentORM.id)).limit(limit).all()
+
+
+def get_candidate_previously_asked_question_ids(
+    db: Session,
+    candidate_id: int,
+    assessment_type: str,
+) -> List[int]:
+    """
+    Fetches all question IDs previously asked to a candidate for completed assessments
+    of a specific round type in a single DB query, avoiding N+1 overhead.
+    """
+    records = (
+        db.query(AiPrepAssessmentDataORM.questions)
+        .join(
+            AiPrepAssessmentORM,
+            AiPrepAssessmentDataORM.assessment_id == AiPrepAssessmentORM.id,
+        )
+        .filter(
+            AiPrepAssessmentORM.candidate_id == candidate_id,
+            AiPrepAssessmentORM.assessment_type == assessment_type.upper(),
+            AiPrepAssessmentORM.status == "COMPLETED",
+            AiPrepAssessmentDataORM.questions.isnot(None),
+        )
+        .all()
+    )
+
+    question_ids: List = []
+    for (q_list,) in records:
+        if isinstance(q_list, list):
+            for q in q_list:
+                if isinstance(q, dict):
+                    qid = q.get("question_id") or q.get("id")
+                    if qid is not None:
+                        # Prefer int representation for DB IDs; fall back to
+                        # raw value (str/UUID) so non-numeric IDs are never
+                        # silently dropped from the exclusion set.
+                        question_ids.append(
+                            int(qid) if str(qid).isdigit() else qid
+                        )
+    return question_ids
 
 # ---------------------------------------------------------------------------
 # Questions Bank CRUD

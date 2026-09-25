@@ -151,8 +151,8 @@ def load_audio_waveform(audio_input: Union[str, np.ndarray], sr: int = AUDIO_CON
         if file_sr != sr:
             y = librosa.resample(y, orig_sr=file_sr, target_sr=sr)
         return y
-    except Exception:
-        pass
+    except Exception as sf_err:
+        logger.debug("Soundfile decoding failed for %s, falling back to universal container demuxer: %s", audio_input, sf_err)
 
     # 2. Universal Video & Audio Demuxer via PyAV (supports .mp4, .webm, .mov, .mkv)
     try:
