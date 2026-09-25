@@ -255,10 +255,16 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     assert "completed_at" in detail
 
 
-    # 4. Trigger Evaluation
+    # 4. Trigger Evaluation (default wait=False returns 202)
     eval_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate")
     assert eval_res.status_code == 202
     assert eval_res.json()["status"] == "EVALUATING"
+
+    # 5. Trigger Evaluation with wait=True on completed assessment returns 200 immediately
+    crud.update_assessment_status(db_session, assessment_id, "COMPLETED")
+    eval_wait_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate?wait=true")
+    assert eval_wait_res.status_code == 200
+    assert eval_wait_res.json()["status"] == "COMPLETED"
 
 
 def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_candidate):

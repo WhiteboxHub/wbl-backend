@@ -25563,7 +25563,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Trigger Evaluation",
-        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_post_api_aiprep_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -25579,6 +25579,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "responses": {
@@ -25611,7 +25623,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Submit & Evaluate",
-        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_put_api_aiprep_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -25627,6 +25639,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "requestBody": {
@@ -25678,7 +25702,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Trigger Evaluation (POST)",
-        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_post_api_aiprep_candidate_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -25694,6 +25718,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "responses": {
@@ -25725,7 +25761,7 @@
           "AI Prep Tool"
         ],
         "summary": "Candidate: Submit & Evaluate (PUT)",
-        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_put_api_aiprep_candidate_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -25741,6 +25777,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "requestBody": {
@@ -28436,7 +28484,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Trigger Evaluation",
-        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_post_aiprep_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -28452,6 +28500,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "responses": {
@@ -28484,7 +28544,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Submit & Evaluate",
-        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_put_aiprep_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -28500,6 +28560,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "requestBody": {
@@ -28551,7 +28623,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Trigger Evaluation (POST)",
-        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation.",
+        "description": "Transitions status to EVALUATING in DB and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_post_aiprep_candidate_assessments__assessment_id__evaluate_post",
         "security": [
           {
@@ -28567,6 +28639,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "responses": {
@@ -28598,7 +28682,7 @@
           "AI Prep Tool"
         ],
         "summary": "Candidate: Submit & Evaluate (PUT)",
-        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation.",
+        "description": "Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation (or awaits if wait=True).",
         "operationId": "candidate_trigger_eval_put_aiprep_candidate_assessments__assessment_id__evaluate_put",
         "security": [
           {
@@ -28614,6 +28698,18 @@
               "type": "string",
               "title": "Assessment Id"
             }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True, awaits evaluation completion and returns HTTP 200",
+              "default": false,
+              "title": "Wait"
+            },
+            "description": "If True, awaits evaluation completion and returns HTTP 200"
           }
         ],
         "requestBody": {
@@ -30920,6 +31016,21 @@
               }
             ],
             "title": "Created At"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
           },
           "data": {
             "anyOf": [
