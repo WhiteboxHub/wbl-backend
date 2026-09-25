@@ -315,3 +315,87 @@ class TestIsRequestAuthenticated:
             scheme="Bearer", credentials="not.a.real.jwt"
         )
         assert _is_request_authenticated(creds) is False
+
+# ── Protected Resources Routes ────────────────────────────────────────────
+
+
+class TestProtectedResources:
+    """Verify that batches and recording endpoints enforce authentication."""
+
+    def test_batches_unauthenticated_returns_401(self, client):
+        response = client.get("/api/batches", params={"course": "ML"})
+        assert response.status_code == 401
+
+    def test_batches_metrics_unauthenticated_returns_401(self, client):
+        response = client.get("/api/batches/metrics")
+        assert response.status_code == 401
+
+    def test_recording_unauthenticated_returns_401(self, client):
+        response = client.get("/api/recording", params={"course": "ML", "batchid": 1})
+        assert response.status_code == 401
+
+    def test_batches_authenticated_returns_200(self, client):
+        from fapi.utils.auth_dependencies import get_current_user
+        from fapi.main import app
+        
+        class MockUser:
+            id = 1
+            uname = "testuser"
+            role = "candidate"
+            
+        app.dependency_overrides[get_current_user] = lambda: MockUser()
+        try:
+            with patch("fapi.api.routes.resources.fetch_course_batches", return_value=[]):
+                response = client.get(
+                    "/api/batches",
+                    params={"course": "ML"},
+                    headers=_valid_auth_headers()
+                )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_batches_metrics_authenticated_returns_200(self, client):
+        from fapi.utils.auth_dependencies import get_current_user
+        from fapi.main import app
+        
+        class MockUser:
+            id = 1
+            
+        app.dependency_overrides[get_current_user] = lambda: MockUser()
+        try:
+            with patch("fapi.api.routes.resources.get_batch_metrics", return_value={
+                "current_active_batches": "",
+                "current_active_batches_count": 0,
+                "enrolled_candidates_current": 0,
+                "total_candidates": 0,
+                "candidates_previous_batch": 0,
+                "new_enrollments_month": 0,
+                "candidate_status_breakdown": {}
+            }):
+                response = client.get(
+                    "/api/batches/metrics",
+                    headers=_valid_auth_headers()
+                )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_recording_authenticated_returns_200(self, client):
+        from fapi.utils.auth_dependencies import get_current_user
+        from fapi.main import app
+        
+        class MockUser:
+            id = 1
+            
+        app.dependency_overrides[get_current_user] = lambda: MockUser()
+        try:
+            with patch("fapi.api.routes.resources.fetch_subject_batch_recording", return_value=[]):
+                response = client.get(
+                    "/api/recording",
+                    params={"course": "ML", "batchid": 1},
+                    headers=_valid_auth_headers()
+                )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides.clear()

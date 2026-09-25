@@ -33,6 +33,7 @@ from fapi.utils.resources_utils import (
     fetch_keyword_presentation,
 )
 from fapi.utils.avatar_dashboard_utils import get_batch_metrics
+from fapi.utils.auth_dependencies import get_current_user
 from fapi.utils.table_fingerprint import generate_version_for_model
 
 router = APIRouter()
@@ -84,18 +85,15 @@ def extract_role_and_team_from_token(token: str):
 @router.head("/course-content")
 def check_course_content_version(
     db: Session = Depends(get_db),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+    _user = Depends(get_current_user),
 ):
     return generate_version_for_model(db, CourseContentORM)
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    _user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
     def _get_content():
         result = db.execute(select(CourseContent))
         return result.scalars().all()
@@ -106,15 +104,12 @@ async def get_course_content(
 @router.get("/session-types")
 async def get_session_types(
     team: str = "null",
-    credentials: HTTPAuthorizationCredentials = Security(security),  
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = credentials.credentials
-    
-    # Extract role, team, and is_employee from token
-    role, user_team, is_employee = extract_role_and_team_from_token(token)
+    role = getattr(current_user, "role", None)
+    user_team = getattr(current_user, "team", None)
+    is_employee = getattr(current_user, "is_employee", False)
     
     async def _get_types():
         return await anyio.to_thread.run_sync(fetch_session_types_by_team, db, team, role, user_team, is_employee)
@@ -133,15 +128,12 @@ async def get_sessions(
     course_name: Optional[str] = None,
     session_type: Optional[str] = None,
     team: str = "admin",
-    credentials: HTTPAuthorizationCredentials = Security(security),  
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = credentials.credentials
-    
-    # Extract role, team, and is_employee from token
-    role, user_team, is_employee = extract_role_and_team_from_token(token)
+    role = getattr(current_user, "role", None)
+    user_team = getattr(current_user, "team", None)
+    is_employee = getattr(current_user, "is_employee", False)
     
     async def _get_sessions():
         course_name_to_id = {"QA": 1, "UI": 2, "ML": 3}
@@ -181,8 +173,9 @@ async def get_materials(
     request: Request,
     course: str = Query(..., description="Course name: QA, UI, or ML"),
     search: str = Query(..., description="Type of material: Presentations, Cheatsheets, etc."),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+    enforce_access: Optional[HTTPAuthorizationCredentials] = Security(security),
 ):
+    credentials = enforce_access
     valid_courses = ["QA", "UI", "ML"]
     if course.upper() not in valid_courses:
         raise HTTPException(
@@ -206,8 +199,9 @@ async def get_materials(
 async def get_github_classroom_repos(
     request: Request,
     course: str = Query("ML", description="Course name: ML"),
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+    enforce_access: Optional[HTTPAuthorizationCredentials] = Security(security),
 ):
+    credentials = enforce_access
     # 1. Fetch manually added Git materials from the DB
     def _fetch_manual_git():
         try:
@@ -258,24 +252,34 @@ async def get_github_classroom_repos(
 
 
 @router.head("/batches")
-def check_batches_version(db: Session = Depends(get_db)):
+def check_batches_version(
+    db: Session = Depends(get_db),
+    _user = Depends(get_current_user)
+):
     return generate_version_for_model(db, BatchORM)
 
 @router.get("/batches")
 def get_batches(
     course: str = Query(..., description="Course alias (e.g., ML, UI, DS)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _user = Depends(get_current_user)
 ):
     return fetch_course_batches(course, db)
 
 
 @router.get("/batches/metrics", response_model=BatchMetrics)
-def get_batch_metrics_endpoint(db: Session = Depends(get_db)):
+def get_batch_metrics_endpoint(
+    db: Session = Depends(get_db),
+    _user = Depends(get_current_user)
+):
     return get_batch_metrics(db)
 
 
 @router.head("/recording")
-def check_recording_version(db: Session = Depends(get_db)):
+def check_recording_version(
+    db: Session = Depends(get_db),
+    _user = Depends(get_current_user)
+):
     return generate_version_for_model(db, RecordingORM)
 
 @router.get("/recording")
@@ -283,7 +287,8 @@ def get_recordings(
     course: str,
     batchid: int,
     search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _user = Depends(get_current_user)
 ):
     try:
         if batchid == 99999:
