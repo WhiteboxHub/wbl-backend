@@ -1,5 +1,5 @@
 """SQLAlchemy ORM Models for AI Prep Tool (Assessment Sessions, Telemetry Data, Reports, Questions).
-Aligned strictly with Migration V134 DDL.
+Aligned strictly with Migration V137 DDL (adds CANCELLED status and cancelled_at column).
 """
 from datetime import datetime
 import uuid
@@ -54,6 +54,7 @@ class AiPrepAssessmentORM(Base):
             "EVALUATING",
             "COMPLETED",
             "FAILED",
+            "CANCELLED",
             name="assessment_status_enum",
         ),
         nullable=False,
@@ -65,6 +66,7 @@ class AiPrepAssessmentORM(Base):
     user_agent = Column(Text, nullable=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

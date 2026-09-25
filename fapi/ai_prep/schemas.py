@@ -44,6 +44,7 @@ AssessmentStatusEnum = Enum(
         "EVALUATING": "EVALUATING",
         "COMPLETED": "COMPLETED",
         "FAILED": "FAILED",
+        "CANCELLED": "CANCELLED",
     },
     type=str,
 )
@@ -291,6 +292,7 @@ class AssessmentListItem(BaseModel):
     youtube_url: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -318,6 +320,7 @@ class AssessmentDetailResponse(BaseModel):
     youtube_url: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     questions: Optional[List[Dict[str, Any]]] = None
     data: Optional[Dict[str, Any]] = None
