@@ -544,3 +544,33 @@ class ScoresEngineOutput(BaseModel):
     is_valid: bool
     parsed_report: Optional[ParsedReportOutput] = None
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Candidate Analytics Schemas (Category 7)
+# ---------------------------------------------------------------------------
+
+class ScoreTrendItem(BaseModel):
+    assessment_id: int
+    score: float
+    date: Optional[str] = None
+
+
+class WpmTrendItem(BaseModel):
+    assessment_id: int
+    wpm: float
+    date: Optional[str] = None
+
+
+class CandidateAnalyticsResponse(BaseModel):
+    candidate_id: Optional[int] = None
+    total_assessments: int = 0
+    average_wpm: float = 0.0
+    average_silence_ratio_pct: float = 0.0
+    average_technical_score: float = 0.0
+    average_communication_score: float = 0.0
+    score_trends: List[ScoreTrendItem] = Field(default_factory=list)
+    wpm_trends: List[WpmTrendItem] = Field(default_factory=list)
+    top_strengths: List[str] = Field(default_factory=list)
+    top_improvements: List[str] = Field(default_factory=list)
+

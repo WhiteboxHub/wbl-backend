@@ -140,6 +140,81 @@ class TestAnalyticsEngineExhaustive(unittest.TestCase):
         self.assertEqual(len(result["wpm_trends"]), 1)
         self.assertEqual(result["wpm_trends"][0]["wpm"], 130.0)
 
+    def test_analytics_with_real_intro_and_audio_evaluation_payloads(self):
+        """Validates that AnalyticsEngine correctly parses modern LLM intro_evaluation and audio_evaluation."""
+        attempts = [
+            {
+                "assessment_id": 501,
+                "created_at": "2026-09-17T12:00:00Z",
+                "audio_telemetry": {},  # empty raw telemetry
+                "report": {
+                    "audio_evaluation": {
+                        "factors": {
+                            "pace": {"wpm_recorded": 178, "status": "ADEQUATE"},
+                            "fluency": {"silence_ratio_pct": 12.0, "status": "GOOD"},
+                        }
+                    },
+                    "transcript_evaluation": {
+                        "intro_evaluation": {
+                            "overall_assessment": {
+                                "overall_score": 88.0,
+                                "readiness": "GOOD",
+                            },
+                            "introduction_quality": {
+                                "score": 82.0,
+                            },
+                            "strongest_points": [
+                                "End-to-end talent screen production RAG experience",
+                                "Strong agentic AI architecture with LangGraph",
+                            ],
+                            "priority_improvements": [
+                                "Mention explicit latency and throughput metrics",
+                            ],
+                            "critical_gaps": [
+                                "Elaborate more on CI/CD test automation",
+                            ],
+                        }
+                    },
+                },
+            }
+        ]
+
+        result = AnalyticsEngine.calculate_candidate_analytics(attempts)
+        self.assertEqual(result["total_assessments"], 1)
+        self.assertEqual(result["average_wpm"], 178.0)
+        self.assertEqual(result["average_silence_ratio_pct"], 12.0)
+        self.assertEqual(result["average_technical_score"], 88.0)
+        self.assertEqual(result["average_communication_score"], 82.0)
+        self.assertEqual(len(result["score_trends"]), 1)
+        self.assertEqual(result["score_trends"][0]["score"], 88.0)
+        self.assertEqual(len(result["wpm_trends"]), 1)
+        self.assertEqual(result["wpm_trends"][0]["wpm"], 178.0)
+        self.assertIn("End-to-end talent screen production RAG experience", result["top_strengths"])
+        self.assertIn("Mention explicit latency and throughput metrics", result["top_improvements"])
+        self.assertIn("Elaborate more on CI/CD test automation", result["top_improvements"])
+
+    def test_analytics_with_report_overall_score_and_wpm_fallback(self):
+        """Validates that AnalyticsEngine falls back to top-level overall_score and alternative wpm keys."""
+        attempts = [
+            {
+                "id": 601,
+                "created_at": "2026-09-17T15:00:00Z",
+                "audio_telemetry": {"wpm": 142.5, "silence_ratio": 9.2},
+                "report": {
+                    "overall_score": 91.0,
+                    "strengths": ["Clear communication"],
+                    "improvements": ["More detail on indexing"],
+                },
+            }
+        ]
+
+        result = AnalyticsEngine.calculate_candidate_analytics(attempts)
+        self.assertEqual(result["average_wpm"], 142.5)
+        self.assertEqual(result["average_silence_ratio_pct"], 9.2)
+        self.assertEqual(result["average_technical_score"], 91.0)
+        self.assertIn("Clear communication", result["top_strengths"])
+        self.assertIn("More detail on indexing", result["top_improvements"])
+
 
 # =============================================================================
 # AssessmentEngine — Question Selection
