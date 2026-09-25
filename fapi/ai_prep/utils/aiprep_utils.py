@@ -1537,7 +1537,7 @@ async def upload_assessment_audio_logic(
     )
 
 
-def _auto_assemble_chunks_if_present(assessment_dir: str) -> Optional[str]:
+def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Optional[int] = None) -> Optional[str]:
     """Auto-assembles sequential WebM chunks from chunks/ into assembled.webm atomically if top-level media is absent."""
     chunk_dir = os.path.join(assessment_dir, "chunks")
     assembled_path = os.path.join(assessment_dir, "assembled.webm")
@@ -1555,9 +1555,14 @@ def _auto_assemble_chunks_if_present(assessment_dir: str) -> Optional[str]:
             ]
         )
         if chunk_files:
+            if total_expected and len(chunk_files) < total_expected:
+                logger.info("Auto-assemble deferred: received %d chunks but expected %d", len(chunk_files), total_expected)
+                return None
+
+            expected_count = total_expected or len(chunk_files)
             # Validate contiguous sequence starting from chunk_0001.webm without gaps
             chunk_names = [os.path.basename(f) for f in chunk_files]
-            expected_names = [f"chunk_{i:04d}.webm" for i in range(1, len(chunk_files) + 1)]
+            expected_names = [f"chunk_{i:04d}.webm" for i in range(1, expected_count + 1)]
             if chunk_names != expected_names:
                 logger.warning("Auto-assemble skipped: chunk sequence is incomplete or contains gaps (%s)", chunk_names)
                 return None
