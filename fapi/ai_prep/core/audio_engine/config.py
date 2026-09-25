@@ -2,6 +2,7 @@
 Centralized Configuration for Audio & Speech Telemetry Engine.
 Defines constants, thresholds, and lexicons for acoustic processing, VAD, and STT metrics.
 """
+import os
 from dataclasses import dataclass, field
 from typing import Set
 
@@ -53,7 +54,15 @@ class TranscriptConfig:
         "i mean", "right", "sort of", "kind of", "to be honest"
     })
 
+@dataclass(frozen=True)
+class TranscriptionConfig:
+    """Transcription provider configuration."""
+    DEFAULT_PROVIDER: str = os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
+    DEFAULT_MODEL_SIZE: str = "base"
+    SOCKET_ENDPOINT: str = os.getenv("SOCKET_STT_ENDPOINT", "ws://localhost:8080/stt")
+
 
 AUDIO_CONFIG = AudioConfig()
 VAD_CONFIG = VADConfig()
 TRANSCRIPT_CONFIG = TranscriptConfig()
+TRANSCRIPTION_CONFIG = TranscriptionConfig()

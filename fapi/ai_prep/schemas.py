@@ -253,6 +253,14 @@ class SubmitAssessmentDataResponse(BaseModel):
 class UpdateMediaURLRequest(BaseModel):
     youtube_url: str = Field(..., description="Public/unlisted video or audio streaming URL")
 
+    @field_validator("youtube_url")
+    @classmethod
+    def validate_youtube_url(cls, v: str) -> str:
+        clean = (v or "").strip()
+        if not (clean.startswith("https://") or clean.startswith("http://")):
+            raise ValueError("Invalid media URL: must start with https:// or http://")
+        return clean
+
 
 UpdateMediaUrlRequest = UpdateMediaURLRequest
 
@@ -544,3 +552,13 @@ class ScoresEngineOutput(BaseModel):
     is_valid: bool
     parsed_report: Optional[ParsedReportOutput] = None
     error: Optional[str] = None
+
+
+class AudioUploadResponse(BaseModel):
+    success: bool
+    assessment_id: int
+    message: str
+    size_bytes: int
+    mime_type: Optional[str] = None
+    file_path: Optional[str] = None
+
