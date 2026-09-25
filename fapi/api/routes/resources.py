@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.db.schemas import CourseContentResponse, BatchMetrics
 from fapi.db.models import CourseContent, CourseContent as CourseContentORM, Batch as BatchORM, Recording as RecordingORM
-from fapi.core.config import limiter, SECRET_KEY
+from fapi.core.config import limiter, SECRET_KEY, ALGORITHM
 from fapi.utils.resources_utils import (
     fetch_kumar_recordings,
     fetch_subject_batch_recording,
@@ -38,8 +38,6 @@ from fapi.utils.table_fingerprint import generate_version_for_model
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
-_OPTIONAL_AUTH_SECRET = os.getenv("SECRET_KEY")
-_OPTIONAL_AUTH_ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 
 def _is_request_authenticated(
@@ -58,8 +56,8 @@ def _is_request_authenticated(
     try:
         jose_jwt.decode(
             credentials.credentials,
-            _OPTIONAL_AUTH_SECRET,
-            algorithms=[_OPTIONAL_AUTH_ALGORITHM],
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
         )
         return True
     except JWTError:
