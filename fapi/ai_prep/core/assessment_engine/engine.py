@@ -38,10 +38,11 @@ class AssessmentEngine:
 
     # Valid status transitions allowed by business rules
     VALID_TRANSITIONS: Dict[str, List[str]] = {
-        "IN_PROGRESS": ["EVALUATING", "FAILED"],
+        "IN_PROGRESS": ["EVALUATING", "FAILED", "CANCELLED"],
         "EVALUATING":  ["COMPLETED", "FAILED"],
         "COMPLETED":   [],
         "FAILED":      [],
+        "CANCELLED":   [],
     }
     
     # Number of questions for multi-question assessment types
