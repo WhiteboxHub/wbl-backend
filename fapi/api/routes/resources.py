@@ -117,6 +117,8 @@ async def get_session_types(
         if not types:
             raise HTTPException(status_code=404, detail="Types not found")
         return {"types": types}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
