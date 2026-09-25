@@ -187,6 +187,33 @@ def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_t
     return normalized_types
 
 
+def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
+    course = "ML"
+    try:
+
+        course_obj = db.execute(
+            select(Course).where(Course.alias == course)
+        ).scalar_one_or_none()
+
+        if not course_obj:
+            return []
+
+        stmt = (
+            select(Batch.batchname, Batch.batchid)
+            .where(Batch.courseid == course_obj.id)
+            .group_by(Batch.batchname, Batch.batchid)
+            .order_by(Batch.batchname.desc())
+        )
+        result = db.execute(stmt)
+        rows = result.all()
+        if not rows:
+            return []
+
+        return [{"batchname": row.batchname, "batchid": row.batchid} for row in rows]
+
+    except Exception as e:
+        logger.exception(f"Error fetching batches for course '{course}': {e}")
+        raise HTTPException(status_code=500, detail="Unexpected server error")
 
 
 def course_content(session: Session):
