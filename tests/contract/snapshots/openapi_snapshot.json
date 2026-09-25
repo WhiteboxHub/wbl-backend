@@ -25040,7 +25040,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25090,7 +25090,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25140,7 +25140,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25188,7 +25188,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25248,7 +25248,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25296,7 +25296,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25356,7 +25356,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25406,7 +25406,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25456,7 +25456,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25516,7 +25516,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25576,7 +25576,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25624,7 +25624,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25691,7 +25691,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -25738,7 +25738,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -26408,7 +26408,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -26458,7 +26458,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -26508,7 +26508,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27168,7 +27168,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Upload 30s WebM Chunk",
-        "description": "Uploads sequential WebM media chunk to server storage directory.",
+        "description": "Uploads sequential WebM media chunk to server storage directory using streaming.",
         "operationId": "upload_media_chunk_api_aiprep_media_upload_chunk_post",
         "requestBody": {
           "content": {
@@ -27230,7 +27230,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           },
@@ -27296,7 +27296,14 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
               "title": "Assessment Id"
             }
           }
@@ -27350,7 +27357,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_api_aiprep_media_upload_post",
         "requestBody": {
           "content": {
@@ -27412,7 +27419,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27462,7 +27469,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27487,6 +27494,360 @@
             }
           }
         }
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
+        "operationId": "get_assessment_audio_api_aiprep_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/candidate/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
+        "operationId": "get_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_api_aiprep_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/candidate/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_api_aiprep_candidate_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/aiprep/audio-engine/process": {
+      "post": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Performance: Audio Engine Benchmark & Process",
+        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports direct audio file upload or a server-side storage path.\nGated to staff/admin to prevent resource abuse.",
+        "operationId": "process_audio_engine_endpoint_api_aiprep_audio_engine_process_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/aiprep/llm-keys": {
@@ -27906,7 +28267,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -27956,7 +28317,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28006,7 +28367,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28054,7 +28415,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28114,7 +28475,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28162,7 +28523,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28222,7 +28583,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28272,7 +28633,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28322,7 +28683,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28382,7 +28743,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28442,7 +28803,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28490,7 +28851,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28557,7 +28918,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -28604,7 +28965,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -29274,7 +29635,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -29324,7 +29685,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -29374,7 +29735,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30034,7 +30395,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Upload 30s WebM Chunk",
-        "description": "Uploads sequential WebM media chunk to server storage directory.",
+        "description": "Uploads sequential WebM media chunk to server storage directory using streaming.",
         "operationId": "upload_media_chunk_aiprep_media_upload_chunk_post",
         "requestBody": {
           "content": {
@@ -30096,7 +30457,7 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           },
@@ -30162,7 +30523,14 @@
             "in": "query",
             "required": true,
             "schema": {
-              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
               "title": "Assessment Id"
             }
           }
@@ -30216,7 +30584,7 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Direct Single Media Upload",
-        "description": "Uploads single binary media file directly to disk storage.",
+        "description": "Uploads single binary media file directly to disk storage using streaming.",
         "operationId": "upload_raw_media_aiprep_media_upload_post",
         "requestBody": {
           "content": {
@@ -30278,7 +30646,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30328,7 +30696,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Assessment Id"
             }
           }
@@ -30353,6 +30721,360 @@
             }
           }
         }
+      }
+    },
+    "/aiprep/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_aiprep_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_aiprep_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
+        "operationId": "get_assessment_audio_aiprep_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/candidate/assessments/{assessment_id}/audio": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Direct Audio Recording Upload",
+        "description": "Uploads audio recording binary file directly to server storage and queues YouTube upload.",
+        "operationId": "upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Audio from Storage",
+        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
+        "operationId": "get_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_aiprep_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/candidate/assessments/{assessment_id}/video": {
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Video Recording from Storage",
+        "description": "Retrieves and streams stored video recording from server storage with range seeking support.",
+        "operationId": "get_assessment_video_aiprep_candidate_assessments__assessment_id__video_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aiprep/audio-engine/process": {
+      "post": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Performance: Audio Engine Benchmark & Process",
+        "description": "Performance Testing Endpoint:\nDirectly triggers the AudioMetricsEngine pipeline with configurable transcription providers.\nSupports direct audio file upload or a server-side storage path.\nGated to staff/admin to prevent resource abuse.",
+        "operationId": "process_audio_engine_endpoint_aiprep_audio_engine_process_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     }
   },
@@ -30668,6 +31390,17 @@
             "type": "integer",
             "title": "Assessment Id"
           },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
+          },
           "questions": {
             "anyOf": [
               {
@@ -30771,6 +31504,39 @@
             "type": "integer",
             "title": "Candidate Id"
           },
+          "candidate_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Name"
+          },
+          "candidate_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Email"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
           "assessment_type": {
             "type": "string",
             "title": "Assessment Type"
@@ -30863,6 +31629,21 @@
             ],
             "title": "Created At"
           },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
           "data": {
             "anyOf": [
               {
@@ -30925,6 +31706,39 @@
               }
             ],
             "title": "Candidate Id"
+          },
+          "candidate_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Name"
+          },
+          "candidate_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Email"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
           },
           "assessment_type": {
             "type": "string",
@@ -31042,6 +31856,17 @@
           "assessment_id": {
             "type": "integer",
             "title": "Assessment Id"
+          },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
           },
           "audio_evaluation": {
             "anyOf": [
@@ -31282,6 +32107,56 @@
           "id"
         ],
         "title": "AssessmentTypeResponse"
+      },
+      "AudioUploadResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "assessment_id",
+          "message",
+          "size_bytes"
+        ],
+        "title": "AudioUploadResponse"
       },
       "AuthUserCreate": {
         "properties": {
@@ -34478,6 +35353,206 @@
         ],
         "title": "Body_login_for_access_token_api_login_post"
       },
+      "Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Path"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model_size": {
+            "type": "string",
+            "title": "Model Size",
+            "default": "base"
+          },
+          "async_mode": {
+            "type": "boolean",
+            "title": "Async Mode",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post"
+      },
+      "Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Path"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model_size": {
+            "type": "string",
+            "title": "Model Size",
+            "default": "base"
+          },
+          "async_mode": {
+            "type": "boolean",
+            "title": "Async Mode",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post"
+      },
+      "Body_upload_assessment_audio_aiprep_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_aiprep_assessments__assessment_id__audio_post"
+      },
+      "Body_upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_post"
+      },
+      "Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_api_aiprep_assessments__assessment_id__audio_post"
+      },
+      "Body_upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_post"
+      },
       "Body_upload_candidate_marketing_resume_api_candidates__candidate_id__marketing_upload_resume_post": {
         "properties": {
           "file": {
@@ -34495,17 +35570,19 @@
       "Body_upload_media_chunk_aiprep_media_upload_chunk_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Assessment Id"
           },
           "chunk_number": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Chunk Number"
           },
           "total_chunks": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -34530,17 +35607,19 @@
       "Body_upload_media_chunk_api_aiprep_media_upload_chunk_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Assessment Id"
           },
           "chunk_number": {
             "type": "integer",
+            "minimum": 1.0,
             "title": "Chunk Number"
           },
           "total_chunks": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -34591,7 +35670,14 @@
       "Body_upload_raw_media_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "title": "Assessment Id"
           },
           "media_type": {
@@ -34615,7 +35701,14 @@
       "Body_upload_raw_media_api_aiprep_media_upload_post": {
         "properties": {
           "assessment_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
             "title": "Assessment Id"
           },
           "media_type": {
@@ -52310,7 +53403,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Amount"
@@ -52336,6 +53430,7 @@
           },
           "amount": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)",
             "title": "Amount"
           },
           "id": {
@@ -52444,7 +53539,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Installment Amount"
@@ -52491,6 +53587,7 @@
           },
           "installment_amount": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)",
             "title": "Installment Amount"
           },
           "scheduled_date": {
@@ -52540,7 +53637,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52582,7 +53680,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52640,7 +53739,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52744,7 +53844,8 @@
           "deposit_amount": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -52866,7 +53967,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -53917,18 +55019,6 @@
             "title": "Question Text",
             "description": "Question prompt text"
           },
-          "ideal_answer_rubric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ideal Answer Rubric",
-            "description": "Evaluation rubric guidelines"
-          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active",
@@ -53991,17 +55081,6 @@
           "question_text": {
             "type": "string",
             "title": "Question Text"
-          },
-          "ideal_answer_rubric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ideal Answer Rubric"
           },
           "is_active": {
             "type": "boolean",
@@ -54073,17 +55152,6 @@
               }
             ],
             "title": "Question Text"
-          },
-          "ideal_answer_rubric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ideal Answer Rubric"
           },
           "is_active": {
             "anyOf": [
@@ -55856,6 +56924,17 @@
             "type": "integer",
             "title": "Id"
           },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
+          },
           "status": {
             "type": "string",
             "title": "Status",
@@ -55922,6 +57001,17 @@
           "id": {
             "type": "integer",
             "title": "Id"
+          },
+          "assessment_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Uuid"
           },
           "youtube_url": {
             "type": "string",

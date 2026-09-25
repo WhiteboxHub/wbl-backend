@@ -1,8 +1,12 @@
 """FastAPI Routes and API Endpoints for AI Prep Tool.
 Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
+import os
+from pathlib import Path
+import shutil
+import tempfile
 import logging
-from typing import Optional
+from typing import Optional, Union
 from fastapi import (
     APIRouter,
     Depends,
@@ -13,6 +17,7 @@ from fastapi import (
     status,
     Request,
     BackgroundTasks,
+    HTTPException,
 )
 from sqlalchemy.orm import Session
 
@@ -46,12 +51,14 @@ from fapi.ai_prep.schemas import (
     LocalMediaUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
+    AudioUploadResponse,
     QuestionCreateRequest,
     QuestionUpdateRequest,
     QuestionResponse,
     QuestionListResponse,
 )
 from fapi.ai_prep.utils import aiprep_utils
+from fapi.ai_prep.core.audio_engine import InvalidProviderConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +173,7 @@ def candidate_list_assessments(
 )
 @router.get("/assessments/{assessment_id}", response_model=AssessmentDetailResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Details")
 def candidate_get_assessment_detail(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -182,7 +189,7 @@ def candidate_get_assessment_detail(
 )
 @router.get("/assessments/{assessment_id}/data", response_model=AssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Data")
 def candidate_get_assessment_data(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -198,7 +205,7 @@ def candidate_get_assessment_data(
 )
 @router.get("/assessments/{assessment_id}/report", response_model=AssessmentReportResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Report")
 def candidate_get_assessment_report(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -215,7 +222,7 @@ def candidate_get_assessment_report(
 )
 @router.post("/assessments/{assessment_id}/data", response_model=SubmitAssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Submit Telemetry")
 def candidate_submit_data(
-    assessment_id: int,
+    assessment_id: str,
     payload: SubmitAssessmentDataRequest,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -232,7 +239,7 @@ def candidate_submit_data(
 )
 @router.patch("/assessments/{assessment_id}/media", response_model=UpdateMediaURLResponse, tags=["AI Prep - Candidate"], summary="Update Media URL")
 def candidate_update_media_url(
-    assessment_id: int,
+    assessment_id: str,
     payload: UpdateMediaURLRequest,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -250,7 +257,7 @@ def candidate_update_media_url(
 )
 @router.post("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Trigger Evaluation")
 def candidate_trigger_eval_post(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
@@ -272,7 +279,7 @@ def candidate_trigger_eval_post(
 )
 @router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
 def candidate_trigger_eval_put(
-    assessment_id: int,
+    assessment_id: str,
     payload: Optional[SubmitAssessmentRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -416,7 +423,7 @@ def employee_list_candidate_assessments_route(
     summary="Employee: Inspect Assessment Details & Scores",
 )
 def employee_get_assessment_detail_route(
-    assessment_id: int,
+    assessment_id: str,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
@@ -431,7 +438,7 @@ def employee_get_assessment_detail_route(
     summary="Employee: Get Assessment Telemetry & Questions",
 )
 def employee_get_assessment_data_route(
-    assessment_id: int,
+    assessment_id: str,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
@@ -446,7 +453,7 @@ def employee_get_assessment_data_route(
     summary="Employee: Get Assessment Evaluation Report",
 )
 def employee_get_assessment_report_route(
-    assessment_id: int,
+    assessment_id: str,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
@@ -588,22 +595,21 @@ def delete_question_from_bank(
     summary="Media: Upload 30s WebM Chunk",
 )
 async def upload_media_chunk(
-    assessment_id: int = Form(...),
-    chunk_number: int = Form(...),
-    total_chunks: Optional[int] = Form(None),
+    assessment_id: str = Form(...),
+    chunk_number: int = Form(..., ge=1),
+    total_chunks: Optional[int] = Form(None, ge=1),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads sequential WebM media chunk to server storage directory."""
-    content = await file.read()
+    """Uploads sequential WebM media chunk to server storage directory using streaming."""
     return await aiprep_utils.upload_media_chunk_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         chunk_number=chunk_number,
         total_chunks=total_chunks,
-        file_content=content,
+        file_content=file,
     )
 
 
@@ -614,7 +620,7 @@ async def upload_media_chunk(
     summary="Media: Query Chunk Upload Status",
 )
 def get_chunk_upload_status(
-    assessment_id: int = Query(...),
+    assessment_id: str = Query(...),
     total_chunks: Optional[int] = Query(None),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -635,7 +641,8 @@ def get_chunk_upload_status(
     summary="Media: Assemble Chunks & Process",
 )
 def assemble_media_chunks(
-    assessment_id: int = Query(...),
+    background_tasks: BackgroundTasks,
+    assessment_id: Union[int, str] = Query(...),
     payload: Optional[AssembleMediaRequest] = None,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -646,6 +653,7 @@ def assemble_media_chunks(
         current_user=current_user,
         assessment_id=assessment_id,
         payload=payload,
+        background_tasks=background_tasks,
     )
 
 
@@ -656,21 +664,21 @@ def assemble_media_chunks(
     summary="Media: Direct Single Media Upload",
 )
 async def upload_raw_media(
-    assessment_id: int = Form(...),
+    background_tasks: BackgroundTasks,
+    assessment_id: Union[int, str] = Form(...),
     media_type: str = Form("VIDEO"),
     file: UploadFile = File(...),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads single binary media file directly to disk storage."""
-    content = await file.read()
+    """Uploads single binary media file directly to disk storage using streaming."""
     return await aiprep_utils.upload_raw_media_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         media_type=media_type,
-        filename=file.filename,
-        file_content=content,
+        file=file,
+        background_tasks=background_tasks,
     )
 
 
@@ -681,7 +689,7 @@ async def upload_raw_media(
     summary="Progress: Assessment Processing Status Snapshot",
 )
 def get_assessment_processing_status(
-    assessment_id: int,
+    assessment_id: str,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -699,15 +707,46 @@ def get_assessment_processing_status(
     summary="Progress: Real-Time SSE Status Stream",
 )
 def stream_assessment_processing_sse(
-    assessment_id: int,
+    assessment_id: str,
+    request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
 ):
     """Real-time SSE event stream for live UI progress updates."""
     return aiprep_utils.stream_assessment_processing_sse_logic(
+        current_user=current_user,
+        assessment_id=assessment_id,
+        request=request,
+    )
+
+
+@router.post(
+    "/candidate/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Direct Audio Recording Upload",
+)
+@router.post(
+    "/assessments/{assessment_id}/audio",
+    response_model=AudioUploadResponse,
+    tags=["AI Prep - Media & Streaming"],
+    summary="Direct Audio Recording Upload",
+)
+async def upload_assessment_audio(
+    background_tasks: BackgroundTasks,
+    assessment_id: str,
+    file: UploadFile = File(...),
+    mime_type: Optional[str] = Form(None),
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Uploads audio recording binary file directly to server storage and queues YouTube upload."""
+    return await aiprep_utils.upload_assessment_audio_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
+        file=file,
+        mime_type=mime_type,
+        background_tasks=background_tasks,
     )
 
 
@@ -723,4 +762,179 @@ def get_assessment_playback(
 ):
     """Streams the recorded audio/video media file for an assessment."""
     return aiprep_utils.get_assessment_playback_logic(db=db, assessment_id=assessment_id)
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Audio from Storage",
+)
+@router.get(
+    "/assessments/{assessment_id}/audio",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Stream Assessment Audio from Storage",
+)
+def get_assessment_audio(
+    assessment_id: str,
+    request: Request,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
+    range_header = request.headers.get("range")
+    return aiprep_utils.get_assessment_audio_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        range_header=range_header,
+    )
+
+
+@router.get(
+    "/candidate/assessments/{assessment_id}/video",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Video Recording from Storage",
+)
+@router.get(
+    "/assessments/{assessment_id}/video",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Stream Assessment Video Recording from Storage",
+)
+def get_assessment_video(
+    assessment_id: str,
+    request: Request,
+    current_user: AuthUserORM = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retrieves and streams stored video recording from server storage with range seeking support."""
+    range_header = request.headers.get("range")
+    return aiprep_utils.get_assessment_video_logic(
+        db=db,
+        current_user=current_user,
+        assessment_id=assessment_id,
+        range_header=range_header,
+    )
+# ===========================================================================
+# 4. PERFORMANCE TESTING & BENCHMARKING
+# ===========================================================================
+
+@router.post(
+    "/audio-engine/process",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Performance: Audio Engine Benchmark & Process",
+)
+async def process_audio_engine_endpoint(
+    background_tasks: BackgroundTasks,
+    file: Optional[UploadFile] = File(None),
+    audio_path: Optional[str] = Form(None),
+    provider: Optional[str] = Form(None),
+    model_size: str = Form("base"),
+    async_mode: bool = Form(False),
+    current_user: AuthUserORM = Depends(staff_or_admin_required),
+):
+    """
+    Performance Testing Endpoint:
+    Directly triggers the AudioMetricsEngine pipeline with configurable transcription providers.
+    Supports direct audio file upload or a server-side storage path.
+    Gated to staff/admin to prevent resource abuse.
+    """
+    target_path = None
+    temp_dir = None
+    task_queued = False
+
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB limit
+    # 1. Handle direct file upload
+    if file:
+        temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
+        safe_filename = os.path.basename(file.filename or "test_audio.webm")
+        temp_file_path = os.path.join(temp_dir, safe_filename)
+        file_size = 0
+        with open(temp_file_path, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):  # 1MB chunks
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
+                buffer.write(chunk)
+        target_path = temp_file_path        
+
+    # 2. Handle server-side audio_path and prevent storage-boundary escapes
+    elif audio_path:
+        base_dir = Path(aiprep_utils.STORAGE_BASE_DIR).resolve()
+        try:
+            resolved_path = Path(audio_path).resolve()
+        except (OSError, RuntimeError) as exc:
+            logger.warning("Failed to resolve audio_path — invalid format or path characters")
+            raise HTTPException(status_code=400, detail="Invalid audio_path format.") from exc
+
+        if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid audio_path. Path must reside within the application storage directory."
+            )
+        target_path = str(resolved_path)
+
+
+    # Validate file existence without leaking server filesystem paths in error messages
+    if not target_path or not os.path.exists(target_path):
+        if temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail="Valid audio file or storage audio_path is required.")
+
+    try:
+        if async_mode:
+            # Background task wrapper that guarantees temp cleanup after processing
+            async def _benchmark_with_cleanup(path: str, prov: Optional[str], sz: str, dir_to_clean: Optional[str]):
+                try:
+                    await aiprep_utils.run_audio_engine_benchmark(
+                        audio_path=path,
+                        provider_name=prov,
+                        model_size=sz,
+                    )
+                finally:
+                    if dir_to_clean and os.path.exists(dir_to_clean):
+                        shutil.rmtree(dir_to_clean, ignore_errors=True)
+
+            try:
+                background_tasks.add_task(
+                    _benchmark_with_cleanup,
+                    path=target_path,
+                    prov=provider,
+                    sz=model_size,
+                    dir_to_clean=temp_dir,
+                )
+                task_queued = True  
+            except Exception:
+                if temp_dir and os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                raise
+
+            return {
+                "status": "ACCEPTED",
+                "message": "Audio processing queued in background",
+                "provider": provider or os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
+            }
+        else:
+            # Synchronous benchmark return (runs off-thread)
+            result = await aiprep_utils.run_audio_engine_benchmark(
+                audio_path=target_path,
+                provider_name=provider,
+                model_size=model_size
+            )
+            return {
+                "status": "SUCCESS",
+                "data": result
+            }
+    except InvalidProviderConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred while processing the audio benchmark.")
+    finally:
+
+        # Delete temp folder in sync mode, or if async task failed to queue
+        if (not async_mode or not task_queued) and temp_dir and os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+>>>>>>> fc068235620a35b3348635e2b88bcad3d42a0e3c
 

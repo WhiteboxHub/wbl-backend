@@ -38,7 +38,13 @@ from fapi.core.config import limiter
 import logging
 import traceback
 
-app = FastAPI(title="WBL Backend")
+app = FastAPI(
+    title="WBL Backend",
+    swagger_ui_parameters={
+        "filter": True,
+        "persistAuthorization": True,
+    },
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

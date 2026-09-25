@@ -1,4 +1,5 @@
 import os
+import secrets
 import logging
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -45,6 +46,13 @@ def get_current_user(
         elif request.cookies.get("token"):
             token = request.cookies.get("token")
 
+        token = (
+            request.cookies.get("token")
+            or request.cookies.get("access_token")
+            or request.query_params.get("token")
+            or request.query_params.get("access_token")
+        )
+
     if not token:
         if request.url.path.endswith("/playback"):
             class MediaPlaybackUser:
@@ -54,9 +62,13 @@ def get_current_user(
                 is_admin = False
                 is_employee = False
             return MediaPlaybackUser()
-
         internal_secret = request.headers.get("X-Internal-Secret")
-        if internal_secret == "super-secret-weekly-workflow-key":
+        configured_secret = os.getenv("INTERNAL_WORKFLOW_SECRET")
+        if (
+            configured_secret
+            and internal_secret
+            and secrets.compare_digest(str(internal_secret), str(configured_secret))
+        ):
             class DummyInternalUser:
                 id = 0
                 uname = "scheduler_worker"

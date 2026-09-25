@@ -1,4 +1,19 @@
 """Dynamic API Endpoints and Schemas Test Suite for AI Prep Tool."""
+import os
+import secrets
+
+os.environ["SECRET_KEY"] = secrets.token_urlsafe(32)
+os.environ["ALGORITHM"] = "HS256"
+os.environ["DB_PASSWORD"] = secrets.token_urlsafe(16)
+os.environ["DB_HOST"] = "localhost"
+os.environ["DB_NAME"] = "wbl_test"
+os.environ["ENV"] = "test"
+os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
+os.environ["UPSTASH_REDIS_REST_TOKEN"] = secrets.token_urlsafe(32)
+
+import datetime
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,6 +24,9 @@ from fapi.main import app
 from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.db.models import Base, AuthUserORM, CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
+from fapi.ai_prep import crud
+from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
+from fapi.ai_prep.core.scores_engine import ScoresEngine
 from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
     AiPrepAssessmentDataORM,
@@ -24,6 +42,11 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+import fapi.db.database
+fapi.db.database.SessionLocal = TestingSessionLocal
+fapi.db.database.engine = engine
+
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -56,14 +79,10 @@ def db_session():
         yield db
     finally:
         db.close()
-        from fapi.main import app
         app.dependency_overrides.clear()
 
 
 
-
-import datetime
-import secrets
 
 @pytest.fixture
 def seed_candidate(db_session):
@@ -96,7 +115,7 @@ def seed_candidate(db_session):
         mktg1 = CandidateMarketingORM(
             candidate_id=1001,
             start_date=datetime.date(2026, 1, 1),
-            resume_url="https://s3.amazonaws.com/resumes/john_doe.pdf",
+            resume_url="https://test-storage.example.com/resumes/test_candidate_resume.pdf",
             candidate_json={"skills": ["Python", "FastAPI", "PyTorch"], "current_title": "AI Engineer"},
         )
         db_session.add(mktg1)
@@ -119,7 +138,7 @@ def seed_candidate(db_session):
     if not a1:
         a1 = AiPrepAssessmentORM(
             id=1,
-            assessment_uuid="test-session-1001",
+            assessment_uuid="00000000-0000-0000-0000-000000001001",
             candidate_id=1001,
             assessment_type="TECHNICAL",
             status="COMPLETED",
@@ -517,7 +536,7 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
 
     create_res = cand_client.post("/api/aiprep/candidate/assessments", json={
         "candidate_id": 1001,
-        "assessment_type": "SYSTEM_DESIGN",
+        "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
     })
     aid = create_res.json()["id"]
@@ -532,7 +551,6 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
     assert put_eval_res.json()["status"] == "EVALUATING"
 
     # Save mock report into DB to test report getter
-    from fapi.ai_prep.models import AiPrepAssessmentReportORM
     rep = AiPrepAssessmentReportORM(
         assessment_id=aid,
         audio_evaluation={"score": 88},
@@ -573,9 +591,6 @@ def test_admin_create_custom_assessment_type(db_session):
 
 def test_save_assessment_report_nested_overall_score(db_session):
     """Verifies that save_assessment_report extracts overall_score from nested scores_breakdown_json."""
-    from fapi.ai_prep import crud
-    from fapi.ai_prep.models import AiPrepAssessmentORM
-
     ass = AiPrepAssessmentORM(
         candidate_id=10,
         assessment_type="TECHNICAL",
@@ -613,9 +628,6 @@ def test_save_assessment_report_nested_overall_score(db_session):
 
 def test_build_insufficient_audio_evaluation_dynamic_duration():
     """Verifies that build_insufficient_audio_evaluation handles both 0s and positive durations properly."""
-    from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
-    from fapi.ai_prep.core.scores_engine import ScoresEngine
-
     engine = EvalEngine()
     validator = ScoresEngine()
 
@@ -638,6 +650,321 @@ def test_build_insufficient_audio_evaluation_dynamic_duration():
     assert forty_five_eval["audio_evaluation"]["recording_environment_context"]["speaking_duration_seconds"] == 45.0
 
 
+def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
+    """Verifies complete UUID compatibility across candidate, employee, media, and status endpoints."""
+    cand_client = get_candidate_client(db_session, 1001)
+    emp_client = get_employee_client(db_session, 50)
 
+    # 1. Create assessment
+    res_create = cand_client.post(
+        "/api/aiprep/candidate/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"}
+    )
+    assert res_create.status_code == 201
+    data = res_create.json()
+    aid = data["id"]
+    auuid = data["assessment_uuid"]
+    assert auuid is not None
+    assert len(auuid) > 10
+
+    # 2. Candidate GET assessment details by UUID
+    res_detail = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}")
+    assert res_detail.status_code == 200
+    assert res_detail.json()["id"] == aid
+    assert res_detail.json()["assessment_uuid"] == auuid
+
+    # 3. Candidate alias GET /assessments/{auuid}
+    res_alias = cand_client.get(f"/api/aiprep/assessments/{auuid}")
+    assert res_alias.status_code == 200
+    assert res_alias.json()["id"] == aid
+
+    # 4. Candidate POST data by UUID
+    data_payload = {
+        "questions": [{"id": 1, "question": "Tell me about yourself"}],
+        "transcript": {"full_text": "Hello world from candidate"},
+        "audio_telemetry": {"wpm": 140},
+        "video_telemetry": {"face_visible_pct": 98.5},
+    }
+    res_data_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/data", json=data_payload)
+    assert res_data_post.status_code == 200
+
+    # 5. Candidate GET data by UUID
+    res_data_get = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/data")
+    assert res_data_get.status_code == 200
+    assert res_data_get.json()["assessment_id"] == aid
+    assert res_data_get.json()["assessment_uuid"] == auuid
+    assert res_data_get.json()["transcript"]["full_text"] == "Hello world from candidate"
+
+    # 6. Candidate PATCH media by UUID
+    media_payload = {"youtube_url": "https://media.example.com/uuid_stream"}
+    res_media = cand_client.patch(f"/api/aiprep/candidate/assessments/{auuid}/media", json=media_payload)
+    assert res_media.status_code == 200
+    assert res_media.json()["id"] == aid
+    assert res_media.json()["assessment_uuid"] == auuid
+    assert res_media.json()["youtube_url"] == "https://media.example.com/uuid_stream"
+
+    # 7. Candidate POST evaluate by UUID
+    res_eval_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/evaluate")
+    assert res_eval_post.status_code == 202
+    assert res_eval_post.json()["id"] == aid
+    assert res_eval_post.json()["status"] == "EVALUATING"
+
+    # 8. Candidate PUT evaluate by UUID
+    res_eval_put = cand_client.put(
+        f"/api/aiprep/candidate/assessments/{auuid}/evaluate",
+        json={"transcript": {"full_text": "Updated transcript"}}
+    )
+    assert res_eval_put.status_code == 202
+    assert res_eval_put.json()["id"] == aid
+
+    # 9. Save mock report with UUID string for report GET check
+    rep_obj = crud.save_assessment_report(db_session, auuid, {
+        "audio_evaluation": {"score": 90},
+        "video_evaluation": {"score": 95},
+        "transcript_evaluation": {"score": 92},
+        "overall_score": 92.3,
+    })
+    assert rep_obj.assessment_id == aid
+
+    # 10. Candidate GET report by UUID
+    res_rep = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/report")
+    assert res_rep.status_code == 200
+    assert res_rep.json()["assessment_id"] == aid
+    assert res_rep.json()["assessment_uuid"] == auuid
+    assert res_rep.json()["overall_score"] == 92.3
+
+    # 11. Employee GET assessment detail by UUID
+    res_emp_det = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}")
+    assert res_emp_det.status_code == 200
+    assert res_emp_det.json()["id"] == aid
+    assert res_emp_det.json()["assessment_uuid"] == auuid
+
+    # 12. Employee GET assessment data by UUID
+    res_emp_dat = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/data")
+    assert res_emp_dat.status_code == 200
+    assert res_emp_dat.json()["assessment_id"] == aid
+    assert res_emp_dat.json()["assessment_uuid"] == auuid
+
+    # 13. Employee GET assessment report by UUID
+    res_emp_rep = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/report")
+    assert res_emp_rep.status_code == 200
+    assert res_emp_rep.json()["assessment_id"] == aid
+    assert res_emp_rep.json()["assessment_uuid"] == auuid
+
+    # 14. Progress status snapshot by UUID
+    res_status = cand_client.get(f"/api/aiprep/assessments/{auuid}/status")
+    assert res_status.status_code == 200
+    assert res_status.json()["assessment_id"] == aid
+
+    # 15. Non-existent UUID returns 404
+    res_404 = cand_client.get("/api/aiprep/candidate/assessments/non-existent-uuid-99999")
+    assert res_404.status_code == 404
+    assert res_404.json()["detail"] == "Assessment not found"
+
+    # 16. CRUD operations with non-existent UUID raise clean ValueError instead of DB casting error
+    with pytest.raises(ValueError, match="not found"):
+        crud.save_assessment_data(
+            db=db_session,
+            assessment_id="non-existent-uuid-99999",
+            questions=[],
+            transcript={},
+            audio_telemetry={},
+            video_telemetry={},
+        )
+
+    with pytest.raises(ValueError, match="not found"):
+        crud.save_assessment_report(
+            db=db_session,
+            assessment_id="non-existent-uuid-99999",
+            parsed_report={},
+        )
+
+
+def test_question_loading_persistence_and_fallback_flow(db_session, seed_candidate):
+    """Regression test verifying DB question loading, persistence, fallback trigger, and single-question capping."""
+    client = get_candidate_client(db_session, 1001)
+
+    # 1. Seed active questions in DB for INTRO and JD_INTRO
+    q_intro = AiPrepQuestionORM(
+        category="INTRO",
+        sub_category=None,
+        difficulty_level="EASY",
+        question_text="Tell me about yourself and your DB-backed AI background.",
+        is_active=True,
+    )
+    q_jd = AiPrepQuestionORM(
+        category="JD_INTRO",
+        sub_category=None,
+        difficulty_level="EASY",
+        question_text="How do your skills match this specific JD?",
+        is_active=True,
+    )
+    db_session.add_all([q_intro, q_jd])
+    db_session.commit()
+
+    # 2. Test INTRO assessment creation (DB-backed, 1 question, persisted)
+    res_intro = client.post(
+        "/api/aiprep/candidate/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+    )
+    assert res_intro.status_code == 201
+    intro_data = res_intro.json()
+    assert len(intro_data["questions"]) == 1
+    assert intro_data["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
+
+    # Verify persisted in ai_prep_assessment_data table
+    data_rec = db_session.query(AiPrepAssessmentDataORM).filter(
+        AiPrepAssessmentDataORM.assessment_id == intro_data["id"]
+    ).first()
+    assert data_rec is not None
+    assert data_rec.questions[0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
+
+    # Verify GET detail returns persisted question via numeric ID & UUID string
+    res_intro_det = client.get(f"/api/aiprep/candidate/assessments/{intro_data['id']}")
+    assert res_intro_det.status_code == 200
+    assert res_intro_det.json()["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
+
+    res_intro_uuid = client.get(f"/api/aiprep/candidate/assessments/{intro_data['assessment_uuid']}")
+    assert res_intro_uuid.status_code == 200
+    assert res_intro_uuid.json()["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
+
+    # 3. Test JD_INTRO assessment creation (DB-backed, 1 question)
+    res_jd = client.post(
+        "/api/aiprep/candidate/assessments",
+        json={"candidate_id": 1001, "assessment_type": "JD_INTRO", "media_type": "VIDEO"},
+    )
+    assert res_jd.status_code == 201
+    jd_data = res_jd.json()
+    assert len(jd_data["questions"]) == 1
+    assert jd_data["questions"][0]["question_text"] == "How do your skills match this specific JD?"
+
+    # 4. DB retrieval exception → HTTP 422 with user-facing error message.
+    with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment", side_effect=RuntimeError("DB Connection error")):
+        res_fail = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+        )
+        assert res_fail.status_code == 422
+        assert "could not be loaded" in res_fail.json()["detail"].lower()
+
+    # 5. Empty DB result (no active questions) → HTTP 422 with user-facing error message.
+    with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment", return_value=[]):
+        res_empty = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+        )
+        assert res_empty.status_code == 422
+        assert "could not be loaded" in res_empty.json()["detail"].lower()
+
+
+def test_persistence_failure_raises_error(db_session, seed_candidate):
+    """Verifies that if save_assessment_data fails, creation raises 500 error instead of silently returning 201."""
+    client = get_candidate_client(db_session, 1001)
+    with patch("fapi.ai_prep.crud.save_assessment_data", side_effect=RuntimeError("DB Write Error")):
+        res = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+        )
+        assert res.status_code == 500
+        assert "Failed to persist assessment questions" in res.json()["detail"]
+
+
+def test_question_load_exception_returns_user_error(db_session, seed_candidate):
+    """DB exception during question retrieval returns HTTP 422 with a user-facing error message."""
+    client = get_candidate_client(db_session, 1001)
+    with patch(
+        "fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment",
+        side_effect=RuntimeError("Simulated DB failure"),
+    ):
+        res = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "VIDEO"},
+        )
+    assert res.status_code == 422
+    assert "could not be loaded" in res.json()["detail"].lower()
+
+
+def test_empty_question_bank_returns_user_error(db_session, seed_candidate):
+    """Empty question bank result returns HTTP 422 with a user-facing error message."""
+    client = get_candidate_client(db_session, 1001)
+    with patch(
+        "fapi.ai_prep.orchestrator.assessment_orchestrator.get_questions_for_assessment",
+        return_value=[],
+    ):
+        res = client.post(
+            "/api/aiprep/candidate/assessments",
+            json={"candidate_id": 1001, "assessment_type": "TECHNICAL", "media_type": "VIDEO"},
+        )
+    assert res.status_code == 422
+    assert "could not be loaded" in res.json()["detail"].lower()
+
+
+def test_audio_upload_and_streaming_endpoints(db_session, seed_candidate, tmp_path, monkeypatch):
+    """Verifies direct audio upload and storage streaming for video and audio."""
+    import io
+    from fapi.ai_prep.config import settings
+    monkeypatch.setenv("AIPREP_LOCAL_STORAGE_DIR", str(tmp_path))
+    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
+
+    client = get_candidate_client(db_session, 1001)
+
+    # 1. Seed active question
+    q_intro = AiPrepQuestionORM(
+        category="INTRO",
+        sub_category=None,
+        difficulty_level="EASY",
+        question_text="Tell me about yourself for audio assessment.",
+        is_active=True,
+    )
+    db_session.add(q_intro)
+    db_session.commit()
+
+    # 2. Create an assessment
+    create_res = client.post(
+        "/api/aiprep/candidate/assessments",
+        json={"candidate_id": 1001, "assessment_type": "INTRO", "media_type": "AUDIO"},
+    )
+    assert create_res.status_code == 201
+    aid = create_res.json()["id"]
+
+    # 2. Write mock audio file before upload cleanup to test storage streaming
+    audio_dir = tmp_path / "1001" / str(aid)
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    audio_file = audio_dir / "audio.wav"
+    audio_file.write_bytes(b"RIFF" + b"\x00" * 500)
+
+    # Stream audio from server storage
+    stream_res = client.get(f"/api/aiprep/assessments/{aid}/audio")
+    assert stream_res.status_code == 200
+    assert len(stream_res.content) == 504
+
+    # 3. Write mock video file and test video streaming with HTTP 206 range
+    video_file = audio_dir / "assembled.webm"
+    video_file.write_bytes(b"\x1a\x45\xdf\xa3" + b"\x00" * 1000)
+
+    # Full video stream
+    v_res = client.get(f"/api/aiprep/assessments/{aid}/video")
+    assert v_res.status_code == 200
+    assert len(v_res.content) == 1004
+
+    # Range video stream (bytes=0-99)
+    range_res = client.get(
+        f"/api/aiprep/assessments/{aid}/video",
+        headers={"Range": "bytes=0-99"},
+    )
+    assert range_res.status_code == 206
+    assert len(range_res.content) == 100
+    assert "bytes 0-99/1004" in range_res.headers.get("Content-Range", "")
+
+    # 4. Upload direct audio recording
+    fake_audio = io.BytesIO(b"RIFF" + b"\x00" * 500)
+    upload_res = client.post(
+        f"/api/aiprep/assessments/{aid}/audio",
+        files={"file": ("recording.wav", fake_audio, "audio/wav")},
+        data={"mime_type": "audio/wav"},
+    )
+    assert upload_res.status_code == 200
+    assert upload_res.json()["success"] is True
+    assert upload_res.json()["assessment_id"] == aid
 
 

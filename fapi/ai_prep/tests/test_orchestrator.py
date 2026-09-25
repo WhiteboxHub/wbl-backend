@@ -158,7 +158,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_crud.update_assessment_status.return_value = None
 
             with pytest.raises(ValueError, match="no active LLM"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
                 )
 
@@ -179,7 +179,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_crud.update_assessment_status.return_value = None
 
             with pytest.raises(ValueError, match="no active LLM"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
                 )
 
@@ -202,7 +202,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_llm_orch.run_evaluation = AsyncMock(side_effect=RuntimeError("LLM API down"))
 
             with pytest.raises(RuntimeError, match="LLM API down"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
                 )
 
@@ -226,7 +226,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_llm_orch.run_evaluation = AsyncMock(return_value=_make_valid_eval_result())
 
             with pytest.raises(RuntimeError, match="Report persistence failure"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
                 )
 
@@ -250,7 +250,7 @@ class TestAssessmentOrchestratorFullEvaluation:
             mock_llm_orch.run_evaluation = AsyncMock(return_value=_make_valid_eval_result())
 
             with pytest.raises(RuntimeError, match="DB Status Write Failure"):
-                asyncio.get_event_loop().run_until_complete(
+                asyncio.run(
                     assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
                 )
 
@@ -272,7 +272,7 @@ class TestAssessmentOrchestratorFullEvaluation:
 
             mock_llm_orch.run_evaluation = AsyncMock(return_value=_make_valid_eval_result())
 
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
             )
 
@@ -299,7 +299,7 @@ class TestAssessmentOrchestratorFullEvaluation:
 
             mock_llm_orch.run_evaluation = AsyncMock(return_value=_make_valid_eval_result())
 
-            result = asyncio.get_event_loop().run_until_complete(
+            result = asyncio.run(
                 assessment_orchestrator.run_full_evaluation(db, assessment_id=1)
             )
 
@@ -348,7 +348,7 @@ class TestAssessmentOrchestratorQuestionSelection:
             for var in variations:
                 assessment_orchestrator.get_questions_for_assessment(db, var)
                 mock_crud.list_questions.assert_called_with(
-                    db, category="TECHNICAL", is_active=True, limit=100
+                    db, category="TECHNICAL", is_active=True, limit=200
                 )
 
     def test_returns_empty_list_when_no_questions_in_db(self):
@@ -364,7 +364,7 @@ class TestAssessmentOrchestratorQuestionSelection:
             mock_crud.list_questions.return_value = ([], 0)
             assessment_orchestrator.get_questions_for_assessment(db, "SYSTEM_DESIGN")
         mock_crud.list_questions.assert_called_once_with(
-            db, category="SYSTEM_DESIGN", is_active=True, limit=100
+            db, category="SYSTEM_DESIGN", is_active=True, limit=200
         )
 
 

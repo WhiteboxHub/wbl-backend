@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
@@ -58,7 +58,7 @@ def _get_worker_db(db: Optional[Session] = None):
 
 def _load_assessment_context(
     db: "Session",
-    assessment_id: int,
+    assessment_id: Union[int, str],
 ) -> Dict[str, Any]:
     """
     Loads all data required for evaluation from the database via CRUD.
@@ -67,7 +67,11 @@ def _load_assessment_context(
     Raises:
         ValueError: If the assessment or candidate cannot be found, or data is missing.
     """
-    assessment = crud.get_assessment_by_id(db, assessment_id)
+    if isinstance(assessment_id, int) or str(assessment_id).isdigit():
+        assessment = crud.get_assessment_by_id(db, int(assessment_id))
+    else:
+        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+
     if not assessment:
         raise ValueError(f"Assessment ID {assessment_id} not found.")
 
@@ -99,8 +103,9 @@ def _load_assessment_context(
     # Load resume JSON for context enrichment
     resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
+    resolved_id = assessment.id if (hasattr(assessment, "id") and assessment.id is not None) else assessment_id
     return {
-        "assessment_id": assessment_id,
+        "assessment_id": resolved_id,
         "candidate_id": candidate_id,
         "assessment_type": assessment_type,
         "media_type": media_type,
@@ -120,8 +125,8 @@ def _load_assessment_context(
 
 
 async def run_full_evaluation(
-    db: "Session",
-    assessment_id: int,
+    db: Optional["Session"] = None,
+    assessment_id: Union[int, str] = None,
 ) -> Dict[str, Any]:
     """
     Full async evaluation pipeline: load → build contexts → LLM eval → save report.
@@ -140,7 +145,7 @@ async def run_full_evaluation(
         ValueError: If assessment not found or LLM config is missing.
         Exception:  Propagates any unrecoverable LLM or network error.
     """
-    logger.info("[AssessmentOrchestrator] Starting full evaluation: assessment_id=%d", assessment_id)
+    logger.info("[AssessmentOrchestrator] Starting full evaluation: assessment_id=%s", str(assessment_id))
 
     def _load_ctx_worker():
         with _get_worker_db(db) as worker_db:
@@ -199,8 +204,8 @@ async def run_full_evaluation(
         )
 
         logger.info(
-            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%d",
-            assessment_id,
+            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s",
+            str(assessment_id),
         )
 
         parsed_report = {
@@ -217,21 +222,21 @@ async def run_full_evaluation(
 
     except Exception as exc:
         logger.error(
-            "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%d: %s",
-            assessment_id, exc,
+            "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%s: %s",
+            str(assessment_id), exc,
         )
         try:
             await asyncio.to_thread(_update_status_worker, "FAILED")
         except Exception as status_exc:
             logger.error(
-                "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%d: %s",
-                assessment_id, status_exc,
+                "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%s: %s",
+                str(assessment_id), status_exc,
             )
         raise
 
     logger.info(
-        "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%d",
-        assessment_id,
+        "[AssessmentOrchestrator] Evaluation pipeline complete: assessment=%s",
+        str(assessment_id),
     )
 
     return {
@@ -249,27 +254,23 @@ async def run_full_evaluation(
 def get_questions_for_assessment(
     db: "Session",
     assessment_type: str,
+    candidate_id: Optional[int] = None,
     limit: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Fetches questions from DB and delegates selection + sanitization to AssessmentEngine.
+    Fetches questions from DB and delegates adaptive selection to AssessmentEngine.
 
-    This is called by routes when creating a new assessment session, so the candidate
-    receives their question set at the start.
-
-    Args:
-        db:              Database session.
-        assessment_type: The category code (e.g. "TECHNICAL", "INTRO").
-        limit:           Optional cap on number of questions returned.
-
-    Returns:
-        List of candidate-safe question dicts.
+    For INTRO and JD_INTRO: always returns 1 question.
+    For TECHNICAL and other rounds:
+        - Looks up the candidate's most recent completed report strictly for
+          THIS same assessment round type (e.g. previous TECHNICAL attempt).
+        - Extracts the previous readiness verdict ('STRONG', 'GOOD', etc.).
+        - Collects question IDs already asked to this candidate in this round type.
+        - Delegates to AssessmentEngine for difficulty adaptation and Round-Robin selection.
     """
-    # Normalize assessment_type before querying the database
     normalized_type = (assessment_type or "").upper().strip()
 
-    # Load all active questions for this normalized type
-    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=100)
+    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=200)
     available = [
         {
             "id": q.id,
@@ -282,12 +283,51 @@ def get_questions_for_assessment(
         for q in items
     ]
 
-    engine = AssessmentEngine()
-    return engine.select_questions_for_assessment(
+    previous_readiness: Optional[str] = None
+    previously_asked_ids: List[int] = []
+
+    engine_cls = AssessmentEngine()
+    if normalized_type not in engine_cls.SINGLE_QUESTION_TYPES and candidate_id:
+        # 1. Fetch previous completed report strictly for THIS assessment type
+        past_reports = crud.get_candidate_completed_reports(
+            db,
+            candidate_id=candidate_id,
+            assessment_type=normalized_type,
+            limit=1,
+        )
+        if past_reports:
+            latest_report = past_reports[0]
+            transcript_eval = latest_report.transcript_evaluation or {}
+            eval_body = transcript_eval.get(f"{normalized_type.lower()}_evaluation")
+            if isinstance(eval_body, dict):
+                overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body.get("overall_assessment"), dict) else {}
+                previous_readiness = overall.get("readiness") or eval_body.get("readiness")
+
+            logger.info(
+                "[AssessmentOrchestrator] Candidate %d previous %s readiness: '%s'",
+                candidate_id, normalized_type, previous_readiness,
+            )
+
+        # 2. Collect question IDs already asked to this candidate for COMPLETED assessments of this round type
+        previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
+            db,
+            candidate_id=candidate_id,
+            assessment_type=normalized_type,
+        )
+
+        logger.info(
+            "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
+            candidate_id, len(previously_asked_ids), normalized_type,
+        )
+
+    return engine_cls.select_questions_for_assessment(
         assessment_type=normalized_type,
         available_questions=available,
         limit=limit,
+        previous_readiness=previous_readiness,
+        previously_asked_ids=previously_asked_ids,
     )
+
 
 
 # =============================================================================

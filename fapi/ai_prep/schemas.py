@@ -253,17 +253,27 @@ class SubmitAssessmentDataResponse(BaseModel):
 class UpdateMediaURLRequest(BaseModel):
     youtube_url: str = Field(..., description="Public/unlisted video or audio streaming URL")
 
+    @field_validator("youtube_url")
+    @classmethod
+    def validate_youtube_url(cls, v: str) -> str:
+        clean = (v or "").strip()
+        if not (clean.startswith("https://") or clean.startswith("http://")):
+            raise ValueError("Invalid media URL: must start with https:// or http://")
+        return clean
+
 
 UpdateMediaUrlRequest = UpdateMediaURLRequest
 
 
 class UpdateMediaURLResponse(BaseModel):
     id: int
+    assessment_uuid: Optional[str] = None
     youtube_url: str
 
 
 class TriggerEvaluationResponse(BaseModel):
     id: int
+    assessment_uuid: Optional[str] = None
     status: str = Field(default="EVALUATING")
 
 
@@ -271,6 +281,9 @@ class AssessmentListItem(BaseModel):
     id: int
     assessment_uuid: Optional[str] = None
     candidate_id: Optional[int] = None
+    candidate_name: Optional[str] = None
+    candidate_email: Optional[str] = None
+    score: Optional[float] = None
     assessment_type: str
     media_type: str
     status: str
@@ -293,6 +306,9 @@ class AssessmentDetailResponse(BaseModel):
     id: int
     assessment_uuid: Optional[str] = None
     candidate_id: int
+    candidate_name: Optional[str] = None
+    candidate_email: Optional[str] = None
+    score: Optional[float] = None
     assessment_type: str
     media_type: str
     status: str
@@ -303,6 +319,7 @@ class AssessmentDetailResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    questions: Optional[List[Dict[str, Any]]] = None
     data: Optional[Dict[str, Any]] = None
     report: Optional[Dict[str, Any]] = None
 
@@ -313,6 +330,7 @@ class AssessmentDetailResponse(BaseModel):
 class AssessmentDataResponse(BaseModel):
     id: Optional[int] = None
     assessment_id: int
+    assessment_uuid: Optional[str] = None
     questions: Optional[List[Dict[str, Any]]] = None
     transcript: Optional[Dict[str, Any]] = None
     audio_telemetry: Optional[Dict[str, Any]] = None
@@ -327,6 +345,7 @@ class AssessmentDataResponse(BaseModel):
 class AssessmentReportResponse(BaseModel):
     id: Optional[int] = None
     assessment_id: int
+    assessment_uuid: Optional[str] = None
     audio_evaluation: Optional[Dict[str, Any]] = None
     video_evaluation: Optional[Dict[str, Any]] = None
     transcript_evaluation: Optional[Dict[str, Any]] = None
@@ -533,3 +552,13 @@ class ScoresEngineOutput(BaseModel):
     is_valid: bool
     parsed_report: Optional[ParsedReportOutput] = None
     error: Optional[str] = None
+
+
+class AudioUploadResponse(BaseModel):
+    success: bool
+    assessment_id: int
+    message: str
+    size_bytes: int
+    mime_type: Optional[str] = None
+    file_path: Optional[str] = None
+

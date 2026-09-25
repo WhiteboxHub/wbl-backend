@@ -8,7 +8,6 @@ from fapi.db.models import (Session as SessionORM, CourseSubject, CourseMaterial
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 from fapi.db.database import SessionLocal
-from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from fapi.core.cache import cache_result
 from sqlalchemy import literal
@@ -217,17 +216,16 @@ def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail="Unexpected server error")
 
 
-async def course_content(session: AsyncSession):
+def course_content(session: Session):
     """
     Fetch course content for Fundamentals, AIML, UI, and QE.
     """
-    result = await session.execute(select(
+    rows = session.query(
         CourseContent.Fundamentals,
         CourseContent.AIML,
         CourseContent.UI,
         CourseContent.QE
-    ))
-    rows = result.all()
+    ).all()
     return [
         dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3])
         for row in rows

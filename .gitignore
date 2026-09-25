@@ -13,3 +13,16 @@ temp_candidates.json
 # Google OAuth Secrets & Scripts
 client_secret.json
 get_refresh_token.py
+
+# Local server storage
+storage/
+
+# Audio and Video recording files
+*.webm
+*.wav
+*.mp4
+
+# Test & coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
