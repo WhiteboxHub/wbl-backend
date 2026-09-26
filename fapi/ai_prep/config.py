@@ -98,7 +98,7 @@ class AiPrepSettings(BaseSettings):
         default_factory=lambda: os.getenv("AIPREP_YOUTUBE_CATEGORY_ID", os.getenv("YOUTUBE_CATEGORY_ID", "27")),
         description="YouTube video category ID (default: 27 for Education)",
     )
-    YOUTUBE_DEFAULT_TAGS: list = Field(
+    AIPREP_YOUTUBE_DEFAULT_TAGS: list = Field(
         default_factory=lambda: [t.strip() for t in os.getenv("AIPREP_YOUTUBE_DEFAULT_TAGS", "AIPrep,WhiteboxLearning,PracticeAssessment").split(",") if t.strip()],
         description="Default metadata tags for uploaded assessment videos",
     )
