@@ -83,13 +83,13 @@ def extract_role_and_team_from_token(token: str):
 @router.head("/course-content")
 def check_course_content_version(
     db: Session = Depends(get_db),
-    _user = Depends(get_current_user),
+    # _user = Depends(get_current_user),
 ):
     return generate_version_for_model(db, CourseContentORM)
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
-    _user = Depends(get_current_user),
+    # _user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     def _get_content():
