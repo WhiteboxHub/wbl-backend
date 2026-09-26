@@ -569,6 +569,34 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
     )
 
     if not key_row or not key_row.api_key:
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        env_openai = os.getenv("OPENAI_API_KEY")
+        env_gemini = os.getenv("GEMINI_API_KEY")
+        if env_openai:
+            return {
+                "status": "valid",
+                "is_configured": True,
+                "provider": "openai",
+                "model": "gpt-4o",
+                "voice_enabled": False,
+                "message": "System default OpenAI API key is configured.",
+                "available_models": ["gpt-4o"],
+                "api_key": env_openai.strip(),
+            }
+        elif env_gemini:
+            return {
+                "status": "valid",
+                "is_configured": True,
+                "provider": "gemini",
+                "model": "gemini-1.5-flash",
+                "voice_enabled": False,
+                "message": "System default Gemini API key is configured.",
+                "available_models": ["gemini-1.5-flash"],
+                "api_key": env_gemini.strip(),
+            }
+
         return {
             "status": "failure",
             "is_configured": False,
@@ -593,14 +621,15 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
 def get_candidate_llm_config(db: Session, candidate_id: int) -> Dict[str, Any]:
     cfg = check_candidate_llm_key(db, candidate_id)
     if cfg.get("is_configured"):
-        key_row = (
-            db.query(CandidateLlmApiKeyORM)
-            .filter(CandidateLlmApiKeyORM.candidate_id == candidate_id)
-            .order_by(desc(CandidateLlmApiKeyORM.is_default), desc(CandidateLlmApiKeyORM.id))
-            .first()
-        )
-        if key_row and key_row.api_key:
-            cfg["api_key"] = _plaintext_api_key(str(key_row.api_key))
+        if "api_key" not in cfg:
+            key_row = (
+                db.query(CandidateLlmApiKeyORM)
+                .filter(CandidateLlmApiKeyORM.candidate_id == candidate_id)
+                .order_by(desc(CandidateLlmApiKeyORM.is_default), desc(CandidateLlmApiKeyORM.id))
+                .first()
+            )
+            if key_row and key_row.api_key:
+                cfg["api_key"] = _plaintext_api_key(str(key_row.api_key))
     return cfg
 
 
@@ -687,3 +716,51 @@ def save_candidate_resume_json(db: Session, candidate_id: int, resume_data: Dict
         db.commit()
         return True
     return False
+
+
+def get_candidate_historical_attempts(
+    db: Session,
+    candidate_id: int,
+) -> List[Dict[str, Any]]:
+    """
+    Fetches completed candidate assessments with associated telemetry data and evaluation reports.
+    Formats records for ingestion by AnalyticsEngine.
+    """
+    assessments = (
+        db.query(AiPrepAssessmentORM)
+        .filter(AiPrepAssessmentORM.candidate_id == candidate_id)
+        .order_by(AiPrepAssessmentORM.created_at.asc())
+        .all()
+    )
+
+    attempts: List[Dict[str, Any]] = []
+    for a in assessments:
+        # Include assessments that have either COMPLETED status or an existing report
+        if a.status != "COMPLETED" and not a.report_record:
+            continue
+
+        audio_tel = a.data_record.audio_telemetry if a.data_record and a.data_record.audio_telemetry else {}
+        video_tel = a.data_record.video_telemetry if a.data_record and a.data_record.video_telemetry else {}
+
+        report_dict: Dict[str, Any] = {}
+        if a.report_record:
+            report_dict = {
+                "audio_evaluation": a.report_record.audio_evaluation,
+                "video_evaluation": a.report_record.video_evaluation,
+                "transcript_evaluation": a.report_record.transcript_evaluation,
+                "overall_score": a.report_record.overall_score,
+                "report_data": a.report_record.report_data,
+            }
+
+        attempts.append({
+            "assessment_id": a.id,
+            "id": a.id,
+            "assessment_type": a.assessment_type,
+            "created_at": a.created_at.isoformat() if a.created_at else "",
+            "audio_telemetry": audio_tel,
+            "video_telemetry": video_tel,
+            "report": report_dict,
+        })
+
+    return attempts
+

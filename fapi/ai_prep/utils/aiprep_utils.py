@@ -698,22 +698,37 @@ def candidate_update_media_url_logic(
     return UpdateMediaURLResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, youtube_url=payload.youtube_url)
 
 
-def candidate_trigger_eval_post_logic(
+async def candidate_trigger_eval_post_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     background_tasks: Optional[BackgroundTasks] = None,
+    wait: bool = False,
+    response: Optional[Any] = None,
 ) -> TriggerEvaluationResponse:
-    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
+    """Transitions status to EVALUATING in DB and queues background LLM evaluation (or awaits if wait=True)."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    if assessment.status in ("EVALUATING", "COMPLETED"):
-        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=assessment.status)
+
+    # If already completed, return immediately with HTTP 200
+    if assessment.status == "COMPLETED":
+        if response:
+            response.status_code = status.HTTP_200_OK
+        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="COMPLETED")
 
     crud.update_assessment_status(db, assessment.id, "EVALUATING")
+
+    if wait:
+        await _run_evaluation_background(assessment.id, candidate_id)
+        if response:
+            response.status_code = status.HTTP_200_OK
+        db.expire_all()
+        updated = crud.get_assessment_by_id_or_uuid(db, assessment.id)
+        current_status = updated.status if updated else "COMPLETED"
+        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=current_status)
 
     if background_tasks:
         background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
@@ -721,19 +736,28 @@ def candidate_trigger_eval_post_logic(
     return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
 
 
-def candidate_trigger_eval_put_logic(
+async def candidate_trigger_eval_put_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     payload: Optional[SubmitAssessmentRequest] = None,
     background_tasks: Optional[BackgroundTasks] = None,
+    wait: bool = False,
+    response: Optional[Any] = None,
 ) -> TriggerEvaluationResponse:
-    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
+    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation (or awaits if wait=True)."""
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
+
+    # If already completed, return immediately with HTTP 200
+    if assessment.status == "COMPLETED":
+        if response:
+            response.status_code = status.HTTP_200_OK
+        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="COMPLETED")
+
     if payload and (payload.transcript or payload.audio_telemetry or payload.video_telemetry):
         crud.save_assessment_data(
             db=db,
@@ -748,6 +772,15 @@ def candidate_trigger_eval_put_logic(
         return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=assessment.status)
 
     crud.update_assessment_status(db, assessment.id, "EVALUATING")
+
+    if wait:
+        await _run_evaluation_background(assessment.id, candidate_id)
+        if response:
+            response.status_code = status.HTTP_200_OK
+        db.expire_all()
+        updated = crud.get_assessment_by_id_or_uuid(db, assessment.id)
+        current_status = updated.status if updated else "COMPLETED"
+        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=current_status)
 
     if background_tasks:
         background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
@@ -1270,6 +1303,13 @@ async def process_media_and_upload_pipeline(
         except Exception as status_err:
             logger.error("Failed to update assessment %s status to FAILED: %s", assessment_id, status_err)
 
+    except Exception as e:
+        logger.error(f"Error processing audio for assessment {assessment_id}: {e}", exc_info=True)
+        try:
+            with SessionLocal() as db:
+                crud.update_assessment_status(db, assessment_id, "FAILED")
+        except Exception:
+            pass
 
 async def process_audio_and_save_data(
     assessment_id: int,

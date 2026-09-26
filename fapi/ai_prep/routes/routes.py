@@ -16,6 +16,7 @@ from fastapi import (
     Form,
     status,
     Request,
+    Response,
     BackgroundTasks,
     HTTPException,
 )
@@ -256,18 +257,22 @@ def candidate_update_media_url(
     summary="Candidate: Trigger Evaluation (POST)",
 )
 @router.post("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Trigger Evaluation")
-def candidate_trigger_eval_post(
+async def candidate_trigger_eval_post(
     assessment_id: str,
+    response: Response,
+    wait: bool = Query(False, description="If True, awaits evaluation completion and returns HTTP 200"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
 ):
-    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
-    return aiprep_utils.candidate_trigger_eval_post_logic(
+    """Transitions status to EVALUATING in DB and queues background LLM evaluation (or awaits if wait=True)."""
+    return await aiprep_utils.candidate_trigger_eval_post_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         background_tasks=background_tasks,
+        wait=wait,
+        response=response,
     )
 
 
@@ -278,20 +283,24 @@ def candidate_trigger_eval_post(
     summary="Candidate: Submit & Evaluate (PUT)",
 )
 @router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
-def candidate_trigger_eval_put(
+async def candidate_trigger_eval_put(
     assessment_id: str,
+    response: Response,
     payload: Optional[SubmitAssessmentRequest] = None,
+    wait: bool = Query(False, description="If True, awaits evaluation completion and returns HTTP 200"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
     background_tasks: BackgroundTasks = None,
 ):
-    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
-    return aiprep_utils.candidate_trigger_eval_put_logic(
+    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation (or awaits if wait=True)."""
+    return await aiprep_utils.candidate_trigger_eval_put_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         payload=payload,
         background_tasks=background_tasks,
+        wait=wait,
+        response=response,
     )
 
 
