@@ -6,7 +6,7 @@ from fapi.core.cache import cache_result, invalidate_cache
 from fapi.utils.google_calendar_utils import create_calendar_event, update_calendar_event, delete_calendar_event, create_meet_event
 import random
 
-from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM, CandidateMarketingORM, CandidateInterview, CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM, CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM
+from fapi.db.models import AuthUserORM, Batch, CandidateORM, CandidatePlacementORM, CandidateMarketingORM, CandidateInterview, CandidatePreparation, EmployeeORM, PlacementFeeCollection, Session as SessionModel, JobLinkClicksORM, JobListingORM, CodeSnippetORM, CodeExecutionLogORM, CoderpadQuestionORM, CandidateLlmApiKeyORM
 from fapi.utils.encryption_utils import decrypt_api_key
 from fapi.db.schemas import CandidateMarketingCreate, CandidateInterviewCreate, CandidateBase, BatchOut, CandidatePlacementUpdate, CandidateMarketingUpdate, CandidateInterviewUpdate, CandidatePreparationCreate, CandidatePreparationUpdate, CandidateInterviewOut
 from fapi.db.schemas import PositionStatusEnum, PositionTypeEnum, EmploymentModeEnum
@@ -1789,3 +1789,59 @@ def get_backup_candidates(exclude_ids: List[int] = None, db: Session = None) -> 
 def get_server_time_utc() -> dict:
     from datetime import datetime
     return {"server_time": datetime.utcnow().isoformat() + "Z"}
+
+
+def get_candidate_credentials_paginated(
+    db: Session,
+    page: int = 1,
+    limit: int = 20,
+    search: str = None,
+) -> Dict[str, Any]:
+    """
+    Combined view of candidates that have at least one LLM API key.
+    Uses pure SQLAlchemy ORM — same pattern as get_all_candidates_paginated.
+    Returns: { data, total, page, limit }
+    """
+    query = (
+        db.query(
+            CandidateORM.id,
+            CandidateORM.full_name,
+            CandidateORM.email,
+            CandidateLlmApiKeyORM.api_key,
+            CandidateLlmApiKeyORM.provider_name,
+            CandidateLlmApiKeyORM.model_name,
+            CandidateLlmApiKeyORM.created_at.label("api_key_created_at"),
+            CandidateLlmApiKeyORM.updated_at.label("api_key_updated_at"),
+        )
+        .join(CandidateLlmApiKeyORM, CandidateLlmApiKeyORM.candidate_id == CandidateORM.id)
+    )
+
+    if search:
+        query = query.filter(
+            or_(
+                CandidateORM.full_name.ilike(f"%{search}%"),
+                CandidateORM.email.ilike(f"%{search}%"),
+                CandidateLlmApiKeyORM.provider_name.ilike(f"%{search}%"),
+            )
+        )
+
+    total = query.count()
+    rows = query.order_by(CandidateORM.id.desc()).offset((page - 1) * limit).limit(limit).all()
+
+    data = []
+    for row in rows:
+        data.append({
+            "id": row.id,
+            "full_name": row.full_name,
+            "email": row.email,
+            "resume_json": None,
+            "resume_created_at": None,
+            "resume_updated_at": None,
+            "api_key": row.api_key,
+            "provider_name": row.provider_name,
+            "model_name": row.model_name,
+            "api_key_created_at": row.api_key_created_at.isoformat() if row.api_key_created_at else None,
+            "api_key_updated_at": row.api_key_updated_at.isoformat() if row.api_key_updated_at else None,
+        })
+
+    return {"data": data, "total": total, "page": page, "limit": limit}

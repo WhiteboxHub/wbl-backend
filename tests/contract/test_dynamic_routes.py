@@ -74,6 +74,9 @@ def test_enforce_permission_gates_across_all_routes(client):
         # which do not exist in the SQLite test schema — skip them in auth tests
         "/api/analytics/ai-prep",
         "/api/analytics/ai-prep-report",
+        # Course materials metadata (links are dynamically stripped if unauthenticated)
+        "/api/materials",
+        "/api/github-classroom-repos",
     ]
     
     checked_routes = 0

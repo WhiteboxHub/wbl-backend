@@ -12,8 +12,7 @@ from fapi.db.models import AuthUserORM
 logger = logging.getLogger("wbl")
 security = HTTPBearer(auto_error=False)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+from fapi.core.config import SECRET_KEY, ALGORITHM
 
 
 def decode_token(token: str):

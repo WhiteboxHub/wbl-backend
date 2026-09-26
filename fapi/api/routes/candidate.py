@@ -7,7 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from fapi.db.database import get_db
 from fapi.utils import candidate_utils
-from fapi.utils.auth_dependencies import get_current_user
+from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
 from fapi.db.schemas import (
     CandidateUpdate, PaginatedCandidateResponse, CandidatePlacement,
     CandidateMarketing, CandidatePlacementCreate, CandidateMarketingCreate,
@@ -104,13 +104,13 @@ def search_candidates(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/candidates/credentials")
+@router.get("/candidates/credentials", summary="Admin: list all candidates with LLM API keys")
 def list_candidate_credentials(
     page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     search: str = Query(None),
     db: Session = Depends(get_db),
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    _current_user: AuthUserORM = Depends(staff_or_admin_required),
 ):
     return candidate_utils.get_candidate_credentials_paginated(db, page, limit, search)
 
