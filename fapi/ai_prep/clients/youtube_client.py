@@ -162,7 +162,7 @@ class YouTubeClient:
                 raise YouTubeUploadError("No valid YouTube OAuth credentials configured.")
 
             category_id = str(getattr(settings, "YOUTUBE_CATEGORY_ID", "27"))
-            default_tags = list(getattr(settings, "YOUTUBE_DEFAULT_TAGS", ["AIPrep", "WhiteboxLearning", "PracticeAssessment"]))
+            default_tags = list(getattr(settings, "AIPREP_YOUTUBE_DEFAULT_TAGS", ["AIPrep", "WhiteboxLearning", "PracticeAssessment"]))
             upload_chunk_size = int(getattr(settings, "YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES", 5 * 1024 * 1024))
 
             youtube = build("youtube", "v3", credentials=creds)
