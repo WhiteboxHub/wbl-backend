@@ -154,7 +154,7 @@ def test_audio_assessment_complete_end_to_end(e2e_db_session, seed_candidate_e2e
     # =========================================================================
     # STEP 1: Pre-Assessment Prerequisites Check
     # =========================================================================
-    res_precheck = client.get("/api/aiprep/candidate/pre-check")
+    res_precheck = client.get("/api/aiprep/candidates/2001/assessment-readiness-precheck")
     assert res_precheck.status_code == 200, f"Precheck failed: {res_precheck.text}"
     precheck_data = res_precheck.json()
     assert precheck_data["eligible"] is True
@@ -171,10 +171,12 @@ def test_audio_assessment_complete_end_to_end(e2e_db_session, seed_candidate_e2e
         "media_type": "AUDIO",
         "job_description": "Senior AI / Backend Engineer",
     }
-    res_create = client.post("/api/aiprep/candidate/assessments", json=payload)
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json=payload)
     assert res_create.status_code == 201, f"Assessment creation failed: {res_create.text}"
-    created_data = res_create.json()
-    assessment_id = created_data["id"]
+    body = res_create.json()
+    assert body["status"] == "success"
+    created_data = body["data"]
+    assessment_id = created_data["assessment_id"]
     assessment_uuid = created_data["assessment_uuid"]
 
     assert created_data["status"] == "IN_PROGRESS"
@@ -332,7 +334,7 @@ def test_audio_assessment_prerequisites_blocked(e2e_db_session):
 
     client = get_e2e_client(e2e_db_session, candidate_id=2002)
 
-    res_precheck = client.get("/api/aiprep/candidate/pre-check")
+    res_precheck = client.get("/api/aiprep/candidates/2002/assessment-readiness-precheck")
     assert res_precheck.status_code == 200
     assert res_precheck.json()["eligible"] is False
 
@@ -341,7 +343,7 @@ def test_audio_assessment_prerequisites_blocked(e2e_db_session):
         "assessment_type": "INTRO",
         "media_type": "AUDIO",
     }
-    res_create = client.post("/api/aiprep/candidate/assessments", json=payload)
+    res_create = client.post("/api/aiprep/candidates/2002/assessments", json=payload)
     assert res_create.status_code == 400
     err = res_create.json()
     assert "detail" in err
@@ -352,13 +354,13 @@ def test_audio_assessment_with_quota_exhaustion_fallback(e2e_db_session, seed_ca
     """Verifies that when YouTube quota is exhausted, the audio assessment pipeline still completes."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client.post("/api/aiprep/candidate/assessments", json={
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "AUDIO",
     })
     assert res_create.status_code == 201
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     youtube_quota_manager.mark_quota_exceeded()
     assert youtube_quota_manager.has_sufficient_quota() is False
@@ -401,12 +403,12 @@ def test_audio_assessment_unauthorized_isolation(e2e_db_session, seed_candidate_
     """Verifies candidate A cannot access or modify candidate B's audio assessment."""
     client_a = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client_a.post("/api/aiprep/candidate/assessments", json={
+    res_create = client_a.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "AUDIO",
     })
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     mock_user_b = AuthUserORM(id=2002, uname="candidate_2002@whitebox.com", fullname="Other Candidate", role="candidate")
     setattr(mock_user_b, "is_employee", False)
@@ -424,25 +426,24 @@ def test_chunk_upload_rejects_oversized_payload_413(e2e_db_session, seed_candida
     """Verifies that chunks exceeding MAX_CHUNK_SIZE_MB are rejected with HTTP 413."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client.post("/api/aiprep/candidate/assessments", json={
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "VIDEO",
     })
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     # Temporarily set max chunk size to 1 MB for testing
     monkeypatch.setattr(settings, "MAX_CHUNK_SIZE_MB", 1)
 
     oversized_data = b"\x1a\x45\xdf\xa3" + (b"\x00" * (2 * 1024 * 1024))  # 2MB
     res_upload = client.post(
-        "/api/aiprep/media/upload-chunk",
+        f"/api/aiprep/candidates/2001/assessments/{assessment_id}/media/chunk",
         data={
-            "assessment_id": str(assessment_id),
-            "chunk_number": 1,
-            "total_chunks": 1,
+            "chunk_index": 0,
+            "is_final": False,
         },
-        files={"file": ("chunk_0001.webm", io.BytesIO(oversized_data), "video/webm")},
+        files={"media_file": ("chunk_0.webm", io.BytesIO(oversized_data), "video/webm")},
     )
     assert res_upload.status_code == 413
     assert "exceeds maximum allowed size" in res_upload.json()["detail"]
@@ -452,30 +453,32 @@ def test_assemble_rejects_missing_chunks_409(e2e_db_session, seed_candidate_e2e)
     """Verifies that assembling an incomplete chunk sequence is rejected with HTTP 409 Conflict."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client.post("/api/aiprep/candidate/assessments", json={
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "VIDEO",
     })
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     chunk_data = b"\x1a\x45\xdf\xa3" + (b"\x00" * 200)
 
     # Upload chunk 1
     res1 = client.post(
-        "/api/aiprep/media/upload-chunk",
-        data={"assessment_id": str(assessment_id), "chunk_number": 1, "total_chunks": 3},
-        files={"file": ("chunk_0001.webm", io.BytesIO(chunk_data), "video/webm")},
+        f"/api/aiprep/candidates/2001/assessments/{assessment_id}/media/chunk",
+        data={"chunk_index": 1, "is_final": False},
+        files={"media_file": ("chunk_1.webm", io.BytesIO(chunk_data), "video/webm")},
     )
     assert res1.status_code == 200
+    assert res1.json()["status"] == "success"
 
     # Upload chunk 3 (Chunk 2 is missing!)
     res3 = client.post(
-        "/api/aiprep/media/upload-chunk",
-        data={"assessment_id": str(assessment_id), "chunk_number": 3, "total_chunks": 3},
-        files={"file": ("chunk_0003.webm", io.BytesIO(chunk_data), "video/webm")},
+        f"/api/aiprep/candidates/2001/assessments/{assessment_id}/media/chunk",
+        data={"chunk_index": 3, "is_final": False},
+        files={"media_file": ("chunk_3.webm", io.BytesIO(chunk_data), "video/webm")},
     )
     assert res3.status_code == 200
+    assert res3.json()["status"] == "success"
 
     # Attempt assembly with missing chunk 2
     res_assemble = client.post(
@@ -490,12 +493,12 @@ def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidat
     """Verifies local storage is NOT deleted if updating the YouTube URL in the DB fails."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client.post("/api/aiprep/candidate/assessments", json={
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "AUDIO",
     })
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     dummy_wav_content = b"RIFF" + b"\x24\x00\x00\x00" + b"WAVEfmt " + b"\x10\x00\x00\x00" + b"\x01\x00\x01\x00" + b"\x44\xac\x00\x00" + b"\x88\x58\x01\x00" + b"\x02\x00\x10\x00" + b"data" + b"\x00\x00\x00\x00" + (b"\x00" * 400)
 
@@ -528,12 +531,12 @@ def test_audio_engine_failure_marks_assessment_failed_without_dummy_data(e2e_db_
     """Verifies that audio engine errors mark the assessment as FAILED and never save fake telemetry."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client.post("/api/aiprep/candidate/assessments", json={
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "AUDIO",
     })
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     dummy_wav_content = b"RIFF" + (b"\x00" * 400)
 
@@ -564,12 +567,12 @@ def test_direct_upload_rejects_invalid_media_type_400(e2e_db_session, seed_candi
     """Verifies direct media upload rejects invalid media_type with 400."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
-    res_create = client.post("/api/aiprep/candidate/assessments", json={
+    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
         "candidate_id": 2001,
         "assessment_type": "INTRO",
         "media_type": "VIDEO",
     })
-    assessment_id = res_create.json()["id"]
+    assessment_id = res_create.json()["data"]["assessment_id"]
 
     res_upload = client.post(
         "/api/aiprep/media/upload",
