@@ -1,5 +1,14 @@
 from fastapi import Depends, HTTPException, Request, status
-from fapi.utils.auth_dependencies import get_current_user
+from fapi.utils.auth_dependencies import get_current_user, security
+from fapi.db.database import get_db
+from sqlalchemy.orm import Session
+
+def get_current_user_optional(request: Request, credentials=Depends(security), db: Session=Depends(get_db)):
+    try:
+        return get_current_user(request, credentials, db)
+    except HTTPException:
+        return None
+
 
 ALLOWED_GET_PREFIXES = {
     "/api/course-content",
@@ -58,10 +67,18 @@ def _is_admin(user) -> bool:
 def _is_employee(user) -> bool:
     return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
 
-def enforce_access(request: Request, current_user=Depends(get_current_user)):
+def enforce_access(request: Request, current_user=Depends(get_current_user_optional)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
     
+    if current_user is None:
+        if method == "GET" and (path == "/api/course-content" or path.startswith("/api/course-content/") or path == "/api/course-contents" or path.startswith("/api/course-contents/")):
+            return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
     if _is_admin(current_user):
         return current_user
 
