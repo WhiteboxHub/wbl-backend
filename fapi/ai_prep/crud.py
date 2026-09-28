@@ -178,7 +178,7 @@ def create_assessment(
         job_description=job_description,
         ip_address=ip_address,
         user_agent=user_agent,
-        consent=consents,
+        consent=consent,
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)

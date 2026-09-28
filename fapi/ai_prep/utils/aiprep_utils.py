@@ -386,7 +386,7 @@ def candidate_create_assessment_logic(
         job_description=payload.job_description,
         ip_address=ip_address,
         user_agent=user_agent,
-        consent=payload.consents,
+        consent=payload.consent,
     )
 
     # Step 3: Persist the selected question snapshot into ai_prep_assessment_data.
@@ -416,7 +416,7 @@ def candidate_create_assessment_logic(
         media_type=db_assessment.media_type,
         job_description=db_assessment.job_description,
         youtube_url=db_assessment.youtube_url,
-        consent=db_assessment.consents,
+        consent=db_assessment.consent,
         questions=questions_list,
     )
 
@@ -451,6 +451,7 @@ def candidate_list_assessments_logic(
                 status=a.status,
                 job_description=a.job_description,
                 youtube_url=a.youtube_url,
+                consent=a.consent,
                 started_at=a.started_at,
                 completed_at=a.completed_at,
                 created_at=a.created_at,
@@ -512,7 +513,7 @@ def candidate_get_assessment_detail_logic(
         ip_address=assessment.ip_address,
         user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
-        consent=assessment.consents,
+        consent=assessment.consent,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
@@ -867,6 +868,7 @@ def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) ->
                 status=a.status,
                 job_description=a.job_description,
                 youtube_url=a.youtube_url,
+                consent=a.consent,
                 started_at=a.started_at,
                 completed_at=a.completed_at,
                 created_at=a.created_at,
@@ -920,7 +922,7 @@ def employee_get_assessment_detail_logic(db: Session, assessment_id: Union[int, 
         ip_address=assessment.ip_address,
         user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
-        consent=assessment.consents,
+        consent=assessment.consent,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
