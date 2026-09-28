@@ -415,12 +415,22 @@ def test_question_bank_management(db_session):
     assert intro_res.json()["concept"] is None
     assert intro_res.json()["scope"] is None
 
-    # 4. Get specific question by ID
+    # 4. Reject invalid Enum values with 422 Unprocessable Entity
+    invalid_q = {
+        "category": "TECHNICAL",
+        "subject": "Invalid Subject Area",
+        "concept": "Not A Real Concept",
+        "question_text": "Invalid enum test",
+    }
+    invalid_res = client.post("/api/aiprep/employee/questions", json=invalid_q)
+    assert invalid_res.status_code == 422
+
+    # 5. Get specific question by ID
     get_res = client.get(f"/api/aiprep/questions/{q_id}")
     assert get_res.status_code == 200
     assert get_res.json()["id"] == q_id
 
-    # 5. Delete/deactivate question
+    # 6. Delete/deactivate question
     del_res = client.delete(f"/api/aiprep/employee/questions/{q_id}")
     assert del_res.status_code == 200
     assert del_res.json()["id"] == q_id

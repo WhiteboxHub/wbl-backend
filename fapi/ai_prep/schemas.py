@@ -491,9 +491,9 @@ class ProcessingStatusResponse(BaseModel):
 
 class QuestionCreateRequest(BaseModel):
     category: AssessmentCategoryEnum = Field(..., description="Target assessment category")
-    subject: Optional[str] = Field(None, description="Technical subject area (TECHNICAL questions only)")
-    concept: Optional[str] = Field(None, description="Specific concept/topic (TECHNICAL questions only)")
-    scope: Optional[str] = Field("SPECIFIC", description="Answer scope: BROAD or SPECIFIC")
+    subject: Optional[SubjectEnum] = Field(None, description="Technical subject area (TECHNICAL questions only)")
+    concept: Optional[ConceptEnum] = Field(None, description="Specific concept/topic (TECHNICAL questions only)")
+    scope: Optional[ScopeEnum] = Field(default=ScopeEnum.SPECIFIC, description="Answer scope: BROAD or SPECIFIC")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
     time_limit_seconds: int = Field(default=120, description="Allocated time budget for the question in seconds")
     question_text: str = Field(..., description="Question prompt text")
@@ -516,9 +516,9 @@ QuestionBankCreateRequest = QuestionCreateRequest
 
 class QuestionUpdateRequest(BaseModel):
     category: Optional[AssessmentCategoryEnum] = None
-    subject: Optional[str] = None
-    concept: Optional[str] = None
-    scope: Optional[str] = None
+    subject: Optional[SubjectEnum] = None
+    concept: Optional[ConceptEnum] = None
+    scope: Optional[ScopeEnum] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
     time_limit_seconds: Optional[int] = None
     question_text: Optional[str] = None

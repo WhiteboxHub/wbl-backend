@@ -1894,9 +1894,9 @@ def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> Q
     """Adds a new question to the ai_prep_question_bank table in DB."""
     cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
 
-    subject = payload.subject
-    concept = payload.concept
-    scope = payload.scope
+    subject = payload.subject.value if hasattr(payload.subject, "value") else payload.subject
+    concept = payload.concept.value if hasattr(payload.concept, "value") else payload.concept
+    scope = payload.scope.value if hasattr(payload.scope, "value") else payload.scope
     diff = payload.difficulty_level.value if hasattr(payload.difficulty_level, "value") else str(payload.difficulty_level)
 
     new_q = AiPrepQuestionORM(
