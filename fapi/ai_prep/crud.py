@@ -507,6 +507,13 @@ def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
             )
             db.add(q)
             created.append(q)
+        else:
+            existing.subject = item.get("subject")
+            existing.concept = item.get("concept")
+            existing.scope = item.get("scope")
+            existing.difficulty_level = item["difficulty_level"]
+            existing.time_limit_seconds = item.get("time_limit_seconds", 120)
+            created.append(existing)
     if created:
         try:
             db.commit()
