@@ -1927,7 +1927,7 @@ def update_question_in_bank_logic(
         raise HTTPException(status_code=404, detail="Question not found")
 
     for k, v in payload.dict(exclude_unset=True).items():
-        if v is not None and hasattr(q_row, k):
+        if hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
 
     cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)

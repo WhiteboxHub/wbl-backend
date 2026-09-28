@@ -576,8 +576,8 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
         return None
     data = dict(question_in)
     for field, val in data.items():
-        if val is not None and hasattr(q, field):
-            setattr(q, field, val)
+        if hasattr(q, field):
+            setattr(q, field, val.value if hasattr(val, "value") else val)
     target_cat = q.category
     if target_cat and str(target_cat).upper() != "TECHNICAL":
         q.subject = None
