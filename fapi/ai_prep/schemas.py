@@ -259,6 +259,7 @@ class CreateAssessmentRequest(BaseModel):
     assessment_type: AssessmentCategoryEnum = Field(default=AssessmentCategoryEnum.INTRO, description="Assessment type code")
     media_type: MediaTypeEnum = Field(default=MediaTypeEnum.VIDEO, description="Recording media mode")
     job_description: Optional[str] = Field(None, description="Optional job description for tailored assessments")
+    consent: Optional[Dict[str, Any]] = Field(None, description="User consent flags and metadata")
 
 
 class CreateAssessmentResponse(BaseModel):
@@ -270,6 +271,7 @@ class CreateAssessmentResponse(BaseModel):
     media_type: Optional[str] = None
     job_description: Optional[str] = None
     youtube_url: Optional[str] = None
+    consent: Optional[Dict[str, Any]] = None
     questions: Optional[List[Dict[str, Any]]] = None
 
     class Config:
@@ -336,6 +338,7 @@ class AssessmentListItem(BaseModel):
     status: str
     job_description: Optional[str] = None
     youtube_url: Optional[str] = None
+    consent: Optional[Dict[str, Any]] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
@@ -364,6 +367,7 @@ class AssessmentDetailResponse(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     youtube_url: Optional[str] = None
+    consent: Optional[Dict[str, Any]] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None

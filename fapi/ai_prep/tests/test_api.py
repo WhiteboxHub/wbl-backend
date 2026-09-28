@@ -224,6 +224,7 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
         "assessment_type": "TECHNICAL",
         "media_type": "VIDEO",
         "job_description": "Senior GenAI Engineer",
+        "consent": {"recording_consent": True, "ai_evaluation_consent": True},
     }
     res = client.post("/api/aiprep/candidate/assessments", json=payload)
     assert res.status_code == 201
@@ -231,6 +232,7 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     assessment_id = data["id"]
     assert data["status"] == "IN_PROGRESS"
     assert data["assessment_type"] == "TECHNICAL"
+    assert data["consent"] == {"recording_consent": True, "ai_evaluation_consent": True}
 
     # 1. Submit telemetry
     telemetry_payload = {
@@ -257,6 +259,7 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     assert detail["candidate_id"] == 1001
     assert detail["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
     assert detail["job_description"] == "Senior GenAI Engineer"
+    assert detail["consent"] == {"recording_consent": True, "ai_evaluation_consent": True}
     assert "ip_address" in detail
     assert "user_agent" in detail
     assert "started_at" in detail

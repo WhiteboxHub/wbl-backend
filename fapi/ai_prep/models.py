@@ -72,6 +72,7 @@ class AiPrepAssessmentORM(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
     youtube_url = Column(Text, nullable=True)
+    consent = Column(JSON, nullable=True)
 
     data_record = relationship(
         "AiPrepAssessmentDataORM",

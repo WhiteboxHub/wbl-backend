@@ -165,6 +165,7 @@ def create_assessment(
     job_description: Optional[str] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
+    consent: Optional[Dict[str, Any]] = None,
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
     assessment_uuid = str(uuid.uuid4())
@@ -177,6 +178,7 @@ def create_assessment(
         job_description=job_description,
         ip_address=ip_address,
         user_agent=user_agent,
+        consent=consents,
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)
