@@ -55,7 +55,53 @@ DifficultyLevelEnum = Enum(
         "EASY": "EASY",
         "MEDIUM": "MEDIUM",
         "HARD": "HARD",
-        "EXPERT": "EXPERT",
+    },
+    type=str,
+)
+
+SubjectEnum = Enum(
+    "SubjectEnum",
+    {
+        "AI_ENGINEERING": "AI Engineering",
+        "SOFTWARE_ENGINEERING": "Software Engineering",
+        "DEVOPS_AND_CLOUD": "DevOps and Cloud",
+    },
+    type=str,
+)
+
+ConceptEnum = Enum(
+    "ConceptEnum",
+    {
+        # AI Engineering
+        "PYTHON_DATA_MANIPULATION": "Python & Data Manipulation",
+        "ML_DL_FUNDAMENTALS": "ML & Deep Learning Fundamentals",
+        "ML_FRAMEWORKS_TOOLING": "ML Frameworks & Tooling",
+        "NLP": "NLP",
+        "GENERATIVE_AI_LLMS": "Generative AI & LLMs",
+        "RAG_RETRIEVAL": "RAG & Retrieval",
+        "AGENTIC_AI_MULTI_AGENT": "Agentic AI & Multi-Agent Systems",
+        "MODELS_CONTEXT_ENGINEERING": "Models & Context Engineering",
+        "AI_SYSTEMS_OPS": "AI Systems Ops: Evaluation, Guardrails & Observability",
+        # Software Engineering
+        "SYSTEM_ARCHITECTURE_DESIGN": "System Architecture & Design",
+        "API_DESIGN_MICROSERVICES": "API Design & Microservices",
+        "DATABASES_CACHING": "Databases & Caching",
+        "CONCURRENCY_ASYNC_SYSTEMS": "Concurrency & Async Systems",
+        "DATA_STRUCTURES_ALGORITHMS": "Data Structures & Algorithms",
+        # DevOps and Cloud
+        "CONTAINERS_ORCHESTRATION": "Containers & Orchestration",
+        "CICD_GITOPS": "CI/CD & GitOps",
+        "CLOUD_ARCHITECTURE_SERVICES": "Cloud Architecture & Services",
+        "IAC_SECURITY": "Infrastructure as Code & Security",
+    },
+    type=str,
+)
+
+ScopeEnum = Enum(
+    "ScopeEnum",
+    {
+        "BROAD": "BROAD",
+        "SPECIFIC": "SPECIFIC",
     },
     type=str,
 )
@@ -559,19 +605,24 @@ class ProcessingStatusResponse(BaseModel):
 
 class QuestionCreateRequest(BaseModel):
     category: AssessmentCategoryEnum = Field(..., description="Target assessment category")
-    sub_category: Optional[str] = Field(None, description="Optional subcategory / topic")
+    subject: Optional[str] = Field(None, description="Technical subject area (TECHNICAL questions only)")
+    concept: Optional[str] = Field(None, description="Specific concept/topic (TECHNICAL questions only)")
+    scope: Optional[str] = Field("SPECIFIC", description="Answer scope: BROAD or SPECIFIC")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
+    time_limit_seconds: int = Field(default=120, description="Allocated Time for the question in seconds")
     question_text: str = Field(..., description="Question prompt text")
+    ground_truth: Optional[Dict[str, Any]] = Field(None, description="Expected answer concepts and rubric")
     is_active: bool = Field(default=True, description="Whether question is active")
 
 
     @model_validator(mode="after")
-    def enforce_subcategory_constraint(self):
+    def enforce_technical_fields_constraint(self):
         cat_val = self.category.value if hasattr(self.category, "value") else str(self.category)
         if cat_val != "TECHNICAL":
-            self.sub_category = None
-        elif not self.sub_category:
-            self.sub_category = "General"
+            # Non-technical rounds must not carry subject/concept/scope
+            self.subject = None
+            self.concept = None
+            self.scope = None
         return self
 
 
@@ -580,9 +631,13 @@ QuestionBankCreateRequest = QuestionCreateRequest
 
 class QuestionUpdateRequest(BaseModel):
     category: Optional[AssessmentCategoryEnum] = None
-    sub_category: Optional[str] = None
+    subject: Optional[str] = None
+    concept: Optional[str] = None
+    scope: Optional[str] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
+    time_limit_seconds: Optional[int] = None
     question_text: Optional[str] = None
+    ground_truth: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
 
 
@@ -592,9 +647,13 @@ QuestionBankUpdateRequest = QuestionUpdateRequest
 class QuestionResponse(BaseModel):
     id: int
     category: str
-    sub_category: Optional[str] = None
-    difficulty_level: str
+    subject: Optional[str] = None
+    concept: Optional[str] = None
+    scope: Optional[str] = None
+    difficulty_level: Optional[str] = None
+    time_limit_seconds: int = 120
     question_text: str
+    ground_truth: Optional[Dict[str, Any]] = None
     is_active: bool
     created_at: Optional[datetime] = None
 
@@ -618,8 +677,12 @@ class QuestionItemContract(BaseModel):
     question_id: int
     question_text: str
     category: Optional[str] = None
-    sub_category: Optional[str] = None
+    subject: Optional[str] = None
+    concept: Optional[str] = None
+    scope: Optional[str] = None
     difficulty_level: Optional[str] = None
+    time_limit_seconds: int = 120
+    # ground_truth is intentionally excluded — never sent to the candidate
 
 
 class TranscriptDataContract(BaseModel):

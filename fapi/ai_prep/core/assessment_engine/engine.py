@@ -45,16 +45,14 @@ class AssessmentEngine:
         "CANCELLED":   [],
     }
     
-    # Number of questions for multi-question assessment types
-    MULTI_QUESTION_LIMIT: int = 10
-
-    # Difficulty distribution target counts keyed by readiness band
+    # Difficulty distribution target counts keyed by readiness band.
+    # EXPERT tier removed (V138). Former EXPERT budget reallocated to HARD.
     DIFFICULTY_DISTRIBUTION: Dict[str, Dict[str, int]] = {
-        "STRONG":       {"EXPERT": 3, "HARD": 4, "MEDIUM": 3, "EASY": 0},
-        "GOOD":         {"EXPERT": 1, "HARD": 2, "MEDIUM": 6, "EASY": 1},
-        "NEEDS_POLISH": {"EXPERT": 0, "HARD": 1, "MEDIUM": 4, "EASY": 5},
-        "WEAK":         {"EXPERT": 0, "HARD": 0, "MEDIUM": 4, "EASY": 6},
-        "DEFAULT":      {"EXPERT": 0, "HARD": 2, "MEDIUM": 5, "EASY": 3},
+        "STRONG":       {"HARD": 7, "MEDIUM": 3, "EASY": 0},
+        "GOOD":         {"HARD": 3, "MEDIUM": 6, "EASY": 1},
+        "NEEDS_POLISH": {"HARD": 1, "MEDIUM": 4, "EASY": 5},
+        "WEAK":         {"HARD": 0, "MEDIUM": 4, "EASY": 6},
+        "DEFAULT":      {"HARD": 2, "MEDIUM": 5, "EASY": 3},
     }
 
     def __init__(self) -> None:
@@ -124,7 +122,7 @@ class AssessmentEngine:
     def _select_adaptive_questions(
         self, matched: List[Dict[str, Any]], readiness: Optional[str], max_q: int
     ) -> List[Dict[str, Any]]:
-        """Applies adaptive difficulty and round-robin subcategory selection."""
+        """Applies adaptive difficulty and round-robin concept selection."""
         import random
         from collections import defaultdict
 
@@ -132,10 +130,11 @@ class AssessmentEngine:
             (readiness or "").upper(), self.DIFFICULTY_DISTRIBUTION["DEFAULT"]
         )
 
+        # Group pools by difficulty → concept (replaces sub_category)
         pools: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
         for q in matched:
             diff = str(q.get("difficulty_level", "MEDIUM")).upper()
-            pools[diff][q.get("sub_category") or "General"].append(q)
+            pools[diff][q.get("concept") or "General"].append(q)
 
         for diff_dict in pools.values():
             for q_list in diff_dict.values():
@@ -197,14 +196,18 @@ class AssessmentEngine:
     def _sanitize_question_for_candidate(self, question: Dict[str, Any]) -> Dict[str, Any]:
         """
         Returns only the candidate-facing fields from a question dict.
-        Internal/admin columns (rubric, evaluation hints, etc.) are excluded.
+        Internal/admin columns (ground_truth, rubric, evaluation hints) are excluded.
         """
         return {
             "question_id": question.get("id"),
             "question_text": question.get("question_text", ""),
             "category": question.get("category"),
-            "sub_category": question.get("sub_category"),
+            "subject": question.get("subject"),
+            "concept": question.get("concept"),
+            "scope": question.get("scope"),
             "difficulty_level": question.get("difficulty_level"),
+            "time_limit_seconds": question.get("time_limit_seconds") or 120,
+            # ground_truth intentionally excluded — never sent to the candidate
         }
 
     # =========================================================================
