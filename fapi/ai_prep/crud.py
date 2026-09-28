@@ -568,14 +568,14 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
     if not q:
         return None
     data = dict(question_in)
-    target_cat = data.get("category", q.category)
-    if target_cat and str(target_cat).upper() != "TECHNICAL":
-        data["subject"] = None
-        data["concept"] = None
-        data["scope"] = None
     for field, val in data.items():
         if val is not None and hasattr(q, field):
             setattr(q, field, val)
+    target_cat = q.category
+    if target_cat and str(target_cat).upper() != "TECHNICAL":
+        q.subject = None
+        q.concept = None
+        q.scope = None
     q.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(q)
