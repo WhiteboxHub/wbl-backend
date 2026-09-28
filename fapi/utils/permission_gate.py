@@ -1,13 +1,5 @@
 from fastapi import Depends, HTTPException, Request, status
-from fapi.utils.auth_dependencies import get_current_user, security
-from fapi.db.database import get_db
-from sqlalchemy.orm import Session
-
-def get_current_user_optional(request: Request, credentials=Depends(security), db: Session=Depends(get_db)):
-    try:
-        return get_current_user(request, credentials, db)
-    except HTTPException:
-        return None
+from fapi.utils.auth_dependencies import get_current_user
 
 
 ALLOWED_GET_PREFIXES = {
@@ -67,7 +59,7 @@ def _is_admin(user) -> bool:
 def _is_employee(user) -> bool:
     return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
 
-def enforce_access(request: Request, current_user=Depends(get_current_user_optional)):
+def enforce_access(request: Request, current_user=Depends(get_current_user)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
     

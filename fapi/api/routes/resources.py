@@ -59,7 +59,7 @@ def check_course_content_version(db: Session = Depends(get_db)):
 
 @router.get("/course-content", response_model=List[CourseContentResponse])
 async def get_course_content(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+    credentials: HTTPAuthorizationCredentials = Security(security),
     db: Session = Depends(get_db),
 ):
     def _get_content():

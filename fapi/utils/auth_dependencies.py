@@ -63,6 +63,12 @@ def get_current_user(
                 is_admin = True
                 is_employee = True
             return DummyInternalUser()
+            
+        # Architecture bypass for public course content
+        path = request.url.path.rstrip("/")
+        if request.method.upper() == "GET" and (path == "/api/course-content" or path.startswith("/api/course-content/") or path == "/api/course-contents" or path.startswith("/api/course-contents/")):
+            return None
+            
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     payload = decode_token(token)
