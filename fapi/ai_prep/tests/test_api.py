@@ -126,8 +126,11 @@ def seed_candidate(db_session):
         q1 = AiPrepQuestionORM(
             id=101,
             category="TECHNICAL",
-            sub_category="RAG Systems",
+            subject="AI Engineering",
+            concept="RAG & Retrieval",
+            scope="BROAD",
             difficulty_level="HARD",
+            time_limit_seconds=120,
             question_text="Explain hybrid search indexing in RAG pipelines.",
             is_active=True,
         )
@@ -379,7 +382,9 @@ def test_question_bank_management(db_session):
     # 1. Add question
     new_q = {
         "category": "TECHNICAL",
-        "sub_category": "Multi-Agent Systems",
+        "subject": "AI Engineering",
+        "concept": "Agentic AI & Multi-Agent Systems",
+        "scope": "SPECIFIC",
         "difficulty_level": "HARD",
         "question_text": "How do you coordinate hierarchical multi-agent workflows?",
         "is_active": True,
@@ -390,21 +395,25 @@ def test_question_bank_management(db_session):
     q_id = post_res.json()["id"]
 
     # 2. Update question
-    patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={"difficulty_level": "EXPERT"})
+    patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={"difficulty_level": "MEDIUM"})
     assert patch_res.status_code == 200
-    assert patch_res.json()["difficulty_level"] == "EXPERT"
+    assert patch_res.json()["difficulty_level"] == "MEDIUM"
 
-    # 3. Add non-TECHNICAL question (verifies DDL constraint chk_qb_subcategory: sub_category is nullified)
+    # 3. Add non-TECHNICAL question (verifies constraint: subject, concept, scope are nullified)
     non_tech_q = {
         "category": "INTRO",
-        "sub_category": "Should be None",
+        "subject": "AI Engineering",
+        "concept": "Generative AI & LLMs",
+        "scope": "BROAD",
         "difficulty_level": "EASY",
         "question_text": "Tell me about your background and core achievements.",
         "is_active": True,
     }
     intro_res = client.post("/api/aiprep/employee/questions", json=non_tech_q)
     assert intro_res.status_code == 201
-    assert intro_res.json()["sub_category"] is None
+    assert intro_res.json()["subject"] is None
+    assert intro_res.json()["concept"] is None
+    assert intro_res.json()["scope"] is None
 
     # 4. Get specific question by ID
     get_res = client.get(f"/api/aiprep/questions/{q_id}")
@@ -787,14 +796,12 @@ def test_question_loading_persistence_and_fallback_flow(db_session, seed_candida
     # 1. Seed active questions in DB for INTRO and JD_INTRO
     q_intro = AiPrepQuestionORM(
         category="INTRO",
-        sub_category=None,
         difficulty_level="EASY",
         question_text="Tell me about yourself and your DB-backed AI background.",
         is_active=True,
     )
     q_jd = AiPrepQuestionORM(
         category="JD_INTRO",
-        sub_category=None,
         difficulty_level="EASY",
         question_text="How do your skills match this specific JD?",
         is_active=True,
@@ -911,7 +918,6 @@ def test_audio_upload_and_streaming_endpoints(db_session, seed_candidate, tmp_pa
     # 1. Seed active question
     q_intro = AiPrepQuestionORM(
         category="INTRO",
-        sub_category=None,
         difficulty_level="EASY",
         question_text="Tell me about yourself for audio assessment.",
         is_active=True,

@@ -186,7 +186,10 @@ class AiPrepAssessmentReportORM(Base):
 
 
 class AiPrepQuestionORM(Base):
-    """Question bank repository for AI Prep assessments (ai_prep_question_bank)."""
+    """Question bank repository for AI Prep assessments (ai_prep_question_bank).
+    Aligned with Migration V138 DDL (adds subject, concept, scope, time_limit_seconds,
+    ground_truth; renames sub_category to concept; removes EXPERT difficulty tier).
+    """
 
     __tablename__ = "ai_prep_question_bank"
 
@@ -204,13 +207,51 @@ class AiPrepQuestionORM(Base):
         nullable=False,
         index=True,
     )
-    sub_category = Column(String(100), nullable=True)
+    subject = Column(
+        Enum(
+            "AI Engineering",
+            "Software Engineering",
+            "DevOps and Cloud",
+            name="qb_subject_enum",
+        ),
+        nullable=True,
+    )
+    concept = Column(
+        Enum(
+            "Python & Data Manipulation",
+            "ML & Deep Learning Fundamentals",
+            "ML Frameworks & Tooling",
+            "NLP",
+            "Generative AI & LLMs",
+            "RAG & Retrieval",
+            "Agentic AI & Multi-Agent Systems",
+            "Models & Context Engineering",
+            "AI Systems Ops: Evaluation, Guardrails & Observability",
+            "System Architecture & Design",
+            "API Design & Microservices",
+            "Databases & Caching",
+            "Concurrency & Async Systems",
+            "Data Structures & Algorithms",
+            "Containers & Orchestration",
+            "CI/CD & GitOps",
+            "Cloud Architecture & Services",
+            "Infrastructure as Code & Security",
+            name="qb_concept_enum",
+        ),
+        nullable=True,
+    )
+    scope = Column(
+        Enum("BROAD", "SPECIFIC", name="qb_scope_enum"),
+        nullable=True,
+    )
     difficulty_level = Column(
-        Enum("EASY", "MEDIUM", "HARD", "EXPERT", name="qb_difficulty_enum"),
-        nullable=False,
+        Enum("EASY", "MEDIUM", "HARD", name="qb_difficulty_enum"),
+        nullable=True,
         default="MEDIUM",
     )
+    time_limit_seconds = Column(Integer, nullable=False, default=120)
     question_text = Column(Text, nullable=False)
+    ground_truth = Column(JSON, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(

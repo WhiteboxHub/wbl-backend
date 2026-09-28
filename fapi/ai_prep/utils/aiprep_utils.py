@@ -1893,19 +1893,21 @@ def list_questions_from_bank_logic(
 def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> QuestionResponse:
     """Adds a new question to the ai_prep_question_bank table in DB."""
     cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
-    sub_cat = payload.sub_category
-    if cat != "TECHNICAL":
-        sub_cat = None
-    elif not sub_cat:
-        sub_cat = "General"
 
+    subject = payload.subject
+    concept = payload.concept
+    scope = payload.scope
     diff = payload.difficulty_level.value if hasattr(payload.difficulty_level, "value") else str(payload.difficulty_level)
 
     new_q = AiPrepQuestionORM(
         category=cat,
-        sub_category=sub_cat,
+        subject=subject,
+        concept=concept,
+        scope=scope,
         difficulty_level=diff,
+        time_limit_seconds=payload.time_limit_seconds or 120,
         question_text=payload.question_text,
+        ground_truth=payload.ground_truth,
         is_active=payload.is_active,
     )
     db.add(new_q)
@@ -1928,12 +1930,11 @@ def update_question_in_bank_logic(
         if v is not None and hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
 
-    # Enforce DDL chk_qb_subcategory constraint
     cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
     if cat != "TECHNICAL":
-        q_row.sub_category = None
-    elif not q_row.sub_category:
-        q_row.sub_category = "General"
+        q_row.subject = None
+        q_row.concept = None
+        q_row.scope = None
 
     q_row.updated_at = datetime.utcnow()
     db.commit()
