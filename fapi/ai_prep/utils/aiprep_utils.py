@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func, or_
 
 from fapi.db import database as db_database
 
@@ -50,6 +50,7 @@ from fapi.ai_prep.schemas import (
     PreAssessmentCheckResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
+    CreateAssessmentData,
     SubmitAssessmentRequest,
     SubmitAssessmentDataRequest,
     SubmitAssessmentDataResponse,
@@ -61,6 +62,8 @@ from fapi.ai_prep.schemas import (
     AssessmentReportResponse,
     AssessmentListResponse,
     AssessmentListItem,
+    MediaChunkUploadResponse,
+    MediaChunkUploadData,
     ChunkUploadResponse,
     ChunkStatusResponse,
     AssembleMediaRequest,
@@ -73,6 +76,18 @@ from fapi.ai_prep.schemas import (
     QuestionUpdateRequest,
     QuestionResponse,
     QuestionListResponse,
+    CandidateSubmitAssessmentRequest,
+    CandidateSubmitAssessmentResponse,
+    CandidateSubmitAssessmentData,
+    AssessmentMetaResponse,
+    AssessmentTranscriptData,
+    AssessmentTelemetryData,
+    AssessmentSubmitReportData,
+    CandidateAssessmentDetailTranscript,
+    CandidateAssessmentDataDetail,
+    CandidateAssessmentReportDetail,
+    CandidateAssessmentDetailData,
+    CandidateAssessmentDetailResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,26 +163,61 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
 # Dynamic DB & Authorization Helpers
 # ---------------------------------------------------------------------------
 
-def _resolve_candidate_id(db: Session, current_user: AuthUserORM, requested_id: Optional[int] = None) -> int:
-    """Enforces authorization: Candidates can only access their own ID; employees can specify any."""
-    uname = (getattr(current_user, "uname", "") or "").lower()
-    role = getattr(current_user, "role", None) or ("admin" if uname == "admin" else "candidate")
-    is_employee = bool(getattr(current_user, "is_employee", False) or role in ("admin", "staff", "employee") or uname == "admin")
+def _resolve_candidate_id(
+    db: Session,
+    current_user: AuthUserORM,
+    requested_id: Optional[Union[int, str]] = None,
+) -> int:
+    """Securely resolves candidate ID and enforces strict multi-tenant authorization."""
+    uname = (getattr(current_user, "uname", "") or "").strip().lower()
+    role = (getattr(current_user, "role", None) or "").lower()
+    is_employee = bool(
+        getattr(current_user, "is_employee", False)
+        or role in ("admin", "staff", "employee")
+        or uname == "admin"
+    )
 
-    # Match Candidate by email or ID
-    candidate = db.query(CandidateORM).filter(CandidateORM.email == current_user.uname).first()
+    # 1. Parse requested_id if provided
+    req_int: Optional[int] = None
+    if requested_id is not None:
+        try:
+            req_int = int(requested_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid candidate ID format.")
+
+    # 2. Staff / Admin can query any requested candidate ID
+    if is_employee:
+        if req_int is not None:
+            return req_int
+
+    # 3. For Candidates: Authenticate by email (case-insensitive) across primary and secondary emails
+    candidate = (
+        db.query(CandidateORM)
+        .filter(
+            or_(
+                func.lower(CandidateORM.email) == uname,
+                func.lower(CandidateORM.secondaryemail) == uname,
+            )
+        )
+        .first()
+    )
+
+    # If no candidate record is bound to this user's login email
     if not candidate:
-        candidate = db.query(CandidateORM).filter(CandidateORM.id == current_user.id).first()
-    if not candidate and not is_employee:
-        raise HTTPException(status_code=404, detail="Candidate record not found.")
+        if is_employee:
+            return req_int if req_int is not None else getattr(current_user, "id", 0)
+        raise HTTPException(
+            status_code=404,
+            detail="No candidate profile is associated with this authenticated account.",
+        )
 
-    self_candidate_id = candidate.id if candidate else current_user.id
+    # 4. Strict Ownership Guard (Candidates can only access their own profile)
+    if req_int is not None and req_int != candidate.id:
+        raise HTTPException(
+            status_code=403, detail="Candidates can only access their own data."
+        )
 
-    if not is_employee:
-        if requested_id is not None and requested_id != self_candidate_id:
-            raise HTTPException(status_code=403, detail="Candidates can only access their own data.")
-        return self_candidate_id
-    return requested_id if requested_id is not None else self_candidate_id
+    return candidate.id
 
 
 def _check_candidate_llm_db(db: Session, candidate_id: int) -> Dict[str, Any]:
@@ -206,7 +256,7 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
             "candidate_name": candidate_name,
             "current_title": None,
             "skills": [],
-            "message": "Candidate has not uploaded or synced a resume.",
+            "message": "Candidate has not uploaded or synced a resume in 'My Resume'.",
         }
 
     current_title: Optional[str] = None
@@ -221,7 +271,7 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
         "candidate_name": candidate_name,
         "current_title": current_title,
         "skills": [],
-        "message": "Candidate resume is verified and ready.",
+        "message": "Candidate resume is verified and ready in 'My Resume'.",
     }
 
 
@@ -232,9 +282,9 @@ def _verify_prerequisites(db: Session, candidate_id: int):
 
     errors = []
     if not llm_status["is_configured"]:
-        errors.append("Active LLM API Key is missing or invalid.")
+        errors.append("Active LLM API Key is missing or invalid in 'My LLM Setup'.")
     if not resume_status["has_resume"] and not resume_status["has_parsed_json"]:
-        errors.append("Resume has not been uploaded or parsed.")
+        errors.append("Resume has not been uploaded or parsed in 'My Resume'.")
 
     if errors:
         raise HTTPException(
@@ -294,15 +344,66 @@ def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) 
         raise
 
 
+def assessment_readiness_precheck_logic(
+    db: Session, current_user: AuthUserORM, candidate_id: Union[int, str]
+) -> PreAssessmentCheckResponse:
+    """Checks whether candidate has active LLM key in 'My LLM Setup' and resume in 'My Resume'.
+
+    Only allows candidate to proceed with assessment if both prerequisites are met;
+    otherwise specifies the respective setup required.
+    """
+    resolved_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+
+    cand = db.query(CandidateORM).filter(CandidateORM.id == resolved_id).first()
+    if not cand:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Candidate with ID {resolved_id} not found.",
+        )
+
+    llm_check = _check_candidate_llm_db(db, resolved_id)
+    resume_check = _check_candidate_resume_db(db, resolved_id)
+
+    has_active_llm = bool(llm_check.get("is_configured"))
+    has_resume = bool(resume_check.get("has_resume") or resume_check.get("has_parsed_json"))
+    eligible = bool(has_active_llm and has_resume)
+    allowed_to_proceed = eligible
+
+    if eligible:
+        message = "Candidate is ready to proceed with assessment."
+        action_required = None
+    elif not has_active_llm and not has_resume:
+        message = "Cannot proceed with assessment. Active LLM key missing in 'My LLM Setup' and resume missing in 'My Resume'."
+        action_required = "both"
+    elif not has_active_llm:
+        message = "Cannot proceed with assessment. Please configure an active LLM key in 'My LLM Setup'."
+        action_required = "my-llm-setup"
+    else:
+        message = "Cannot proceed with assessment. Please upload or sync your resume in 'My Resume'."
+        action_required = "my-resume"
+
+    return PreAssessmentCheckResponse(
+        eligible=eligible,
+        allowed_to_proceed=allowed_to_proceed,
+        candidate_id=resolved_id,
+        llm_check=LLMKeyStatusResponse(**llm_check),
+        resume_check=ResumeStatusResponse(**resume_check),
+        message=message,
+        action_required=action_required,
+    )
+
+
 def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAssessmentCheckResponse:
     """Verifies both LLM key and resume readiness before starting assessment."""
     try:
         candidate_id = _resolve_candidate_id(db, current_user)
+        return assessment_readiness_precheck_logic(db, current_user, candidate_id)
     except HTTPException as e:
         if e.status_code == 404:
             cand_name = getattr(current_user, "fullname", None) or getattr(current_user, "uname", "Candidate")
             return PreAssessmentCheckResponse(
                 eligible=False,
+                allowed_to_proceed=False,
                 candidate_id=getattr(current_user, "id", 0),
                 llm_check=LLMKeyStatusResponse(
                     status="failure",
@@ -317,18 +418,9 @@ def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAsse
                     message="Candidate profile record not found. Please complete profile setup.",
                 ),
                 message="Prerequisites missing: setup required",
+                action_required="both",
             )
         raise
-    llm_check = _check_candidate_llm_db(db, candidate_id)
-    resume_check = _check_candidate_resume_db(db, candidate_id)
-    eligible = bool(llm_check["is_configured"] and (resume_check["has_resume"] or resume_check["has_parsed_json"]))
-    return PreAssessmentCheckResponse(
-        eligible=eligible,
-        candidate_id=candidate_id,
-        llm_check=LLMKeyStatusResponse(**llm_check),
-        resume_check=ResumeStatusResponse(**resume_check),
-        message="Ready to start assessment" if eligible else "Prerequisites missing: setup required",
-    )
 
 
 
@@ -336,13 +428,19 @@ def candidate_pre_check_logic(db: Session, current_user: AuthUserORM) -> PreAsse
 def candidate_create_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
+    candidate_id: Union[int, str],
     payload: CreateAssessmentRequest,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> CreateAssessmentResponse:
     """Dynamically validates prerequisites and creates a new assessment row in DB."""
-    candidate_id = _resolve_candidate_id(db, current_user, payload.candidate_id)
-    _verify_prerequisites(db, candidate_id)
+    if payload.candidate_id is not None and str(payload.candidate_id) != str(candidate_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"candidate_id in request body ({payload.candidate_id}) does not match candidate id in URL path ({candidate_id}).",
+        )
+    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    _verify_prerequisites(db, resolved_candidate_id)
 
     assessment_type_str = (
         payload.assessment_type.value
@@ -357,7 +455,7 @@ def candidate_create_assessment_logic(
         questions_list = assessment_orchestrator.get_questions_for_assessment(
             db=db,
             assessment_type=assessment_type_str,
-            candidate_id=candidate_id,
+            candidate_id=resolved_candidate_id,
         )
     except Exception as exc:
         logger.error(
@@ -380,11 +478,17 @@ def candidate_create_assessment_logic(
         )
 
     # Step 2: Question confirmed — now create the assessment record.
+    media_type_str = (
+        payload.media_type.value
+        if hasattr(payload.media_type, "value")
+        else str(payload.media_type)
+    ).upper().strip()
+
     db_assessment = crud.create_assessment(
         db=db,
-        candidate_id=candidate_id,
+        candidate_id=resolved_candidate_id,
         assessment_type=assessment_type_str,
-        media_type=payload.media_type.value if hasattr(payload.media_type, "value") else str(payload.media_type),
+        media_type=media_type_str,
         job_description=payload.job_description,
         ip_address=ip_address,
         user_agent=user_agent,
@@ -409,35 +513,58 @@ def candidate_create_assessment_logic(
             detail="Failed to persist assessment questions",
         )
 
+    formatted_questions = []
+    for q in questions_list:
+        formatted_questions.append({
+            "id": q.get("id"),
+            "category": q.get("category"),
+            "question_text": q.get("question_text"),
+            "difficulty_level": q.get("difficulty_level"),
+            **({} if q.get("sub_category") is None else {"sub_category": q.get("sub_category")}),
+        })
+
     return CreateAssessmentResponse(
-        id=db_assessment.id,
-        assessment_uuid=db_assessment.assessment_uuid,
-        status=db_assessment.status,
-        started_at=db_assessment.started_at,
-        assessment_type=db_assessment.assessment_type,
-        media_type=db_assessment.media_type,
-        job_description=db_assessment.job_description,
-        youtube_url=db_assessment.youtube_url,
-        consent=db_assessment.consent,
-        questions=questions_list,
+        status="success",
+        data=CreateAssessmentData(
+            assessment_id=db_assessment.id,
+            assessment_uuid=db_assessment.assessment_uuid,
+            candidate_id=resolved_candidate_id,
+            assessment_type=db_assessment.assessment_type,
+            media_type=db_assessment.media_type,
+            status=db_assessment.status,
+            started_at=db_assessment.started_at,
+            questions=formatted_questions,
+        ),
     )
 
 
 def candidate_list_assessments_logic(
     db: Session,
     current_user: AuthUserORM,
-    limit: int = 50,
+    candidate_id: Optional[Union[int, str]] = None,
+    limit: Optional[int] = None,
     offset: int = 0,
 ) -> AssessmentListResponse:
-    """Lists assessments belonging to the authenticated candidate dynamically from DB."""
-    candidate_id = _resolve_candidate_id(db, current_user)
-    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first() if candidate_id else None
+    """Lists assessments belonging to the candidate dynamically from DB.
+
+    Authorization:
+    - Candidates can only access their own assessments; attempting to access another
+      candidate's ID raises HTTP 403 Forbidden.
+    - Staff / Admin users can view any candidate's assessments.
+    """
+    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    cand = db.query(CandidateORM).filter(CandidateORM.id == resolved_candidate_id).first()
+    if not cand:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
     candidate_name = cand.full_name if (cand and cand.full_name) else None
     candidate_email = cand.email if (cand and cand.email) else None
 
-    query = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == candidate_id)
-    total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+    items, total = crud.list_candidate_assessments(
+        db=db,
+        candidate_id=resolved_candidate_id,
+        limit=limit,
+        offset=offset,
+    )
 
     return AssessmentListResponse(
         items=[
@@ -456,6 +583,7 @@ def candidate_list_assessments_logic(
                 consent=a.consent,
                 started_at=a.started_at,
                 completed_at=a.completed_at,
+                cancelled_at=getattr(a, "cancelled_at", None),
                 created_at=a.created_at,
             )
             for a in items
@@ -464,116 +592,461 @@ def candidate_list_assessments_logic(
     )
 
 
+
 def candidate_get_assessment_detail_logic(
     db: Session,
     current_user: AuthUserORM,
+    candidate_id: Union[int, str],
     assessment_id: Union[int, str],
-) -> AssessmentDetailResponse:
-    """Fetches assessment detail, telemetry, and evaluation scores from DB."""
+) -> CandidateAssessmentDetailResponse:
+    """
+    Returns the complete details of a specific assessment for a candidate.
+
+    Authorization:
+    - Candidates can only access their own assessments; attempting to access another
+      candidate's data raises HTTP 403 at two independent enforcement points:
+        1. _resolve_candidate_id() rejects a mismatched candidate_id path param.
+        2. An ownership check confirms the fetched assessment belongs to the resolved candidate.
+    - Staff / admin users may access any candidate's assessment via the same endpoint.
+    """
+    # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
+    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+
+    # --- Fetch assessment (by integer PK or UUID string) ---
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
+    # --- Layer 2: Ownership check — assessment must belong to the resolved candidate ---
+    if assessment.candidate_id != resolved_candidate_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this assessment.",
+        )
 
-    cand = db.query(CandidateORM).filter(CandidateORM.id == assessment.candidate_id).first() if assessment.candidate_id else None
-    candidate_name = cand.full_name if (cand and cand.full_name) else None
-    candidate_email = cand.email if (cand and cand.email) else None
-
-    data_dict = None
-    questions_val = None
-    if assessment.data_record:
-        questions_val = assessment.data_record.questions
-        data_dict = {
-            "questions": assessment.data_record.questions,
-            "transcript": assessment.data_record.transcript,
-            "audio_telemetry": assessment.data_record.audio_telemetry,
-            "video_telemetry": assessment.data_record.video_telemetry,
-        }
-
-    report_dict = None
-    if assessment.report_record:
-        report_dict = {
-            "audio_evaluation": assessment.report_record.audio_evaluation,
-            "video_evaluation": assessment.report_record.video_evaluation,
-            "transcript_evaluation": assessment.report_record.transcript_evaluation,
-            "overall_score": assessment.report_record.overall_score,
-            "report_data": assessment.report_record.report_data,
-        }
-
-    return AssessmentDetailResponse(
+    # --- Build `assessment` block ---
+    assessment_meta = AssessmentMetaResponse(
         id=assessment.id,
         assessment_uuid=assessment.assessment_uuid,
         candidate_id=assessment.candidate_id,
-        candidate_name=candidate_name,
-        candidate_email=candidate_email,
-        score=report_dict.get("overall_score") if report_dict else None,
         assessment_type=assessment.assessment_type,
         media_type=assessment.media_type,
         status=assessment.status,
-        job_description=assessment.job_description,
-        ip_address=assessment.ip_address,
-        user_agent=assessment.user_agent,
-        youtube_url=assessment.youtube_url,
-        consent=assessment.consent,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
-        created_at=assessment.created_at,
-        questions=questions_val,
-        data=data_dict,
-        report=report_dict,
+        youtube_url=assessment.youtube_url,
+    )
+
+    # --- Build `assessment_data` block (transcript + telemetry) ---
+    if assessment.data_record:
+        raw_transcript = assessment.data_record.transcript or {}
+        transcript_obj = CandidateAssessmentDetailTranscript(
+            full_text=raw_transcript.get("full_text", ""),
+            word_count=raw_transcript.get("word_count", 0),
+            segments=raw_transcript.get("segments", []),
+        )
+        audio_telemetry = assessment.data_record.audio_telemetry or {}
+        video_telemetry = assessment.data_record.video_telemetry or {}
+    else:
+        transcript_obj = CandidateAssessmentDetailTranscript()
+        audio_telemetry: Dict[str, Any] = {}
+        video_telemetry: Dict[str, Any] = {}
+
+    assessment_data_obj = CandidateAssessmentDataDetail(
+        transcript=transcript_obj,
+        audio_telemetry=audio_telemetry,
+        video_telemetry=video_telemetry,
+    )
+
+    # --- Build `report` block ---
+    # insufficient_content=False when a full LLM evaluation report exists.
+    # insufficient_content=True when the assessment completed but the LLM evaluation
+    # was skipped (e.g. transcript too short) or the report has not been generated yet.
+    if assessment.report_record:
+        insufficient_content = False
+        message = None
+        llm_evaluation: Optional[Dict[str, Any]] = {
+            "transcript_evaluation": assessment.report_record.transcript_evaluation,
+            "audio_evaluation": assessment.report_record.audio_evaluation,
+            "video_evaluation": assessment.report_record.video_evaluation,
+        }
+    else:
+        insufficient_content = True
+        message = "Evaluation report is not yet available for this assessment."
+        llm_evaluation = None
+
+    report_obj = CandidateAssessmentReportDetail(
+        insufficient_content=insufficient_content,
+        message=message,
+        llm_evaluation=llm_evaluation,
+    )
+
+    return CandidateAssessmentDetailResponse(
+        status="success",
+        data=CandidateAssessmentDetailData(
+            assessment=assessment_meta,
+            assessment_data=assessment_data_obj,
+            report=report_obj,
+        ),
     )
 
 
-def candidate_get_assessment_data_logic(
+MIN_TRANSCRIPT_WORDS_THRESHOLD = int(os.getenv("AIPREP_MIN_WORDS_THRESHOLD", "15"))
+MIN_INTERVIEW_DURATION_SECONDS = float(os.getenv("AIPREP_MIN_DURATION_SECONDS", "20.0"))
+
+
+def evaluate_gatekeeper_flag(
+    word_count: int,
+    duration_seconds: float,
+    min_words: int = MIN_TRANSCRIPT_WORDS_THRESHOLD,
+    min_duration: float = MIN_INTERVIEW_DURATION_SECONDS,
+) -> bool:
+    """
+    Evaluates gatekeeper flag for assessment content sufficiency.
+    Returns True if content is INSUFFICIENT (Flag is ON).
+
+    CRITICAL REQUIREMENTS:
+    - Strictly considers ONLY the words of the transcript and interview duration time.
+    - Does NOT consider silence percentage or acoustic DSP metrics.
+    - If candidate took the whole interview in silence or mute, word_count is 0 (< min_words),
+      evaluating to True (insufficient_content: True).
+    - If interview duration is less than min_duration seconds, evaluating to True.
+    - This flag is evaluated in-memory and is NOT stored in the database.
+    """
+    if word_count < min_words:
+        return True
+    if duration_seconds < min_duration:
+        return True
+    return False
+
+
+def _stitch_assessment_chunks(
+    candidate_id: int,
+    assessment_id: int,
+    total_chunks_uploaded: Optional[int] = None,
+) -> str:
+    """Stitches chunks from chunks/ into assembled.webm, or returns existing assembled media."""
+    from fapi.ai_prep.core.video_processor_engine import validate_chunk_sequence
+
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    video_path = os.path.join(assessment_dir, "assembled.webm")
+    audio_path = os.path.join(assessment_dir, "audio.wav")
+    chunk_dir = os.path.join(assessment_dir, "chunks")
+
+    if os.path.exists(chunk_dir):
+        uploaded = []
+        try:
+            for fname in os.listdir(chunk_dir):
+                if fname.startswith("chunk_") and fname.endswith(".webm"):
+                    try:
+                        num = int(fname.replace("chunk_", "").replace(".webm", ""))
+                        uploaded.append(num)
+                    except ValueError:
+                        pass
+        except (PermissionError, OSError) as err:
+            logger.error("Could not read chunk directory %s: %s", chunk_dir, err)
+            raise HTTPException(status_code=500, detail="Failed to access chunk storage on server")
+
+        if uploaded:
+            uploaded = sorted(list(set(uploaded)))
+            total_expected = total_chunks_uploaded if (total_chunks_uploaded and total_chunks_uploaded > 0) else len(uploaded)
+            start_index = 0 if (0 in uploaded or (uploaded and min(uploaded) == 0)) else 1
+
+            seq_val = validate_chunk_sequence(existing_chunks=uploaded, total_expected=total_expected, start_index=start_index)
+            if not seq_val["is_valid"]:
+                logger.warning("Chunk assembly rejected for assessment %s: %s", assessment_id, seq_val["error"])
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Incomplete chunk sequence. {seq_val['error']}",
+                )
+
+            chunk_files = []
+            for i in range(start_index, start_index + total_expected):
+                p1 = os.path.join(chunk_dir, f"chunk_{i}.webm")
+                p2 = os.path.join(chunk_dir, f"chunk_{i:04d}.webm")
+                if os.path.exists(p1):
+                    chunk_files.append(p1)
+                elif os.path.exists(p2):
+                    chunk_files.append(p2)
+                else:
+                    chunk_files.append(p1)
+
+            try:
+                os.makedirs(assessment_dir, exist_ok=True)
+                with open(video_path, "wb") as outfile:
+                    for cf in chunk_files:
+                        if not os.path.exists(cf):
+                            raise FileNotFoundError(f"Chunk file missing: {cf}")
+                        with open(cf, "rb") as infile:
+                            shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+            except Exception as asm_err:
+                logger.error("Chunk assembly failed for assessment %s: %s", assessment_id, asm_err)
+                raise HTTPException(status_code=500, detail=f"Failed to assemble media chunks: {asm_err}")
+
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        return video_path
+    if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+        return audio_path
+
+    raise HTTPException(status_code=400, detail="No media chunks or recordings found to assemble for this assessment")
+
+
+async def candidate_submit_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
+    candidate_id: Union[int, str],
     assessment_id: Union[int, str],
-) -> AssessmentDataResponse:
-    """Fetches submitted telemetry and questions data for an assessment."""
+    payload: Optional[CandidateSubmitAssessmentRequest] = None,
+    status: Optional[str] = None,
+    background_tasks: Optional[BackgroundTasks] = None,
+) -> Union[CandidateSubmitAssessmentResponse, Dict[str, Any]]:
+    """
+    Candidate Submit Assessment:
+    - If status == 'cancelled' (e.g. Exit button clicked): updates assessment status to CANCELLED in DB
+      and immediately returns {"Status": "CANCELLED"}, skipping all other assessment logic.
+    - Otherwise:
+      1. Validates candidate permissions and assessment existence.
+      2. Stitches uploaded media chunks into assembled.webm.
+      3. Runs Audio Engine (Whisper STT + acoustic metrics).
+      4. Evaluates the gatekeeper flag (insufficient_content) strictly based on transcript word count
+         and interview duration (ignores silence percentage; handles full-silence/mute as insufficient).
+      5. Saves assessment data into DB.
+      6. If flag is ON: updates status to COMPLETED, sets completed_at, skips LLM evaluation.
+         If flag is OFF: updates status to EVALUATING, queues background LLM evaluation.
+      7. Returns complete assessment metadata, telemetry, and report status.
+    """
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    if not assessment.data_record:
-        raise HTTPException(status_code=404, detail="No telemetry or submitted data found for this assessment")
-    return AssessmentDataResponse(
-        id=assessment.data_record.id,
-        assessment_id=assessment.data_record.assessment_id,
-        assessment_uuid=assessment.assessment_uuid,
-        questions=assessment.data_record.questions,
-        transcript=assessment.data_record.transcript,
-        audio_telemetry=assessment.data_record.audio_telemetry,
-        video_telemetry=assessment.data_record.video_telemetry,
-        created_at=assessment.data_record.created_at,
-        updated_at=assessment.data_record.updated_at,
+
+    resolved_cand_id = _resolve_candidate_id(
+        db, current_user, requested_id=int(candidate_id) if str(candidate_id).isdigit() else None
+    )
+    if assessment.candidate_id != resolved_cand_id:
+        raise HTTPException(status_code=403, detail="Candidates can only submit their own assessments")
+
+    # If candidate clicked Exit button, change status to CANCELLED and return immediately
+    status_override = (
+        status or (payload.status if payload else None) or ""
+    ).strip().upper()
+
+    if status_override == "CANCELLED":
+        crud.update_assessment_status(db, assessment.id, "CANCELLED")
+        return {
+            "Status": "CANCELLED",
+            "status": "CANCELLED",
+            "assessment_id": assessment.id,
+            "assessment_status": "CANCELLED",
+            "message": "Assessment cancelled successfully",
+            "data": {
+                "id": assessment.id,
+                "status": "CANCELLED",
+                "Status": "CANCELLED",
+                "assessment_status": "CANCELLED",
+            },
+        }
+
+    payload = payload or CandidateSubmitAssessmentRequest()
+
+    total_chunks = payload.total_chunks_uploaded
+    if not total_chunks:
+        existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+        if existing_data and existing_data.video_telemetry:
+            total_chunks = existing_data.video_telemetry.get("total_expected_chunks")
+
+    # 1. Stitch media chunks
+    target_media = _stitch_assessment_chunks(
+        candidate_id=resolved_cand_id,
+        assessment_id=assessment.id,
+        total_chunks_uploaded=total_chunks,
+    )
+
+    # 2. Run Audio Engine
+    try:
+        audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+        spoken_content = audio_result.get("spoken_content") or {}
+        raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+    except Exception as audio_err:
+        logger.warning("Audio Engine execution error for assessment %s: %s", assessment.id, audio_err)
+        spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+        raw_audio_telemetry = {
+            "speaking_duration_seconds": 0.0,
+            "wpm": 0,
+            "filler_count": 0,
+            "silence_ratio": 1.0,
+            "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+        }
+
+    # 3. Format Transcript
+    full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+    words = [w for w in full_text.split() if w]
+    word_count = spoken_content.get("word_count")
+    if word_count is None:
+        word_count = len(words)
+
+    raw_segments = spoken_content.get("segments") or []
+    segments = []
+    if raw_segments:
+        for seg in raw_segments:
+            segments.append({
+                "start": float(seg.get("start", 0.0)),
+                "end": float(seg.get("end", 0.0)),
+                "text": str(seg.get("text", "")).strip(),
+            })
+    elif full_text:
+        duration_val = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
+        segments = [{"start": 0.0, "end": round(duration_val, 1), "text": full_text}]
+
+    formatted_transcript = {
+        "full_text": full_text,
+        "word_count": word_count,
+        "segments": segments,
+    }
+
+    # 4. Format Audio Telemetry
+    speaking_duration_sec = float(
+        raw_audio_telemetry.get("speaking_duration_seconds")
+        or raw_audio_telemetry.get("speaking_duration_sec")
+        or 0.0
+    )
+    wpm = int(
+        raw_audio_telemetry.get("wpm")
+        or raw_audio_telemetry.get("words_per_minute")
+        or 0
+    )
+    filler_count = int(
+        raw_audio_telemetry.get("filler_count")
+        or raw_audio_telemetry.get("filler_word_count")
+        or 0
+    )
+    silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
+    silence_pct = (
+        float(raw_audio_telemetry["silence_percentage"])
+        if "silence_percentage" in raw_audio_telemetry
+        else round(silence_ratio * 100, 1)
+    )
+    filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
+    filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else raw_audio_telemetry.get("filler_words", [])
+
+    formatted_audio_telemetry = {
+        "speaking_duration_sec": round(speaking_duration_sec, 1),
+        "words_per_minute": wpm,
+        "filler_word_count": filler_count,
+        "silence_percentage": silence_pct,
+    }
+    if filler_words:
+        formatted_audio_telemetry["filler_words"] = filler_words
+    if "clarity" in raw_audio_telemetry:
+        formatted_audio_telemetry["clarity"] = raw_audio_telemetry["clarity"]
+
+    # 5. Format Video Telemetry
+    formatted_video_telemetry = payload.video_telemetry or {}
+
+    # 6. Evaluate Gatekeeper Flag
+    interview_duration = (
+        float(payload.client_duration_seconds)
+        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
+        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
+    )
+
+    insufficient_content = evaluate_gatekeeper_flag(
+        word_count=word_count,
+        duration_seconds=interview_duration,
+    )
+
+    # 7. Persist Assessment Data in DB
+    existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+    existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+    crud.save_assessment_data(
+        db=db,
+        assessment_id=assessment.id,
+        questions=existing_questions,
+        transcript=formatted_transcript,
+        audio_telemetry=formatted_audio_telemetry,
+        video_telemetry=formatted_video_telemetry,
+    )
+
+    # 8. Handle Case 1 vs Case 2
+    if insufficient_content:
+        # Case A: Flag is ON
+        crud.update_assessment_status(db, assessment.id, "COMPLETED")
+        assessment.completed_at = datetime.utcnow()
+        db.commit()
+        db.refresh(assessment)
+        # LLM evaluation engine is completely skipped!
+        report_dict = {
+            "insufficient_content": True,
+            "message": "We don't have enough content of transcript and audio to evaluate you.",
+            "llm_evaluation": {},
+        }
+    else:
+        # Case B: Flag is OFF
+        # The llm_evaluation engine must be triggered and its information present in the response
+        crud.update_assessment_status(db, assessment.id, "EVALUATING")
+        db.commit()
+
+        # Trigger LLM evaluation engine and await results
+        try:
+            eval_result = await assessment_orchestrator.run_full_evaluation(
+                db=db,
+                assessment_id=assessment.id,
+            )
+            llm_report = eval_result.get("report") or {}
+            crud.update_assessment_status(db, assessment.id, "COMPLETED")
+            assessment.completed_at = datetime.utcnow()
+            db.commit()
+            db.refresh(assessment)
+        except Exception as eval_err:
+            logger.error(f"LLM Evaluation failed for assessment {assessment.id}: {eval_err}")
+            crud.update_assessment_status(db, assessment.id, "FAILED")
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Evaluation service temporarily unavailable. Please retry submission or contact support.",
+            )
+
+        # YouTube ingestion / media cleanup in background if needed
+        if background_tasks and os.path.exists(target_media):
+            background_tasks.add_task(
+                _process_youtube_upload_and_cleanup,
+                assessment_id=assessment.id,
+                media_path=target_media,
+                media_type=assessment.media_type or "VIDEO",
+                candidate_id=resolved_cand_id,
+            )
+
+        report_dict = {
+            "insufficient_content": False,
+            "message": None,
+            "llm_evaluation": llm_report,
+        }
+
+    meta_assessment = {
+        "id": assessment.id,
+        "assessment_uuid": str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
+        "candidate_id": assessment.candidate_id,
+        "assessment_type": assessment.assessment_type,
+        "media_type": assessment.media_type,
+        "status": assessment.status,
+        "started_at": assessment.started_at,
+        "completed_at": assessment.completed_at,
+        "youtube_url": assessment.youtube_url or f"https://storage.cdn.example.com/recordings/asm_{assessment.id}_full.webm",
+    }
+
+    return CandidateSubmitAssessmentResponse(
+        status="success",
+        data=CandidateSubmitAssessmentData(
+            assessment=AssessmentMetaResponse(**meta_assessment),
+            assessment_data=AssessmentTelemetryData(
+                transcript=AssessmentTranscriptData(**formatted_transcript),
+            ),
+            audio_telemetry=formatted_audio_telemetry,
+            video_telemetry=formatted_video_telemetry,
+            report=AssessmentSubmitReportData(**report_dict),
+        ),
     )
 
 
-def candidate_get_assessment_report_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-) -> AssessmentReportResponse:
-    """Fetches generated evaluation report for an assessment."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    if not assessment.report_record:
-        raise HTTPException(status_code=404, detail="Report not generated yet for this assessment")
-    return AssessmentReportResponse(
-        id=assessment.report_record.id,
-        assessment_id=assessment.report_record.assessment_id,
-        assessment_uuid=assessment.assessment_uuid,
-        audio_evaluation=assessment.report_record.audio_evaluation,
-        video_evaluation=assessment.report_record.video_evaluation,
-        transcript_evaluation=assessment.report_record.transcript_evaluation,
-        overall_score=assessment.report_record.overall_score,
-        report_data=assessment.report_record.report_data,
-        created_at=assessment.report_record.created_at,
-        updated_at=assessment.report_record.updated_at,
-    )
 
 
 async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> None:
@@ -664,28 +1137,6 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
             )
 
 
-def candidate_submit_data_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    payload: SubmitAssessmentDataRequest,
-) -> SubmitAssessmentDataResponse:
-    """Persists candidate telemetry, transcript, and answers into ai_prep_assessment_data via crud."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
-    crud.save_assessment_data(
-        db=db,
-        assessment_id=assessment.id,
-        questions=payload.questions or [],
-        transcript=payload.transcript or {},
-        audio_telemetry=payload.audio_telemetry or {},
-        video_telemetry=payload.video_telemetry or {},
-    )
-    return SubmitAssessmentDataResponse(message="Data saved successfully")
 
 
 def candidate_update_media_url_logic(
@@ -704,61 +1155,6 @@ def candidate_update_media_url_logic(
     return UpdateMediaURLResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, youtube_url=payload.youtube_url)
 
 
-def candidate_trigger_eval_post_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    background_tasks: Optional[BackgroundTasks] = None,
-) -> TriggerEvaluationResponse:
-    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    if assessment.status in ("EVALUATING", "COMPLETED"):
-        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=assessment.status)
-
-    crud.update_assessment_status(db, assessment.id, "EVALUATING")
-
-    if background_tasks:
-        background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
-
-    return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
-
-
-def candidate_trigger_eval_put_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    payload: Optional[SubmitAssessmentRequest] = None,
-    background_tasks: Optional[BackgroundTasks] = None,
-) -> TriggerEvaluationResponse:
-    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    if payload and (payload.transcript or payload.audio_telemetry or payload.video_telemetry):
-        crud.save_assessment_data(
-            db=db,
-            assessment_id=assessment.id,
-            questions=payload.questions or [],
-            transcript=payload.transcript or {},
-            audio_telemetry=payload.audio_telemetry or {},
-            video_telemetry=payload.video_telemetry or {},
-        )
-
-    if assessment.status in ("EVALUATING", "COMPLETED"):
-        return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status=assessment.status)
-
-    crud.update_assessment_status(db, assessment.id, "EVALUATING")
-
-    if background_tasks:
-        background_tasks.add_task(_run_evaluation_background, assessment.id, candidate_id)
-
-    return TriggerEvaluationResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, status="EVALUATING")
 
 
 # ---------------------------------------------------------------------------
@@ -779,15 +1175,22 @@ def employee_check_candidate_resume_logic(db: Session, candidate_id: int) -> Res
 
 def employee_check_candidate_pre_check_logic(db: Session, candidate_id: int) -> PreAssessmentCheckResponse:
     """Employee checks combined eligibility dynamically from DB."""
+    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first()
+    if not cand:
+        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found.")
     llm_check = _check_candidate_llm_db(db, candidate_id)
     resume_check = _check_candidate_resume_db(db, candidate_id)
-    eligible = bool(llm_check["is_configured"] and (resume_check["has_resume"] or resume_check["has_parsed_json"]))
+    has_active_llm = bool(llm_check.get("is_configured"))
+    has_resume = bool(resume_check.get("has_resume") or resume_check.get("has_parsed_json"))
+    eligible = bool(has_active_llm and has_resume)
     return PreAssessmentCheckResponse(
         eligible=eligible,
+        allowed_to_proceed=eligible,
         candidate_id=candidate_id,
         llm_check=LLMKeyStatusResponse(**llm_check),
         resume_check=ResumeStatusResponse(**resume_check),
-        message="Candidate is eligible to start assessment" if eligible else "Prerequisites missing",
+        message="Candidate is eligible to start assessment" if eligible else "Prerequisites missing: setup required",
+        action_required=None if eligible else ("both" if not has_active_llm and not has_resume else ("my-llm-setup" if not has_active_llm else "my-resume")),
     )
 
 
@@ -881,109 +1284,152 @@ def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) ->
     )
 
 
-def employee_get_assessment_detail_logic(db: Session, assessment_id: Union[int, str]) -> AssessmentDetailResponse:
-    """Employee/Admin review of complete telemetry and scores for any assessment."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    cand = db.query(CandidateORM).filter(CandidateORM.id == assessment.candidate_id).first() if assessment.candidate_id else None
-    candidate_name = cand.full_name if (cand and cand.full_name) else None
-    candidate_email = cand.email if (cand and cand.email) else None
-
-    data_dict = None
-    if assessment.data_record:
-        data_dict = {
-            "questions": assessment.data_record.questions,
-            "transcript": assessment.data_record.transcript,
-            "audio_telemetry": assessment.data_record.audio_telemetry,
-            "video_telemetry": assessment.data_record.video_telemetry,
-        }
-
-    report_dict = None
-    if assessment.report_record:
-        report_dict = {
-            "audio_evaluation": assessment.report_record.audio_evaluation,
-            "video_evaluation": assessment.report_record.video_evaluation,
-            "transcript_evaluation": assessment.report_record.transcript_evaluation,
-            "overall_score": assessment.report_record.overall_score,
-            "report_data": assessment.report_record.report_data,
-        }
-
-    return AssessmentDetailResponse(
-        id=assessment.id,
-        assessment_uuid=assessment.assessment_uuid,
-        candidate_id=assessment.candidate_id,
-        candidate_name=candidate_name,
-        candidate_email=candidate_email,
-        score=report_dict.get("overall_score") if report_dict else None,
-        assessment_type=assessment.assessment_type,
-        media_type=assessment.media_type,
-        status=assessment.status,
-        job_description=assessment.job_description,
-        ip_address=assessment.ip_address,
-        user_agent=assessment.user_agent,
-        youtube_url=assessment.youtube_url,
-        consent=assessment.consent,
-        started_at=assessment.started_at,
-        completed_at=assessment.completed_at,
-        created_at=assessment.created_at,
-        data=data_dict,
-        report=report_dict,
-    )
-
-
-def employee_get_assessment_data_logic(
-    db: Session,
-    assessment_id: Union[int, str],
-) -> AssessmentDataResponse:
-    """Employee view of submitted telemetry and questions data."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    if not assessment.data_record:
-        raise HTTPException(status_code=404, detail="No telemetry or submitted data found for this assessment")
-    return AssessmentDataResponse(
-        id=assessment.data_record.id,
-        assessment_id=assessment.data_record.assessment_id,
-        assessment_uuid=assessment.assessment_uuid,
-        questions=assessment.data_record.questions,
-        transcript=assessment.data_record.transcript,
-        audio_telemetry=assessment.data_record.audio_telemetry,
-        video_telemetry=assessment.data_record.video_telemetry,
-        created_at=assessment.data_record.created_at,
-        updated_at=assessment.data_record.updated_at,
-    )
-
-
-def employee_get_assessment_report_logic(
-    db: Session,
-    assessment_id: Union[int, str],
-) -> AssessmentReportResponse:
-    """Employee view of evaluation report."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    if not assessment.report_record:
-        raise HTTPException(status_code=404, detail="Report not generated yet for this assessment")
-    return AssessmentReportResponse(
-        id=assessment.report_record.id,
-        assessment_id=assessment.report_record.assessment_id,
-        assessment_uuid=assessment.assessment_uuid,
-        audio_evaluation=assessment.report_record.audio_evaluation,
-        video_evaluation=assessment.report_record.video_evaluation,
-        transcript_evaluation=assessment.report_record.transcript_evaluation,
-        overall_score=assessment.report_record.overall_score,
-        report_data=assessment.report_record.report_data,
-        created_at=assessment.report_record.created_at,
-        updated_at=assessment.report_record.updated_at,
-    )
-
-
 
 # ---------------------------------------------------------------------------
 # 3. Media Pipeline, Chunks & Streaming Logic
 # ---------------------------------------------------------------------------
+
+async def upload_candidate_assessment_chunk_logic(
+    db: Session,
+    current_user: AuthUserORM,
+    candidate_id: Union[int, str],
+    assessment_id: Union[int, str],
+    chunk_index: int,
+    file_content: Union[UploadFile, bytes],
+    assessment_uuid: Optional[str] = None,
+    is_final: bool = False,
+) -> MediaChunkUploadResponse:
+    """
+    Handles chunk upload for an ongoing candidate assessment.
+    Validates chunk size limits, streams chunk bytes directly to candidate/assessment chunk directory,
+    and returns exact response specification.
+    """
+    if file_content is None:
+        raise HTTPException(status_code=400, detail="Missing media chunk upload file")
+
+    if chunk_index < 0:
+        raise HTTPException(status_code=400, detail="chunk_index must be >= 0")
+
+    # 1. Resolve Assessment
+    assessment = None
+    if assessment_id is not None:
+        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment and assessment_uuid:
+        assessment = crud.get_assessment_by_uuid(db, assessment_uuid)
+
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # If both assessment_uuid and assessment were found, ensure UUIDs match if provided
+    if assessment_uuid and assessment.assessment_uuid and assessment.assessment_uuid.lower() != str(assessment_uuid).strip().lower():
+        raise HTTPException(status_code=400, detail="assessment_uuid does not match the assessment record")
+
+    # Lifecycle State Guard: Disallow uploading to closed or evaluating assessments
+    if assessment.status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Assessment is already {assessment.status}. Cannot upload further media chunks.",
+        )
+
+    # Auto-advance from CREATED to IN_PROGRESS on chunk arrival
+    if assessment.status == "CREATED":
+        crud.update_assessment_status(db, assessment.id, "IN_PROGRESS")
+        assessment.status = "IN_PROGRESS"
+
+    # 2. Resolve & Authorize Candidate
+    target_cand_id: Optional[int] = None
+    try:
+        target_cand_id = int(candidate_id)
+    except (ValueError, TypeError):
+        target_cand_id = assessment.candidate_id
+
+    resolved_candidate_id = _resolve_candidate_id(db, current_user, target_cand_id)
+    if assessment.candidate_id and resolved_candidate_id != assessment.candidate_id:
+        uname = (getattr(current_user, "uname", "") or "").lower()
+        role = getattr(current_user, "role", None) or ("admin" if uname == "admin" else "candidate")
+        is_employee = bool(getattr(current_user, "is_employee", False) or role in ("admin", "staff", "employee") or uname == "admin")
+        if not is_employee:
+            raise HTTPException(status_code=403, detail="Candidates can only upload chunks to their own assessments")
+
+    # 3. Setup chunk storage directory and file path
+    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id or resolved_candidate_id), str(assessment.id), "chunks")
+    chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_index}.webm")
+    legacy_chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_index:04d}.webm")
+
+    max_chunk_size_bytes = int(getattr(settings, "MAX_CHUNK_SIZE_MB", 50)) * 1024 * 1024
+    total_written = 0
+
+    try:
+        os.makedirs(chunk_dir, exist_ok=True)
+        with open(chunk_path, "wb") as f:
+            if isinstance(file_content, bytes):
+                total_written = len(file_content)
+                if total_written > max_chunk_size_bytes:
+                    f.close()
+                    if os.path.exists(chunk_path):
+                        os.remove(chunk_path)
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
+                    )
+                f.write(file_content)
+            else:
+                while True:
+                    chunk = await file_content.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total_written += len(chunk)
+                    if total_written > max_chunk_size_bytes:
+                        f.close()
+                        if os.path.exists(chunk_path):
+                            os.remove(chunk_path)
+                        raise HTTPException(
+                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
+                        )
+                    await asyncio.to_thread(f.write, chunk)
+    except HTTPException:
+        raise
+    except (PermissionError, OSError) as err:
+        logging.error("Could not write media chunk to disk: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to write media chunk to server storage",
+        )
+
+    # Record final chunk accounting into assessment_data if is_final=True
+    if is_final:
+        try:
+            data_rec = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+            if data_rec:
+                video_tel = dict(data_rec.video_telemetry or {})
+                video_tel["total_expected_chunks"] = chunk_index + 1
+                video_tel["final_chunk_index"] = chunk_index
+                crud.save_assessment_data(
+                    db=db,
+                    assessment_id=assessment.id,
+                    questions=data_rec.questions or [],
+                    transcript=data_rec.transcript or {},
+                    audio_telemetry=data_rec.audio_telemetry or {},
+                    video_telemetry=video_tel,
+                )
+        except Exception as sync_err:
+            logger.warning(
+                "Could not persist is_final metadata for assessment %s: %s",
+                assessment.id,
+                sync_err,
+            )
+
+    return MediaChunkUploadResponse(
+        status="success",
+        data=MediaChunkUploadData(
+            assessment_uuid=str(assessment.assessment_uuid or assessment_uuid or ""),
+            chunk_index=chunk_index,
+            bytes_received=total_written,
+            saved=True,
+        ),
+    )
+
 
 async def upload_media_chunk_logic(
     db: Session,
@@ -1022,7 +1468,7 @@ async def upload_media_chunk_logic(
                     if os.path.exists(chunk_path):
                         os.remove(chunk_path)
                     raise HTTPException(
-                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                         detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
                     )
                 f.write(file_content)
@@ -1037,7 +1483,7 @@ async def upload_media_chunk_logic(
                         if os.path.exists(chunk_path):
                             os.remove(chunk_path)
                         raise HTTPException(
-                            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                             detail=f"Media chunk ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_CHUNK_SIZE_MB}MB)",
                         )
                     await asyncio.to_thread(f.write, chunk)
@@ -1104,8 +1550,9 @@ def get_chunk_upload_status_logic(
         except (PermissionError, OSError):
             pass
 
-    uploaded.sort()
-    missing = [i for i in range(1, total_chunks + 1) if i not in uploaded] if total_chunks else []
+    uploaded = sorted(list(set(uploaded)))
+    start_index = 0 if (0 in uploaded or (uploaded and min(uploaded) == 0)) else 1
+    missing = [i for i in range(start_index, start_index + total_chunks) if i not in uploaded] if total_chunks else []
     is_complete = bool(total_chunks and len(missing) == 0 and len(uploaded) >= total_chunks)
 
     return ChunkStatusResponse(
@@ -1295,93 +1742,6 @@ async def process_audio_and_save_data(
     )
 
 
-def assemble_media_chunks_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    payload: Optional[AssembleMediaRequest] = None,
-    background_tasks: Optional[BackgroundTasks] = None,
-) -> AssembleMediaResponse:
-    """Validates sequence continuity, concatenates WebM chunks with streaming, and launches evaluation pipeline."""
-    from fapi.ai_prep.core.video_processor_engine import validate_chunk_sequence
-
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    video_path = os.path.join(assessment_dir, "assembled.webm")
-    audio_path = os.path.join(assessment_dir, "audio.wav")
-    chunk_dir = os.path.join(assessment_dir, "chunks")
-
-    if not os.path.exists(chunk_dir):
-        raise HTTPException(status_code=400, detail="No chunks directory found for this assessment")
-
-    uploaded = []
-    try:
-        for fname in os.listdir(chunk_dir):
-            if fname.startswith("chunk_") and fname.endswith(".webm"):
-                try:
-                    num = int(fname.replace("chunk_", "").replace(".webm", ""))
-                    uploaded.append(num)
-                except ValueError:
-                    pass
-    except (PermissionError, OSError) as err:
-        logger.error("Could not read chunk directory %s: %s", chunk_dir, err)
-        raise HTTPException(status_code=500, detail="Failed to access chunk storage on server")
-
-    if not uploaded:
-        raise HTTPException(status_code=400, detail="No media chunks found to assemble")
-
-    uploaded.sort()
-    total_expected = payload.total_chunks if (payload and payload.total_chunks) else len(uploaded)
-
-    # Validate complete chunk sequence
-    seq_val = validate_chunk_sequence(existing_chunks=uploaded, total_expected=total_expected)
-    if not seq_val["is_valid"]:
-        logger.warning("Chunk assembly rejected for assessment %s: %s", assessment.id, seq_val["error"])
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Incomplete chunk sequence. {seq_val['error']}",
-        )
-
-    # Assemble chunks in memory-efficient 1MB streaming blocks
-    chunk_files = [os.path.join(chunk_dir, f"chunk_{i:04d}.webm") for i in range(1, total_expected + 1)]
-    try:
-        os.makedirs(assessment_dir, exist_ok=True)
-        with open(video_path, "wb") as outfile:
-            for cf in chunk_files:
-                if not os.path.exists(cf):
-                    raise FileNotFoundError(f"Chunk file missing: {cf}")
-                with open(cf, "rb") as infile:
-                    shutil.copyfileobj(infile, outfile, length=1024 * 1024)
-    except Exception as asm_err:
-        logger.error("Chunk assembly failed for assessment %s: %s", assessment.id, asm_err)
-        raise HTTPException(status_code=500, detail=f"Failed to assemble media chunks: {asm_err}")
-
-    target_media = video_path if (os.path.exists(video_path) and os.path.getsize(video_path) > 0) else audio_path
-
-    # Queue the Media Processing & YouTube Upload Pipeline in background
-    if background_tasks:
-        background_tasks.add_task(
-            process_media_and_upload_pipeline,
-            assessment.id,
-            target_media,
-            assessment.media_type or "VIDEO",
-            candidate_id,
-        )
-
-    return AssembleMediaResponse(
-        assessment_id=assessment.id,
-        status="ASSEMBLING",
-        assembled_video_path=video_path,
-        extracted_audio_path=audio_path,
-        file_size_bytes=os.path.getsize(target_media) if os.path.exists(target_media) else 0,
-        dispatched_tasks=["media_processing_pipeline"],
-        media_path=video_path,
-        audio_path=audio_path,
-        message="Media chunks successfully validated, assembled, and queued for processing",
-    )
 
 
 async def upload_raw_media_logic(

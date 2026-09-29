@@ -63,9 +63,25 @@ def get_current_user(
                 is_admin = True
                 is_employee = True
             return DummyInternalUser()
-        raise HTTPException(status_code=401, detail="Not authenticated")
+            
+        # Check bypass early if token is absent or invalid
+        path = request.url.path.rstrip("/")
+        is_public = request.method.upper() == "GET" and (path == "/api/course-content" or path.startswith("/api/course-content/") or path == "/api/course-contents" or path.startswith("/api/course-contents/"))
 
-    payload = decode_token(token)
+        if not token:
+            if is_public:
+                return None
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        payload = decode_token(token)
+    except Exception:
+        if 'is_public' not in locals():
+            path = request.url.path.rstrip("/")
+            is_public = request.method.upper() == "GET" and (path == "/api/course-content" or path.startswith("/api/course-content/") or path == "/api/course-contents" or path.startswith("/api/course-contents/"))
+        if is_public:
+            return None
+        raise HTTPException(status_code=401, detail="Invalid token payload")
     user_id_or_name = payload.get("sub") or payload.get("user_id")
 
     if not user_id_or_name:
