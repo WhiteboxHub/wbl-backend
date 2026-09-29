@@ -1407,7 +1407,7 @@ async def process_audio_engine_logic(
                     if file_size > MAX_FILE_SIZE:
                         shutil.rmtree(temp_dir, ignore_errors=True)
                         raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
-                buffer.write(chunk)
+                    buffer.write(chunk)
 
             if file_size == 0:
                 raise HTTPException(status_code=400, detail="Uploaded audio file cannot be empty.")
