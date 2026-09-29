@@ -283,7 +283,7 @@ def test_redis_quota_manager_fail_closed_on_error():
 
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_sse_streaming_generator_short_lived_sessions_and_disconnect():
     """Verify that SSE stream does not hold open long-lived DB sessions and terminates on disconnect."""
     from unittest.mock import AsyncMock
