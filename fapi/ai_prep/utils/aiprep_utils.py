@@ -2002,7 +2002,7 @@ async def process_audio_engine_logic(
         # 1. Handle direct file upload
         if file:
             temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
-            safe_filename = os.path.basename(file.filename or "test_audio.webm")
+            safe_filename = "uploaded_audio.webm"
             temp_file_path = os.path.join(temp_dir, safe_filename)
             file_size = 0
             with open(temp_file_path, "wb") as buffer:
@@ -2011,7 +2011,7 @@ async def process_audio_engine_logic(
                     if file_size > MAX_FILE_SIZE:
                         shutil.rmtree(temp_dir, ignore_errors=True)
                         raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
-                buffer.write(chunk)
+                    buffer.write(chunk)
 
             if file_size == 0:
                 raise HTTPException(status_code=400, detail="Uploaded audio file cannot be empty.")
