@@ -1998,44 +1998,51 @@ async def process_audio_engine_logic(
     task_queued = False
     MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB limit
 
-    # 1. Handle direct file upload
-    if file:
-        temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
-        safe_filename = os.path.basename(file.filename or "test_audio.webm")
-        temp_file_path = os.path.join(temp_dir, safe_filename)
-        file_size = 0
-        with open(temp_file_path, "wb") as buffer:
-            while chunk := file.file.read(1024 * 1024):  # 1MB chunks
-                file_size += len(chunk)
-                if file_size > MAX_FILE_SIZE:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
-                buffer.write(chunk)
-        target_path = temp_file_path
-
-    # 2. Handle server-side audio_path and prevent storage-boundary escapes
-    elif audio_path:
-        base_dir = Path(STORAGE_BASE_DIR).resolve()
-        try:
-            resolved_path = Path(audio_path).resolve()
-        except (OSError, RuntimeError) as exc:
-            logger.warning("Failed to resolve audio_path — invalid format or path characters")
-            raise HTTPException(status_code=400, detail="Invalid audio_path format.") from exc
-
-        if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid audio_path. Path must reside within the application storage directory."
-            )
-        target_path = str(resolved_path)
-
-    # Validate file existence
-    if not target_path or not os.path.exists(target_path):
-        if temp_dir and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        raise HTTPException(status_code=400, detail="Valid audio file or storage audio_path is required.")
-
     try:
+        # 1. Handle direct file upload
+        if file:
+            temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
+            safe_filename = os.path.basename(file.filename or "test_audio.webm")
+            temp_file_path = os.path.join(temp_dir, safe_filename)
+            file_size = 0
+            with open(temp_file_path, "wb") as buffer:
+                while chunk := file.file.read(1024 * 1024):  # 1MB chunks
+                    file_size += len(chunk)
+                    if file_size > MAX_FILE_SIZE:
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
+                buffer.write(chunk)
+
+            if file_size == 0:
+                raise HTTPException(status_code=400, detail="Uploaded audio file cannot be empty.")
+            target_path = temp_file_path
+
+        # 2. Handle server-side audio_path and prevent storage-boundary escapes
+        elif audio_path:
+            base_dir = Path(STORAGE_BASE_DIR).resolve()
+            try:
+                resolved_path = Path(audio_path).resolve()
+            except (OSError, RuntimeError) as exc:
+                logger.warning("Failed to resolve audio_path — invalid format or path characters")
+                raise HTTPException(status_code=400, detail="Invalid audio_path format.") from exc
+
+            if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid audio_path. Path must reside within the application storage directory."
+                )
+
+            if not resolved_path.is_file():
+                raise HTTPException(status_code=400, detail="Valid audio file is required.")
+        
+            if resolved_path.stat().st_size == 0:
+                raise HTTPException(status_code=400, detail="Audio file cannot be empty.")
+            target_path = str(resolved_path)
+
+        # Validate file existence
+        if not target_path or not Path(target_path).is_file():
+            raise HTTPException(status_code=400, detail="Valid audio file or storage audio_path is required.")
+
         if async_mode:
             async def _benchmark_with_cleanup(path: str, prov: Optional[str], sz: str, dir_to_clean: Optional[str]):
                 try:
@@ -2048,19 +2055,14 @@ async def process_audio_engine_logic(
                     if dir_to_clean and os.path.exists(dir_to_clean):
                         shutil.rmtree(dir_to_clean, ignore_errors=True)
 
-            try:
-                background_tasks.add_task(
-                    _benchmark_with_cleanup,
-                    path=target_path,
-                    prov=provider,
-                    sz=model_size,
-                    dir_to_clean=temp_dir,
-                )
-                task_queued = True
-            except Exception:
-                if temp_dir and os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                raise
+            background_tasks.add_task(
+                _benchmark_with_cleanup,
+                path=target_path,
+                prov=provider,
+                sz=model_size,
+                dir_to_clean=temp_dir,
+            )
+            task_queued = True
 
             return {
                 "status": "ACCEPTED",
@@ -2076,7 +2078,9 @@ async def process_audio_engine_logic(
             return {
                 "status": "SUCCESS",
                 "data": result
-            }
+        }       
+    except HTTPException:
+        raise
     except InvalidProviderConfigError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
