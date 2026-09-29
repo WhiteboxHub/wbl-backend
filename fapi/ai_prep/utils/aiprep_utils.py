@@ -386,6 +386,7 @@ def candidate_create_assessment_logic(
         job_description=payload.job_description,
         ip_address=ip_address,
         user_agent=user_agent,
+        consent=payload.consent,
     )
 
     # Step 3: Persist the selected question snapshot into ai_prep_assessment_data.
@@ -415,6 +416,7 @@ def candidate_create_assessment_logic(
         media_type=db_assessment.media_type,
         job_description=db_assessment.job_description,
         youtube_url=db_assessment.youtube_url,
+        consent=db_assessment.consent,
         questions=questions_list,
     )
 
@@ -449,6 +451,7 @@ def candidate_list_assessments_logic(
                 status=a.status,
                 job_description=a.job_description,
                 youtube_url=a.youtube_url,
+                consent=a.consent,
                 started_at=a.started_at,
                 completed_at=a.completed_at,
                 created_at=a.created_at,
@@ -510,6 +513,7 @@ def candidate_get_assessment_detail_logic(
         ip_address=assessment.ip_address,
         user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
@@ -864,6 +868,7 @@ def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) ->
                 status=a.status,
                 job_description=a.job_description,
                 youtube_url=a.youtube_url,
+                consent=a.consent,
                 started_at=a.started_at,
                 completed_at=a.completed_at,
                 created_at=a.created_at,
@@ -917,6 +922,7 @@ def employee_get_assessment_detail_logic(db: Session, assessment_id: Union[int, 
         ip_address=assessment.ip_address,
         user_agent=assessment.user_agent,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         created_at=assessment.created_at,
@@ -1893,19 +1899,21 @@ def list_questions_from_bank_logic(
 def add_question_to_bank_logic(db: Session, payload: QuestionCreateRequest) -> QuestionResponse:
     """Adds a new question to the ai_prep_question_bank table in DB."""
     cat = payload.category.value if hasattr(payload.category, "value") else str(payload.category)
-    sub_cat = payload.sub_category
-    if cat != "TECHNICAL":
-        sub_cat = None
-    elif not sub_cat:
-        sub_cat = "General"
 
+    subject = payload.subject.value if hasattr(payload.subject, "value") else payload.subject
+    concept = payload.concept.value if hasattr(payload.concept, "value") else payload.concept
+    scope = payload.scope.value if hasattr(payload.scope, "value") else payload.scope
     diff = payload.difficulty_level.value if hasattr(payload.difficulty_level, "value") else str(payload.difficulty_level)
 
     new_q = AiPrepQuestionORM(
         category=cat,
-        sub_category=sub_cat,
+        subject=subject,
+        concept=concept,
+        scope=scope,
         difficulty_level=diff,
+        time_limit_seconds=payload.time_limit_seconds or 120,
         question_text=payload.question_text,
+        ground_truth=payload.ground_truth,
         is_active=payload.is_active,
     )
     db.add(new_q)
@@ -1925,15 +1933,14 @@ def update_question_in_bank_logic(
         raise HTTPException(status_code=404, detail="Question not found")
 
     for k, v in payload.dict(exclude_unset=True).items():
-        if v is not None and hasattr(q_row, k):
+        if hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
 
-    # Enforce DDL chk_qb_subcategory constraint
     cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
     if cat != "TECHNICAL":
-        q_row.sub_category = None
-    elif not q_row.sub_category:
-        q_row.sub_category = "General"
+        q_row.subject = None
+        q_row.concept = None
+        q_row.scope = None
 
     q_row.updated_at = datetime.utcnow()
     db.commit()

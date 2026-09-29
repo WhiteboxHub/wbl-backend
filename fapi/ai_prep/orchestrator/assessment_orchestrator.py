@@ -275,9 +275,13 @@ def get_questions_for_assessment(
         {
             "id": q.id,
             "category": q.category,
-            "sub_category": q.sub_category,
+            "subject": q.subject,
+            "concept": q.concept,
+            "scope": q.scope,
             "difficulty_level": q.difficulty_level,
+            "time_limit_seconds": q.time_limit_seconds if q.time_limit_seconds is not None else 120,
             "question_text": q.question_text,
+            "ground_truth": q.ground_truth,
             "is_active": q.is_active,
         }
         for q in items

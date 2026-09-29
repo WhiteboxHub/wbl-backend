@@ -323,9 +323,13 @@ class TestAssessmentOrchestratorQuestionSelection:
         mock_q = MagicMock()
         mock_q.id = 1
         mock_q.category = "INTRO"
-        mock_q.sub_category = None
+        mock_q.subject = None
+        mock_q.concept = None
+        mock_q.scope = None
         mock_q.difficulty_level = "MEDIUM"
+        mock_q.time_limit_seconds = 120
         mock_q.question_text = "Tell me about yourself."
+        mock_q.ground_truth = None
         mock_q.is_active = True
 
         with patch("fapi.ai_prep.orchestrator.assessment_orchestrator.crud") as mock_crud:

@@ -122,7 +122,6 @@ def seed_candidate_e2e(e2e_db_session):
         q1 = AiPrepQuestionORM(
             id=201,
             category="INTRO",
-            sub_category="Background",
             difficulty_level="MEDIUM",
             question_text="Tell me about yourself and your experience with AI systems.",
             is_active=True,
