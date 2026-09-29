@@ -1398,7 +1398,7 @@ async def process_audio_engine_logic(
         # 1. Handle direct file upload
         if file:
             temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
-            safe_filename = os.path.basename(file.filename or "test_audio.webm")
+            safe_filename = "uploaded_audio.webm"
             temp_file_path = os.path.join(temp_dir, safe_filename)
             file_size = 0
             with open(temp_file_path, "wb") as buffer:
