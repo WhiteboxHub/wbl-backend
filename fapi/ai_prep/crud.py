@@ -219,7 +219,7 @@ def list_assessments(
     db: Session,
     candidate_id: Optional[int] = None,
     status: Optional[str] = None,
-    limit: int = 50,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
     query = db.query(AiPrepAssessmentORM)
@@ -229,17 +229,24 @@ def list_assessments(
         query = query.filter(AiPrepAssessmentORM.status == status)
 
     total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+    query = query.order_by(desc(AiPrepAssessmentORM.created_at))
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    items = query.all()
     return items, total
 
 
 def list_candidate_assessments(
     db: Session,
     candidate_id: int,
-    limit: int = 50,
+    limit: Optional[int] = None,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
+    """Retrieves all assessments attempted/completed by a specific candidate from DB."""
     return list_assessments(db, candidate_id=candidate_id, limit=limit, offset=offset)
+
 
 
 def list_assessments_for_employee(
@@ -335,7 +342,7 @@ def update_assessment_status(db: Session, assessment_id: Union[int, str], status
     if not assessment:
         return None
     assessment.status = status
-    if status in ("COMPLETED", "FAILED"):
+    if status in ("COMPLETED", "FAILED", "CANCELLED"):
         assessment.completed_at = datetime.utcnow()
     assessment.updated_at = datetime.utcnow()
     db.commit()
@@ -611,7 +618,7 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
             "provider": None,
             "model": None,
             "voice_enabled": False,
-            "message": "No active LLM API key found for this candidate. Please configure an OpenAI or Gemini API key first.",
+            "message": "No active LLM API key found in 'My LLM Setup'. Please configure an OpenAI or Gemini API key first.",
             "available_models": [],
         }
 
@@ -621,7 +628,7 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
         "provider": key_row.provider_name or "openai",
         "model": key_row.model_name or "gpt-4o",
         "voice_enabled": bool(key_row.voice_enabled),
-        "message": "LLM API Key is configured and valid.",
+        "message": "Active LLM API Key is configured and valid in 'My LLM Setup'.",
         "available_models": [key_row.model_name or "gpt-4o"],
     }
 
@@ -681,7 +688,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             "candidate_name": candidate_name,
             "current_title": None,
             "skills": [],
-            "message": "Candidate has not uploaded or synced a resume. Please complete resume setup before starting.",
+            "message": "Candidate has not uploaded or synced a resume in 'My Resume'. Please complete resume setup before starting.",
         }
 
     current_title: Optional[str] = None
@@ -696,7 +703,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         "candidate_name": candidate_name,
         "current_title": current_title,
         "skills": [],
-        "message": "Candidate resume is verified and ready.",
+        "message": "Candidate resume is verified and ready in 'My Resume'.",
     }
 
 
