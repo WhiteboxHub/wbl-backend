@@ -169,6 +169,10 @@ def create_assessment(
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
     assessment_uuid = str(uuid.uuid4())
+    resolved_consent = dict(consent) if isinstance(consent, dict) else consent
+    if media_type and media_type.upper() == "AUDIO" and isinstance(resolved_consent, dict):
+        resolved_consent["video_analytics"] = False
+
     db_obj = AiPrepAssessmentORM(
         assessment_uuid=assessment_uuid,
         candidate_id=candidate_id,
@@ -178,7 +182,7 @@ def create_assessment(
         job_description=job_description,
         ip_address=ip_address,
         user_agent=user_agent,
-        consent=consent,
+        consent=resolved_consent,
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)
@@ -215,33 +219,44 @@ def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Op
     return get_assessment_by_uuid(db, ident_str)
 
 
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+
+
 def list_assessments(
     db: Session,
     candidate_id: Optional[int] = None,
     status: Optional[str] = None,
-    limit: Optional[int] = 50,
+    limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
+    # Defensive fallback for limit & offset to ensure valid SQL generation
+    if limit is None or limit < 1 or limit > MAX_PAGE_SIZE:
+        limit = DEFAULT_PAGE_SIZE
+    if offset is None or offset < 0:
+        offset = 0
+
     query = db.query(AiPrepAssessmentORM)
     if candidate_id is not None:
         query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
     if status:
         query = query.filter(AiPrepAssessmentORM.status == status)
 
-    total = query.count()
-    query = query.order_by(desc(AiPrepAssessmentORM.created_at))
-    if offset:
-        query = query.offset(offset)
-    if limit is not None:
-        query = query.limit(limit)
-    items = query.all()
+    total = query.order_by(None).count()
+    items = (
+        query
+        .order_by(desc(AiPrepAssessmentORM.created_at), desc(AiPrepAssessmentORM.id))
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
     return items, total
 
 
 def list_candidate_assessments(
     db: Session,
     candidate_id: int,
-    limit: Optional[int] = None,
+    limit: int = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
     """Retrieves all assessments attempted/completed by a specific candidate from DB."""
