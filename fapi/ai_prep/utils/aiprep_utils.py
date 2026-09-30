@@ -1048,12 +1048,8 @@ async def candidate_submit_assessment_logic(
             db.commit()
             db.refresh(assessment)
         except HTTPException:
-            # Re-raise already structured HTTP exceptions after setting FAILED
-            try:
-                db.rollback()
-                crud.update_assessment_status(db, assessment.id, "FAILED")
-            except Exception as rollback_err:
-                logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
+            # Re-raise standard HTTP exceptions directly without mutating DB status to FAILED
+            db.rollback()
             raise
         except Exception as eval_err:
             logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
