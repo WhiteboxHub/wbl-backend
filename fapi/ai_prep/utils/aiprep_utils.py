@@ -542,7 +542,7 @@ def candidate_list_assessments_logic(
     db: Session,
     current_user: AuthUserORM,
     candidate_id: Optional[Union[int, str]] = None,
-    limit: Optional[int] = None,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> AssessmentListResponse:
     """Lists assessments belonging to the candidate dynamically from DB.
@@ -954,19 +954,60 @@ async def candidate_submit_assessment_logic(
         duration_seconds=interview_duration,
     )
 
-    # 7. Persist Assessment Data in DB
+    # 7. Resolve Candidate Consents & Persist Assessment Data in DB
+    consent_dict = assessment.consent if isinstance(assessment.consent, dict) else {}
+    save_recording = bool(consent_dict.get("save_recording", True))
+    save_transcript = bool(consent_dict.get("save_transcript", True))
+    video_analytics = bool(consent_dict.get("video_analytics", True))
+    if (assessment.media_type or "").upper() == "AUDIO":
+        video_analytics = False
+
     existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
     existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+
+    # If candidate opted out of transcript storage, do not persist transcript text in DB
+    transcript_to_persist = formatted_transcript if save_transcript else {
+        "full_text": "",
+        "word_count": word_count,
+        "segments": [],
+        "saved": False,
+    }
+
+    # Audio telemetry is stored only if candidate consented to save recording
+    audio_telemetry_to_persist = formatted_audio_telemetry if save_recording else {}
+
+    # Video telemetry is stored only if candidate consented to video analytics
+    video_telemetry_to_persist = formatted_video_telemetry if video_analytics else {}
+
     crud.save_assessment_data(
         db=db,
         assessment_id=assessment.id,
         questions=existing_questions,
-        transcript=formatted_transcript,
-        audio_telemetry=formatted_audio_telemetry,
-        video_telemetry=formatted_video_telemetry,
+        transcript=transcript_to_persist,
+        audio_telemetry=audio_telemetry_to_persist,
+        video_telemetry=video_telemetry_to_persist,
     )
 
-    # 8. Handle Case 1 vs Case 2
+    # 8. Handle Media Storage & YouTube Upload (Decoupled from Gatekeeper)
+    if save_recording:
+        if background_tasks and os.path.exists(target_media):
+            background_tasks.add_task(
+                _process_youtube_upload_and_cleanup,
+                assessment_id=assessment.id,
+                media_path=target_media,
+                media_type=assessment.media_type or "VIDEO",
+                candidate_id=resolved_cand_id,
+            )
+    else:
+        # Candidate opted out of recording: clear youtube_url and purge local media
+        assessment.youtube_url = None
+        if os.path.exists(target_media):
+            try:
+                os.remove(target_media)
+            except Exception as cleanup_err:
+                logger.warning("Could not delete unconsented media file %s: %s", target_media, cleanup_err)
+
+    # 9. Handle Case 1 vs Case 2
     if insufficient_content:
         # Case A: Flag is ON
         crud.update_assessment_status(db, assessment.id, "COMPLETED")
@@ -985,11 +1026,14 @@ async def candidate_submit_assessment_logic(
         crud.update_assessment_status(db, assessment.id, "EVALUATING")
         db.commit()
 
-        # Trigger LLM evaluation engine and await results
+        # Trigger LLM evaluation engine and await results (passing in-memory full_text & telemetry)
         try:
             eval_result = await assessment_orchestrator.run_full_evaluation(
                 db=db,
                 assessment_id=assessment.id,
+                in_memory_transcript_text=full_text,
+                in_memory_audio_telemetry=formatted_audio_telemetry,
+                in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
             )
             llm_report = eval_result.get("report") or {}
             crud.update_assessment_status(db, assessment.id, "COMPLETED")
@@ -1003,16 +1047,6 @@ async def candidate_submit_assessment_logic(
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Evaluation service temporarily unavailable. Please retry submission or contact support.",
-            )
-
-        # YouTube ingestion / media cleanup in background if needed
-        if background_tasks and os.path.exists(target_media):
-            background_tasks.add_task(
-                _process_youtube_upload_and_cleanup,
-                assessment_id=assessment.id,
-                media_path=target_media,
-                media_type=assessment.media_type or "VIDEO",
-                candidate_id=resolved_cand_id,
             )
 
         report_dict = {
@@ -1030,7 +1064,7 @@ async def candidate_submit_assessment_logic(
         "status": assessment.status,
         "started_at": assessment.started_at,
         "completed_at": assessment.completed_at,
-        "youtube_url": assessment.youtube_url or f"https://storage.cdn.example.com/recordings/asm_{assessment.id}_full.webm",
+        "youtube_url": assessment.youtube_url,
     }
 
     return CandidateSubmitAssessmentResponse(
@@ -1038,10 +1072,10 @@ async def candidate_submit_assessment_logic(
         data=CandidateSubmitAssessmentData(
             assessment=AssessmentMetaResponse(**meta_assessment),
             assessment_data=AssessmentTelemetryData(
-                transcript=AssessmentTranscriptData(**formatted_transcript),
+                transcript=AssessmentTranscriptData(**(formatted_transcript if save_transcript else transcript_to_persist)),
             ),
-            audio_telemetry=formatted_audio_telemetry,
-            video_telemetry=formatted_video_telemetry,
+            audio_telemetry=audio_telemetry_to_persist,
+            video_telemetry=video_telemetry_to_persist,
             report=AssessmentSubmitReportData(**report_dict),
         ),
     )
