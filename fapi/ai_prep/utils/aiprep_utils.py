@@ -846,6 +846,13 @@ async def candidate_submit_assessment_logic(
             },
         }
 
+    # Lifecycle State Guard: Disallow resubmitting assessments that are already closed or evaluating
+    if assessment.status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Assessment is already {assessment.status}. Cannot resubmit or retake an assessment that is closed or currently evaluating.",
+        )
+
     payload = payload or CandidateSubmitAssessmentRequest()
 
     total_chunks = payload.total_chunks_uploaded
@@ -1040,14 +1047,25 @@ async def candidate_submit_assessment_logic(
             assessment.completed_at = datetime.utcnow()
             db.commit()
             db.refresh(assessment)
+        except HTTPException:
+            # Re-raise already structured HTTP exceptions after setting FAILED
+            try:
+                db.rollback()
+                crud.update_assessment_status(db, assessment.id, "FAILED")
+            except Exception as rollback_err:
+                logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
+            raise
         except Exception as eval_err:
-            logger.error(f"LLM Evaluation failed for assessment {assessment.id}: {eval_err}")
-            crud.update_assessment_status(db, assessment.id, "FAILED")
-            db.commit()
+            logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
+            try:
+                db.rollback()
+                crud.update_assessment_status(db, assessment.id, "FAILED")
+            except Exception as rollback_err:
+                logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
             raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Evaluation service temporarily unavailable. Please retry submission or contact support.",
-            )
+                status_code=502,
+                detail="Evaluation service temporarily unavailable",
+            ) from eval_err
 
         report_dict = {
             "insufficient_content": False,
