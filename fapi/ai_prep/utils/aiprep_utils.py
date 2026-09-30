@@ -1047,10 +1047,6 @@ async def candidate_submit_assessment_logic(
             assessment.completed_at = datetime.utcnow()
             db.commit()
             db.refresh(assessment)
-        except HTTPException:
-            # Re-raise standard HTTP exceptions directly without mutating DB status to FAILED
-            db.rollback()
-            raise
         except Exception as eval_err:
             logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
             try:
