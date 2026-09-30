@@ -542,7 +542,7 @@ def candidate_list_assessments_logic(
     db: Session,
     current_user: AuthUserORM,
     candidate_id: Optional[Union[int, str]] = None,
-    limit: int = 50,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> AssessmentListResponse:
     """Lists assessments belonging to the candidate dynamically from DB.

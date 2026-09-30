@@ -227,7 +227,7 @@ def list_assessments(
     db: Session,
     candidate_id: Optional[int] = None,
     status: Optional[str] = None,
-    limit: int = DEFAULT_PAGE_SIZE,
+    limit: Optional[int] = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
     # Defensive fallback for limit & offset to ensure valid SQL generation
@@ -256,7 +256,7 @@ def list_assessments(
 def list_candidate_assessments(
     db: Session,
     candidate_id: int,
-    limit: int = DEFAULT_PAGE_SIZE,
+    limit: Optional[int] = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
     """Retrieves all assessments attempted/completed by a specific candidate from DB."""
