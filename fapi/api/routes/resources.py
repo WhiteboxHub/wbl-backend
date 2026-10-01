@@ -36,7 +36,7 @@ from fapi.utils.avatar_dashboard_utils import get_batch_metrics
 from fapi.utils.table_fingerprint import generate_version_for_model
 
 router = APIRouter()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 def extract_role_and_team_from_token(token: str):
     """

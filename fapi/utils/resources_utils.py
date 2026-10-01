@@ -8,6 +8,7 @@ from fapi.db.models import (Session as SessionORM, CourseSubject, CourseMaterial
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 from fapi.db.database import SessionLocal
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from fapi.core.cache import cache_result
 from sqlalchemy import literal
@@ -83,19 +84,7 @@ def fetch_keyword_presentation(search: str, course: str):
         ]
 
 
-def fetch_subject_batch_recording(course: str, batchid: int, db: Session):
-    course_obj = db.query(Course).filter(Course.alias == course).first()
-    if not course_obj:
-        return {"message": "Course not found"}
-
-    recordings = (
-        db.query(Recording)
-        .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
-        .join(Batch, RecordingBatch.batch_id == Batch.batchid)
-        .filter(Batch.batchid == batchid)
-        .all()
-    )
-    return {"recordings": recordings}
+# fetch_subject_batch_recording is defined below (with search + cache support)
 
 
 @cache_result(ttl=300, prefix="resources")
@@ -187,45 +176,20 @@ def fetch_session_types_by_team(db: Session, team: str, role: str = None, user_t
     return normalized_types
 
 
-def fetch_course_batches(db: Session) -> List[Dict[str, Any]]:
-    course = "ML"
-    try:
-
-        course_obj = db.execute(
-            select(Course).where(Course.alias == course)
-        ).scalar_one_or_none()
-
-        if not course_obj:
-            return []
-
-        stmt = (
-            select(Batch.batchname, Batch.batchid)
-            .where(Batch.courseid == course_obj.id)
-            .group_by(Batch.batchname, Batch.batchid)
-            .order_by(Batch.batchname.desc())
-        )
-        result = db.execute(stmt)
-        rows = result.all()
-        if not rows:
-            return []
-
-        return [{"batchname": row.batchname, "batchid": row.batchid} for row in rows]
-
-    except Exception as e:
-        logger.exception(f"Error fetching batches for course '{course}': {e}")
-        raise HTTPException(status_code=500, detail="Unexpected server error")
+# fetch_course_batches is defined below (with course param support)
 
 
-def course_content(session: Session):
+async def course_content(session: AsyncSession):
     """
     Fetch course content for Fundamentals, AIML, UI, and QE.
     """
-    rows = session.query(
+    result = await session.execute(select(
         CourseContent.Fundamentals,
         CourseContent.AIML,
         CourseContent.UI,
         CourseContent.QE
-    ).all()
+    ))
+    rows = result.all()
     return [
         dict(Fundamentals=row[0], AIML=row[1], UI=row[2], QE=row[3])
         for row in rows
@@ -251,46 +215,29 @@ def fetch_subject_batch_recording(
         raise HTTPException(
             status_code=404, detail=f"Course '{course}' not found")
 
-    query = (db.query(
-        Recording,
-        Batch.batchname,
-        Course.name.label("course_name")
-    )
+    query = (
+        db.query(
+            Recording,
+            Batch.batchname,
+            Course.name.label("course_name")
+        )
         .join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
         .join(Batch, RecordingBatch.batch_id == Batch.batchid)
-
         .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
         .join(Course, Course.id == CourseSubject.course_id)
         .filter(Course.alias == course)
         .filter(Batch.batchid == batchid if batchid is not None else True)
         .filter(Recording.new_subject_id == CourseSubject.subject_id)
-        .order_by(Recording.classdate.desc())
     )
 
     if search:
-        like_str = f"%{search}%"
-        query = (db.query(
-            Recording,
-            Batch.batchname,
-            Course.name.label("course_name")
-        ).join(RecordingBatch, Recording.id == RecordingBatch.recording_id)
-            .join(Batch, RecordingBatch.batch_id == Batch.batchid)
-            .join(CourseSubject, Batch.courseid == CourseSubject.course_id)
-            .join(Course, Course.id == CourseSubject.course_id)
-            .filter(Course.alias == course)
-            .filter(Batch.batchid == batchid if batchid is not None else True)
-            .filter(Recording.new_subject_id == CourseSubject.subject_id)
-            .filter(
-            or_(
-                Recording.description.ilike(f"%{search}%")
-            ) if search else True
-        ).order_by(Recording.classdate.desc()))
+        query = query.filter(
+            Recording.description.ilike(f"%{search}%")
+        )
 
-    query = query.order_by(Recording.classdate.desc())
+    recordings = query.order_by(Recording.classdate.desc()).all()
 
-    recordings = db.execute(query).scalars().all()
-
-    return {"batch_recordings": recordings}
+    return {"batch_recordings": [r[0] for r in recordings]}
 
 
 def fetch_course_batches(course: str, db: Session) -> List[Dict[str, Any]]:

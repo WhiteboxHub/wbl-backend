@@ -6,6 +6,8 @@ __pycache__/
 venv/
 myenv/
 myvenv/
+menv1/
+
 node_modules
 backend-env.yaml
 temp_candidates.json
@@ -25,4 +27,4 @@ storage/
 # Test & coverage caches
 .pytest_cache/
 .coverage
-htmlcov/
+htmlcov/

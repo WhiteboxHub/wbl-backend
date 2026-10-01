@@ -3,7 +3,12 @@ Unit and Integration Tests for Audio Engine & STT Chunk Merging.
 Tests overlap deduplication, global timestamp offsets, genuine repetitions,
 and database storage safety (no word_timestamps persisted).
 """
+import io
+import asyncio
 import unittest
+import pytest
+from fastapi import HTTPException, BackgroundTasks, UploadFile
+from fapi.ai_prep.utils.aiprep_utils import process_audio_engine_logic
 from fapi.ai_prep.core.audio_engine.stt import merge_word_timestamps, LiveSTTStore
 from fapi.ai_prep.core.audio_engine.transcript_metrics import calculate_transcript_metrics
 
@@ -73,6 +78,39 @@ class TestSTTChunkMerging(unittest.TestCase):
         self.assertEqual(metrics["pause_count"], 1)
         self.assertGreater(metrics["wpm"], 0)
         self.assertIn("filler_rate_per_min", metrics)
+        
+@pytest.mark.asyncio
+class TestProcessAudioEngineLogicRegression:
+
+    def test_empty_file_upload_rejected(self):
+        """Finding 3: Empty upload must return 400."""
+        bg = BackgroundTasks()
+        upload = UploadFile(filename="empty.wav", file=io.BytesIO(b""))
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(process_audio_engine_logic(background_tasks=bg, file=upload))
+        assert exc.value.status_code == 400
+        assert "empty" in exc.value.detail.lower()
+
+    def test_directory_as_audio_path_rejected(self, tmp_path, monkeypatch):
+        """Finding 2: Supplying a directory must return 400."""
+        from fapi.ai_prep.utils import aiprep_utils
+        monkeypatch.setattr(aiprep_utils, "STORAGE_BASE_DIR", str(tmp_path))
+        test_dir = tmp_path / "somedir"
+        test_dir.mkdir()
+        bg = BackgroundTasks()
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(process_audio_engine_logic(background_tasks=bg, audio_path=str(test_dir)))
+        assert exc.value.status_code == 400
+        assert "valid audio file" in exc.value.detail.lower()
+        
+    def test_file_size_exceeded_cleans_up_temp_dir(self):
+        """Finding 1: Upload exceeding 100MB raises 413 and cleans up."""
+        bg = BackgroundTasks()
+        large_stream = io.BytesIO(b"0" * (101 * 1024 * 1024))
+        upload = UploadFile(filename="large.wav", file=large_stream)
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(process_audio_engine_logic(background_tasks=bg, file=upload))
+        assert exc.value.status_code == 413
 
 
 if __name__ == "__main__":

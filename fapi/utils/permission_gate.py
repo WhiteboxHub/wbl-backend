@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, Request, status
 from fapi.utils.auth_dependencies import get_current_user
 
+
 ALLOWED_GET_PREFIXES = {
     "/api/course-content",
     "/api/session-types",
@@ -62,6 +63,14 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
     
+    if current_user is None:
+        if method == "GET" and (path == "/api/course-content" or path.startswith("/api/course-content/") or path == "/api/course-contents" or path.startswith("/api/course-contents/")):
+            return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
     if _is_admin(current_user):
         return current_user
 

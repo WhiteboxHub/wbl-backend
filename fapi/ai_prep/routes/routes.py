@@ -1,12 +1,8 @@
 """FastAPI Routes and API Endpoints for AI Prep Tool.
 Delegates business logic to fapi.ai_prep.utils.aiprep_utils following WBL Backend architecture.
 """
-import os
-from pathlib import Path
-import shutil
-import tempfile
 import logging
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 from fastapi import (
     APIRouter,
     Depends,
@@ -18,6 +14,7 @@ from fastapi import (
     Request,
     BackgroundTasks,
     HTTPException,
+    Body,
 )
 from sqlalchemy.orm import Session
 
@@ -34,20 +31,11 @@ from fapi.ai_prep.schemas import (
     PreAssessmentCheckResponse,
     CreateAssessmentRequest,
     CreateAssessmentResponse,
-    SubmitAssessmentRequest,
-    SubmitAssessmentDataRequest,
-    SubmitAssessmentDataResponse,
     UpdateMediaURLRequest,
     UpdateMediaURLResponse,
-    TriggerEvaluationResponse,
-    AssessmentDetailResponse,
-    AssessmentDataResponse,
-    AssessmentReportResponse,
     AssessmentListResponse,
-    ChunkUploadResponse,
+    MediaChunkUploadResponse,
     ChunkStatusResponse,
-    AssembleMediaRequest,
-    AssembleMediaResponse,
     LocalMediaUploadResponse,
     StorageInfoResponse,
     ProcessingStatusResponse,
@@ -56,9 +44,11 @@ from fapi.ai_prep.schemas import (
     QuestionUpdateRequest,
     QuestionResponse,
     QuestionListResponse,
+    CandidateSubmitAssessmentRequest,
+    CandidateSubmitAssessmentResponse,
+    CandidateAssessmentDetailResponse,
 )
 from fapi.ai_prep.utils import aiprep_utils
-from fapi.ai_prep.core.audio_engine import InvalidProviderConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -102,35 +92,34 @@ def candidate_check_resume_status(
 
 
 @router.get(
-    "/candidate/pre-check",
+    "/candidates/{id}/assessment-readiness-precheck",
     response_model=PreAssessmentCheckResponse,
     tags=["AI Prep - Candidate"],
-    summary="Candidate: Combined Pre-Flight Readiness",
+    summary="Assessment Readiness Pre-Check",
 )
-@router.get("/pre-check", response_model=PreAssessmentCheckResponse, tags=["AI Prep - Candidate"], summary="Combined Pre-Check")
-def candidate_pre_check(
+def candidate_assessment_readiness_precheck(
+    id: Union[int, str],
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Verifies both LLM key and resume readiness before starting assessment."""
-    return aiprep_utils.candidate_pre_check_logic(db=db, current_user=current_user)
+    """Checks whether candidate has active LLM key in 'My LLM Setup' and resume in 'My Resume'.
+
+    Only allows candidate to proceed with assessment if both are ready; otherwise specifies respective setup.
+    """
+    return aiprep_utils.assessment_readiness_precheck_logic(
+        db=db, current_user=current_user, candidate_id=id
+    )
 
 
 @router.post(
-    "/candidate/assessments",
+    "/candidates/{id}/assessments",
     response_model=CreateAssessmentResponse,
     status_code=status.HTTP_201_CREATED,
     tags=["AI Prep - Candidate"],
-    summary="Candidate: Start Assessment Session",
-)
-@router.post(
-    "/assessments",
-    response_model=CreateAssessmentResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["AI Prep - Candidate"],
-    summary="Create Assessment Session",
+    summary="Candidate: Create Assessment Session",
 )
 def candidate_create_assessment(
+    id: Union[int, str],
     payload: CreateAssessmentRequest,
     request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
@@ -142,6 +131,7 @@ def candidate_create_assessment(
     return aiprep_utils.candidate_create_assessment_logic(
         db=db,
         current_user=current_user,
+        candidate_id=id,
         payload=payload,
         ip_address=ip_address,
         user_agent=user_agent,
@@ -149,86 +139,94 @@ def candidate_create_assessment(
 
 
 @router.get(
-    "/candidate/assessments",
+    "/candidates/{id}/assessments",
     response_model=AssessmentListResponse,
     tags=["AI Prep - Candidate"],
-    summary="Candidate: List Own Assessments",
+    summary="Candidate: List Candidate Assessments",
 )
-@router.get("/assessments", response_model=AssessmentListResponse, tags=["AI Prep - Candidate"], summary="List Assessments")
 def candidate_list_assessments(
-    limit: int = Query(50, ge=1, le=100),
+    id: Union[int, str],
+    limit: Optional[int] = Query(None, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Lists assessments belonging to the authenticated candidate dynamically from DB."""
-    return aiprep_utils.candidate_list_assessments_logic(db=db, current_user=current_user, limit=limit, offset=offset)
+    """Lists all assessments attempted/completed by a particular candidate using id.
+
+    Authorization:
+    - Candidate can only access their own assessments (attempting to access another candidate's id returns 403 Forbidden).
+    - Candidate A must not be able to access Candidate B's assessment or any of Candidate B's data.
+    - Staff / Admin can view any candidate's assessments.
+    """
+    return aiprep_utils.candidate_list_assessments_logic(
+        db=db,
+        current_user=current_user,
+        candidate_id=id,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
-    "/candidate/assessments/{assessment_id}",
-    response_model=AssessmentDetailResponse,
+    "/candidates/{id}/assessments/{assessment_id}",
+    response_model=CandidateAssessmentDetailResponse,
     tags=["AI Prep - Candidate"],
-    summary="Candidate: Get Assessment Details & Report",
+    summary="Candidate: Get Complete Assessment Detail",
 )
-@router.get("/assessments/{assessment_id}", response_model=AssessmentDetailResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Details")
 def candidate_get_assessment_detail(
-    assessment_id: str,
+    id: Union[int, str],
+    assessment_id: Union[int, str],
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Fetches assessment detail, telemetry, and evaluation scores from DB."""
-    return aiprep_utils.candidate_get_assessment_detail_logic(db=db, current_user=current_user, assessment_id=assessment_id)
+    """
+    Returns the complete details of a specific assessment for the authenticated candidate.
+
+    Authorization:
+    - A candidate can only retrieve their own assessment. Passing another candidate's
+      `id` or an `assessment_id` that does not belong to them raises HTTP 403.
+    - Staff / admin users may use this endpoint to inspect any candidate's assessment.
+    """
+    return aiprep_utils.candidate_get_assessment_detail_logic(
+        db=db,
+        current_user=current_user,
+        candidate_id=id,
+        assessment_id=assessment_id,
+    )
 
 
-@router.get(
-    "/candidate/assessments/{assessment_id}/data",
-    response_model=AssessmentDataResponse,
+@router.put(
+    "/candidates/{candidate_id}/assessments/{assessment_id}",
+    response_model=Union[CandidateSubmitAssessmentResponse, Dict[str, Any]],
     tags=["AI Prep - Candidate"],
-    summary="Candidate: Get Submitted Telemetry & Questions",
+    summary="Candidate: Submit Assessment or Cancel",
 )
-@router.get("/assessments/{assessment_id}/data", response_model=AssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Data")
-def candidate_get_assessment_data(
-    assessment_id: str,
+async def candidate_submit_assessment(
+    candidate_id: Union[int, str],
+    assessment_id: Union[int, str],
+    background_tasks: BackgroundTasks,
+    payload: Optional[CandidateSubmitAssessmentRequest] = Body(default=None),
+    status: Optional[str] = Query(None, description="Set to 'cancelled' if exiting/cancelling assessment"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Fetches submitted telemetry, questions, and transcript for an assessment."""
-    return aiprep_utils.candidate_get_assessment_data_logic(db=db, current_user=current_user, assessment_id=assessment_id)
-
-
-@router.get(
-    "/candidate/assessments/{assessment_id}/report",
-    response_model=AssessmentReportResponse,
-    tags=["AI Prep - Candidate"],
-    summary="Candidate: Get Assessment Evaluation Report",
-)
-@router.get("/assessments/{assessment_id}/report", response_model=AssessmentReportResponse, tags=["AI Prep - Candidate"], summary="Get Assessment Report")
-def candidate_get_assessment_report(
-    assessment_id: str,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Fetches evaluation report (audio, video, transcript evaluations) for an assessment."""
-    return aiprep_utils.candidate_get_assessment_report_logic(db=db, current_user=current_user, assessment_id=assessment_id)
-
-
-
-@router.post(
-    "/candidate/assessments/{assessment_id}/data",
-    response_model=SubmitAssessmentDataResponse,
-    tags=["AI Prep - Candidate"],
-    summary="Candidate: Submit Assessment Telemetry",
-)
-@router.post("/assessments/{assessment_id}/data", response_model=SubmitAssessmentDataResponse, tags=["AI Prep - Candidate"], summary="Submit Telemetry")
-def candidate_submit_data(
-    assessment_id: str,
-    payload: SubmitAssessmentDataRequest,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Persists candidate telemetry, transcript, and answers into ai_prep_assessment_data."""
-    return aiprep_utils.candidate_submit_data_logic(db=db, current_user=current_user, assessment_id=assessment_id, payload=payload)
+    """
+    Candidate Submit Assessment:
+    - If status == 'cancelled' (e.g. Exit clicked): Changes assessment status to CANCELLED in DB and exits immediately.
+    - Otherwise: Notifies backend that recording is complete, stitches media chunks,
+      executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag
+      (insufficient_content) using transcript word count and interview duration,
+      and returns assessment details and flag status.
+    """
+    return await aiprep_utils.candidate_submit_assessment_logic(
+        db=db,
+        current_user=current_user,
+        candidate_id=candidate_id,
+        assessment_id=assessment_id,
+        payload=payload,
+        status=status,
+        background_tasks=background_tasks,
+    )
 
 
 @router.patch(
@@ -239,60 +237,13 @@ def candidate_submit_data(
 )
 @router.patch("/assessments/{assessment_id}/media", response_model=UpdateMediaURLResponse, tags=["AI Prep - Candidate"], summary="Update Media URL")
 def candidate_update_media_url(
-    assessment_id: str,
+    assessment_id: Union[int, str],
     payload: UpdateMediaURLRequest,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Updates YouTube/video playback URL on assessment in DB."""
     return aiprep_utils.candidate_update_media_url_logic(db=db, current_user=current_user, assessment_id=assessment_id, payload=payload)
-
-
-@router.post(
-    "/candidate/assessments/{assessment_id}/evaluate",
-    response_model=TriggerEvaluationResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    tags=["AI Prep - Candidate"],
-    summary="Candidate: Trigger Evaluation (POST)",
-)
-@router.post("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Trigger Evaluation")
-def candidate_trigger_eval_post(
-    assessment_id: str,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = None,
-):
-    """Transitions status to EVALUATING in DB and queues background LLM evaluation."""
-    return aiprep_utils.candidate_trigger_eval_post_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-        background_tasks=background_tasks,
-    )
-
-
-@router.put(
-    "/candidate/assessments/{assessment_id}/evaluate",
-    response_model=TriggerEvaluationResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Candidate: Submit & Evaluate (PUT)",
-)
-@router.put("/assessments/{assessment_id}/evaluate", response_model=TriggerEvaluationResponse, status_code=status.HTTP_202_ACCEPTED, tags=["AI Prep - Candidate"], summary="Submit & Evaluate")
-def candidate_trigger_eval_put(
-    assessment_id: str,
-    payload: Optional[SubmitAssessmentRequest] = None,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks = None,
-):
-    """Saves telemetry if provided, transitions status to EVALUATING, and queues background LLM evaluation."""
-    return aiprep_utils.candidate_trigger_eval_put_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-        payload=payload,
-        background_tasks=background_tasks,
-    )
 
 
 @router.get(
@@ -356,22 +307,6 @@ def employee_check_candidate_resume_route(
     return aiprep_utils.employee_check_candidate_resume_logic(db=db, candidate_id=candidate_id)
 
 
-@router.get(
-    "/employee/candidates/{candidate_id}/pre-check",
-    response_model=PreAssessmentCheckResponse,
-    tags=["AI Prep - Employee / Admin"],
-    summary="Employee: Pre-Flight Readiness for Candidate",
-)
-@router.get("/candidates/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, tags=["AI Prep - Employee / Admin"], summary="Employee Candidate Pre-Check")
-@router.get("/employee/candidate/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, include_in_schema=False)
-@router.get("/candidate/{candidate_id}/pre-check", response_model=PreAssessmentCheckResponse, include_in_schema=False)
-def employee_check_candidate_pre_check_route(
-    candidate_id: int,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Employee endpoint: check combined eligibility dynamically from DB."""
-    return aiprep_utils.employee_check_candidate_pre_check_logic(db=db, candidate_id=candidate_id)
 
 
 @router.get(
@@ -404,9 +339,7 @@ def employee_list_assessments_table(
     tags=["AI Prep - Employee / Admin"],
     summary="Employee: List Specific Candidate Assessments",
 )
-@router.get("/candidates/{candidate_id}/assessments", response_model=AssessmentListResponse, tags=["AI Prep - Employee / Admin"], summary="List Assessments by Candidate ID")
 @router.get("/employee/candidate/{candidate_id}/assessments", response_model=AssessmentListResponse, include_in_schema=False)
-@router.get("/candidate/{candidate_id}/assessments", response_model=AssessmentListResponse, include_in_schema=False)
 def employee_list_candidate_assessments_route(
     candidate_id: int,
     _staff: AuthUserORM = Depends(staff_or_admin_required),
@@ -416,49 +349,6 @@ def employee_list_candidate_assessments_route(
     return aiprep_utils.employee_list_candidate_assessments_logic(db=db, candidate_id=candidate_id)
 
 
-@router.get(
-    "/employee/assessments/{assessment_id}",
-    response_model=AssessmentDetailResponse,
-    tags=["AI Prep - Employee / Admin"],
-    summary="Employee: Inspect Assessment Details & Scores",
-)
-def employee_get_assessment_detail_route(
-    assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Employee/Admin endpoint to review complete telemetry and scores for any assessment."""
-    return aiprep_utils.employee_get_assessment_detail_logic(db=db, assessment_id=assessment_id)
-
-
-@router.get(
-    "/employee/assessments/{assessment_id}/data",
-    response_model=AssessmentDataResponse,
-    tags=["AI Prep - Employee / Admin"],
-    summary="Employee: Get Assessment Telemetry & Questions",
-)
-def employee_get_assessment_data_route(
-    assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Employee/Admin endpoint to view submitted telemetry, transcript, and questions."""
-    return aiprep_utils.employee_get_assessment_data_logic(db=db, assessment_id=assessment_id)
-
-
-@router.get(
-    "/employee/assessments/{assessment_id}/report",
-    response_model=AssessmentReportResponse,
-    tags=["AI Prep - Employee / Admin"],
-    summary="Employee: Get Assessment Evaluation Report",
-)
-def employee_get_assessment_report_route(
-    assessment_id: str,
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
-    db: Session = Depends(get_db),
-):
-    """Employee/Admin endpoint to view complete evaluation report (audio, video, transcript)."""
-    return aiprep_utils.employee_get_assessment_report_logic(db=db, assessment_id=assessment_id)
 
 
 @router.get(
@@ -589,27 +479,31 @@ def delete_question_from_bank(
 # ===========================================================================
 
 @router.post(
-    "/media/upload-chunk",
-    response_model=ChunkUploadResponse,
+    "/candidates/{candidate_id}/assessments/{assessment_id}/media/chunk",
+    response_model=MediaChunkUploadResponse,
     tags=["AI Prep - Media & Streaming"],
-    summary="Media: Upload 30s WebM Chunk",
+    summary="Media: Upload Assessment Chunk",
 )
-async def upload_media_chunk(
-    assessment_id: str = Form(...),
-    chunk_number: int = Form(..., ge=1),
-    total_chunks: Optional[int] = Form(None, ge=1),
-    file: UploadFile = File(...),
+async def upload_candidate_assessment_chunk(
+    candidate_id: Union[int, str],
+    assessment_id: Union[int, str],
+    chunk_index: int = Form(..., ge=0),
+    assessment_uuid: Optional[str] = Form(None),
+    is_final: bool = Form(False),
+    media_file: UploadFile = File(..., description="WebM media chunk file to upload"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads sequential WebM media chunk to server storage directory using streaming."""
-    return await aiprep_utils.upload_media_chunk_logic(
+    """Uploads sequential WebM media chunk for candidate assessment."""
+    return await aiprep_utils.upload_candidate_assessment_chunk_logic(
         db=db,
         current_user=current_user,
+        candidate_id=candidate_id,
         assessment_id=assessment_id,
-        chunk_number=chunk_number,
-        total_chunks=total_chunks,
-        file_content=file,
+        chunk_index=chunk_index,
+        file_content=media_file,
+        assessment_uuid=assessment_uuid,
+        is_final=is_final,
     )
 
 
@@ -620,7 +514,7 @@ async def upload_media_chunk(
     summary="Media: Query Chunk Upload Status",
 )
 def get_chunk_upload_status(
-    assessment_id: str = Query(...),
+    assessment_id: Union[int, str] = Query(...),
     total_chunks: Optional[int] = Query(None),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -634,27 +528,6 @@ def get_chunk_upload_status(
     )
 
 
-@router.post(
-    "/media/assemble",
-    response_model=AssembleMediaResponse,
-    tags=["AI Prep - Media & Streaming"],
-    summary="Media: Assemble Chunks & Process",
-)
-def assemble_media_chunks(
-    background_tasks: BackgroundTasks,
-    assessment_id: Union[int, str] = Query(...),
-    payload: Optional[AssembleMediaRequest] = None,
-    current_user: AuthUserORM = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Concatenates WebM chunks and launches evaluation."""
-    return aiprep_utils.assemble_media_chunks_logic(
-        db=db,
-        current_user=current_user,
-        assessment_id=assessment_id,
-        payload=payload,
-        background_tasks=background_tasks,
-    )
 
 
 @router.post(
@@ -689,7 +562,7 @@ async def upload_raw_media(
     summary="Progress: Assessment Processing Status Snapshot",
 )
 def get_assessment_processing_status(
-    assessment_id: str,
+    assessment_id: Union[int, str],
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -707,7 +580,7 @@ def get_assessment_processing_status(
     summary="Progress: Real-Time SSE Status Stream",
 )
 def stream_assessment_processing_sse(
-    assessment_id: str,
+    assessment_id: Union[int, str],
     request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
 ):
@@ -733,7 +606,7 @@ def stream_assessment_processing_sse(
 )
 async def upload_assessment_audio(
     background_tasks: BackgroundTasks,
-    assessment_id: str,
+    assessment_id: Union[int, str],
     file: UploadFile = File(...),
     mime_type: Optional[str] = Form(None),
     current_user: AuthUserORM = Depends(get_current_user),
@@ -775,7 +648,7 @@ def get_assessment_playback(
     summary="Stream Assessment Audio from Storage",
 )
 def get_assessment_audio(
-    assessment_id: str,
+    assessment_id: Union[int, str],
     request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -801,7 +674,7 @@ def get_assessment_audio(
     summary="Stream Assessment Video Recording from Storage",
 )
 def get_assessment_video(
-    assessment_id: str,
+    assessment_id: Union[int, str],
     request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -817,7 +690,6 @@ def get_assessment_video(
 # ===========================================================================
 # 4. PERFORMANCE TESTING & BENCHMARKING
 # ===========================================================================
-
 @router.post(
     "/audio-engine/process",
     tags=["AI Prep - Media & Streaming"],
@@ -838,102 +710,14 @@ async def process_audio_engine_endpoint(
     Supports direct audio file upload or a server-side storage path.
     Gated to staff/admin to prevent resource abuse.
     """
-    target_path = None
-    temp_dir = None
-    task_queued = False
-
-    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB limit
-    # 1. Handle direct file upload
-    if file:
-        temp_dir = tempfile.mkdtemp(prefix="aiprep_perf_")
-        safe_filename = os.path.basename(file.filename or "test_audio.webm")
-        temp_file_path = os.path.join(temp_dir, safe_filename)
-        file_size = 0
-        with open(temp_file_path, "wb") as buffer:
-            while chunk := file.file.read(1024 * 1024):  # 1MB chunks
-                file_size += len(chunk)
-                if file_size > MAX_FILE_SIZE:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    raise HTTPException(status_code=413, detail="Uploaded file exceeds maximum limit of 100MB.")
-                buffer.write(chunk)
-        target_path = temp_file_path        
-
-    # 2. Handle server-side audio_path and prevent storage-boundary escapes
-    elif audio_path:
-        base_dir = Path(aiprep_utils.STORAGE_BASE_DIR).resolve()
-        try:
-            resolved_path = Path(audio_path).resolve()
-        except (OSError, RuntimeError) as exc:
-            logger.warning("Failed to resolve audio_path — invalid format or path characters")
-            raise HTTPException(status_code=400, detail="Invalid audio_path format.") from exc
-
-        if not (resolved_path == base_dir or resolved_path.is_relative_to(base_dir)):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid audio_path. Path must reside within the application storage directory."
-            )
-        target_path = str(resolved_path)
-
-
-    # Validate file existence without leaking server filesystem paths in error messages
-    if not target_path or not os.path.exists(target_path):
-        if temp_dir and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        raise HTTPException(status_code=400, detail="Valid audio file or storage audio_path is required.")
-
-    try:
-        if async_mode:
-            # Background task wrapper that guarantees temp cleanup after processing
-            async def _benchmark_with_cleanup(path: str, prov: Optional[str], sz: str, dir_to_clean: Optional[str]):
-                try:
-                    await aiprep_utils.run_audio_engine_benchmark(
-                        audio_path=path,
-                        provider_name=prov,
-                        model_size=sz,
-                    )
-                finally:
-                    if dir_to_clean and os.path.exists(dir_to_clean):
-                        shutil.rmtree(dir_to_clean, ignore_errors=True)
-
-            try:
-                background_tasks.add_task(
-                    _benchmark_with_cleanup,
-                    path=target_path,
-                    prov=provider,
-                    sz=model_size,
-                    dir_to_clean=temp_dir,
-                )
-                task_queued = True  
-            except Exception:
-                if temp_dir and os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                raise
-
-            return {
-                "status": "ACCEPTED",
-                "message": "Audio processing queued in background",
-                "provider": provider or os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
-            }
-        else:
-            # Synchronous benchmark return (runs off-thread)
-            result = await aiprep_utils.run_audio_engine_benchmark(
-                audio_path=target_path,
-                provider_name=provider,
-                model_size=model_size
-            )
-            return {
-                "status": "SUCCESS",
-                "data": result
-            }
-    except InvalidProviderConfigError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Audio engine benchmark failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred while processing the audio benchmark.")
-    finally:
-
-        # Delete temp folder in sync mode, or if async task failed to queue
-        if (not async_mode or not task_queued) and temp_dir and os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir, ignore_errors=True)
+    _ = current_user
+    return await aiprep_utils.process_audio_engine_logic(
+        background_tasks=background_tasks,
+        file=file,
+        audio_path=audio_path,
+        provider=provider,
+        model_size=model_size,
+        async_mode=async_mode,
+    )
 
 

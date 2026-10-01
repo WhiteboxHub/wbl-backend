@@ -91,38 +91,56 @@ def get_default_questions() -> List[Dict[str, Any]]:
     return [
         {
             "category": "INTRO",
-            "sub_category": None,
+            "subject": None,
+            "concept": None,
+            "scope": None,
             "difficulty_level": "MEDIUM",
+            "time_limit_seconds": 120,
             "question_text": "Tell me about yourself, your background, and your experience building production AI and software systems.",
         },
         {
             "category": "JD_INTRO",
-            "sub_category": None,
+            "subject": None,
+            "concept": None,
+            "scope": None,
             "difficulty_level": "MEDIUM",
+            "time_limit_seconds": 120,
             "question_text": "How does your technical experience match the key requirements and tech stack of this job description?",
         },
         {
             "category": "RECRUITER",
-            "sub_category": None,
+            "subject": None,
+            "concept": None,
+            "scope": None,
             "difficulty_level": "MEDIUM",
+            "time_limit_seconds": 120,
             "question_text": "Walk me through your recent career transitions and what motivates you to pursue this next role.",
         },
         {
             "category": "HIRING_MANAGER",
-            "sub_category": None,
+            "subject": None,
+            "concept": None,
+            "scope": None,
             "difficulty_level": "HARD",
+            "time_limit_seconds": 150,
             "question_text": "Describe a high-stakes project you led where you encountered significant blockers. How did you resolve them?",
         },
         {
             "category": "SYSTEM_DESIGN",
-            "sub_category": None,
+            "subject": None,
+            "concept": None,
+            "scope": None,
             "difficulty_level": "HARD",
+            "time_limit_seconds": 180,
             "question_text": "Design a high-throughput, low-latency RAG pipeline that handles multi-tenant enterprise documents with semantic caching and guardrails.",
         },
         {
             "category": "TECHNICAL",
-            "sub_category": "Agentic AI",
+            "subject": "AI Engineering",
+            "concept": "Generative AI & LLMs",
+            "scope": "SPECIFIC",
             "difficulty_level": "HARD",
+            "time_limit_seconds": 150,
             "question_text": "Explain the difference between ReAct patterns and Plan-and-Solve agent frameworks. When would you choose one over the other?",
         },
     ]
@@ -147,6 +165,7 @@ def create_assessment(
     job_description: Optional[str] = None,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
+    consent: Optional[Dict[str, Any]] = None,
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
     assessment_uuid = str(uuid.uuid4())
@@ -159,6 +178,7 @@ def create_assessment(
         job_description=job_description,
         ip_address=ip_address,
         user_agent=user_agent,
+        consent=consent,
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)
@@ -199,7 +219,7 @@ def list_assessments(
     db: Session,
     candidate_id: Optional[int] = None,
     status: Optional[str] = None,
-    limit: int = 50,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
     query = db.query(AiPrepAssessmentORM)
@@ -209,17 +229,24 @@ def list_assessments(
         query = query.filter(AiPrepAssessmentORM.status == status)
 
     total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+    query = query.order_by(desc(AiPrepAssessmentORM.created_at))
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    items = query.all()
     return items, total
 
 
 def list_candidate_assessments(
     db: Session,
     candidate_id: int,
-    limit: int = 50,
+    limit: Optional[int] = None,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
+    """Retrieves all assessments attempted/completed by a specific candidate from DB."""
     return list_assessments(db, candidate_id=candidate_id, limit=limit, offset=offset)
+
 
 
 def list_assessments_for_employee(
@@ -315,7 +342,7 @@ def update_assessment_status(db: Session, assessment_id: Union[int, str], status
     if not assessment:
         return None
     assessment.status = status
-    if status in ("COMPLETED", "FAILED"):
+    if status in ("COMPLETED", "FAILED", "CANCELLED"):
         assessment.completed_at = datetime.utcnow()
     assessment.updated_at = datetime.utcnow()
     db.commit()
@@ -479,13 +506,23 @@ def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
         if not existing:
             q = AiPrepQuestionORM(
                 category=item["category"],
-                sub_category=item["sub_category"],
+                subject=item.get("subject"),
+                concept=item.get("concept"),
+                scope=item.get("scope"),
                 difficulty_level=item["difficulty_level"],
+                time_limit_seconds=item.get("time_limit_seconds", 120),
                 question_text=item["question_text"],
                 is_active=True,
             )
             db.add(q)
             created.append(q)
+        else:
+            existing.subject = item.get("subject")
+            existing.concept = item.get("concept")
+            existing.scope = item.get("scope")
+            existing.difficulty_level = item["difficulty_level"]
+            existing.time_limit_seconds = item.get("time_limit_seconds", 120)
+            created.append(existing)
     if created:
         try:
             db.commit()
@@ -500,6 +537,8 @@ def seed_default_questions(db: Session) -> List[AiPrepQuestionORM]:
 def list_questions(
     db: Session,
     category: Optional[str] = None,
+    subject: Optional[str] = None,
+    concept: Optional[str] = None,
     difficulty_level: Optional[str] = None,
     is_active: Optional[bool] = None,
     limit: int = 50,
@@ -508,6 +547,10 @@ def list_questions(
     query = db.query(AiPrepQuestionORM)
     if category:
         query = query.filter(AiPrepQuestionORM.category == category)
+    if subject:
+        query = query.filter(AiPrepQuestionORM.subject == subject)
+    if concept:
+        query = query.filter(AiPrepQuestionORM.concept == concept)
     if difficulty_level:
         query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
     if is_active is not None:
@@ -526,9 +569,9 @@ def create_question(db: Session, question_in: Dict[str, Any]) -> AiPrepQuestionO
     data = dict(question_in)
     cat = data.get("category")
     if cat and str(cat).upper() != "TECHNICAL":
-        data["sub_category"] = None
-    elif cat and str(cat).upper() == "TECHNICAL" and not data.get("sub_category"):
-        data["sub_category"] = "General"
+        data["subject"] = None
+        data["concept"] = None
+        data["scope"] = None
     db_obj = AiPrepQuestionORM(**data)
     db.add(db_obj)
     db.commit()
@@ -541,14 +584,14 @@ def update_question(db: Session, question_id: int, question_in: Dict[str, Any]) 
     if not q:
         return None
     data = dict(question_in)
-    target_cat = data.get("category", q.category)
-    if target_cat and str(target_cat).upper() != "TECHNICAL":
-        data["sub_category"] = None
-    elif target_cat and str(target_cat).upper() == "TECHNICAL" and not data.get("sub_category", q.sub_category):
-        data["sub_category"] = "General"
     for field, val in data.items():
-        if val is not None and hasattr(q, field):
-            setattr(q, field, val)
+        if hasattr(q, field):
+            setattr(q, field, val.value if hasattr(val, "value") else val)
+    target_cat = q.category
+    if target_cat and str(target_cat).upper() != "TECHNICAL":
+        q.subject = None
+        q.concept = None
+        q.scope = None
     q.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(q)
@@ -575,7 +618,7 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
             "provider": None,
             "model": None,
             "voice_enabled": False,
-            "message": "No active LLM API key found for this candidate. Please configure an OpenAI or Gemini API key first.",
+            "message": "No active LLM API key found in 'My LLM Setup'. Please configure an OpenAI or Gemini API key first.",
             "available_models": [],
         }
 
@@ -585,7 +628,7 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
         "provider": key_row.provider_name or "openai",
         "model": key_row.model_name or "gpt-4o",
         "voice_enabled": bool(key_row.voice_enabled),
-        "message": "LLM API Key is configured and valid.",
+        "message": "Active LLM API Key is configured and valid in 'My LLM Setup'.",
         "available_models": [key_row.model_name or "gpt-4o"],
     }
 
@@ -645,7 +688,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             "candidate_name": candidate_name,
             "current_title": None,
             "skills": [],
-            "message": "Candidate has not uploaded or synced a resume. Please complete resume setup before starting.",
+            "message": "Candidate has not uploaded or synced a resume in 'My Resume'. Please complete resume setup before starting.",
         }
 
     current_title: Optional[str] = None
@@ -660,7 +703,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         "candidate_name": candidate_name,
         "current_title": current_title,
         "skills": [],
-        "message": "Candidate resume is verified and ready.",
+        "message": "Candidate resume is verified and ready in 'My Resume'.",
     }
 
 

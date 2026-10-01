@@ -156,8 +156,11 @@ class TestAssessmentEngineQuestionSelection:
             {
                 "id": i + 1,
                 "category": cat,
-                "sub_category": "General" if cat == "TECHNICAL" else None,
+                "subject": "AI Engineering" if cat == "TECHNICAL" else None,
+                "concept": "Python & Data Manipulation" if cat == "TECHNICAL" else None,
+                "scope": "BROAD" if cat == "TECHNICAL" else None,
                 "difficulty_level": "HARD",
+                "time_limit_seconds": 120,
                 "question_text": f"Question {i + 1} about {cat}",
                 "is_active": True,
             }

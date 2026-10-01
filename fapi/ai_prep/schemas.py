@@ -44,6 +44,7 @@ AssessmentStatusEnum = Enum(
         "EVALUATING": "EVALUATING",
         "COMPLETED": "COMPLETED",
         "FAILED": "FAILED",
+        "CANCELLED": "CANCELLED",
     },
     type=str,
 )
@@ -54,7 +55,53 @@ DifficultyLevelEnum = Enum(
         "EASY": "EASY",
         "MEDIUM": "MEDIUM",
         "HARD": "HARD",
-        "EXPERT": "EXPERT",
+    },
+    type=str,
+)
+
+SubjectEnum = Enum(
+    "SubjectEnum",
+    {
+        "AI_ENGINEERING": "AI Engineering",
+        "SOFTWARE_ENGINEERING": "Software Engineering",
+        "DEVOPS_AND_CLOUD": "DevOps and Cloud",
+    },
+    type=str,
+)
+
+ConceptEnum = Enum(
+    "ConceptEnum",
+    {
+        # AI Engineering
+        "PYTHON_DATA_MANIPULATION": "Python & Data Manipulation",
+        "ML_DL_FUNDAMENTALS": "ML & Deep Learning Fundamentals",
+        "ML_FRAMEWORKS_TOOLING": "ML Frameworks & Tooling",
+        "NLP": "NLP",
+        "GENERATIVE_AI_LLMS": "Generative AI & LLMs",
+        "RAG_RETRIEVAL": "RAG & Retrieval",
+        "AGENTIC_AI_MULTI_AGENT": "Agentic AI & Multi-Agent Systems",
+        "MODELS_CONTEXT_ENGINEERING": "Models & Context Engineering",
+        "AI_SYSTEMS_OPS": "AI Systems Ops: Evaluation, Guardrails & Observability",
+        # Software Engineering
+        "SYSTEM_ARCHITECTURE_DESIGN": "System Architecture & Design",
+        "API_DESIGN_MICROSERVICES": "API Design & Microservices",
+        "DATABASES_CACHING": "Databases & Caching",
+        "CONCURRENCY_ASYNC_SYSTEMS": "Concurrency & Async Systems",
+        "DATA_STRUCTURES_ALGORITHMS": "Data Structures & Algorithms",
+        # DevOps and Cloud
+        "CONTAINERS_ORCHESTRATION": "Containers & Orchestration",
+        "CICD_GITOPS": "CI/CD & GitOps",
+        "CLOUD_ARCHITECTURE_SERVICES": "Cloud Architecture & Services",
+        "IAC_SECURITY": "Infrastructure as Code & Security",
+    },
+    type=str,
+)
+
+ScopeEnum = Enum(
+    "ScopeEnum",
+    {
+        "BROAD": "BROAD",
+        "SPECIFIC": "SPECIFIC",
     },
     type=str,
 )
@@ -201,6 +248,8 @@ class PreAssessmentCheckResponse(BaseModel):
     llm_check: LLMKeyStatusResponse
     resume_check: ResumeStatusResponse
     message: Optional[str] = None
+    allowed_to_proceed: Optional[bool] = Field(default=None, description="True if candidate is permitted to proceed with assessment")
+    action_required: Optional[str] = Field(default=None, description="Required setup action: 'my-llm-setup', 'my-resume', 'both', or None")
 
 
 # ---------------------------------------------------------------------------
@@ -208,25 +257,38 @@ class PreAssessmentCheckResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class CreateAssessmentRequest(BaseModel):
-    candidate_id: Optional[int] = Field(None, description="Candidate ID (auto-resolved from session if candidate)")
+    candidate_id: Optional[int] = Field(None, description="Candidate ID (auto-resolved from path if not provided)")
     assessment_type: AssessmentCategoryEnum = Field(default=AssessmentCategoryEnum.INTRO, description="Assessment type code")
-    media_type: MediaTypeEnum = Field(default=MediaTypeEnum.VIDEO, description="Recording media mode")
+    media_type: MediaTypeEnum = Field(default=MediaTypeEnum.AUDIO, description="Recording media mode")
     job_description: Optional[str] = Field(None, description="Optional job description for tailored assessments")
+    consent: Optional[Dict[str, Any]] = Field(None, description="User consent flags and metadata")
 
 
-class CreateAssessmentResponse(BaseModel):
-    id: int
-    assessment_uuid: Optional[str] = None
-    status: str = Field(default="IN_PROGRESS")
-    started_at: Optional[datetime] = None
-    assessment_type: Optional[str] = None
-    media_type: Optional[str] = None
-    job_description: Optional[str] = None
-    youtube_url: Optional[str] = None
-    questions: Optional[List[Dict[str, Any]]] = None
+class CreateAssessmentData(BaseModel):
+    assessment_id: int = Field(..., description="Unique assessment primary key ID")
+    assessment_uuid: Optional[str] = Field(None, description="Assessment persistent UUID")
+    candidate_id: int = Field(..., description="ID of candidate")
+    assessment_type: str = Field(..., description="Assessment category")
+    media_type: str = Field(..., description="Assessment media mode (AUDIO or VIDEO)")
+    status: str = Field(default="IN_PROGRESS", description="Assessment state")
+    started_at: Optional[datetime] = Field(None, description="Timestamp when assessment session started")
+    questions: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="List of questions assigned")
 
     class Config:
         from_attributes = True
+
+
+class CreateAssessmentResponse(BaseModel):
+    status: str = Field(default="success", description="Status code string")
+    data: CreateAssessmentData
+
+    @property
+    def id(self) -> int:
+        return self.data.assessment_id
+
+    @property
+    def assessment_uuid(self) -> Optional[str]:
+        return self.data.assessment_uuid
 
 
 AssessmentResponse = CreateAssessmentResponse
@@ -237,6 +299,59 @@ class SubmitAssessmentRequest(BaseModel):
     audio_telemetry: Optional[Dict[str, Any]] = None
     video_telemetry: Optional[Dict[str, Any]] = None
     questions: Optional[List[Dict[str, Any]]] = None
+
+
+class CandidateSubmitAssessmentRequest(BaseModel):
+    total_chunks_uploaded: Optional[int] = Field(None, description="Total chunks uploaded from client")
+    is_final: bool = Field(default=True, description="Whether this is the final submission")
+    client_duration_seconds: Optional[float] = Field(None, description="Total duration of recording in seconds from client")
+    video_telemetry: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Client-side video telemetry")
+    status: Optional[str] = Field(None, description="Status override (e.g. 'cancelled')")
+
+
+class AssessmentMetaResponse(BaseModel):
+    id: int
+    assessment_uuid: Optional[str] = None
+    candidate_id: int
+    assessment_type: str
+    media_type: str
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    youtube_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AssessmentTranscriptData(BaseModel):
+    full_text: str = ""
+    word_count: int = 0
+    segments: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AssessmentTelemetryData(BaseModel):
+    """Holds only transcript data. audio_telemetry and video_telemetry are top-level response fields."""
+    transcript: AssessmentTranscriptData
+
+
+class AssessmentSubmitReportData(BaseModel):
+    insufficient_content: bool
+    message: Optional[str] = None
+    llm_evaluation: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class CandidateSubmitAssessmentData(BaseModel):
+    assessment: AssessmentMetaResponse
+    assessment_data: AssessmentTelemetryData
+    audio_telemetry: Dict[str, Any] = Field(default_factory=dict)
+    video_telemetry: Dict[str, Any] = Field(default_factory=dict)
+    report: AssessmentSubmitReportData
+
+
+class CandidateSubmitAssessmentResponse(BaseModel):
+    status: str = "success"
+    data: CandidateSubmitAssessmentData
 
 
 class SubmitAssessmentDataRequest(BaseModel):
@@ -289,8 +404,10 @@ class AssessmentListItem(BaseModel):
     status: str
     job_description: Optional[str] = None
     youtube_url: Optional[str] = None
+    consent: Optional[Dict[str, Any]] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -316,8 +433,10 @@ class AssessmentDetailResponse(BaseModel):
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     youtube_url: Optional[str] = None
+    consent: Optional[Dict[str, Any]] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     questions: Optional[List[Dict[str, Any]]] = None
     data: Optional[Dict[str, Any]] = None
@@ -358,10 +477,56 @@ class AssessmentReportResponse(BaseModel):
         from_attributes = True
 
 
+# ---------------------------------------------------------------------------
+# Candidate Assessment Detail Response Schemas (Category 3b)
+# GET /candidates/{id}/assessments/{assessment_id}
+# The response JSON contract is fixed — do not alter field names or structure.
+# ---------------------------------------------------------------------------
+
+class CandidateAssessmentDetailTranscript(BaseModel):
+    full_text: str = ""
+    word_count: int = 0
+    segments: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class CandidateAssessmentDataDetail(BaseModel):
+    transcript: CandidateAssessmentDetailTranscript
+    audio_telemetry: Dict[str, Any] = Field(default_factory=dict)
+    video_telemetry: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CandidateAssessmentReportDetail(BaseModel):
+    insufficient_content: bool
+    message: Optional[str] = None
+    llm_evaluation: Optional[Dict[str, Any]] = None
+
+
+class CandidateAssessmentDetailData(BaseModel):
+    assessment: AssessmentMetaResponse
+    assessment_data: CandidateAssessmentDataDetail
+    report: CandidateAssessmentReportDetail
+
+
+class CandidateAssessmentDetailResponse(BaseModel):
+    status: str = "success"
+    data: CandidateAssessmentDetailData
+
 
 # ---------------------------------------------------------------------------
 # Media Ingestion & BE2 Chunk Upload Schemas (Category 4)
 # ---------------------------------------------------------------------------
+
+class MediaChunkUploadData(BaseModel):
+    assessment_uuid: str
+    chunk_index: int
+    bytes_received: int
+    saved: bool = True
+
+
+class MediaChunkUploadResponse(BaseModel):
+    status: str = "success"
+    data: MediaChunkUploadData
+
 
 class ChunkUploadResponse(BaseModel):
     chunk_number: int
@@ -372,6 +537,7 @@ class ChunkUploadResponse(BaseModel):
     total_chunks: Optional[int] = None
     is_ready_for_assembly: Optional[bool] = False
     message: Optional[str] = None
+
 
 
 class ChunkStatusResponse(BaseModel):
@@ -442,19 +608,23 @@ class ProcessingStatusResponse(BaseModel):
 
 class QuestionCreateRequest(BaseModel):
     category: AssessmentCategoryEnum = Field(..., description="Target assessment category")
-    sub_category: Optional[str] = Field(None, description="Optional subcategory / topic")
+    subject: Optional[SubjectEnum] = Field(None, description="Technical subject area (TECHNICAL questions only)")
+    concept: Optional[ConceptEnum] = Field(None, description="Specific concept/topic (TECHNICAL questions only)")
+    scope: Optional[ScopeEnum] = Field(default=ScopeEnum.SPECIFIC, description="Answer scope: BROAD or SPECIFIC")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
+    time_limit_seconds: int = Field(default=120, description="Allocated time budget for the question in seconds")
     question_text: str = Field(..., description="Question prompt text")
+    ground_truth: Optional[Dict[str, Any]] = Field(None, description="Expected answer concepts and rubric (admin-only)")
     is_active: bool = Field(default=True, description="Whether question is active")
 
-
     @model_validator(mode="after")
-    def enforce_subcategory_constraint(self):
+    def enforce_technical_fields_constraint(self):
         cat_val = self.category.value if hasattr(self.category, "value") else str(self.category)
         if cat_val != "TECHNICAL":
-            self.sub_category = None
-        elif not self.sub_category:
-            self.sub_category = "General"
+            # For non-technical rounds, keep subject, concept, and scope None for now
+            self.subject = None
+            self.concept = None
+            self.scope = None
         return self
 
 
@@ -463,9 +633,13 @@ QuestionBankCreateRequest = QuestionCreateRequest
 
 class QuestionUpdateRequest(BaseModel):
     category: Optional[AssessmentCategoryEnum] = None
-    sub_category: Optional[str] = None
+    subject: Optional[SubjectEnum] = None
+    concept: Optional[ConceptEnum] = None
+    scope: Optional[ScopeEnum] = None
     difficulty_level: Optional[DifficultyLevelEnum] = None
+    time_limit_seconds: Optional[int] = None
     question_text: Optional[str] = None
+    ground_truth: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
 
 
@@ -475,9 +649,13 @@ QuestionBankUpdateRequest = QuestionUpdateRequest
 class QuestionResponse(BaseModel):
     id: int
     category: str
-    sub_category: Optional[str] = None
-    difficulty_level: str
+    subject: Optional[str] = None
+    concept: Optional[str] = None
+    scope: Optional[str] = None
+    difficulty_level: Optional[str] = None
+    time_limit_seconds: int = 120
     question_text: str
+    ground_truth: Optional[Dict[str, Any]] = None
     is_active: bool
     created_at: Optional[datetime] = None
 
@@ -501,8 +679,12 @@ class QuestionItemContract(BaseModel):
     question_id: int
     question_text: str
     category: Optional[str] = None
-    sub_category: Optional[str] = None
+    subject: Optional[str] = None
+    concept: Optional[str] = None
+    scope: Optional[str] = None
     difficulty_level: Optional[str] = None
+    time_limit_seconds: int = 120
+    # ground_truth is intentionally excluded — never sent to the candidate
 
 
 class TranscriptDataContract(BaseModel):
