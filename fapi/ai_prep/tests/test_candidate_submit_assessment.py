@@ -620,3 +620,29 @@ def test_submit_assessment_telemetry_storage_respects_consents(submit_test_clien
         assert db_data.transcript.get("full_text") == "I have extensive experience with FastAPI and PostgreSQL."
 
 
+@pytest.mark.parametrize("blocked_status", ["COMPLETED", "CANCELLED", "FAILED", "EVALUATING"])
+def test_submit_assessment_already_closed_or_evaluating_returns_409(submit_test_client, db_session, blocked_status):
+    """Assessments in terminal or evaluating states cannot be resubmitted or retaken."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+    )
+    crud.update_assessment_status(db_session, assessment.id, blocked_status)
+
+    payload = {
+        "total_chunks_uploaded": 1,
+        "is_final": True,
+        "client_duration_seconds": 30.0,
+    }
+
+    res = submit_test_client.put(
+        f"/api/aiprep/candidates/1042/assessments/{assessment.id}",
+        json=payload,
+    )
+
+    assert res.status_code == 409
+    assert f"Assessment is already {blocked_status}" in res.json()["detail"]
+
+
