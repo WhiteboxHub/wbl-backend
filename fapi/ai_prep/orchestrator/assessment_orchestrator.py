@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
@@ -27,6 +28,8 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
+from fapi.ai_prep.utils.telemetry_client import emit_pipeline_metric
+import sentry_sdk
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +167,12 @@ async def run_full_evaluation(
     candidate_id = ctx["candidate_id"]
     assessment_type = ctx["assessment_type"]
 
+    try:
+        sentry_sdk.set_tag("candidate_id", str(candidate_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment_id))
+    except Exception:
+        pass
+
     logger.info(
         "[AssessmentOrchestrator] Context loaded: candidate=%d type=%s media=%s",
         candidate_id, assessment_type, ctx["media_type"],
@@ -192,6 +201,7 @@ async def run_full_evaluation(
     )
 
     # Step 4: Dispatch evaluation, save report, and mark COMPLETED
+    t0 = time.time()
     try:
         evaluation_result = await llm_orchestrator.run_evaluation(
             candidate_id=candidate_id,
@@ -203,9 +213,24 @@ async def run_full_evaluation(
             llm_config=llm_config,
         )
 
+        duration_ms = int((time.time() - t0) * 1000)
+        # Emit telemetry metric to wbl-observability (non-blocking)
+        try:
+            numeric_assessment_id = int(assessment_id) if str(assessment_id).isdigit() else 1
+            asyncio.create_task(emit_pipeline_metric(
+                assessment_id=numeric_assessment_id,
+                candidate_id=candidate_id,
+                stage="EVAL_ENGINE_LLM",
+                status="SUCCESS",
+                duration_ms=duration_ms,
+                metadata={"assessment_type": assessment_type}
+            ))
+        except Exception as tel_err:
+            logger.debug("Failed to dispatch telemetry task: %s", tel_err)
+
         logger.info(
-            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s",
-            str(assessment_id),
+            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s (took %dms)",
+            str(assessment_id), duration_ms,
         )
 
         parsed_report = {
@@ -214,13 +239,49 @@ async def run_full_evaluation(
             "video_evaluation": evaluation_result.get("video_evaluation"),
         }
 
-        # Step 5: Persist report to DB (offloaded to thread pool)
-        await asyncio.to_thread(_save_report_worker, parsed_report)
+        # Step 5: Score processing and report persistence (SCORES_ENGINE)
+        t_scores = time.time()
+        try:
+            await asyncio.to_thread(_save_report_worker, parsed_report)
+            scores_duration_ms = int((time.time() - t_scores) * 1000)
+            asyncio.create_task(emit_pipeline_metric(
+                assessment_id=numeric_assessment_id,
+                candidate_id=candidate_id,
+                stage="SCORES_ENGINE",
+                status="SUCCESS",
+                duration_ms=scores_duration_ms,
+                metadata={"assessment_type": assessment_type}
+            ))
+        except Exception as score_exc:
+            scores_duration_ms = int((time.time() - t_scores) * 1000)
+            asyncio.create_task(emit_pipeline_metric(
+                assessment_id=numeric_assessment_id,
+                candidate_id=candidate_id,
+                stage="SCORES_ENGINE",
+                status="FAILURE",
+                duration_ms=scores_duration_ms,
+                message=str(score_exc)
+            ))
+            raise score_exc
 
         # Step 6: Mark assessment as COMPLETED (offloaded to thread pool)
         await asyncio.to_thread(_update_status_worker, "COMPLETED")
 
     except Exception as exc:
+        duration_ms = int((time.time() - t0) * 1000)
+        try:
+            numeric_assessment_id = int(assessment_id) if str(assessment_id).isdigit() else 1
+            asyncio.create_task(emit_pipeline_metric(
+                assessment_id=numeric_assessment_id,
+                candidate_id=candidate_id,
+                stage="EVAL_ENGINE_LLM",
+                status="FAILURE",
+                duration_ms=duration_ms,
+                message=str(exc)
+            ))
+        except Exception:
+            pass
+
         logger.error(
             "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%s: %s",
             str(assessment_id), exc,
