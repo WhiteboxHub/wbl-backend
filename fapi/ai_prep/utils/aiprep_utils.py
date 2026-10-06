@@ -635,6 +635,7 @@ def candidate_get_assessment_detail_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
     )
 
     # --- Build `assessment_data` block (transcript + telemetry) ---
@@ -1109,6 +1110,7 @@ async def candidate_submit_assessment_logic(
         "started_at": assessment.started_at,
         "completed_at": assessment.completed_at,
         "youtube_url": assessment.youtube_url,
+        "consent": assessment.consent,
     }
 
     return CandidateSubmitAssessmentResponse(
