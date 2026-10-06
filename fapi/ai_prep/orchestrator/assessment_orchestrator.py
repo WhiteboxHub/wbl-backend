@@ -130,6 +130,9 @@ def _load_assessment_context(
 async def run_full_evaluation(
     db: Optional["Session"] = None,
     assessment_id: Union[int, str] = None,
+    in_memory_transcript_text: Optional[str] = None,
+    in_memory_audio_telemetry: Optional[Dict[str, Any]] = None,
+    in_memory_video_telemetry: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Full async evaluation pipeline: load → build contexts → LLM eval → save report.
@@ -138,8 +141,11 @@ async def run_full_evaluation(
     and triggers evaluation.
 
     Args:
-        db:            SQLAlchemy session (provided by route dependency).
-        assessment_id: The assessment to evaluate.
+        db:                         SQLAlchemy session (provided by route dependency).
+        assessment_id:              The assessment to evaluate.
+        in_memory_transcript_text:  Optional in-memory transcript text override.
+        in_memory_audio_telemetry:  Optional in-memory audio telemetry override.
+        in_memory_video_telemetry:  Optional in-memory video telemetry override.
 
     Returns:
         Dict with keys: assessment_id, status, report (audio, video, transcript evals).
@@ -192,8 +198,22 @@ async def run_full_evaluation(
             "Cannot run evaluation."
         )
 
-    # Step 3: Build transcript text from transcript dict
-    transcript_text = _extract_transcript_text(ctx["transcript"])
+    # Step 3: Build transcript text & telemetry from in-memory overrides or DB dicts
+    if in_memory_transcript_text is not None and in_memory_transcript_text.strip():
+        transcript_text = in_memory_transcript_text.strip()
+    else:
+        transcript_text = _extract_transcript_text(ctx["transcript"])
+
+    audio_telemetry = (
+        in_memory_audio_telemetry
+        if in_memory_audio_telemetry is not None
+        else ctx["audio_telemetry"]
+    )
+    video_telemetry = (
+        in_memory_video_telemetry
+        if in_memory_video_telemetry is not None
+        else ctx["video_telemetry"]
+    )
 
     logger.info(
         "[AssessmentOrchestrator] Dispatching LLM evaluation: candidate=%d type=%s",
@@ -207,8 +227,8 @@ async def run_full_evaluation(
             candidate_id=candidate_id,
             assessment_type=assessment_type,
             transcript_text=transcript_text,
-            audio_telemetry=ctx["audio_telemetry"],
-            video_telemetry=ctx["video_telemetry"],
+            audio_telemetry=audio_telemetry,
+            video_telemetry=video_telemetry,
             resume_json=ctx["resume_json"],
             llm_config=llm_config,
         )

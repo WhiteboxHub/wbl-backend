@@ -24908,6 +24908,7 @@
                   "type": "null"
                 }
               ],
+              "default": 50,
               "title": "Limit"
             }
           },
@@ -27345,6 +27346,7 @@
                   "type": "null"
                 }
               ],
+              "default": 50,
               "title": "Limit"
             }
           },
@@ -29782,6 +29784,18 @@
               }
             ],
             "title": "Youtube Url"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent"
           },
           "started_at": {
             "anyOf": [
@@ -41943,6 +41957,30 @@
         "type": "object",
         "title": "CompanyUpdate"
       },
+      "ConceptEnum": {
+        "type": "string",
+        "enum": [
+          "Python & Data Manipulation",
+          "ML & Deep Learning Fundamentals",
+          "ML Frameworks & Tooling",
+          "NLP",
+          "Generative AI & LLMs",
+          "RAG & Retrieval",
+          "Agentic AI & Multi-Agent Systems",
+          "Models & Context Engineering",
+          "AI Systems Ops: Evaluation, Guardrails & Observability",
+          "System Architecture & Design",
+          "API Design & Microservices",
+          "Databases & Caching",
+          "Concurrency & Async Systems",
+          "Data Structures & Algorithms",
+          "Containers & Orchestration",
+          "CI/CD & GitOps",
+          "Cloud Architecture & Services",
+          "Infrastructure as Code & Security"
+        ],
+        "title": "ConceptEnum"
+      },
       "ContactClassificationEnum": {
         "type": "string",
         "enum": [
@@ -42690,6 +42728,19 @@
             ],
             "title": "Job Description",
             "description": "Optional job description for tailored assessments"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent",
+            "description": "User consent flags and metadata"
           }
         },
         "type": "object",
@@ -43445,8 +43496,7 @@
         "enum": [
           "EASY",
           "MEDIUM",
-          "HARD",
-          "EXPERT"
+          "HARD"
         ],
         "title": "DifficultyLevelEnum"
       },
@@ -53251,27 +53301,68 @@
             "$ref": "#/components/schemas/AssessmentCategoryEnum",
             "description": "Target assessment category"
           },
-          "sub_category": {
+          "subject": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/SubjectEnum"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Sub Category",
-            "description": "Optional subcategory / topic"
+            "description": "Technical subject area (TECHNICAL questions only)"
+          },
+          "concept": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConceptEnum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Specific concept/topic (TECHNICAL questions only)"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Answer scope: BROAD or SPECIFIC",
+            "default": "SPECIFIC"
           },
           "difficulty_level": {
             "$ref": "#/components/schemas/DifficultyLevelEnum",
             "description": "Difficulty rating",
             "default": "MEDIUM"
           },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds",
+            "description": "Allocated time budget for the question in seconds",
+            "default": 120
+          },
           "question_text": {
             "type": "string",
             "title": "Question Text",
             "description": "Question prompt text"
+          },
+          "ground_truth": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Truth",
+            "description": "Expected answer concepts and rubric (admin-only)"
           },
           "is_active": {
             "type": "boolean",
@@ -53317,7 +53408,7 @@
             "type": "string",
             "title": "Category"
           },
-          "sub_category": {
+          "subject": {
             "anyOf": [
               {
                 "type": "string"
@@ -53326,15 +53417,61 @@
                 "type": "null"
               }
             ],
-            "title": "Sub Category"
+            "title": "Subject"
+          },
+          "concept": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concept"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
           },
           "difficulty_level": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Difficulty Level"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds",
+            "default": 120
           },
           "question_text": {
             "type": "string",
             "title": "Question Text"
+          },
+          "ground_truth": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Truth"
           },
           "is_active": {
             "type": "boolean",
@@ -53357,7 +53494,6 @@
         "required": [
           "id",
           "category",
-          "difficulty_level",
           "question_text",
           "is_active"
         ],
@@ -53375,16 +53511,35 @@
               }
             ]
           },
-          "sub_category": {
+          "subject": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/SubjectEnum"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Sub Category"
+            ]
+          },
+          "concept": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConceptEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "difficulty_level": {
             "anyOf": [
@@ -53396,6 +53551,17 @@
               }
             ]
           },
+          "time_limit_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit Seconds"
+          },
           "question_text": {
             "anyOf": [
               {
@@ -53406,6 +53572,18 @@
               }
             ],
             "title": "Question Text"
+          },
+          "ground_truth": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Truth"
           },
           "is_active": {
             "anyOf": [
@@ -54117,6 +54295,14 @@
         ],
         "title": "ResumeStatusResponse"
       },
+      "ScopeEnum": {
+        "type": "string",
+        "enum": [
+          "BROAD",
+          "SPECIFIC"
+        ],
+        "title": "ScopeEnum"
+      },
       "SessionCreate": {
         "properties": {
           "title": {
@@ -54643,6 +54829,15 @@
           "description"
         ],
         "title": "SubjectCreate"
+      },
+      "SubjectEnum": {
+        "type": "string",
+        "enum": [
+          "AI Engineering",
+          "Software Engineering",
+          "DevOps and Cloud"
+        ],
+        "title": "SubjectEnum"
       },
       "SubjectResponse": {
         "properties": {
