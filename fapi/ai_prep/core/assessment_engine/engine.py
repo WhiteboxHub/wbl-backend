@@ -155,6 +155,8 @@ class AssessmentEngine:
             return []
 
         selected = self._select_adaptive_questions(matched, previous_readiness, max_q)
+        for q in selected:
+            q["time_limit_seconds"] = self.get_question_time_limit(q)
         return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
     def _select_single_intro_question(
@@ -175,6 +177,8 @@ class AssessmentEngine:
                 if str(q.get("category", "")).upper() == category
                 and q.get("is_active", True)
             ][:1]
+        for q in selected:
+            q["time_limit_seconds"] = self.get_question_time_limit(q)
         return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
     def _select_adaptive_questions(
