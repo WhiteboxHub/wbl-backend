@@ -322,6 +322,7 @@ class AssessmentEngine:
                     break
 
             # Step 3b: Fill remaining subject budget with SPECIFIC questions rotating concepts
+            available_concepts = {q.get("concept") for q in specific_q if q.get("concept")}
             for sq in specific_q:
                 s_id = sq.get("id")
                 s_concept = sq.get("concept")
@@ -331,7 +332,7 @@ class AssessmentEngine:
                     continue
 
                 # Concept rotation: avoid duplicate concepts unless pool is exhausted
-                if s_concept and s_concept in used_concepts and len(used_concepts) < len(specific_q):
+                if s_concept and s_concept in used_concepts and len(used_concepts) < len(available_concepts):
                     continue
 
                 if (subject_time + s_time) <= budget:
