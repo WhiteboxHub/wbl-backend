@@ -630,6 +630,8 @@ def build_assessment_eval_dict(
         intro_eval = {}
 
     oa = intro_eval.get("overall_assessment") or {}
+    if not isinstance(oa, dict):
+        oa = {}
     readiness = oa.get("readiness")
     summary = oa.get("summary")
     strongest_signal = oa.get("strongest_signal")
@@ -749,13 +751,29 @@ def candidate_get_assessment_detail_logic(
     # --- Build `telemetry` block (transcript + telemetry) ---
     if assessment.data_record:
         raw_transcript = assessment.data_record.transcript or {}
-        transcript_data = {
-            "full_text": raw_transcript.get("full_text", ""),
-            "word_count": raw_transcript.get("word_count", 0),
-            "segments": raw_transcript.get("segments", []),
-        }
-        audio_telemetry = assessment.data_record.audio_telemetry or {}
-        video_telemetry = assessment.data_record.video_telemetry or {}
+        if isinstance(raw_transcript, dict):
+            transcript_data = {
+                "full_text": raw_transcript.get("full_text", ""),
+                "word_count": raw_transcript.get("word_count", 0),
+                "segments": raw_transcript.get("segments", []),
+            }
+        elif isinstance(raw_transcript, str):
+            words = [w for w in raw_transcript.split() if w]
+            transcript_data = {
+                "full_text": raw_transcript,
+                "word_count": len(words),
+                "segments": [],
+            }
+        else:
+            transcript_data = {
+                "full_text": "",
+                "word_count": 0,
+                "segments": [],
+            }
+        raw_audio_tel = assessment.data_record.audio_telemetry
+        audio_telemetry = raw_audio_tel if isinstance(raw_audio_tel, dict) else {}
+        raw_video_tel = assessment.data_record.video_telemetry
+        video_telemetry = raw_video_tel if isinstance(raw_video_tel, dict) else {}
     else:
         transcript_data = {
             "full_text": "",
@@ -1040,11 +1058,12 @@ async def candidate_submit_assessment_logic(
     segments = []
     if raw_segments:
         for seg in raw_segments:
-            segments.append({
-                "start": float(seg.get("start", 0.0)),
-                "end": float(seg.get("end", 0.0)),
-                "text": str(seg.get("text", "")).strip(),
-            })
+            if isinstance(seg, dict):
+                segments.append({
+                    "start": float(seg.get("start", 0.0) or 0.0),
+                    "end": float(seg.get("end", 0.0) or 0.0),
+                    "text": str(seg.get("text", "")).strip(),
+                })
     elif full_text:
         duration_val = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
         segments = [{"start": 0.0, "end": round(duration_val, 1), "text": full_text}]
