@@ -621,6 +621,20 @@ def build_assessment_eval_dict(
             "general": None,
         }
 
+    # If insufficient_content is False but no evaluation records exist yet (e.g. EVALUATING or unsubmitted)
+    if not transcript_eval and not audio_eval and not video_eval:
+        return {
+            "insufficient_content": False,
+            "readiness": None,
+            "summary": None,
+            "strongest_signal": None,
+            "biggest_gap": None,
+            "audio": None,
+            "language": None,
+            "video": None,
+            "general": None,
+        }
+
     # Extract intro_eval from transcript_eval
     t_eval = transcript_eval or {}
     intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
@@ -784,16 +798,29 @@ def candidate_get_assessment_detail_logic(
         video_telemetry = {}
 
     # --- Build `assessment_eval` block ---
+    status_str = (
+        assessment.status.value
+        if hasattr(assessment.status, "value")
+        else str(assessment.status or "")
+    ).upper()
+
     if assessment.report_record:
+        # Full evaluation completed and report exists in DB
         assessment_eval_dict = build_assessment_eval_dict(
             transcript_eval=assessment.report_record.transcript_evaluation,
             audio_eval=assessment.report_record.audio_evaluation,
             video_eval=assessment.report_record.video_evaluation,
             insufficient_content=False,
         )
-    else:
+    elif status_str == "COMPLETED":
+        # Assessment finished without a report: gatekeeper rejected it during submission
         assessment_eval_dict = build_assessment_eval_dict(
             insufficient_content=True,
+        )
+    else:
+        # Still EVALUATING, IN_PROGRESS, PENDING, or FAILED: not rejected by gatekeeper
+        assessment_eval_dict = build_assessment_eval_dict(
+            insufficient_content=False,
         )
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
@@ -1010,10 +1037,15 @@ async def candidate_submit_assessment_logic(
         }
 
     # Lifecycle State Guard: Disallow resubmitting assessments that are already closed or evaluating
-    if assessment.status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
+    current_status = (
+        assessment.status.value
+        if hasattr(assessment.status, "value")
+        else str(assessment.status or "")
+    ).upper()
+    if current_status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
         raise HTTPException(
             status_code=409,
-            detail=f"Assessment is already {assessment.status}. Cannot resubmit or retake an assessment that is closed or currently evaluating.",
+            detail=f"Assessment is already {current_status}. Cannot resubmit or retake an assessment that is closed or currently evaluating.",
         )
 
     payload = payload or CandidateSubmitAssessmentRequest()

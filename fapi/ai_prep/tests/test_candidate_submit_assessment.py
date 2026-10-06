@@ -688,5 +688,19 @@ def test_candidate_get_assessment_detail_response_body_structure(submit_test_cli
     assert "transcript" in data["data"]
     assert "assessment_eval" in data["data"]
     assert data["id"] == assessment.id
+    # IN_PROGRESS assessment must NOT be flagged as insufficient_content
+    assert data["data"]["assessment_eval"]["insufficient_content"] is False
+
+    # EVALUATING assessment must NOT be flagged as insufficient_content
+    crud.update_assessment_status(db_session, assessment.id, "EVALUATING")
+    res_eval = submit_test_client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+    assert res_eval.status_code == 200
+    assert res_eval.json()["data"]["assessment_eval"]["insufficient_content"] is False
+
+    # COMPLETED without report record means gatekeeper skipped it -> insufficient_content is True
+    crud.update_assessment_status(db_session, assessment.id, "COMPLETED")
+    res_comp = submit_test_client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+    assert res_comp.status_code == 200
+    assert res_comp.json()["data"]["assessment_eval"]["insufficient_content"] is True
 
 
