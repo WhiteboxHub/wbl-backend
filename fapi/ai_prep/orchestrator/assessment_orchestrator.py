@@ -340,6 +340,7 @@ def get_questions_for_assessment(
         previous_readiness=previous_readiness,
         previously_asked_ids=previously_asked_ids,
         weak_question_ids=weak_ids if 'weak_ids' in locals() else set(),
+        sanitize=False,
     )
 
 

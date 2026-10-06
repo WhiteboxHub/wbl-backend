@@ -79,14 +79,22 @@ class AssessmentEngine:
 
     @classmethod
     def get_question_time_limit(cls, question: Dict[str, Any]) -> int:
-        """Resolves question time limit using (difficulty, scope) matrix with safe fallbacks."""
+        """
+        Resolves question time limit.
+        1. If explicit custom duration is configured (different from the generic 120 default), respect it.
+        2. Otherwise, map strictly through the deterministic (difficulty, scope) matrix.
+        3. Fall back to explicit duration or default.
+        """
+        explicit = question.get("time_limit_seconds")
+        if explicit and isinstance(explicit, int) and explicit > 0 and explicit != 120:
+            return explicit
+
         diff = str(question.get("difficulty_level") or "MEDIUM").upper().strip()
         scope = str(question.get("scope") or "SPECIFIC").upper().strip()
 
         if (diff, scope) in cls.QUESTION_TIME_LIMIT_MATRIX:
             return cls.QUESTION_TIME_LIMIT_MATRIX[(diff, scope)]
 
-        explicit = question.get("time_limit_seconds")
         if explicit and isinstance(explicit, int) and explicit > 0:
             return explicit
 
@@ -106,6 +114,7 @@ class AssessmentEngine:
         limit: Optional[int] = None,
         previous_readiness: Optional[str] = None,
         previously_asked_ids: Optional[List[int]] = None,
+        sanitize: bool = True,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """Selects questions for an assessment type using adaptive distribution."""
@@ -115,7 +124,7 @@ class AssessmentEngine:
         # INTRO and JD_INTRO are single-question assessments
         if normalized_type in self.SINGLE_QUESTION_TYPES:
             return self._select_single_intro_question(
-                available_questions, normalized_type, excluded_ids
+                available_questions, normalized_type, excluded_ids, sanitize=sanitize
             )
 
         # TECHNICAL: 15-minute time-budgeted algorithm (60/20/20 split)
@@ -127,7 +136,7 @@ class AssessmentEngine:
                 previously_asked_ids=excluded_ids,
                 weak_question_ids=set(kwargs.get("weak_question_ids") or []),
             )
-            return [self._sanitize_question_for_candidate(q) for q in selected]
+            return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
         max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
         matched = [
@@ -146,10 +155,10 @@ class AssessmentEngine:
             return []
 
         selected = self._select_adaptive_questions(matched, previous_readiness, max_q)
-        return [self._sanitize_question_for_candidate(q) for q in selected]
+        return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
     def _select_single_intro_question(
-        self, questions: List[Dict[str, Any]], category: str, excluded: set
+        self, questions: List[Dict[str, Any]], category: str, excluded: set, sanitize: bool = True
     ) -> List[Dict[str, Any]]:
         """Handles single-question selection for INTRO / JD_INTRO."""
         matched = [
@@ -166,7 +175,7 @@ class AssessmentEngine:
                 if str(q.get("category", "")).upper() == category
                 and q.get("is_active", True)
             ][:1]
-        return [self._sanitize_question_for_candidate(q) for q in selected]
+        return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
     def _select_adaptive_questions(
         self, matched: List[Dict[str, Any]], readiness: Optional[str], max_q: int
