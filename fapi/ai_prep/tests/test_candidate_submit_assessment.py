@@ -213,22 +213,32 @@ def test_submit_assessment_case_1_insufficient_content(submit_test_client, db_se
 
         assert res.status_code == 200, res.text
         data = res.json()
-        assert data["status"] == "success"
+        assert data["status"] != "success"
+        assert "data" in data
+        assert "assessment" not in data
+        assert "id" in data
+        assert "candidate_id" in data
+        assert "assessment_data" not in data
+        assert "report" not in data
 
-        asm = data["data"]["assessment"]
-        assert asm["id"] == assessment_id
-        assert asm["candidate_id"] == 1042
-        assert asm["status"] == "COMPLETED"
-        assert asm["completed_at"] is not None
+        assert data["id"] == assessment_id
+        assert data["candidate_id"] == 1042
+        assert data["status"] == "COMPLETED"
+        assert data["completed_at"] is not None
 
-        transcript = data["data"]["assessment_data"]["transcript"]
+        # Verify unified data block
+        unified_data = data["data"]
+        assert "transcript" in unified_data
+        assert "assessment_eval" in unified_data
+
+        transcript = unified_data["transcript"]
         assert transcript["full_text"] == "Hello, thank you."
         assert transcript["word_count"] == 3
 
-        report = data["data"]["report"]
-        assert report["insufficient_content"] is True
-        assert "message" in report
-        assert report["llm_evaluation"] == {}
+        assessment_eval = unified_data["assessment_eval"]
+        assert assessment_eval["insufficient_content"] is True
+        assert "message" not in assessment_eval
+        assert assessment_eval["readiness"] is None
 
         # LLM evaluation was NOT invoked
         mock_eval.assert_not_called()
@@ -312,22 +322,30 @@ def test_submit_assessment_case_2_sufficient_content(submit_test_client, db_sess
 
         assert res.status_code == 200, res.text
         data = res.json()
-        assert data["status"] == "success"
+        assert data["status"] != "success"
+        assert "data" in data
+        assert "assessment" not in data
+        assert "id" in data
+        assert "report" not in data
+        assert "assessment_data" not in data
 
         # Verify LLM evaluation engine was triggered
         mock_eval.assert_called_once()
 
-        asm = data["data"]["assessment"]
-        assert asm["id"] == assessment_id
-        assert asm["status"] == "COMPLETED"
+        assert data["id"] == assessment_id
+        assert data["status"] == "COMPLETED"
 
-        report = data["data"]["report"]
-        assert report["insufficient_content"] is False
-        # Case B: Response body MUST NOT contain any message
-        assert report.get("message") is None
-        # Case B: Response MUST contain llm_evaluation information
-        assert report["llm_evaluation"] == mock_eval_report
-        assert "transcript_evaluation" in report["llm_evaluation"]
+        unified_data = data["data"]
+        assert "transcript" in unified_data
+        assert "assessment_eval" in unified_data
+
+        assessment_eval = unified_data["assessment_eval"]
+        assert assessment_eval["insufficient_content"] is False
+        assert "message" not in assessment_eval
+        assert "language" in assessment_eval
+        assert "general" in assessment_eval
+        assert "audio" in assessment_eval
+        assert "video" in assessment_eval
 
         # Database record verified
         db_asm = crud.get_assessment_by_id_or_uuid(db_session, assessment_id)
@@ -460,9 +478,10 @@ def test_submit_assessment_silent_candidate_uploads_youtube_if_consented(submit_
         )
 
         assert res.status_code == 200
-        data = res.json()["data"]
+        data = res.json()
+        assert "data" in data
         # Flag is ON
-        assert data["report"]["insufficient_content"] is True
+        assert data["data"]["assessment_eval"]["insufficient_content"] is True
         mock_eval.assert_not_called()
 
         # Verify YouTube URL was uploaded & persisted in DB for playback
@@ -503,8 +522,10 @@ def test_submit_assessment_no_recording_consent_clears_youtube_url(submit_test_c
         )
 
         assert res.status_code == 200
-        data = res.json()["data"]
-        assert data["assessment"]["youtube_url"] is None
+        data = res.json()
+        assert "data" in data
+        assert "assessment" not in data
+        assert data["youtube_url"] is None
 
 
 def test_submit_assessment_no_transcript_consent_omits_db_transcript_but_evaluates_in_memory(submit_test_client, db_session, monkeypatch, tmp_path):
@@ -644,5 +665,28 @@ def test_submit_assessment_already_closed_or_evaluating_returns_409(submit_test_
 
     assert res.status_code == 409
     assert f"Assessment is already {blocked_status}" in res.json()["detail"]
+
+
+def test_candidate_get_assessment_detail_response_body_structure(submit_test_client, db_session):
+    """Verifies GET /candidates/{id}/assessments/{assessment_id} returns unified response format with data.telemetry and data.assessment_eval."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+    )
+    res = submit_test_client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] != "success"
+    assert "data" in data
+    assert "assessment" not in data
+    assert "id" in data
+    assert "candidate_id" in data
+    assert "assessment_data" not in data
+    assert "report" not in data
+    assert "transcript" in data["data"]
+    assert "assessment_eval" in data["data"]
+    assert data["id"] == assessment.id
 
 
