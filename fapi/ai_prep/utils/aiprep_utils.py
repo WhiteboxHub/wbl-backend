@@ -516,11 +516,11 @@ def candidate_create_assessment_logic(
     formatted_questions = []
     for q in questions_list:
         formatted_questions.append({
-            "id": q.get("id"),
-            "category": q.get("category"),
+            "id": q.get("id") or q.get("question_id"),
             "question_text": q.get("question_text"),
-            "difficulty_level": q.get("difficulty_level"),
-            **({} if q.get("sub_category") is None else {"sub_category": q.get("sub_category")}),
+            "subject": q.get("subject"),
+            "concept": q.get("concept"),
+            "time_limit_seconds": q.get("time_limit_seconds"),
         })
 
     return CreateAssessmentResponse(

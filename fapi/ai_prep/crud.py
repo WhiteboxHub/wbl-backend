@@ -5,7 +5,7 @@ import uuid
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -491,6 +491,49 @@ def get_candidate_previously_asked_question_ids(
                             int(qid) if str(qid).isdigit() else qid
                         )
     return question_ids
+
+
+def get_candidate_technical_question_history(
+    db: Session,
+    candidate_id: int,
+) -> Tuple[Set[int], Set[int]]:
+    """
+    Inspects candidate's past completed TECHNICAL assessment reports.
+    Returns (mastered_ids, weak_ids):
+    - mastered_ids: scored MASTERED or PROFICIENT (exclude from next test)
+    - weak_ids: scored DEVELOPING or NEEDS_REVISION (prioritize for retry)
+    """
+    mastered_ids: Set[int] = set()
+    weak_ids: Set[int] = set()
+
+    reports = get_candidate_completed_reports(
+        db, candidate_id=candidate_id, assessment_type="TECHNICAL", limit=5
+    )
+
+    for r in reports:
+        eval_dict = r.transcript_evaluation or {}
+        tech_eval = eval_dict.get("technical_evaluation") or {}
+        q_evals = tech_eval.get("question_evaluations") or []
+
+        for qe in q_evals:
+            qid = qe.get("question_id")
+            mastery = str(qe.get("mastery_level", "")).upper()
+            if not qid:
+                continue
+
+            try:
+                numeric_qid = int(qid)
+            except (ValueError, TypeError):
+                continue
+
+            if mastery in ("MASTERED", "PROFICIENT"):
+                mastered_ids.add(numeric_qid)
+                weak_ids.discard(numeric_qid)
+            elif mastery in ("NEEDS_REVISION", "DEVELOPING"):
+                if numeric_qid not in mastered_ids:
+                    weak_ids.add(numeric_qid)
+
+    return mastered_ids, weak_ids
 
 # ---------------------------------------------------------------------------
 # Questions Bank CRUD

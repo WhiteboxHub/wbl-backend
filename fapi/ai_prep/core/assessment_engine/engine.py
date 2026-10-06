@@ -20,7 +20,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +50,47 @@ class AssessmentEngine:
 
     # Difficulty distribution target counts keyed by readiness band
     DIFFICULTY_DISTRIBUTION: Dict[str, Dict[str, int]] = {
-        "STRONG":       {"EXPERT": 3, "HARD": 4, "MEDIUM": 3, "EASY": 0},
-        "GOOD":         {"EXPERT": 1, "HARD": 2, "MEDIUM": 6, "EASY": 1},
-        "NEEDS_POLISH": {"EXPERT": 0, "HARD": 1, "MEDIUM": 4, "EASY": 5},
-        "WEAK":         {"EXPERT": 0, "HARD": 0, "MEDIUM": 4, "EASY": 6},
-        "DEFAULT":      {"EXPERT": 0, "HARD": 2, "MEDIUM": 5, "EASY": 3},
+        "STRONG":       {"HARD": 4, "MEDIUM": 4, "EASY": 2},
+        "GOOD":         {"HARD": 2, "MEDIUM": 6, "EASY": 2},
+        "NEEDS_POLISH": {"HARD": 1, "MEDIUM": 4, "EASY": 5},
+        "WEAK":         {"HARD": 0, "MEDIUM": 4, "EASY": 6},
+        "DEFAULT":      {"HARD": 2, "MEDIUM": 5, "EASY": 3},
     }
+
+    # Deterministic timing matrix: (difficulty_level, scope) -> seconds
+    QUESTION_TIME_LIMIT_MATRIX: Dict[Tuple[str, str], int] = {
+        ("EASY", "SPECIFIC"): 60,
+        ("EASY", "BROAD"): 90,
+        ("MEDIUM", "SPECIFIC"): 90,
+        ("MEDIUM", "BROAD"): 150,
+        ("HARD", "SPECIFIC"): 120,
+        ("HARD", "BROAD"): 210,
+    }
+
+    # Total technical interview budget (15 minutes in seconds)
+    TECHNICAL_TOTAL_TIME_BUDGET: int = 900
+
+    # Subject quota allocation (60% AI, 20% SE, 20% DevOps)
+    TECHNICAL_SUBJECT_BUDGETS: Dict[str, int] = {
+        "AI Engineering": 540,         # 60% of 900s
+        "Software Engineering": 180,   # 20% of 900s
+        "DevOps and Cloud": 180,       # 20% of 900s
+    }
+
+    @classmethod
+    def get_question_time_limit(cls, question: Dict[str, Any]) -> int:
+        """Resolves question time limit using (difficulty, scope) matrix with safe fallbacks."""
+        diff = str(question.get("difficulty_level") or "MEDIUM").upper().strip()
+        scope = str(question.get("scope") or "SPECIFIC").upper().strip()
+
+        if (diff, scope) in cls.QUESTION_TIME_LIMIT_MATRIX:
+            return cls.QUESTION_TIME_LIMIT_MATRIX[(diff, scope)]
+
+        explicit = question.get("time_limit_seconds")
+        if explicit and isinstance(explicit, int) and explicit > 0:
+            return explicit
+
+        return 90
 
     def __init__(self) -> None:
         pass
@@ -71,6 +106,7 @@ class AssessmentEngine:
         limit: Optional[int] = None,
         previous_readiness: Optional[str] = None,
         previously_asked_ids: Optional[List[int]] = None,
+        **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """Selects questions for an assessment type using adaptive distribution."""
         normalized_type = assessment_type.upper().strip()
@@ -81,6 +117,17 @@ class AssessmentEngine:
             return self._select_single_intro_question(
                 available_questions, normalized_type, excluded_ids
             )
+
+        # TECHNICAL: 15-minute time-budgeted algorithm (60/20/20 split)
+        if normalized_type == "TECHNICAL":
+            selected = self.select_technical_timed_questions(
+                available_questions=available_questions,
+                target_seconds=self.TECHNICAL_TOTAL_TIME_BUDGET,
+                limit=limit,
+                previously_asked_ids=excluded_ids,
+                weak_question_ids=set(kwargs.get("weak_question_ids") or []),
+            )
+            return [self._sanitize_question_for_candidate(q) for q in selected]
 
         max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
         matched = [
@@ -194,17 +241,153 @@ class AssessmentEngine:
 
         return picked
 
+    def select_technical_timed_questions(
+        self,
+        available_questions: List[Dict[str, Any]],
+        target_seconds: int = 900,
+        limit: Optional[int] = None,
+        previously_asked_ids: Optional[Set[int]] = None,
+        weak_question_ids: Optional[Set[int]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        15-Minute Technical Question Selection Algorithm:
+        - 60% AI Engineering (~540s)
+        - 20% Software Engineering (~180s)
+        - 20% DevOps and Cloud (~180s)
+        - Mixes BROAD (architectural) and SPECIFIC (tactical) questions.
+        - Rotates across concepts to maximize topic diversity.
+        - Prioritizes weak questions for retry; excludes mastered/previously asked.
+        - Ensures total sum of time_limit_seconds <= target_seconds (900s).
+        """
+        import random
+        from collections import defaultdict
+
+        excluded = set(previously_asked_ids or [])
+        weak_ids = set(weak_question_ids or [])
+
+        # 1. Filter active technical questions
+        tech_pool = [
+            q for q in available_questions
+            if str(q.get("category", "")).upper() == "TECHNICAL"
+            and q.get("is_active", True)
+        ]
+
+        if not tech_pool:
+            logger.warning("[AssessmentEngine] No active TECHNICAL questions found.")
+            return []
+
+        # 2. Group available questions by subject
+        subject_pools: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for q in tech_pool:
+            subj = q.get("subject") or "AI Engineering"
+            subject_pools[subj].append(q)
+
+        selected: List[Dict[str, Any]] = []
+        selected_ids: Set[int] = set()
+        current_total_time: int = 0
+
+        # 3. Pick questions per subject adhering to quotas
+        for subject, budget in self.TECHNICAL_SUBJECT_BUDGETS.items():
+            pool = subject_pools.get(subject, [])
+            if not pool:
+                continue
+
+            # Separate into fresh (unasked) vs fallback (already asked)
+            fresh = [q for q in pool if q.get("id") not in excluded]
+            candidates = fresh if fresh else pool
+
+            # Separate by scope for healthy amalgamation
+            broad_q = [q for q in candidates if str(q.get("scope", "")).upper() == "BROAD"]
+            specific_q = [q for q in candidates if str(q.get("scope", "")).upper() != "BROAD"]
+            random.shuffle(broad_q)
+            random.shuffle(specific_q)
+
+            # Prioritize weak questions (pedagogical retry)
+            specific_q.sort(key=lambda x: 0 if x.get("id") in weak_ids else 1)
+
+            subject_time = 0
+            used_concepts: Set[str] = set()
+
+            # Step 3a: Pick 1 BROAD question to anchor architectural depth
+            for bq in broad_q:
+                b_time = self.get_question_time_limit(bq)
+                if bq.get("id") not in selected_ids and (subject_time + b_time) <= (budget + 30):
+                    bq_copy = dict(bq)
+                    bq_copy["time_limit_seconds"] = b_time
+                    selected.append(bq_copy)
+                    selected_ids.add(bq.get("id"))
+                    subject_time += b_time
+                    if bq.get("concept"):
+                        used_concepts.add(bq.get("concept"))
+                    break
+
+            # Step 3b: Fill remaining subject budget with SPECIFIC questions rotating concepts
+            for sq in specific_q:
+                s_id = sq.get("id")
+                s_concept = sq.get("concept")
+                s_time = self.get_question_time_limit(sq)
+
+                if s_id in selected_ids:
+                    continue
+
+                # Concept rotation: avoid duplicate concepts unless pool is exhausted
+                if s_concept and s_concept in used_concepts and len(used_concepts) < len(specific_q):
+                    continue
+
+                if (subject_time + s_time) <= budget:
+                    sq_copy = dict(sq)
+                    sq_copy["time_limit_seconds"] = s_time
+                    selected.append(sq_copy)
+                    selected_ids.add(s_id)
+                    subject_time += s_time
+                    if s_concept:
+                        used_concepts.add(s_concept)
+
+            current_total_time += subject_time
+
+        # 4. Global Top-Up: If total < target_seconds, add questions to fill up to 900s
+        remaining_seconds = target_seconds - current_total_time
+        if remaining_seconds >= 60:
+            unused_pool = [q for q in tech_pool if q.get("id") not in selected_ids]
+            # Prioritize AI Engineering questions for top-up
+            unused_pool.sort(key=lambda x: 0 if x.get("subject") == "AI Engineering" else 1)
+
+            for uq in unused_pool:
+                u_time = self.get_question_time_limit(uq)
+                if u_time <= remaining_seconds:
+                    uq_copy = dict(uq)
+                    uq_copy["time_limit_seconds"] = u_time
+                    selected.append(uq_copy)
+                    selected_ids.add(uq.get("id"))
+                    remaining_seconds -= u_time
+                    current_total_time += u_time
+                    if remaining_seconds < 60:
+                        break
+
+        if limit is not None and limit > 0:
+            selected = selected[:limit]
+
+        logger.info(
+            "[AssessmentEngine] Technical timed selection complete: %d questions, %d seconds (budget: %d)",
+            len(selected), current_total_time, target_seconds,
+        )
+        return selected
+
     def _sanitize_question_for_candidate(self, question: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Returns only the candidate-facing fields from a question dict.
+        Returns candidate-facing fields from a question dict.
         Internal/admin columns (rubric, evaluation hints, etc.) are excluded.
         """
+        qid = question.get("id") or question.get("question_id")
         return {
-            "question_id": question.get("id"),
-            "question_text": question.get("question_text", ""),
+            "id": qid,
+            "question_id": qid,
             "category": question.get("category"),
-            "sub_category": question.get("sub_category"),
+            "question_text": question.get("question_text", ""),
+            "subject": question.get("subject"),
+            "concept": question.get("concept"),
             "difficulty_level": question.get("difficulty_level"),
+            "time_limit_seconds": question.get("time_limit_seconds") or self.get_question_time_limit(question),
         }
 
     # =========================================================================

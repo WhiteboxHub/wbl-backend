@@ -200,6 +200,7 @@ async def run_full_evaluation(
             audio_telemetry=ctx["audio_telemetry"],
             video_telemetry=ctx["video_telemetry"],
             resume_json=ctx["resume_json"],
+            questions=ctx.get("questions") or [],
             llm_config=llm_config,
         )
 
@@ -319,6 +320,14 @@ def get_questions_for_assessment(
             assessment_type=normalized_type,
         )
 
+        weak_ids: Set[int] = set()
+        if normalized_type == "TECHNICAL":
+            mastered_ids, weak_ids = crud.get_candidate_technical_question_history(
+                db, candidate_id=candidate_id
+            )
+            if mastered_ids:
+                previously_asked_ids = list(set(previously_asked_ids) | mastered_ids)
+
         logger.info(
             "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
             candidate_id, len(previously_asked_ids), normalized_type,
@@ -330,6 +339,7 @@ def get_questions_for_assessment(
         limit=limit,
         previous_readiness=previous_readiness,
         previously_asked_ids=previously_asked_ids,
+        weak_question_ids=weak_ids if 'weak_ids' in locals() else set(),
     )
 
 
