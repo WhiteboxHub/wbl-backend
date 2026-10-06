@@ -213,22 +213,32 @@ def test_submit_assessment_case_1_insufficient_content(submit_test_client, db_se
 
         assert res.status_code == 200, res.text
         data = res.json()
-        assert data["status"] == "success"
+        assert data["status"] != "success"
+        assert "data" in data
+        assert "assessment" not in data
+        assert "id" in data
+        assert "candidate_id" in data
+        assert "assessment_data" not in data
+        assert "report" not in data
 
-        asm = data["data"]["assessment"]
-        assert asm["id"] == assessment_id
-        assert asm["candidate_id"] == 1042
-        assert asm["status"] == "COMPLETED"
-        assert asm["completed_at"] is not None
+        assert data["id"] == assessment_id
+        assert data["candidate_id"] == 1042
+        assert data["status"] == "COMPLETED"
+        assert data["completed_at"] is not None
 
-        transcript = data["data"]["assessment_data"]["transcript"]
+        # Verify unified data block
+        unified_data = data["data"]
+        assert "transcript" in unified_data
+        assert "assessment_eval" in unified_data
+
+        transcript = unified_data["transcript"]
         assert transcript["full_text"] == "Hello, thank you."
         assert transcript["word_count"] == 3
 
-        report = data["data"]["report"]
-        assert report["insufficient_content"] is True
-        assert "message" in report
-        assert report["llm_evaluation"] == {}
+        assessment_eval = unified_data["assessment_eval"]
+        assert assessment_eval["insufficient_content"] is True
+        assert "message" not in assessment_eval
+        assert assessment_eval["readiness"] is None
 
         # LLM evaluation was NOT invoked
         mock_eval.assert_not_called()
@@ -312,22 +322,30 @@ def test_submit_assessment_case_2_sufficient_content(submit_test_client, db_sess
 
         assert res.status_code == 200, res.text
         data = res.json()
-        assert data["status"] == "success"
+        assert data["status"] != "success"
+        assert "data" in data
+        assert "assessment" not in data
+        assert "id" in data
+        assert "report" not in data
+        assert "assessment_data" not in data
 
         # Verify LLM evaluation engine was triggered
         mock_eval.assert_called_once()
 
-        asm = data["data"]["assessment"]
-        assert asm["id"] == assessment_id
-        assert asm["status"] == "COMPLETED"
+        assert data["id"] == assessment_id
+        assert data["status"] == "COMPLETED"
 
-        report = data["data"]["report"]
-        assert report["insufficient_content"] is False
-        # Case B: Response body MUST NOT contain any message
-        assert report.get("message") is None
-        # Case B: Response MUST contain llm_evaluation information
-        assert report["llm_evaluation"] == mock_eval_report
-        assert "transcript_evaluation" in report["llm_evaluation"]
+        unified_data = data["data"]
+        assert "transcript" in unified_data
+        assert "assessment_eval" in unified_data
+
+        assessment_eval = unified_data["assessment_eval"]
+        assert assessment_eval["insufficient_content"] is False
+        assert "message" not in assessment_eval
+        assert "language" in assessment_eval
+        assert "general" in assessment_eval
+        assert "audio" in assessment_eval
+        assert "video" in assessment_eval
 
         # Database record verified
         db_asm = crud.get_assessment_by_id_or_uuid(db_session, assessment_id)
@@ -416,3 +434,273 @@ def test_put_assessment_status_cancelled_body(submit_test_client, db_session):
 
         mock_audio.assert_not_called()
         mock_stitch.assert_not_called()
+
+
+# ===========================================================================
+# 3. Candidate Consent & Media Logic Tests
+# ===========================================================================
+
+def test_submit_assessment_silent_candidate_uploads_youtube_if_consented(submit_test_client, db_session, monkeypatch, tmp_path):
+    """
+    Even if candidate spoke nothing (insufficient_content: True),
+    if save_recording is True, YouTube URL is generated & persisted so playback works.
+    """
+    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
+
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+        consent={"save_recording": True, "save_transcript": True, "video_analytics": True},
+    )
+    assessment_id = assessment.id
+
+    chunks_dir = tmp_path / "1042" / str(assessment_id) / "chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    (chunks_dir / "chunk_0.webm").write_bytes(b"silent video content")
+
+    mock_audio_result = {
+        "spoken_content": {"full_text": "", "word_count": 0, "segments": []},
+        "audio_telemetry": {"speaking_duration_seconds": 0.0, "wpm": 0, "total_audio_duration_seconds": 60.0},
+    }
+
+    mock_yt_res = {"youtube_url": "https://www.youtube.com/watch?v=mock_silent_123"}
+
+    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
+         patch("fapi.ai_prep.clients.youtube_client.youtube_client.upload_unlisted_media", return_value=mock_yt_res), \
+         patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation") as mock_eval:
+
+        payload = {"total_chunks_uploaded": 1, "is_final": True, "client_duration_seconds": 60.0}
+        res = submit_test_client.put(
+            f"/api/aiprep/candidates/1042/assessments/{assessment_id}",
+            json=payload,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert "data" in data
+        # Flag is ON
+        assert data["data"]["assessment_eval"]["insufficient_content"] is True
+        mock_eval.assert_not_called()
+
+        # Verify YouTube URL was uploaded & persisted in DB for playback
+        db_session.expire_all()
+        db_asm = crud.get_assessment_by_id_or_uuid(db_session, assessment_id)
+        assert db_asm.youtube_url == "https://www.youtube.com/watch?v=mock_silent_123"
+
+
+def test_submit_assessment_no_recording_consent_clears_youtube_url(submit_test_client, db_session, monkeypatch, tmp_path):
+    """If candidate opted out of recording (save_recording=False), youtube_url is None and local media is purged."""
+    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
+
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+        consent={"save_recording": False, "save_transcript": True, "video_analytics": True},
+    )
+    assessment_id = assessment.id
+
+    chunks_dir = tmp_path / "1042" / str(assessment_id) / "chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    (chunks_dir / "chunk_0.webm").write_bytes(b"video content")
+
+    mock_audio_result = {
+        "spoken_content": {"full_text": "Hello world from python developer", "word_count": 5, "segments": []},
+        "audio_telemetry": {"speaking_duration_seconds": 5.0, "wpm": 60, "total_audio_duration_seconds": 10.0},
+    }
+
+    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
+         patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation"):
+
+        payload = {"total_chunks_uploaded": 1, "is_final": True, "client_duration_seconds": 10.0}
+        res = submit_test_client.put(
+            f"/api/aiprep/candidates/1042/assessments/{assessment_id}",
+            json=payload,
+        )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert "data" in data
+        assert "assessment" not in data
+        assert data["youtube_url"] is None
+
+
+def test_submit_assessment_no_transcript_consent_omits_db_transcript_but_evaluates_in_memory(submit_test_client, db_session, monkeypatch, tmp_path):
+    """
+    If save_transcript is False, DB transcript is not saved (redacted),
+    but in-memory transcript text is still handed off to the orchestrator for full grading.
+    """
+    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
+
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+        consent={"save_recording": True, "save_transcript": False, "video_analytics": True},
+    )
+    assessment_id = assessment.id
+
+    chunks_dir = tmp_path / "1042" / str(assessment_id) / "chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    (chunks_dir / "chunk_0.webm").write_bytes(b"video content")
+
+    full_transcript = "I am a Senior Software Engineer with over 8 years of distributed systems experience in Python and Go."
+    mock_audio_result = {
+        "spoken_content": {"full_text": full_transcript, "word_count": 16, "segments": []},
+        "audio_telemetry": {"speaking_duration_seconds": 25.0, "wpm": 120, "total_audio_duration_seconds": 30.0},
+    }
+
+    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
+         patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value={"report": {"transcript_evaluation": {"score": 90}}}) as mock_eval:
+
+        payload = {"total_chunks_uploaded": 1, "is_final": True, "client_duration_seconds": 30.0}
+        res = submit_test_client.put(
+            f"/api/aiprep/candidates/1042/assessments/{assessment_id}",
+            json=payload,
+        )
+
+        assert res.status_code == 200
+        # Check that LLM evaluation was called with in-memory transcript text
+        assert mock_eval.call_count == 1
+        call_kwargs = mock_eval.call_args[1]
+        assert call_kwargs["db"] == db_session
+        assert call_kwargs["assessment_id"] == assessment_id
+        assert call_kwargs["in_memory_transcript_text"] == full_transcript
+
+        # Check DB persistence: transcript is redacted/omitted
+        db_data = crud.get_assessment_data_by_assessment_id(db_session, assessment_id)
+        assert db_data.transcript.get("saved") is False
+        assert db_data.transcript.get("full_text") == ""
+
+
+def test_audio_media_type_forces_video_analytics_consent_false(db_session):
+    """When creating an assessment with media_type='AUDIO', video_analytics consent must be False."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="AUDIO",
+        consent={"save_recording": True, "save_transcript": True, "video_analytics": True},
+    )
+    assert assessment.consent["video_analytics"] is False
+
+
+def test_submit_assessment_telemetry_storage_respects_consents(submit_test_client, db_session, monkeypatch, tmp_path):
+    """
+    Verify telemetry persistence in DB:
+    - save_recording: False -> audio_telemetry is {}
+    - video_analytics: False -> video_telemetry is {}
+    """
+    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
+
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+        consent={"save_recording": False, "save_transcript": True, "video_analytics": False},
+    )
+    assessment_id = assessment.id
+
+    chunks_dir = tmp_path / "1042" / str(assessment_id) / "chunks"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    (chunks_dir / "chunk_0.webm").write_bytes(b"dummy chunk content")
+
+    mock_audio_result = {
+        "spoken_content": {"full_text": "I have extensive experience with FastAPI and PostgreSQL.", "word_count": 8, "segments": []},
+        "audio_telemetry": {"speaking_duration_seconds": 12.0, "wpm": 110, "total_audio_duration_seconds": 15.0},
+    }
+
+    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
+         patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value={"report": {}}):
+
+        payload = {
+            "total_chunks_uploaded": 1,
+            "is_final": True,
+            "client_duration_seconds": 15.0,
+            "video_telemetry": {"eye_contact_percentage": 90.0},
+        }
+
+        res = submit_test_client.put(
+            f"/api/aiprep/candidates/1042/assessments/{assessment_id}",
+            json=payload,
+        )
+
+        assert res.status_code == 200
+
+        # Check DB data: audio_telemetry and video_telemetry must be empty ({})
+        db_session.expire_all()
+        db_data = crud.get_assessment_data_by_assessment_id(db_session, assessment_id)
+        assert db_data.audio_telemetry == {}
+        assert db_data.video_telemetry == {}
+        # Transcript was consented so it must be stored
+        assert db_data.transcript.get("full_text") == "I have extensive experience with FastAPI and PostgreSQL."
+
+
+@pytest.mark.parametrize("blocked_status", ["COMPLETED", "CANCELLED", "FAILED", "EVALUATING"])
+def test_submit_assessment_already_closed_or_evaluating_returns_409(submit_test_client, db_session, blocked_status):
+    """Assessments in terminal or evaluating states cannot be resubmitted or retaken."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+    )
+    crud.update_assessment_status(db_session, assessment.id, blocked_status)
+
+    payload = {
+        "total_chunks_uploaded": 1,
+        "is_final": True,
+        "client_duration_seconds": 30.0,
+    }
+
+    res = submit_test_client.put(
+        f"/api/aiprep/candidates/1042/assessments/{assessment.id}",
+        json=payload,
+    )
+
+    assert res.status_code == 409
+    assert f"Assessment is already {blocked_status}" in res.json()["detail"]
+
+
+def test_candidate_get_assessment_detail_response_body_structure(submit_test_client, db_session):
+    """Verifies GET /candidates/{id}/assessments/{assessment_id} returns unified response format with data.telemetry and data.assessment_eval."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+    )
+    res = submit_test_client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] != "success"
+    assert "data" in data
+    assert "assessment" not in data
+    assert "id" in data
+    assert "candidate_id" in data
+    assert "assessment_data" not in data
+    assert "report" not in data
+    assert "transcript" in data["data"]
+    assert "assessment_eval" in data["data"]
+    assert data["id"] == assessment.id
+    # IN_PROGRESS assessment must NOT be flagged as insufficient_content
+    assert data["data"]["assessment_eval"]["insufficient_content"] is False
+
+    # EVALUATING assessment must NOT be flagged as insufficient_content
+    crud.update_assessment_status(db_session, assessment.id, "EVALUATING")
+    res_eval = submit_test_client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+    assert res_eval.status_code == 200
+    assert res_eval.json()["data"]["assessment_eval"]["insufficient_content"] is False
+
+    # COMPLETED without report record means gatekeeper skipped it -> insufficient_content is True
+    crud.update_assessment_status(db_session, assessment.id, "COMPLETED")
+    res_comp = submit_test_client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+    assert res_comp.status_code == 200
+    assert res_comp.json()["data"]["assessment_eval"]["insufficient_content"] is True
+
+

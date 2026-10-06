@@ -4,7 +4,7 @@ Fully compatible with Master Contracts and aiprep-backend branch.
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -341,17 +341,41 @@ class AssessmentSubmitReportData(BaseModel):
     llm_evaluation: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-class CandidateSubmitAssessmentData(BaseModel):
-    assessment: AssessmentMetaResponse
-    assessment_data: AssessmentTelemetryData
+# ---------------------------------------------------------------------------
+# Candidate Assessment Unified Response Schemas (GET & PUT)
+# ---------------------------------------------------------------------------
+
+class AssessmentEvalData(BaseModel):
+    model_config = ConfigDict(extra="allow", from_attributes=True)
+    insufficient_content: bool = False
+    readiness: Optional[str] = None
+    summary: Optional[str] = None
+    strongest_signal: Optional[str] = None
+    biggest_gap: Optional[str] = None
+    audio: Optional[Dict[str, Any]] = None
+    language: Optional[Dict[str, Any]] = None
+    video: Optional[Dict[str, Any]] = None
+    general: Optional[Dict[str, Any]] = None
+
+
+class CandidateAssessmentUnifiedData(BaseModel):
+    model_config = ConfigDict(extra="allow", from_attributes=True)
+    transcript: Dict[str, Any] = Field(default_factory=dict)
     audio_telemetry: Dict[str, Any] = Field(default_factory=dict)
     video_telemetry: Dict[str, Any] = Field(default_factory=dict)
-    report: AssessmentSubmitReportData
+    assessment_eval: AssessmentEvalData
 
 
-class CandidateSubmitAssessmentResponse(BaseModel):
-    status: str = "success"
-    data: CandidateSubmitAssessmentData
+AssessmentTelemetryContainer = CandidateAssessmentUnifiedData
+
+
+class CandidateAssessmentUnifiedResponse(AssessmentMetaResponse):
+    model_config = ConfigDict(extra="allow", from_attributes=True)
+    data: CandidateAssessmentUnifiedData
+
+
+CandidateSubmitAssessmentResponse = CandidateAssessmentUnifiedResponse
+CandidateSubmitAssessmentData = CandidateAssessmentUnifiedResponse
 
 
 class SubmitAssessmentDataRequest(BaseModel):
@@ -501,15 +525,8 @@ class CandidateAssessmentReportDetail(BaseModel):
     llm_evaluation: Optional[Dict[str, Any]] = None
 
 
-class CandidateAssessmentDetailData(BaseModel):
-    assessment: AssessmentMetaResponse
-    assessment_data: CandidateAssessmentDataDetail
-    report: CandidateAssessmentReportDetail
-
-
-class CandidateAssessmentDetailResponse(BaseModel):
-    status: str = "success"
-    data: CandidateAssessmentDetailData
+CandidateAssessmentDetailResponse = CandidateAssessmentUnifiedResponse
+CandidateAssessmentDetailData = CandidateAssessmentUnifiedResponse
 
 
 # ---------------------------------------------------------------------------
