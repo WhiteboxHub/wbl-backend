@@ -169,6 +169,10 @@ def create_assessment(
 ) -> AiPrepAssessmentORM:
     """Creates a new assessment record with status IN_PROGRESS."""
     assessment_uuid = str(uuid.uuid4())
+    resolved_consent = dict(consent) if isinstance(consent, dict) else consent
+    if media_type and media_type.upper() == "AUDIO" and isinstance(resolved_consent, dict):
+        resolved_consent["video_analytics"] = False
+
     db_obj = AiPrepAssessmentORM(
         assessment_uuid=assessment_uuid,
         candidate_id=candidate_id,
@@ -178,7 +182,7 @@ def create_assessment(
         job_description=job_description,
         ip_address=ip_address,
         user_agent=user_agent,
-        consent=consent,
+        consent=resolved_consent,
         started_at=datetime.utcnow(),
     )
     db.add(db_obj)
@@ -215,31 +219,49 @@ def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Op
     return get_assessment_by_uuid(db, ident_str)
 
 
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+
+
 def list_assessments(
     db: Session,
     candidate_id: Optional[int] = None,
     status: Optional[str] = None,
-    limit: int = 50,
+    limit: Optional[int] = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
+    # Defensive fallback for limit & offset to ensure valid SQL generation
+    if limit is None or limit < 1 or limit > MAX_PAGE_SIZE:
+        limit = DEFAULT_PAGE_SIZE
+    if offset is None or offset < 0:
+        offset = 0
+
     query = db.query(AiPrepAssessmentORM)
     if candidate_id is not None:
         query = query.filter(AiPrepAssessmentORM.candidate_id == candidate_id)
     if status:
         query = query.filter(AiPrepAssessmentORM.status == status)
 
-    total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).offset(offset).limit(limit).all()
+    total = query.order_by(None).count()
+    items = (
+        query
+        .order_by(desc(AiPrepAssessmentORM.created_at), desc(AiPrepAssessmentORM.id))
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
     return items, total
 
 
 def list_candidate_assessments(
     db: Session,
     candidate_id: int,
-    limit: int = 50,
+    limit: Optional[int] = DEFAULT_PAGE_SIZE,
     offset: int = 0,
 ) -> Tuple[List[AiPrepAssessmentORM], int]:
+    """Retrieves all assessments attempted/completed by a specific candidate from DB."""
     return list_assessments(db, candidate_id=candidate_id, limit=limit, offset=offset)
+
 
 
 def list_assessments_for_employee(
@@ -335,7 +357,7 @@ def update_assessment_status(db: Session, assessment_id: Union[int, str], status
     if not assessment:
         return None
     assessment.status = status
-    if status in ("COMPLETED", "FAILED"):
+    if status in ("COMPLETED", "FAILED", "CANCELLED"):
         assessment.completed_at = datetime.utcnow()
     assessment.updated_at = datetime.utcnow()
     db.commit()
@@ -611,7 +633,7 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
             "provider": None,
             "model": None,
             "voice_enabled": False,
-            "message": "No active LLM API key found for this candidate. Please configure an OpenAI or Gemini API key first.",
+            "message": "No active LLM API key found in 'My LLM Setup'. Please configure an OpenAI or Gemini API key first.",
             "available_models": [],
         }
 
@@ -621,7 +643,7 @@ def check_candidate_llm_key(db: Session, candidate_id: int) -> Dict[str, Any]:
         "provider": key_row.provider_name or "openai",
         "model": key_row.model_name or "gpt-4o",
         "voice_enabled": bool(key_row.voice_enabled),
-        "message": "LLM API Key is configured and valid.",
+        "message": "Active LLM API Key is configured and valid in 'My LLM Setup'.",
         "available_models": [key_row.model_name or "gpt-4o"],
     }
 
@@ -681,7 +703,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
             "candidate_name": candidate_name,
             "current_title": None,
             "skills": [],
-            "message": "Candidate has not uploaded or synced a resume. Please complete resume setup before starting.",
+            "message": "Candidate has not uploaded or synced a resume in 'My Resume'. Please complete resume setup before starting.",
         }
 
     current_title: Optional[str] = None
@@ -696,7 +718,7 @@ def check_candidate_resume(db: Session, candidate_id: int) -> Dict[str, Any]:
         "candidate_name": candidate_name,
         "current_title": current_title,
         "skills": [],
-        "message": "Candidate resume is verified and ready.",
+        "message": "Candidate resume is verified and ready in 'My Resume'.",
     }
 
 
