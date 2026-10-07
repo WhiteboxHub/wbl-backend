@@ -247,7 +247,7 @@ async def run_evaluation(
     can_eval_audio: bool = eval_engine.has_evaluable_audio(audio_telemetry)
     transcript_prompt, audio_prompt, video_prompt = _prepare_prompts(
         eval_engine, assessment_type, transcript_text, resume_json,
-        audio_telemetry, video_telemetry, is_video_mode, can_eval_audio, questions = questions
+        audio_telemetry, video_telemetry, is_video_mode, can_eval_audio, questions=questions
     )
 
     call_labels: List[str] = ["transcript_eval"]
