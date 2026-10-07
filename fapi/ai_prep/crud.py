@@ -496,7 +496,7 @@ def get_candidate_previously_asked_question_ids(
 def get_candidate_technical_question_history(
     db: Session,
     candidate_id: int,
-) -> Tuple[Set[int], Set[int]]:
+) -> Tuple[Set[int], Set[int], Dict[str, str]]:
     """
     Inspects candidate's past completed TECHNICAL assessment reports in a SINGLE query.
     Returns (mastered_ids, weak_ids, concept_ladder):
