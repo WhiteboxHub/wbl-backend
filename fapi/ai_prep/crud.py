@@ -498,17 +498,23 @@ def get_candidate_technical_question_history(
     candidate_id: int,
 ) -> Tuple[Set[int], Set[int]]:
     """
-    Inspects candidate's past completed TECHNICAL assessment reports.
-    Returns (mastered_ids, weak_ids):
-    - mastered_ids: scored MASTERED or PROFICIENT (exclude from next test)
-    - weak_ids: scored DEVELOPING or NEEDS_REVISION (prioritize for retry)
+    Inspects candidate's past completed TECHNICAL assessment reports in a SINGLE query.
+    Returns (mastered_ids, weak_ids, concept_ladder):
+    - mastered_ids: scored EXCELLENT or GOOD (exclude from next test)
+    - weak_ids: scored AVERAGE or POOR (prioritize for retry)
+    - concept_ladder: target difficulty tier per concept (EASY, MEDIUM, HARD)
     """
     mastered_ids: Set[int] = set()
     weak_ids: Set[int] = set()
+    concept_ladder: Dict[str, str] = {}
 
     reports = get_candidate_completed_reports(
         db, candidate_id=candidate_id, assessment_type="TECHNICAL", limit=5
     )
+    if not reports:
+        return mastered_ids, weak_ids, concept_ladder
+
+    concept_history: Dict[str, Tuple[str, str]] = {}
 
     for r in reports:
         eval_dict = r.transcript_evaluation or {}
@@ -517,23 +523,52 @@ def get_candidate_technical_question_history(
 
         for qe in q_evals:
             qid = qe.get("question_id")
-            mastery = str(qe.get("mastery_level", "")).upper()
-            if not qid:
-                continue
+            score_band = str(qe.get("score_band") or qe.get("mastery_level") or "").upper().strip()
+            diff = str(qe.get("difficulty_level", "MEDIUM")).upper().strip()
+            concept = qe.get("concept")
 
-            try:
-                numeric_qid = int(qid)
-            except (ValueError, TypeError):
-                continue
+            if qid:
+                try:
+                    numeric_qid = int(qid)
+                    if score_band in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
+                        mastered_ids.add(numeric_qid)
+                        weak_ids.discard(numeric_qid)
+                    elif score_band in ("AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION"):
+                        if numeric_qid not in mastered_ids:
+                            weak_ids.add(numeric_qid)
+                except (ValueError, TypeError):
+                    pass
 
-            if mastery in ("MASTERED", "PROFICIENT"):
-                mastered_ids.add(numeric_qid)
-                weak_ids.discard(numeric_qid)
-            elif mastery in ("NEEDS_REVISION", "DEVELOPING"):
-                if numeric_qid not in mastered_ids:
-                    weak_ids.add(numeric_qid)
+            if concept and concept not in concept_history and score_band:
+                concept_history[concept] = (diff, score_band)
 
-    return mastered_ids, weak_ids
+    # Compute concept ladder
+    for concept, (last_diff, last_score) in concept_history.items():
+        if last_score in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
+            ladder_target = "MEDIUM" if last_diff == "EASY" else "HARD"
+            concept_ladder[concept] = ladder_target
+        elif last_score in ("POOR", "NEEDS_REVISION"):
+            ladder_target = "MEDIUM" if last_diff == "HARD" else "EASY"
+            concept_ladder[concept] = ladder_target
+        elif last_score in ("AVERAGE", "DEVELOPING"):
+            concept_ladder[concept] = last_diff
+
+    return mastered_ids, weak_ids, concept_ladder
+
+
+def get_candidate_technical_profile(
+    db: Session, candidate_id: int
+) -> Tuple[Set[int], Set[int], Dict[str, str]]:
+    """Primary function for candidate technical history & concept ladder in a single query."""
+    return get_candidate_technical_question_history(db, candidate_id)
+
+
+def get_candidate_concept_ladder(
+    db: Session, candidate_id: int
+) -> Dict[str, str]:
+    """Compatibility wrapper that extracts concept ladder."""
+    _, _, ladder = get_candidate_technical_question_history(db, candidate_id)
+    return ladder
 
 # ---------------------------------------------------------------------------
 # Questions Bank CRUD

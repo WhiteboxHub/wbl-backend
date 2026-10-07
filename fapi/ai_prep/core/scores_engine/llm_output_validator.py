@@ -88,9 +88,11 @@ class ScoresEngine:
                 "parsed_report": None,
             }
 
-        # 3. Validate Payload (Intro Evaluation, Audio, Video, or Master Assessment Report)
+        # 3. Validate Payload (Intro Evaluation, Technical, Audio, Video, or Master Assessment Report)
         if "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
+        elif "technical_evaluation" in parsed_data:
+            self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
         elif "audio_evaluation" in parsed_data:
             self._validate_audio_payload(parsed_data["audio_evaluation"], errors)
         elif "video_evaluation" in parsed_data:
@@ -99,7 +101,7 @@ class ScoresEngine:
             self._validate_legacy_report_payload(parsed_data, errors)
         else:
             errors.append(
-                "Missing recognized evaluation root key: 'intro_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
+                "Missing recognized evaluation root key: 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
             )
 
         is_valid = len(errors) == 0
@@ -288,6 +290,18 @@ class ScoresEngine:
                             f"video_evaluation.factors.{key}.status must be one of "
                             f"STRONG, ADEQUATE, NEEDS_WORK, INSUFFICIENT_DATA"
                         )
+
+    def _validate_technical_payload(
+        self, technical: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """Validates technical_evaluation payload from technical_prompt.py."""
+        if not isinstance(technical, dict):
+            errors.append("technical_evaluation must be a dictionary")
+            return
+
+        for key in ["overall_assessment", "subject_evaluations", "question_evaluations"]:
+            if key not in technical:
+                errors.append(f"Missing required key '{key}' in technical_evaluation")
 
     def _validate_legacy_report_payload(
         self, report: Dict[str, Any], errors: List[str]

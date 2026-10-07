@@ -135,6 +135,7 @@ class AssessmentEngine:
                 limit=limit,
                 previously_asked_ids=excluded_ids,
                 weak_question_ids=set(kwargs.get("weak_question_ids") or []),
+                concept_ladder=dict(kwargs.get("concept_ladder") or {}),
             )
             return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
@@ -261,6 +262,8 @@ class AssessmentEngine:
         limit: Optional[int] = None,
         previously_asked_ids: Optional[Set[int]] = None,
         weak_question_ids: Optional[Set[int]] = None,
+        concept_ladder: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
         15-Minute Technical Question Selection Algorithm:
@@ -269,6 +272,7 @@ class AssessmentEngine:
         - 20% DevOps and Cloud (~180s)
         - Mixes BROAD (architectural) and SPECIFIC (tactical) questions.
         - Rotates across concepts to maximize topic diversity.
+        - Difficulty Ladder: Serves target difficulty (EASY, MEDIUM, HARD) per concept.
         - Prioritizes weak questions for retry; excludes mastered/previously asked.
         - Ensures total sum of time_limit_seconds <= target_seconds (900s).
         """
@@ -277,19 +281,18 @@ class AssessmentEngine:
 
         excluded = set(previously_asked_ids or [])
         weak_ids = set(weak_question_ids or [])
+        ladder = dict(concept_ladder or {})
 
-        # 1. Filter active technical questions
+        # 1. Filter active technical questions & group by subject
         tech_pool = [
             q for q in available_questions
             if str(q.get("category", "")).upper() == "TECHNICAL"
             and q.get("is_active", True)
         ]
-
         if not tech_pool:
             logger.warning("[AssessmentEngine] No active TECHNICAL questions found.")
             return []
 
-        # 2. Group available questions by subject
         subject_pools: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for q in tech_pool:
             subj = q.get("subject") or "AI Engineering"
@@ -299,84 +302,31 @@ class AssessmentEngine:
         selected_ids: Set[int] = set()
         current_total_time: int = 0
 
-        # 3. Pick questions per subject adhering to quotas
+        # 2. Select questions per subject adhering to quotas
         for subject, budget in self.TECHNICAL_SUBJECT_BUDGETS.items():
             pool = subject_pools.get(subject, [])
             if not pool:
                 continue
 
-            # Separate into fresh (unasked) vs fallback (already asked)
-            fresh = [q for q in pool if q.get("id") not in excluded]
-            candidates = fresh if fresh else pool
+            subj_questions, subj_time = self._select_subject_block(
+                pool=pool,
+                budget=budget,
+                excluded=excluded,
+                weak_ids=weak_ids,
+                selected_ids=selected_ids,
+                concept_ladder=ladder,
+            )
+            selected.extend(subj_questions)
+            current_total_time += subj_time
 
-            # Separate by scope for healthy amalgamation
-            broad_q = [q for q in candidates if str(q.get("scope", "")).upper() == "BROAD"]
-            specific_q = [q for q in candidates if str(q.get("scope", "")).upper() != "BROAD"]
-            random.shuffle(broad_q)
-            random.shuffle(specific_q)
-
-            # Prioritize weak questions (pedagogical retry)
-            specific_q.sort(key=lambda x: 0 if x.get("id") in weak_ids else 1)
-
-            subject_time = 0
-            used_concepts: Set[str] = set()
-
-            # Step 3a: Pick 1 BROAD question to anchor architectural depth
-            for bq in broad_q:
-                b_time = self.get_question_time_limit(bq)
-                if bq.get("id") not in selected_ids and (subject_time + b_time) <= (budget + 30):
-                    bq_copy = dict(bq)
-                    bq_copy["time_limit_seconds"] = b_time
-                    selected.append(bq_copy)
-                    selected_ids.add(bq.get("id"))
-                    subject_time += b_time
-                    if bq.get("concept"):
-                        used_concepts.add(bq.get("concept"))
-                    break
-
-            # Step 3b: Fill remaining subject budget with SPECIFIC questions rotating concepts
-            available_concepts = {q.get("concept") for q in specific_q if q.get("concept")}
-            for sq in specific_q:
-                s_id = sq.get("id")
-                s_concept = sq.get("concept")
-                s_time = self.get_question_time_limit(sq)
-
-                if s_id in selected_ids:
-                    continue
-
-                # Concept rotation: avoid duplicate concepts unless pool is exhausted
-                if s_concept and s_concept in used_concepts and len(used_concepts) < len(available_concepts):
-                    continue
-
-                if (subject_time + s_time) <= budget:
-                    sq_copy = dict(sq)
-                    sq_copy["time_limit_seconds"] = s_time
-                    selected.append(sq_copy)
-                    selected_ids.add(s_id)
-                    subject_time += s_time
-                    if s_concept:
-                        used_concepts.add(s_concept)
-
-            current_total_time += subject_time
-
-        # 4. Global Top-Up: If total < target_seconds, add questions to fill up to 900s
-        remaining_seconds = target_seconds - current_total_time
-        if remaining_seconds >= 60:
-            unused_pool = [q for q in tech_pool if q.get("id") not in selected_ids]
-            # Prioritize AI Engineering questions for top-up
-            unused_pool.sort(key=lambda x: 0 if x.get("subject") == "AI Engineering" else 1)
-
-            for uq in unused_pool:
-                u_time = self.get_question_time_limit(uq)
-                if u_time <= remaining_seconds:
-                    uq_copy = dict(uq)
-                    uq_copy["time_limit_seconds"] = u_time
-                    selected.append(uq_copy)
-                    selected_ids.add(uq.get("id"))
-                    remaining_seconds -= u_time
-                    current_total_time += u_time
-                    if remaining_seconds < 60:
-                        break
+        # 3. Global Top-Up: If total < target_seconds, add questions to fill up to 900s
+        selected, current_total_time = self._top_up_remaining_seconds(
+            tech_pool=tech_pool,
+            selected=selected,
+            selected_ids=selected_ids,
+            current_total_time=current_total_time,
+            target_seconds=target_seconds,
+        )
 
         if limit is not None and limit > 0:
             selected = selected[:limit]
@@ -385,7 +335,167 @@ class AssessmentEngine:
             "[AssessmentEngine] Technical timed selection complete: %d questions, %d seconds (budget: %d)",
             len(selected), current_total_time, target_seconds,
         )
-        return selected
+        return self.sequence_fatigue_aware_order(selected)
+
+    def _select_subject_block(
+        self,
+        pool: List[Dict[str, Any]],
+        budget: int,
+        excluded: Set[int],
+        weak_ids: Set[int],
+        selected_ids: Set[int],
+        concept_ladder: Optional[Dict[str, str]] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Selects questions for a single subject block: warm-up -> broad -> specific rotation with concept ladder."""
+        import random
+
+        ladder = dict(concept_ladder or {})
+        fresh = [q for q in pool if q.get("id") not in excluded]
+        candidates = fresh if fresh else pool
+
+        broad_q = [q for q in candidates if str(q.get("scope", "")).upper() == "BROAD"]
+        specific_q = [q for q in candidates if str(q.get("scope", "")).upper() != "BROAD"]
+        random.shuffle(broad_q)
+        random.shuffle(specific_q)
+
+        # 1. Prioritize weak questions for retry
+        # 2. Prioritize questions matching the candidate's target difficulty on that concept ladder
+        def _specific_sort_key(q: Dict[str, Any]) -> Tuple[int, int]:
+            is_weak = 0 if q.get("id") in weak_ids else 1
+            concept = q.get("concept")
+            target_diff = ladder.get(concept)
+            q_diff = str(q.get("difficulty_level", "")).upper()
+            diff_match = 0 if (target_diff and q_diff == target_diff) else 1
+            return (is_weak, diff_match)
+
+        specific_q.sort(key=_specific_sort_key)
+
+        subj_selected: List[Dict[str, Any]] = []
+        subject_time = 0
+        used_concepts: Set[str] = set()
+
+        # Step A: Warm-Up Question (Confidence Builder)
+        easy_warmup = [
+            q for q in specific_q
+            if str(q.get("difficulty_level", "")).upper() == "EASY"
+        ]
+        for eq in easy_warmup:
+            eq_time = self.get_question_time_limit(eq)
+            if eq.get("id") not in selected_ids and (subject_time + eq_time) <= budget:
+                eq_copy = dict(eq)
+                eq_copy["time_limit_seconds"] = eq_time
+                subj_selected.append(eq_copy)
+                selected_ids.add(eq.get("id"))
+                subject_time += eq_time
+                if eq.get("concept"):
+                    used_concepts.add(eq.get("concept"))
+                break
+
+        # Step B: Broad Question (1 architectural question per subject)
+        for bq in broad_q:
+            b_time = self.get_question_time_limit(bq)
+            if bq.get("id") not in selected_ids and (subject_time + b_time) <= (budget + 30):
+                bq_copy = dict(bq)
+                bq_copy["time_limit_seconds"] = b_time
+                subj_selected.append(bq_copy)
+                selected_ids.add(bq.get("id"))
+                subject_time += b_time
+                if bq.get("concept"):
+                    used_concepts.add(bq.get("concept"))
+                break
+
+        # Step C: Specific Questions rotating unique concepts
+        available_concepts = {q.get("concept") for q in specific_q if q.get("concept")}
+        for sq in specific_q:
+            s_id = sq.get("id")
+            s_concept = sq.get("concept")
+            s_time = self.get_question_time_limit(sq)
+
+            if s_id in selected_ids:
+                continue
+
+            if s_concept and s_concept in used_concepts and len(used_concepts) < len(available_concepts):
+                continue
+
+            if (subject_time + s_time) <= budget:
+                sq_copy = dict(sq)
+                sq_copy["time_limit_seconds"] = s_time
+                subj_selected.append(sq_copy)
+                selected_ids.add(s_id)
+                subject_time += s_time
+                if s_concept:
+                    used_concepts.add(s_concept)
+
+        return subj_selected, subject_time
+
+    def _top_up_remaining_seconds(
+        self,
+        tech_pool: List[Dict[str, Any]],
+        selected: List[Dict[str, Any]],
+        selected_ids: Set[int],
+        current_total_time: int,
+        target_seconds: int,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Fills remaining slack seconds up to target_seconds using unused questions."""
+        remaining_seconds = target_seconds - current_total_time
+        if remaining_seconds < 60:
+            return selected, current_total_time
+
+        unused_pool = [q for q in tech_pool if q.get("id") not in selected_ids]
+        unused_pool.sort(key=lambda x: 0 if x.get("subject") == "AI Engineering" else 1)
+
+        for uq in unused_pool:
+            u_time = self.get_question_time_limit(uq)
+            if u_time <= remaining_seconds:
+                uq_copy = dict(uq)
+                uq_copy["time_limit_seconds"] = u_time
+                selected.append(uq_copy)
+                selected_ids.add(uq.get("id"))
+                remaining_seconds -= u_time
+                current_total_time += u_time
+                if remaining_seconds < 60:
+                    break
+
+        return selected, current_total_time
+
+    @classmethod
+    def sequence_fatigue_aware_order(cls, questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Sequences selected technical questions to prevent candidate cognitive fatigue.
+        
+        Pacing curve:
+        1. Openers (Minutes 0-2): EASY SPECIFIC questions to settle in and build momentum.
+        2. Mid-Session Peak (Minutes 3-10): Heavy BROAD architectural questions & HARD questions
+           placed while candidate cognitive energy is at its highest.
+        3. Closers (Minutes 11-15): Crisp SPECIFIC questions (MEDIUM/EASY) to finish strong
+           without confronting massive open-ended system design in the final 2 minutes.
+        """
+        if len(questions) <= 2:
+            return questions
+
+        openers: List[Dict[str, Any]] = []
+        mid_peak: List[Dict[str, Any]] = []
+        closers: List[Dict[str, Any]] = []
+
+        for q in questions:
+            is_broad = str(q.get("scope", "")).upper() == "BROAD"
+            diff = str(q.get("difficulty_level", "")).upper()
+
+            # Heavy architectural/hard questions go to the mid-session peak
+            if is_broad or diff == "HARD":
+                mid_peak.append(q)
+            # Up to 2 easy specific questions serve as openers/warm-ups
+            elif diff == "EASY" and len(openers) < 2:
+                openers.append(q)
+            # Everything else forms the closing stretch
+            else:
+                closers.append(q)
+
+        # If no easy openers exist, move the first non-broad question to opener
+        if not openers and closers:
+            openers.append(closers.pop(0))
+
+        return openers + mid_peak + closers
 
     def _sanitize_question_for_candidate(self, question: Dict[str, Any]) -> Dict[str, Any]:
         """

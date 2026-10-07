@@ -313,20 +313,20 @@ def get_questions_for_assessment(
                 candidate_id, normalized_type, previous_readiness,
             )
 
-        # 2. Collect question IDs already asked to this candidate for COMPLETED assessments of this round type
-        previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
-            db,
-            candidate_id=candidate_id,
-            assessment_type=normalized_type,
-        )
-
-        weak_ids: Set[int] = set()
+        # 2. Collect candidate history: single profile query for TECHNICAL; original query for other round types
         if normalized_type == "TECHNICAL":
-            mastered_ids, weak_ids = crud.get_candidate_technical_question_history(
+            mastered_ids, weak_ids, concept_ladder = crud.get_candidate_technical_profile(
                 db, candidate_id=candidate_id
             )
-            if mastered_ids:
-                previously_asked_ids = list(set(previously_asked_ids) | mastered_ids)
+            previously_asked_ids = list(mastered_ids)
+        else:
+            previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
+                db,
+                candidate_id=candidate_id,
+                assessment_type=normalized_type,
+            )
+            weak_ids = set()
+            concept_ladder = {}
 
         logger.info(
             "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
@@ -340,6 +340,7 @@ def get_questions_for_assessment(
         previous_readiness=previous_readiness,
         previously_asked_ids=previously_asked_ids,
         weak_question_ids=weak_ids if 'weak_ids' in locals() else set(),
+        concept_ladder=concept_ladder if 'concept_ladder' in locals() else {},
         sanitize=False,
     )
 
