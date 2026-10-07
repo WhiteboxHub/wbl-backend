@@ -40,6 +40,11 @@ class ScoresEngine:
     # Default alias
     MANDATORY_INTRO_CHECKPOINTS = AI_ENG_INTRO_CHECKPOINTS
 
+    VALID_TECHNICAL_SCORE_BANDS = {
+        "EXCELLENT", "GOOD", "MASTERED", "PROFICIENT",
+        "AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION",
+    }
+
     def __init__(self) -> None:
         pass
 
@@ -302,6 +307,26 @@ class ScoresEngine:
         for key in ["overall_assessment", "subject_evaluations", "question_evaluations"]:
             if key not in technical:
                 errors.append(f"Missing required key '{key}' in technical_evaluation")
+
+        q_evals = technical.get("question_evaluations")
+        if q_evals is not None:
+            if not isinstance(q_evals, list):
+                errors.append("technical_evaluation.question_evaluations must be a list")
+            elif len(q_evals) == 0:
+                errors.append("technical_evaluation.question_evaluations must not be empty")
+            else:
+                for idx, qe in enumerate(q_evals):
+                    if not isinstance(qe, dict):
+                        errors.append(f"technical_evaluation.question_evaluations[{idx}] must be a dictionary")
+                        continue
+                    if not qe.get("question_id"):
+                        errors.append(f"technical_evaluation.question_evaluations[{idx}] missing 'question_id'")
+                    band = str(qe.get("score_band", "")).upper()
+                    if band not in self.VALID_TECHNICAL_SCORE_BANDS:
+                        errors.append(
+                            f"technical_evaluation.question_evaluations[{idx}].score_band must be one of "
+                            f"{', '.join(sorted(self.VALID_TECHNICAL_SCORE_BANDS))}"
+                        )
 
     def _validate_legacy_report_payload(
         self, report: Dict[str, Any], errors: List[str]

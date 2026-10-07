@@ -620,7 +620,7 @@ def list_questions(
     concept: Optional[str] = None,
     difficulty_level: Optional[str] = None,
     is_active: Optional[bool] = None,
-    limit: int = 50,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> Tuple[List[AiPrepQuestionORM], int]:
     query = db.query(AiPrepQuestionORM)
@@ -636,7 +636,10 @@ def list_questions(
         query = query.filter(AiPrepQuestionORM.is_active == is_active)
 
     total = query.count()
-    items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
+    query = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    items = query.all()
     return items, total
 
 

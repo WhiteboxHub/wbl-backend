@@ -271,7 +271,7 @@ def get_questions_for_assessment(
     """
     normalized_type = (assessment_type or "").upper().strip()
 
-    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=200)
+    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=None)
     available = [
         {
             "id": q.id,

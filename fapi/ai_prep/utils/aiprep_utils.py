@@ -153,7 +153,7 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
             "title": "Technical Assessment",
             "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
             "category": "TECHNICAL",
-            "time_estimate_mins": 30,
+            "time_estimate_mins": 15,
             "is_active": True,
         },
     ]

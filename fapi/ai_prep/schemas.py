@@ -620,7 +620,13 @@ class QuestionCreateRequest(BaseModel):
     @model_validator(mode="after")
     def enforce_technical_fields_constraint(self):
         cat_val = self.category.value if hasattr(self.category, "value") else str(self.category)
-        if cat_val != "TECHNICAL":
+        if cat_val == "TECHNICAL":
+            if not self.subject:
+                raise ValueError(
+                    "subject is required for TECHNICAL questions and must be one of: "
+                    "'AI Engineering', 'Software Engineering', 'DevOps and Cloud'"
+                )
+        else:
             # For non-technical rounds, keep subject, concept, and scope None for now
             self.subject = None
             self.concept = None

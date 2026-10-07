@@ -78,6 +78,21 @@ class AssessmentEngine:
     }
 
     @classmethod
+    def normalize_subject(cls, subject_str: Optional[str]) -> str:
+        """
+        Normalizes subject string to one of the 3 canonical quota buckets:
+        'AI Engineering', 'Software Engineering', or 'DevOps and Cloud'.
+        """
+        if not subject_str:
+            return "AI Engineering"
+        s = str(subject_str).strip().lower()
+        if any(k in s for k in ("devops", "cloud", "infra", "infrastructure")):
+            return "DevOps and Cloud"
+        if any(k in s for k in ("software", "core", "backend", "frontend", "system design")):
+            return "Software Engineering"
+        return "AI Engineering"
+
+    @classmethod
     def get_question_time_limit(cls, question: Dict[str, Any]) -> int:
         """
         Resolves question time limit.
@@ -295,7 +310,7 @@ class AssessmentEngine:
 
         subject_pools: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for q in tech_pool:
-            subj = q.get("subject") or "AI Engineering"
+            subj = self.normalize_subject(q.get("subject"))
             subject_pools[subj].append(q)
 
         selected: List[Dict[str, Any]] = []
@@ -324,12 +339,19 @@ class AssessmentEngine:
             tech_pool=tech_pool,
             selected=selected,
             selected_ids=selected_ids,
+            excluded=excluded,
             current_total_time=current_total_time,
             target_seconds=target_seconds,
         )
 
         if limit is not None and limit > 0:
             selected = selected[:limit]
+
+        # Enforce hard target_seconds global cap: trim from end if subject leniency overshoots
+        current_total_time = sum(q.get("time_limit_seconds") or self.get_question_time_limit(q) for q in selected)
+        while current_total_time > target_seconds and selected:
+            removed = selected.pop()
+            current_total_time -= (removed.get("time_limit_seconds") or self.get_question_time_limit(removed))
 
         logger.info(
             "[AssessmentEngine] Technical timed selection complete: %d questions, %d seconds (budget: %d)",
@@ -433,16 +455,18 @@ class AssessmentEngine:
         tech_pool: List[Dict[str, Any]],
         selected: List[Dict[str, Any]],
         selected_ids: Set[int],
+        excluded: Set[int],
         current_total_time: int,
         target_seconds: int,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Fills remaining slack seconds up to target_seconds using unused questions."""
+        """Fills remaining slack seconds up to target_seconds using unused, non-mastered questions."""
         remaining_seconds = target_seconds - current_total_time
         if remaining_seconds < 60:
             return selected, current_total_time
 
-        unused_pool = [q for q in tech_pool if q.get("id") not in selected_ids]
-        unused_pool.sort(key=lambda x: 0 if x.get("subject") == "AI Engineering" else 1)
+        skip_ids = selected_ids | set(excluded or [])
+        unused_pool = [q for q in tech_pool if q.get("id") not in skip_ids]
+        unused_pool.sort(key=lambda x: 0 if self.normalize_subject(x.get("subject")) == "AI Engineering" else 1)
 
         for uq in unused_pool:
             u_time = self.get_question_time_limit(uq)
@@ -541,7 +565,14 @@ class AssessmentEngine:
             lines.append("=== Interview Questions ===")
             for idx, q in enumerate(questions, start=1):
                 q_text = q.get("question_text") or q.get("text") or f"Question {idx}"
-                lines.append(f"Q{idx}: {q_text}")
+                q_id = q.get("id") or q.get("question_id") or idx
+                difficulty = str(q.get("difficulty_level", "")).upper() or "MEDIUM"
+                concept = q.get("concept") or ""
+                concept_tag = f" [concept={concept}]" if concept else ""
+                ground_truth = q.get("ground_truth") or ""
+                lines.append(f"Q{idx} [question_id={q_id}] [difficulty={difficulty}]{concept_tag}: {q_text}")
+                if ground_truth:
+                    lines.append(f"  Expected Answer: {ground_truth}")
             lines.append("")
 
         full_text = ""

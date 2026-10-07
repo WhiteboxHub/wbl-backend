@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from fapi.ai_prep import crud
 from fapi.ai_prep.clients.llm_client import call_llm
+from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
 from fapi.ai_prep.core.llm_evaluation import EvalEngine
 from fapi.ai_prep.core.scores_engine import ScoresEngine
 
