@@ -515,6 +515,7 @@ def get_candidate_technical_question_history(
         return mastered_ids, weak_ids, concept_ladder
 
     concept_history: Dict[str, Tuple[str, str]] = {}
+    seen_qids: Set[int] = set()
 
     for r in reports:
         eval_dict = r.transcript_evaluation or {}
@@ -530,11 +531,11 @@ def get_candidate_technical_question_history(
             if qid:
                 try:
                     numeric_qid = int(qid)
-                    if score_band in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
-                        mastered_ids.add(numeric_qid)
-                        weak_ids.discard(numeric_qid)
-                    elif score_band in ("AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION"):
-                        if numeric_qid not in mastered_ids:
+                    if numeric_qid not in seen_qids:
+                        seen_qids.add(numeric_qid)
+                        if score_band in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
+                            mastered_ids.add(numeric_qid)
+                        elif score_band in ("AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION"):
                             weak_ids.add(numeric_qid)
                 except (ValueError, TypeError):
                     pass
