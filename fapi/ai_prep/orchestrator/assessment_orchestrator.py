@@ -290,6 +290,8 @@ def get_questions_for_assessment(
 
     previous_readiness: Optional[str] = None
     previously_asked_ids: List[int] = []
+    weak_ids: Set[int] = set()
+    concept_ladder: Dict[str, str] = {}
 
     engine_cls = AssessmentEngine()
     if normalized_type not in engine_cls.SINGLE_QUESTION_TYPES and candidate_id:
@@ -325,8 +327,6 @@ def get_questions_for_assessment(
                 candidate_id=candidate_id,
                 assessment_type=normalized_type,
             )
-            weak_ids = set()
-            concept_ladder = {}
 
         logger.info(
             "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
@@ -339,8 +339,8 @@ def get_questions_for_assessment(
         limit=limit,
         previous_readiness=previous_readiness,
         previously_asked_ids=previously_asked_ids,
-        weak_question_ids=weak_ids if 'weak_ids' in locals() else set(),
-        concept_ladder=concept_ladder if 'concept_ladder' in locals() else {},
+        weak_question_ids=weak_ids,
+        concept_ladder=concept_ladder,
         sanitize=False,
     )
 
