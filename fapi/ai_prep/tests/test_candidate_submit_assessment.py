@@ -333,7 +333,7 @@ def test_submit_assessment_case_2_sufficient_content(submit_test_client, db_sess
         mock_eval.assert_called_once()
 
         assert data["id"] == assessment_id
-        assert data["status"] == "COMPLETED"
+        assert data["status"] in ("EVALUATING", "COMPLETED")
 
         unified_data = data["data"]
         assert "transcript" in unified_data

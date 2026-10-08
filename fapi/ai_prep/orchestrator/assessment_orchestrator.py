@@ -27,6 +27,7 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
+from fapi.ai_prep.utils.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,12 @@ async def run_full_evaluation(
             crud.save_assessment_report(worker_db, assessment_id, report)
 
     # Step 1: Load all context from DB (offloaded to thread pool)
+    stream_manager.publish_progress(
+        assessment_id,
+        status="EVALUATING",
+        step="Loading Assessment Context & Telemetry",
+        progress=40,
+    )
     ctx = await asyncio.to_thread(_load_ctx_worker)
     candidate_id = ctx["candidate_id"]
     assessment_type = ctx["assessment_type"]
@@ -184,6 +191,13 @@ async def run_full_evaluation(
         or not llm_config.get("api_key")
     ):
         await asyncio.to_thread(_update_status_worker, "FAILED")
+        stream_manager.publish_progress(
+            assessment_id,
+            status="FAILED",
+            step="Candidate has no active LLM API key configured",
+            progress=0,
+            error="Missing LLM configuration",
+        )
         raise ValueError(
             f"Candidate {candidate_id} has no active LLM API key configured. "
             "Cannot run evaluation."
@@ -213,6 +227,12 @@ async def run_full_evaluation(
 
     # Step 4: Dispatch evaluation, save report, and mark COMPLETED
     try:
+        stream_manager.publish_progress(
+            assessment_id,
+            status="EVALUATING",
+            step="Analyzing Candidate Performance with AI",
+            progress=65,
+        )
         evaluation_result = await llm_orchestrator.run_evaluation(
             candidate_id=candidate_id,
             assessment_type=assessment_type,
@@ -228,6 +248,13 @@ async def run_full_evaluation(
             str(assessment_id),
         )
 
+        stream_manager.publish_progress(
+            assessment_id,
+            status="EVALUATING",
+            step="Persisting Evaluation Report",
+            progress=90,
+        )
+
         parsed_report = {
             "transcript_evaluation": evaluation_result.get("transcript_evaluation"),
             "audio_evaluation": evaluation_result.get("audio_evaluation"),
@@ -239,6 +266,12 @@ async def run_full_evaluation(
 
         # Step 6: Mark assessment as COMPLETED (offloaded to thread pool)
         await asyncio.to_thread(_update_status_worker, "COMPLETED")
+        stream_manager.publish_progress(
+            assessment_id,
+            status="COMPLETED",
+            step="Report Generated",
+            progress=100,
+        )
 
     except Exception as exc:
         logger.error(
@@ -252,6 +285,13 @@ async def run_full_evaluation(
                 "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%s: %s",
                 str(assessment_id), status_exc,
             )
+        stream_manager.publish_progress(
+            assessment_id,
+            status="FAILED",
+            step="Processing Failed",
+            progress=0,
+            error=str(exc),
+        )
         raise
 
     logger.info(
