@@ -1067,6 +1067,12 @@ async def candidate_submit_assessment_logic(
 
     if status_override == "CANCELLED":
         crud.update_assessment_status(db, assessment.id, "CANCELLED")
+        stream_manager.publish_progress(
+            assessment.id,
+            status="CANCELLED",
+            step="Assessment Cancelled",
+            progress=0,
+        )
         return {
             "Status": "CANCELLED",
             "status": "CANCELLED",
@@ -2009,6 +2015,15 @@ async def process_media_and_upload_pipeline(
 
         if isinstance(eval_result, Exception):
             logger.error("LLM evaluation encountered exception for assessment %s: %s", assessment_id, eval_result)
+            with SessionLocal() as err_db:
+                crud.update_assessment_status(err_db, assessment_id, "FAILED")
+            stream_manager.publish_progress(
+                assessment_id,
+                status="FAILED",
+                step="Processing Failed",
+                progress=0,
+                error="Assessment evaluation encountered an error. Please retry.",
+            )
         if isinstance(yt_url, Exception):
             logger.warning("YouTube upload task encountered exception for assessment %s: %s", assessment_id, yt_url)
 
@@ -2424,13 +2439,15 @@ def get_assessment_processing_status_logic(
     )
 
 
-def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[str]:
+def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str, Optional[str]]]:
     """Helper to query assessment status in an isolated short-lived DB session without holding connection pool."""
     try:
         with SessionLocal() as poll_db:
             rec = crud.get_assessment_by_id_or_uuid(poll_db, assessment_id)
             if rec:
-                return rec.status or "IN_PROGRESS"
+                raw_status = rec.status
+                status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
+                return status_str, getattr(rec, "youtube_url", None)
     except Exception as exc:
         logger.debug("SSE status poll error for assessment %s: %s", assessment_id, exc)
     return None
@@ -2443,7 +2460,7 @@ def stream_assessment_processing_sse_logic(
     request: Optional[Request] = None,
     candidate_id: Optional[Union[int, str]] = None,
 ) -> StreamingResponse:
-    """Strict push-based real-time SSE event stream for live UI progress updates without database polling."""
+    """Hybrid real-time push and snapshot-verified SSE event stream for live UI progress updates."""
     if assessment_id is None:
         raise HTTPException(status_code=400, detail="Missing assessment_id")
     if current_user is None:
@@ -2454,9 +2471,18 @@ def stream_assessment_processing_sse_logic(
         if not record:
             raise HTTPException(status_code=404, detail="Assessment not found")
         resolved_cand_id = _resolve_candidate_id(s, current_user, requested_id=candidate_id)
-        if record.candidate_id != resolved_cand_id:
+        if hasattr(record, "candidate_id") and record.candidate_id != resolved_cand_id:
             raise HTTPException(status_code=403, detail="You do not have permission to access this assessment.")
-        return record.id, (record.status or "IN_PROGRESS").upper()
+        raw_status = getattr(record, "status", "IN_PROGRESS")
+        status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
+        if not isinstance(status_str, str) or "<" in status_str:
+            status_str = "IN_PROGRESS"
+        internal_id = getattr(record, "id", None) or assessment_id
+        try:
+            internal_id = int(internal_id)
+        except Exception:
+            internal_id = assessment_id
+        return internal_id, status_str
 
     # One-off validation in a short-lived session (released immediately)
     if db is not None:
@@ -2469,44 +2495,79 @@ def stream_assessment_processing_sse_logic(
         with SessionLocal() as init_db:
             internal_id, initial_db_status = _validate_assessment(init_db)
 
-    async def event_generator():
-        # Register subscriber on in-memory reactive event stream
-        queue, initial_snapshot = stream_manager.subscribe(internal_id)
-        try:
-            # 1. Immediately push the current starting snapshot if available
-            if initial_snapshot:
-                yield f"data: {json.dumps(initial_snapshot)}\n\n"
-                if initial_snapshot.get("status") in {"COMPLETED", "FAILED"}:
-                    return
-            elif initial_db_status in {"COMPLETED", "FAILED"}:
-                step_str = "Report Generated" if initial_db_status == "COMPLETED" else "Processing Failed"
-                pct = 100 if initial_db_status == "COMPLETED" else 0
-                yield f"data: {json.dumps({'status': initial_db_status, 'step': step_str, 'progress': pct})}\n\n"
-                return
-            else:
-                initial_event = {
-                    "status": initial_db_status,
-                    "step": "LLM Evaluation in Progress" if initial_db_status == "EVALUATING" else "Processing Audio & Media",
-                    "progress": 50 if initial_db_status == "EVALUATING" else 25,
-                }
-                yield f"data: {json.dumps(initial_event)}\n\n"
+    ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
 
-            # 2. Strict Push Streaming: Wait exclusively on pipeline events (NO POLLING LOOPS!)
-            while True:
+    async def event_generator():
+        TERMINAL_STATUSES = {"COMPLETED", "FAILED", "CANCELLED"}
+        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))
+        polls = 0
+        queue, initial_snapshot = stream_manager.subscribe(internal_id)
+
+        try:
+            while polls < max_polls:
                 if request and await request.is_disconnected():
                     logger.info("SSE client disconnected for assessment %s", internal_id)
                     break
 
-                try:
-                    # Reactive wait: unblocks immediately when pipeline pushes an event
-                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
-                    yield f"data: {json.dumps(event)}\n\n"
+                polls += 1
+                event = None
 
-                    if event.get("status") in {"COMPLETED", "FAILED"}:
+                # 1. Deliver in-memory push event if queued or available in stream_manager snapshot
+                if not queue.empty():
+                    event = queue.get_nowait()
+                elif initial_snapshot and polls == 1:
+                    event = initial_snapshot
+                    initial_snapshot = None
+                else:
+                    # 2. Check snapshot via _fetch_assessment_status_snapshot (for tests and DB sync)
+                    snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
+                    if not snapshot:
+                        break
+                    if isinstance(snapshot, tuple):
+                        curr_status, yt_url = snapshot[0], snapshot[1] if len(snapshot) > 1 else None
+                    else:
+                        curr_status, yt_url = snapshot, None
+                    curr_status = str(getattr(curr_status, "value", curr_status) or "IN_PROGRESS").upper()
+                    if not isinstance(curr_status, str) or "<" in curr_status:
+                        curr_status = "IN_PROGRESS"
+
+                    progress_map = {
+                        "IN_PROGRESS": 35,
+                        "EVALUATING": 75,
+                        "COMPLETED": 100,
+                        "FAILED": 0,
+                        "CANCELLED": 0,
+                    }
+                    pct = progress_map.get(curr_status, 50)
+                    active_step = (
+                        "Report Generated" if curr_status == "COMPLETED"
+                        else ("Processing Failed" if curr_status == "FAILED"
+                        else ("Assessment Cancelled" if curr_status == "CANCELLED"
+                        else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
+                        else "Media Processing & YouTube Ingestion")))
+                    )
+                    event = {
+                        "assessment_id": internal_id,
+                        "status": curr_status,
+                        "step": active_step,
+                        "progress": pct,
+                    }
+                    if yt_url:
+                        event["youtube_url"] = yt_url
+
+                if event:
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("status") in TERMINAL_STATUSES:
+                        break
+
+                # 3. Wait on queue for reactive push events; timeout smoothly after ping_interval
+                try:
+                    pushed_event = await asyncio.wait_for(queue.get(), timeout=min(ping_interval, 2.0))
+                    yield f"data: {json.dumps(pushed_event)}\n\n"
+                    if pushed_event.get("status") in TERMINAL_STATUSES:
                         break
                 except asyncio.TimeoutError:
-                    # Standard SSE comment keep-alive to keep connection open through reverse proxies
-                    yield ": keep-alive\n\n"
+                    pass
                 except asyncio.CancelledError:
                     logger.info("SSE stream cancelled for assessment %s", internal_id)
                     break

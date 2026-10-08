@@ -104,7 +104,7 @@ class AssessmentStreamManager:
                     logger.debug("Failed to dispatch SSE event to queue for %s: %s", assessment_id, exc)
 
         # Schedule TTL purge on terminal states via call_later (avoids task GC risks)
-        if payload.get("status") in ("COMPLETED", "FAILED"):
+        if payload.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
             loop = self._get_loop()
             if loop and not loop.is_closed():
                 loop.call_later(60.0, self._purge_snapshot, assessment_id, payload)
