@@ -32,6 +32,7 @@ from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
 from fapi.ai_prep.core.audio_engine import AudioMetricsEngine, InvalidProviderConfigError
+from fapi.ai_prep.utils.stream_manager import stream_manager
 from fapi.db.models import (
     AuthUserORM,
     CandidateORM,
@@ -160,7 +161,7 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
             "title": "Technical Assessment",
             "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
             "category": "TECHNICAL",
-            "time_estimate_mins": 30,
+            "time_estimate_mins": 15,
             "is_active": True,
         },
     ]
@@ -523,11 +524,11 @@ def candidate_create_assessment_logic(
     formatted_questions = []
     for q in questions_list:
         formatted_questions.append({
-            "id": q.get("id"),
-            "category": q.get("category"),
+            "id": q.get("id") or q.get("question_id"),
             "question_text": q.get("question_text"),
-            "difficulty_level": q.get("difficulty_level"),
-            **({} if q.get("sub_category") is None else {"sub_category": q.get("sub_category")}),
+            "subject": q.get("subject"),
+            "concept": q.get("concept"),
+            "time_limit_seconds": q.get("time_limit_seconds"),
         })
 
     return CreateAssessmentResponse(
@@ -984,6 +985,50 @@ def resolve_storage_plan(
     }
 
 
+async def _background_evaluation_pipeline(
+    assessment_id: int,
+    in_memory_transcript_text: str,
+    in_memory_audio_telemetry: Dict[str, Any],
+    in_memory_video_telemetry: Dict[str, Any],
+    unconsented_media_to_delete: Optional[str] = None,
+):
+    """
+    Executes asynchronous LLM evaluation in FastAPI BackgroundTasks without blocking HTTP response.
+    Uses its own isolated worker SessionLocal() database session to prevent SQLAlchemy ClosedSessionError
+    that occurs when request-scoped database sessions are closed upon HTTP response delivery.
+    """
+    try:
+        await assessment_orchestrator.run_full_evaluation(
+            assessment_id=assessment_id,
+            in_memory_transcript_text=in_memory_transcript_text,
+            in_memory_audio_telemetry=in_memory_audio_telemetry,
+            in_memory_video_telemetry=in_memory_video_telemetry,
+        )
+        with SessionLocal() as worker_db:
+            crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
+    except Exception as err:
+        logger.exception("Background LLM evaluation failed for assessment %s: %s", assessment_id, err)
+        try:
+            with SessionLocal() as worker_db:
+                crud.update_assessment_status(worker_db, assessment_id, "FAILED")
+        except Exception:
+            pass
+        stream_manager.publish_progress(
+            assessment_id,
+            status="FAILED",
+            step="Processing Failed",
+            progress=0,
+            error=str(err),
+        )
+    finally:
+        if unconsented_media_to_delete and os.path.exists(unconsented_media_to_delete):
+            try:
+                os.remove(unconsented_media_to_delete)
+                logger.info("Successfully purged unconsented media file: %s", unconsented_media_to_delete)
+            except Exception as cleanup_err:
+                logger.warning("Could not delete unconsented media file %s: %s", unconsented_media_to_delete, cleanup_err)
+
+
 async def candidate_submit_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -1025,6 +1070,12 @@ async def candidate_submit_assessment_logic(
 
     if status_override == "CANCELLED":
         crud.update_assessment_status(db, assessment.id, "CANCELLED")
+        stream_manager.publish_progress(
+            assessment.id,
+            status="CANCELLED",
+            step="Assessment Cancelled",
+            progress=0,
+        )
         return {
             "Status": "CANCELLED",
             "status": "CANCELLED",
@@ -1265,45 +1316,72 @@ async def candidate_submit_assessment_logic(
             db.refresh(assessment)
             # LLM evaluation engine is completely skipped!
             assessment_eval_dict = build_assessment_eval_dict(insufficient_content=True)
+            stream_manager.publish_progress(
+                assessment.id,
+                status="COMPLETED",
+                step="Report Generated",
+                progress=100,
+            )
         else:
             # Case B: Flag is OFF
-            # The llm_evaluation engine must be triggered and its information present in the response
+            # Mark assessment as EVALUATING
             crud.update_assessment_status(db, assessment.id, "EVALUATING")
             db.commit()
+            stream_manager.publish_progress(
+                assessment.id,
+                status="EVALUATING",
+                step="Evaluation Queued",
+                progress=25,
+            )
 
-            # Trigger LLM evaluation engine and await results (passing in-memory full_text & telemetry)
-            try:
-                eval_result = await assessment_orchestrator.run_full_evaluation(
-                    db=db,
+            if background_tasks is not None:
+                # Offload evaluation to FastAPI BackgroundTasks to respond immediately (< 300ms)
+                # and prevent Cloud Run 503 proxy timeouts.
+                background_tasks.add_task(
+                    _background_evaluation_pipeline,
                     assessment_id=assessment.id,
                     in_memory_transcript_text=full_text,
                     in_memory_audio_telemetry=formatted_audio_telemetry,
                     in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                    unconsented_media_to_delete=unconsented_media_to_delete,
                 )
-                llm_report = eval_result.get("report") or {}
-                crud.update_assessment_status(db, assessment.id, "COMPLETED")
-                assessment.completed_at = datetime.utcnow()
-                db.commit()
-                db.refresh(assessment)
-            except Exception as eval_err:
-                logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
+                # Transfer cleanup responsibility to the background task
+                unconsented_media_to_delete = None
+                assessment_eval_dict = build_assessment_eval_dict(insufficient_content=False)
+            else:
+                # Synchronous fallback (e.g. direct programmatic invocations without background_tasks)
                 try:
-                    db.rollback()
-                    crud.update_assessment_status(db, assessment.id, "FAILED")
+                    eval_result = await assessment_orchestrator.run_full_evaluation(
+                        db=db,
+                        assessment_id=assessment.id,
+                        in_memory_transcript_text=full_text,
+                        in_memory_audio_telemetry=formatted_audio_telemetry,
+                        in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                    )
+                    llm_report = eval_result.get("report") or {}
+                    crud.update_assessment_status(db, assessment.id, "COMPLETED")
+                    assessment.completed_at = datetime.utcnow()
                     db.commit()
-                except Exception as rollback_err:
-                    logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
-                raise HTTPException(
-                    status_code=502,
-                    detail="Evaluation service temporarily unavailable",
-                ) from eval_err
+                    db.refresh(assessment)
+                except Exception as eval_err:
+                    logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
+                    try:
+                        db.rollback()
+                        crud.update_assessment_status(db, assessment.id, "FAILED")
+                        db.commit()
+                    except Exception as rollback_err:
+                        logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Evaluation service temporarily unavailable",
+                    ) from eval_err
 
-            assessment_eval_dict = build_assessment_eval_dict(
-                transcript_eval=llm_report.get("transcript_evaluation"),
-                audio_eval=llm_report.get("audio_evaluation"),
-                video_eval=llm_report.get("video_evaluation"),
-                insufficient_content=False,
-            )
+                assessment_eval_dict = build_assessment_eval_dict(
+                    transcript_eval=llm_report.get("transcript_evaluation"),
+                    audio_eval=llm_report.get("audio_evaluation"),
+                    video_eval=llm_report.get("video_evaluation"),
+                    insufficient_content=False,
+                )
     finally:
         # Failure-safe cleanup: purge unconsented media once evaluation workflow concludes
         if unconsented_media_to_delete and os.path.exists(unconsented_media_to_delete):
@@ -1995,6 +2073,15 @@ async def process_media_and_upload_pipeline(
 
         if isinstance(eval_result, Exception):
             logger.error("LLM evaluation encountered exception for assessment %s: %s", assessment_id, eval_result)
+            with SessionLocal() as err_db:
+                crud.update_assessment_status(err_db, assessment_id, "FAILED")
+            stream_manager.publish_progress(
+                assessment_id,
+                status="FAILED",
+                step="Processing Failed",
+                progress=0,
+                error="Assessment evaluation encountered an error. Please retry.",
+            )
         if isinstance(yt_url, Exception):
             logger.warning("YouTube upload task encountered exception for assessment %s: %s", assessment_id, yt_url)
 
@@ -2416,7 +2503,9 @@ def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str,
         with SessionLocal() as poll_db:
             rec = crud.get_assessment_by_id_or_uuid(poll_db, assessment_id)
             if rec:
-                return rec.status or "IN_PROGRESS", rec.youtube_url
+                raw_status = rec.status
+                status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
+                return status_str, getattr(rec, "youtube_url", None)
     except Exception as exc:
         logger.debug("SSE status poll error for assessment %s: %s", assessment_id, exc)
     return None
@@ -2427,74 +2516,130 @@ def stream_assessment_processing_sse_logic(
     current_user: Optional[AuthUserORM] = None,
     assessment_id: Optional[Union[int, str]] = None,
     request: Optional[Request] = None,
+    candidate_id: Optional[Union[int, str]] = None,
 ) -> StreamingResponse:
-    """Real-time SSE event stream for live UI progress updates reflecting true DB state without leaking connection pool."""
+    """Hybrid real-time push and snapshot-verified SSE event stream for live UI progress updates."""
     if assessment_id is None:
         raise HTTPException(status_code=400, detail="Missing assessment_id")
     if current_user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    # One-off validation in a short-lived session
-    if db is not None:
-        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-        if not assessment:
+    def _validate_assessment(s: Session) -> Tuple[int, str]:
+        record = crud.get_assessment_by_id_or_uuid(s, assessment_id)
+        if not record:
             raise HTTPException(status_code=404, detail="Assessment not found")
-        _resolve_candidate_id(db, current_user, assessment.candidate_id)
-        internal_id = assessment.id
+        resolved_cand_id = _resolve_candidate_id(s, current_user, requested_id=candidate_id)
+        if hasattr(record, "candidate_id") and record.candidate_id != resolved_cand_id:
+            raise HTTPException(status_code=403, detail="You do not have permission to access this assessment.")
+        raw_status = getattr(record, "status", "IN_PROGRESS")
+        status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
+        if not isinstance(status_str, str) or "<" in status_str:
+            status_str = "IN_PROGRESS"
+        internal_id = getattr(record, "id", None) or assessment_id
+        try:
+            internal_id = int(internal_id)
+        except Exception:
+            internal_id = assessment_id
+        return internal_id, status_str
+
+    # One-off validation in a short-lived session (released immediately)
+    if db is not None:
+        internal_id, initial_db_status = _validate_assessment(db)
+        try:
+            db.close()
+        except Exception:
+            pass
     else:
         with SessionLocal() as init_db:
-            assessment = crud.get_assessment_by_id_or_uuid(init_db, assessment_id)
-            if not assessment:
-                raise HTTPException(status_code=404, detail="Assessment not found")
-            _resolve_candidate_id(init_db, current_user, assessment.candidate_id)
-            internal_id = assessment.id
+            internal_id, initial_db_status = _validate_assessment(init_db)
 
     ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
 
     async def event_generator():
-        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))  # Prevent infinite hanging connections
+        TERMINAL_STATUSES = {"COMPLETED", "FAILED", "CANCELLED"}
+        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))
         polls = 0
-        while polls < max_polls:
-            if request and await request.is_disconnected():
-                logger.info("SSE client disconnected for assessment %s", internal_id)
-                break
+        queue, initial_snapshot = stream_manager.subscribe(internal_id)
 
-            polls += 1
-            try:
-                snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
-                if not snapshot:
-                    break
-                curr_status, yt_url = snapshot
-                progress_map = {"IN_PROGRESS": 35, "EVALUATING": 75, "COMPLETED": 100, "FAILED": 0}
-                pct = progress_map.get(curr_status, 50)
-                active_step = (
-                    "Report Generated" if curr_status == "COMPLETED"
-                    else ("Processing Failed" if curr_status == "FAILED"
-                    else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
-                    else "Media Processing & YouTube Ingestion"))
-                )
-
-                data = json.dumps({
-                    "assessment_id": internal_id,
-                    "status": curr_status,
-                    "step": active_step,
-                    "progress": pct,
-                    "youtube_url": yt_url,
-                })
-                yield f"data: {data}\n\n"
-
-                if curr_status in {"COMPLETED", "FAILED"}:
+        try:
+            while polls < max_polls:
+                if request and await request.is_disconnected():
+                    logger.info("SSE client disconnected for assessment %s", internal_id)
                     break
 
-                await asyncio.sleep(min(ping_interval, 2.0))
-            except asyncio.CancelledError:
-                logger.info("SSE stream cancelled for assessment %s", internal_id)
-                break
+                polls += 1
+                event = None
+
+                # 1. Deliver in-memory push event if queued or available in stream_manager snapshot
+                if not queue.empty():
+                    event = queue.get_nowait()
+                elif initial_snapshot and polls == 1:
+                    event = initial_snapshot
+                    initial_snapshot = None
+                else:
+                    # 2. Check snapshot via _fetch_assessment_status_snapshot (for tests and DB sync)
+                    snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
+                    if not snapshot:
+                        break
+                    if isinstance(snapshot, tuple):
+                        curr_status, yt_url = snapshot[0], snapshot[1] if len(snapshot) > 1 else None
+                    else:
+                        curr_status, yt_url = snapshot, None
+                    curr_status = str(getattr(curr_status, "value", curr_status) or "IN_PROGRESS").upper()
+                    if not isinstance(curr_status, str) or "<" in curr_status:
+                        curr_status = "IN_PROGRESS"
+
+                    progress_map = {
+                        "IN_PROGRESS": 35,
+                        "EVALUATING": 75,
+                        "COMPLETED": 100,
+                        "FAILED": 0,
+                        "CANCELLED": 0,
+                    }
+                    pct = progress_map.get(curr_status, 50)
+                    active_step = (
+                        "Report Generated" if curr_status == "COMPLETED"
+                        else ("Processing Failed" if curr_status == "FAILED"
+                        else ("Assessment Cancelled" if curr_status == "CANCELLED"
+                        else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
+                        else "Media Processing & YouTube Ingestion")))
+                    )
+                    event = {
+                        "assessment_id": internal_id,
+                        "status": curr_status,
+                        "step": active_step,
+                        "progress": pct,
+                    }
+                    if yt_url:
+                        event["youtube_url"] = yt_url
+
+                if event:
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("status") in TERMINAL_STATUSES:
+                        break
+
+                # 3. Wait on queue for reactive push events; timeout smoothly after ping_interval
+                try:
+                    pushed_event = await asyncio.wait_for(queue.get(), timeout=min(ping_interval, 2.0))
+                    yield f"data: {json.dumps(pushed_event)}\n\n"
+                    if pushed_event.get("status") in TERMINAL_STATUSES:
+                        break
+                except asyncio.TimeoutError:
+                    pass
+                except asyncio.CancelledError:
+                    logger.info("SSE stream cancelled for assessment %s", internal_id)
+                    break
+        finally:
+            stream_manager.unsubscribe(internal_id, queue)
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

@@ -5,7 +5,7 @@ import uuid
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -507,6 +507,85 @@ def get_candidate_previously_asked_question_ids(
                         )
     return question_ids
 
+
+def get_candidate_technical_question_history(
+    db: Session,
+    candidate_id: int,
+) -> Tuple[Set[int], Set[int], Dict[str, str]]:
+    """
+    Inspects candidate's past completed TECHNICAL assessment reports in a SINGLE query.
+    Returns (mastered_ids, weak_ids, concept_ladder):
+    - mastered_ids: scored EXCELLENT or GOOD (exclude from next test)
+    - weak_ids: scored AVERAGE or POOR (prioritize for retry)
+    - concept_ladder: target difficulty tier per concept (EASY, MEDIUM, HARD)
+    """
+    mastered_ids: Set[int] = set()
+    weak_ids: Set[int] = set()
+    concept_ladder: Dict[str, str] = {}
+
+    reports = get_candidate_completed_reports(
+        db, candidate_id=candidate_id, assessment_type="TECHNICAL", limit=5
+    )
+    if not reports:
+        return mastered_ids, weak_ids, concept_ladder
+
+    concept_history: Dict[str, Tuple[str, str]] = {}
+    seen_qids: Set[int] = set()
+
+    for r in reports:
+        eval_dict = r.transcript_evaluation or {}
+        tech_eval = eval_dict.get("technical_evaluation") or {}
+        q_evals = tech_eval.get("question_evaluations") or []
+
+        for qe in q_evals:
+            qid = qe.get("question_id")
+            score_band = str(qe.get("score_band") or qe.get("mastery_level") or "").upper().strip()
+            diff = str(qe.get("difficulty_level", "MEDIUM")).upper().strip()
+            concept = qe.get("concept")
+
+            if qid:
+                try:
+                    numeric_qid = int(qid)
+                    if numeric_qid not in seen_qids:
+                        seen_qids.add(numeric_qid)
+                        if score_band in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
+                            mastered_ids.add(numeric_qid)
+                        elif score_band in ("AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION"):
+                            weak_ids.add(numeric_qid)
+                except (ValueError, TypeError):
+                    pass
+
+            if concept and concept not in concept_history and score_band:
+                concept_history[concept] = (diff, score_band)
+
+    # Compute concept ladder
+    for concept, (last_diff, last_score) in concept_history.items():
+        if last_score in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
+            ladder_target = "MEDIUM" if last_diff == "EASY" else "HARD"
+            concept_ladder[concept] = ladder_target
+        elif last_score in ("POOR", "NEEDS_REVISION"):
+            ladder_target = "MEDIUM" if last_diff == "HARD" else "EASY"
+            concept_ladder[concept] = ladder_target
+        elif last_score in ("AVERAGE", "DEVELOPING"):
+            concept_ladder[concept] = last_diff
+
+    return mastered_ids, weak_ids, concept_ladder
+
+
+def get_candidate_technical_profile(
+    db: Session, candidate_id: int
+) -> Tuple[Set[int], Set[int], Dict[str, str]]:
+    """Primary function for candidate technical history & concept ladder in a single query."""
+    return get_candidate_technical_question_history(db, candidate_id)
+
+
+def get_candidate_concept_ladder(
+    db: Session, candidate_id: int
+) -> Dict[str, str]:
+    """Compatibility wrapper that extracts concept ladder."""
+    _, _, ladder = get_candidate_technical_question_history(db, candidate_id)
+    return ladder
+
 # ---------------------------------------------------------------------------
 # Questions Bank CRUD
 # ---------------------------------------------------------------------------
@@ -556,7 +635,7 @@ def list_questions(
     concept: Optional[str] = None,
     difficulty_level: Optional[str] = None,
     is_active: Optional[bool] = None,
-    limit: int = 50,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> Tuple[List[AiPrepQuestionORM], int]:
     query = db.query(AiPrepQuestionORM)
@@ -572,7 +651,10 @@ def list_questions(
         query = query.filter(AiPrepQuestionORM.is_active == is_active)
 
     total = query.count()
-    items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
+    query = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    items = query.all()
     return items, total
 
 

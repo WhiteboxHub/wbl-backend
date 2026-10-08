@@ -30,6 +30,7 @@ from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
 from fapi.ai_prep.utils.telemetry_client import emit_pipeline_metric
 import sentry_sdk
+from fapi.ai_prep.utils.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,12 @@ async def run_full_evaluation(
             crud.save_assessment_report(worker_db, assessment_id, report)
 
     # Step 1: Load all context from DB (offloaded to thread pool)
+    stream_manager.publish_progress(
+        assessment_id,
+        status="EVALUATING",
+        step="Loading Assessment Context & Telemetry",
+        progress=40,
+    )
     ctx = await asyncio.to_thread(_load_ctx_worker)
     candidate_id = ctx["candidate_id"]
     assessment_type = ctx["assessment_type"]
@@ -193,6 +200,13 @@ async def run_full_evaluation(
         or not llm_config.get("api_key")
     ):
         await asyncio.to_thread(_update_status_worker, "FAILED")
+        stream_manager.publish_progress(
+            assessment_id,
+            status="FAILED",
+            step="Candidate has no active LLM API key configured",
+            progress=0,
+            error="Missing LLM configuration",
+        )
         raise ValueError(
             f"Candidate {candidate_id} has no active LLM API key configured. "
             "Cannot run evaluation."
@@ -223,6 +237,12 @@ async def run_full_evaluation(
     # Step 4: Dispatch evaluation, save report, and mark COMPLETED
     t0 = time.time()
     try:
+        stream_manager.publish_progress(
+            assessment_id,
+            status="EVALUATING",
+            step="Analyzing Candidate Performance with AI",
+            progress=65,
+        )
         evaluation_result = await llm_orchestrator.run_evaluation(
             candidate_id=candidate_id,
             assessment_type=assessment_type,
@@ -230,6 +250,7 @@ async def run_full_evaluation(
             audio_telemetry=audio_telemetry,
             video_telemetry=video_telemetry,
             resume_json=ctx["resume_json"],
+            questions=ctx.get("questions") or [],
             llm_config=llm_config,
         )
 
@@ -251,6 +272,13 @@ async def run_full_evaluation(
         logger.info(
             "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s (took %dms)",
             str(assessment_id), duration_ms,
+        )
+
+        stream_manager.publish_progress(
+            assessment_id,
+            status="EVALUATING",
+            step="Persisting Evaluation Report",
+            progress=90,
         )
 
         parsed_report = {
@@ -295,6 +323,12 @@ async def run_full_evaluation(
 
         # Step 6: Mark assessment as COMPLETED (offloaded to thread pool)
         await asyncio.to_thread(_update_status_worker, "COMPLETED")
+        stream_manager.publish_progress(
+            assessment_id,
+            status="COMPLETED",
+            step="Report Generated",
+            progress=100,
+        )
 
     except Exception as exc:
         duration_ms = int((time.time() - t0) * 1000)
@@ -331,6 +365,13 @@ async def run_full_evaluation(
                 "[AssessmentOrchestrator] Failed to update status to FAILED for assessment=%s: %s",
                 str(assessment_id), status_exc,
             )
+        stream_manager.publish_progress(
+            assessment_id,
+            status="FAILED",
+            step="Processing Failed",
+            progress=0,
+            error=str(exc),
+        )
         raise
 
     logger.info(
@@ -369,7 +410,7 @@ def get_questions_for_assessment(
     """
     normalized_type = (assessment_type or "").upper().strip()
 
-    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=200)
+    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=None)
     available = [
         {
             "id": q.id,
@@ -388,6 +429,8 @@ def get_questions_for_assessment(
 
     previous_readiness: Optional[str] = None
     previously_asked_ids: List[int] = []
+    weak_ids: Set[int] = set()
+    concept_ladder: Dict[str, str] = {}
 
     engine_cls = AssessmentEngine()
     if normalized_type not in engine_cls.SINGLE_QUESTION_TYPES and candidate_id:
@@ -411,12 +454,18 @@ def get_questions_for_assessment(
                 candidate_id, normalized_type, previous_readiness,
             )
 
-        # 2. Collect question IDs already asked to this candidate for COMPLETED assessments of this round type
-        previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
-            db,
-            candidate_id=candidate_id,
-            assessment_type=normalized_type,
-        )
+        # 2. Collect candidate history: single profile query for TECHNICAL; original query for other round types
+        if normalized_type == "TECHNICAL":
+            mastered_ids, weak_ids, concept_ladder = crud.get_candidate_technical_profile(
+                db, candidate_id=candidate_id
+            )
+            previously_asked_ids = list(mastered_ids)
+        else:
+            previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
+                db,
+                candidate_id=candidate_id,
+                assessment_type=normalized_type,
+            )
 
         logger.info(
             "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
@@ -429,6 +478,9 @@ def get_questions_for_assessment(
         limit=limit,
         previous_readiness=previous_readiness,
         previously_asked_ids=previously_asked_ids,
+        weak_question_ids=weak_ids,
+        concept_ladder=concept_ladder,
+        sanitize=False,
     )
 
 
