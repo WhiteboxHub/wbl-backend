@@ -42,6 +42,7 @@ class EvalEngine:
         ground_truth: Optional[Dict[str, Any]] = None,
         resume_json: Optional[Any] = None,
         timeline_json: Optional[Any] = None,
+        qa_context: Optional[str] = None,
     ) -> Dict[str, str]:
         """
         Builds and formats the system and user prompts for the specified assessment.
@@ -125,6 +126,7 @@ class EvalEngine:
         user_prompt = _user_prompt_template.format(
             resume_json=timeline_formatted,
             transcript_text=transcript_text.strip() or "[No spoken transcript captured]",
+            qa_context=qa_context or transcript_text.strip() or "[No Q&A context available]",
         )
 
         # Prepend a role-specific header for non-intro types (including fallback cases)
