@@ -1107,6 +1107,11 @@ async def candidate_submit_assessment_logic(
             logger.debug("Failed to dispatch WHISPER_AUDIO telemetry: %s", tel_err)
     except Exception as audio_err:
         audio_duration_ms = int((time.time() - t_audio_start) * 1000)
+        api_status_code = 500
+        error_msg = str(audio_err)
+        if hasattr(audio_err, "response") and hasattr(audio_err.response, "status_code"):
+            api_status_code = audio_err.response.status_code
+            error_msg = f"API Error: {api_status_code} - {audio_err}"
         try:
             asyncio.create_task(emit_pipeline_metric(
                 assessment_id=int(assessment.id) if str(assessment.id).isdigit() else 1,
@@ -1114,7 +1119,11 @@ async def candidate_submit_assessment_logic(
                 stage="WHISPER_AUDIO",
                 status="FAILURE",
                 duration_ms=audio_duration_ms,
-                message=str(audio_err)
+                message=error_msg,
+                metadata={
+                    "status_code": api_status_code,
+                    "error_type": type(audio_err).__name__
+                }
             ))
         except Exception:
             pass

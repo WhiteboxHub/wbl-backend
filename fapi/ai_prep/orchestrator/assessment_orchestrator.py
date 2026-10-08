@@ -274,13 +274,22 @@ async def run_full_evaluation(
             ))
         except Exception as score_exc:
             scores_duration_ms = int((time.time() - t_scores) * 1000)
+            api_status_code = 500
+            error_msg = str(score_exc)
+            if hasattr(score_exc, "response") and hasattr(score_exc.response, "status_code"):
+                api_status_code = score_exc.response.status_code
+                error_msg = f"API Error: {api_status_code} - {score_exc}"
             asyncio.create_task(emit_pipeline_metric(
                 assessment_id=numeric_assessment_id,
                 candidate_id=candidate_id,
                 stage="SCORES_ENGINE",
                 status="FAILURE",
                 duration_ms=scores_duration_ms,
-                message=str(score_exc)
+                message=error_msg,
+                metadata={
+                    "status_code": api_status_code,
+                    "error_type": type(score_exc).__name__
+                }
             ))
             raise score_exc
 
@@ -289,6 +298,11 @@ async def run_full_evaluation(
 
     except Exception as exc:
         duration_ms = int((time.time() - t0) * 1000)
+        api_status_code = 500
+        error_msg = str(exc)
+        if hasattr(exc, "response") and hasattr(exc.response, "status_code"):
+            api_status_code = exc.response.status_code
+            error_msg = f"API Error: {api_status_code} - {exc}"
         try:
             numeric_assessment_id = int(assessment_id) if str(assessment_id).isdigit() else 1
             asyncio.create_task(emit_pipeline_metric(
@@ -297,7 +311,11 @@ async def run_full_evaluation(
                 stage="EVAL_ENGINE_LLM",
                 status="FAILURE",
                 duration_ms=duration_ms,
-                message=str(exc)
+                message=error_msg,
+                metadata={
+                    "status_code": api_status_code,
+                    "error_type": type(exc).__name__
+                }
             ))
         except Exception:
             pass
