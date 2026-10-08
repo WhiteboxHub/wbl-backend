@@ -24,9 +24,10 @@ _MODEL_LOCK = threading.Lock()
 
 
 def get_whisper_model(
-    model_size: str = "base",
+    model_size: str = "distil-small.en",
     device: str = "cpu",
     compute_type: str = "int8",
+    cpu_threads: int = 2,
 ) -> WhisperModel:
     """Returns singleton cached instance of WhisperModel keyed by configuration."""
     if WhisperModel is None:
@@ -35,7 +36,7 @@ def get_whisper_model(
     with _MODEL_LOCK:
         if key not in _WHISPER_MODELS:
             logger.info(f"Loading faster-whisper model '{model_size}' on {device} ({compute_type})...")
-            _WHISPER_MODELS[key] = WhisperModel(model_size, device=device, compute_type=compute_type)
+            _WHISPER_MODELS[key] = WhisperModel(model_size, device=device, compute_type=compute_type, cpu_threads=cpu_threads)
         return _WHISPER_MODELS[key]
 
 
@@ -142,7 +143,7 @@ def merge_word_timestamps(
 def transcribe_audio_chunk(
     audio_input: Union[str, bytes, np.ndarray],
     chunk_start_time: float = 0.0,
-    model_size: str = "base",
+    model_size: str = "distil-small.en",
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> Dict[str, Any]:
@@ -163,14 +164,21 @@ def transcribe_audio_chunk(
         audio_target = audio_input.astype(np.float32)
 
     try:
+        technical_prompt = (
+            "The candidate is answering technical interview questions on software engineering, "
+            "data structures, algorithms, system design, Python, React, JavaScript, SQL, Docker, AWS, APIs."
+        )
+        
         segments, info = model.transcribe(
             audio_target,
-            beam_size=5,
+            initial_prompt=technical_prompt,
+            beam_size=1,
             temperature=0.0,
             condition_on_previous_text=False,
             word_timestamps=True,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
+            vad_parameters=dict(min_silence_duration_ms=300),
+            repetition_penalty=1.1,
         )
 
         full_transcript_parts = []
@@ -209,7 +217,7 @@ def transcribe_audio_chunk(
 
 def transcribe_audio(
     audio_path: str,
-    model_size: str = "base",
+    model_size: str = "distil-small.en",
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> Dict[str, Any]:
@@ -243,7 +251,7 @@ class LiveSTTStore:
         audio_input: Union[str, bytes, np.ndarray],
         chunk_start_time: float = 0.0,
         chunk_index: Optional[int] = None,
-        model_size: str = "base",
+        model_size: str = "distil-small.en",
     ) -> Dict[str, Any]:
         chunk_result = transcribe_audio_chunk(
             audio_input=audio_input,
