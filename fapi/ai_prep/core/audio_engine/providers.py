@@ -41,7 +41,7 @@ class BaseTranscriptionProvider(ABC):
     def transcribe(
         self,
         audio_path: Optional[str] = None,
-        model_size: str = "base",
+        model_size: str = "distil-small.en",
         precomputed_transcript_text: Optional[str] = None,
         precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,
         **kwargs: Any
@@ -57,7 +57,7 @@ class WhisperTranscriptionProvider(BaseTranscriptionProvider):
     def transcribe(
         self,
         audio_path: Optional[str] = None,
-        model_size: str = "base",
+        model_size: str = "distil-small.en",
         precomputed_transcript_text: Optional[str] = None,
         precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,
         **kwargs: Any
