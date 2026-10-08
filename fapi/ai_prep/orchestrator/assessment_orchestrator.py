@@ -220,6 +220,7 @@ async def run_full_evaluation(
             audio_telemetry=audio_telemetry,
             video_telemetry=video_telemetry,
             resume_json=ctx["resume_json"],
+            questions=ctx.get("questions") or [],
             llm_config=llm_config,
         )
 
@@ -290,7 +291,7 @@ def get_questions_for_assessment(
     """
     normalized_type = (assessment_type or "").upper().strip()
 
-    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=200)
+    items, _ = crud.list_questions(db, category=normalized_type, is_active=True, limit=None)
     available = [
         {
             "id": q.id,
@@ -309,6 +310,8 @@ def get_questions_for_assessment(
 
     previous_readiness: Optional[str] = None
     previously_asked_ids: List[int] = []
+    weak_ids: Set[int] = set()
+    concept_ladder: Dict[str, str] = {}
 
     engine_cls = AssessmentEngine()
     if normalized_type not in engine_cls.SINGLE_QUESTION_TYPES and candidate_id:
@@ -332,12 +335,18 @@ def get_questions_for_assessment(
                 candidate_id, normalized_type, previous_readiness,
             )
 
-        # 2. Collect question IDs already asked to this candidate for COMPLETED assessments of this round type
-        previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
-            db,
-            candidate_id=candidate_id,
-            assessment_type=normalized_type,
-        )
+        # 2. Collect candidate history: single profile query for TECHNICAL; original query for other round types
+        if normalized_type == "TECHNICAL":
+            mastered_ids, weak_ids, concept_ladder = crud.get_candidate_technical_profile(
+                db, candidate_id=candidate_id
+            )
+            previously_asked_ids = list(mastered_ids)
+        else:
+            previously_asked_ids = crud.get_candidate_previously_asked_question_ids(
+                db,
+                candidate_id=candidate_id,
+                assessment_type=normalized_type,
+            )
 
         logger.info(
             "[AssessmentOrchestrator] Candidate %d previously asked %d question(s) in %s.",
@@ -350,6 +359,9 @@ def get_questions_for_assessment(
         limit=limit,
         previous_readiness=previous_readiness,
         previously_asked_ids=previously_asked_ids,
+        weak_question_ids=weak_ids,
+        concept_ladder=concept_ladder,
+        sanitize=False,
     )
 
 

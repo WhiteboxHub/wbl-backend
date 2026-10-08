@@ -40,6 +40,11 @@ class ScoresEngine:
     # Default alias
     MANDATORY_INTRO_CHECKPOINTS = AI_ENG_INTRO_CHECKPOINTS
 
+    VALID_TECHNICAL_SCORE_BANDS = {
+        "EXCELLENT", "GOOD", "MASTERED", "PROFICIENT",
+        "AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION",
+    }
+
     def __init__(self) -> None:
         pass
 
@@ -88,9 +93,11 @@ class ScoresEngine:
                 "parsed_report": None,
             }
 
-        # 3. Validate Payload (Intro Evaluation, Audio, Video, or Master Assessment Report)
+        # 3. Validate Payload (Intro Evaluation, Technical, Audio, Video, or Master Assessment Report)
         if "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
+        elif "technical_evaluation" in parsed_data:
+            self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
         elif "audio_evaluation" in parsed_data:
             self._validate_audio_payload(parsed_data["audio_evaluation"], errors)
         elif "video_evaluation" in parsed_data:
@@ -99,7 +106,7 @@ class ScoresEngine:
             self._validate_legacy_report_payload(parsed_data, errors)
         else:
             errors.append(
-                "Missing recognized evaluation root key: 'intro_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
+                "Missing recognized evaluation root key: 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
             )
 
         is_valid = len(errors) == 0
@@ -287,6 +294,38 @@ class ScoresEngine:
                         errors.append(
                             f"video_evaluation.factors.{key}.status must be one of "
                             f"STRONG, ADEQUATE, NEEDS_WORK, INSUFFICIENT_DATA"
+                        )
+
+    def _validate_technical_payload(
+        self, technical: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """Validates technical_evaluation payload from technical_prompt.py."""
+        if not isinstance(technical, dict):
+            errors.append("technical_evaluation must be a dictionary")
+            return
+
+        for key in ["overall_assessment", "subject_evaluations", "question_evaluations"]:
+            if key not in technical:
+                errors.append(f"Missing required key '{key}' in technical_evaluation")
+
+        q_evals = technical.get("question_evaluations")
+        if q_evals is not None:
+            if not isinstance(q_evals, list):
+                errors.append("technical_evaluation.question_evaluations must be a list")
+            elif len(q_evals) == 0:
+                errors.append("technical_evaluation.question_evaluations must not be empty")
+            else:
+                for idx, qe in enumerate(q_evals):
+                    if not isinstance(qe, dict):
+                        errors.append(f"technical_evaluation.question_evaluations[{idx}] must be a dictionary")
+                        continue
+                    if not qe.get("question_id"):
+                        errors.append(f"technical_evaluation.question_evaluations[{idx}] missing 'question_id'")
+                    band = str(qe.get("score_band", "")).upper()
+                    if band not in self.VALID_TECHNICAL_SCORE_BANDS:
+                        errors.append(
+                            f"technical_evaluation.question_evaluations[{idx}].score_band must be one of "
+                            f"{', '.join(sorted(self.VALID_TECHNICAL_SCORE_BANDS))}"
                         )
 
     def _validate_legacy_report_payload(
