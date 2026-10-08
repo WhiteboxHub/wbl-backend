@@ -20,20 +20,10 @@ from fapi.ai_prep.models import (
     AiPrepAssessmentReportORM,
 )
 
-sqlite_test_db_url = "sqlite:///:memory:"
-test_engine = create_engine(
-    sqlite_test_db_url,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
-import fapi.db.database
-fapi.db.database.SessionLocal = TestingSessionLocal
-fapi.db.database.engine = test_engine
+from fapi.ai_prep.tests.test_candidate_submit_assessment import test_engine, TestingSessionLocal
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def setup_sse_db():
     tables = [
         AuthUserORM.__table__,
@@ -44,7 +34,6 @@ def setup_sse_db():
     ]
     Base.metadata.create_all(bind=test_engine, tables=tables)
     yield
-    Base.metadata.drop_all(bind=test_engine, tables=tables)
 
 
 @pytest.fixture

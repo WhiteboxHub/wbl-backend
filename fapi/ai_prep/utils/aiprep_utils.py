@@ -988,40 +988,28 @@ async def _background_evaluation_pipeline(
     in_memory_audio_telemetry: Dict[str, Any],
     in_memory_video_telemetry: Dict[str, Any],
     unconsented_media_to_delete: Optional[str] = None,
-    db: Optional[Session] = None,
 ):
-    """Executes asynchronous LLM evaluation in background tasks without blocking HTTP response."""
+    """
+    Executes asynchronous LLM evaluation in FastAPI BackgroundTasks without blocking HTTP response.
+    Uses its own isolated worker SessionLocal() database session to prevent SQLAlchemy ClosedSessionError
+    that occurs when request-scoped database sessions are closed upon HTTP response delivery.
+    """
     try:
         await assessment_orchestrator.run_full_evaluation(
-            db=db,
             assessment_id=assessment_id,
             in_memory_transcript_text=in_memory_transcript_text,
             in_memory_audio_telemetry=in_memory_audio_telemetry,
             in_memory_video_telemetry=in_memory_video_telemetry,
         )
-        if db is not None:
-            try:
-                crud.update_assessment_status(db, assessment_id, "COMPLETED")
-            except Exception:
-                with SessionLocal() as worker_db:
-                    crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
-        else:
-            with SessionLocal() as worker_db:
-                crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
+        with SessionLocal() as worker_db:
+            crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
     except Exception as err:
         logger.exception("Background LLM evaluation failed for assessment %s: %s", assessment_id, err)
-        if db is not None:
-            try:
-                crud.update_assessment_status(db, assessment_id, "FAILED")
-            except Exception:
-                with SessionLocal() as worker_db:
-                    crud.update_assessment_status(worker_db, assessment_id, "FAILED")
-        else:
-            try:
-                with SessionLocal() as worker_db:
-                    crud.update_assessment_status(worker_db, assessment_id, "FAILED")
-            except Exception:
-                pass
+        try:
+            with SessionLocal() as worker_db:
+                crud.update_assessment_status(worker_db, assessment_id, "FAILED")
+        except Exception:
+            pass
         stream_manager.publish_progress(
             assessment_id,
             status="FAILED",
@@ -1292,7 +1280,6 @@ async def candidate_submit_assessment_logic(
                     in_memory_audio_telemetry=formatted_audio_telemetry,
                     in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
                     unconsented_media_to_delete=unconsented_media_to_delete,
-                    db=db,
                 )
                 # Transfer cleanup responsibility to the background task
                 unconsented_media_to_delete = None
