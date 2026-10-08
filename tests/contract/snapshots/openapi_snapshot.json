@@ -24908,6 +24908,7 @@
                   "type": "null"
                 }
               ],
+              "default": 50,
               "title": "Limit"
             }
           },
@@ -25002,7 +25003,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CandidateAssessmentDetailResponse"
+                  "$ref": "#/components/schemas/CandidateAssessmentUnifiedResponse"
                 }
               }
             }
@@ -25112,7 +25113,7 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/CandidateSubmitAssessmentResponse"
+                      "$ref": "#/components/schemas/CandidateAssessmentUnifiedResponse"
                     },
                     {
                       "type": "object",
@@ -27345,6 +27346,7 @@
                   "type": "null"
                 }
               ],
+              "default": 50,
               "title": "Limit"
             }
           },
@@ -27439,7 +27441,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CandidateAssessmentDetailResponse"
+                  "$ref": "#/components/schemas/CandidateAssessmentUnifiedResponse"
                 }
               }
             }
@@ -27549,7 +27551,7 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/CandidateSubmitAssessmentResponse"
+                      "$ref": "#/components/schemas/CandidateAssessmentUnifiedResponse"
                     },
                     {
                       "type": "object",
@@ -29688,6 +29690,110 @@
         ],
         "title": "AssessmentCategoryEnum"
       },
+      "AssessmentEvalData": {
+        "properties": {
+          "insufficient_content": {
+            "type": "boolean",
+            "title": "Insufficient Content",
+            "default": false
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readiness"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "strongest_signal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strongest Signal"
+          },
+          "biggest_gap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Biggest Gap"
+          },
+          "audio": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video"
+          },
+          "general": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "General"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "AssessmentEvalData"
+      },
       "AssessmentListItem": {
         "properties": {
           "id": {
@@ -29783,6 +29889,18 @@
             ],
             "title": "Youtube Url"
           },
+          "consent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -29860,158 +29978,6 @@
           "total"
         ],
         "title": "AssessmentListResponse"
-      },
-      "AssessmentMetaResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "assessment_uuid": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assessment Uuid"
-          },
-          "candidate_id": {
-            "type": "integer",
-            "title": "Candidate Id"
-          },
-          "assessment_type": {
-            "type": "string",
-            "title": "Assessment Type"
-          },
-          "media_type": {
-            "type": "string",
-            "title": "Media Type"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          },
-          "youtube_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Youtube Url"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "candidate_id",
-          "assessment_type",
-          "media_type",
-          "status"
-        ],
-        "title": "AssessmentMetaResponse"
-      },
-      "AssessmentSubmitReportData": {
-        "properties": {
-          "insufficient_content": {
-            "type": "boolean",
-            "title": "Insufficient Content"
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message"
-          },
-          "llm_evaluation": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Llm Evaluation"
-          }
-        },
-        "type": "object",
-        "required": [
-          "insufficient_content"
-        ],
-        "title": "AssessmentSubmitReportData"
-      },
-      "AssessmentTelemetryData": {
-        "properties": {
-          "transcript": {
-            "$ref": "#/components/schemas/AssessmentTranscriptData"
-          }
-        },
-        "type": "object",
-        "required": [
-          "transcript"
-        ],
-        "title": "AssessmentTelemetryData",
-        "description": "Holds only transcript data. audio_telemetry and video_telemetry are top-level response fields."
-      },
-      "AssessmentTranscriptData": {
-        "properties": {
-          "full_text": {
-            "type": "string",
-            "title": "Full Text",
-            "default": ""
-          },
-          "word_count": {
-            "type": "integer",
-            "title": "Word Count",
-            "default": 0
-          },
-          "segments": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Segments"
-          }
-        },
-        "type": "object",
-        "title": "AssessmentTranscriptData"
       },
       "AssessmentTypeCreate": {
         "properties": {
@@ -34178,10 +34144,12 @@
         "type": "object",
         "title": "CampaignEmailUpdate"
       },
-      "CandidateAssessmentDataDetail": {
+      "CandidateAssessmentUnifiedData": {
         "properties": {
           "transcript": {
-            "$ref": "#/components/schemas/CandidateAssessmentDetailTranscript"
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Transcript"
           },
           "audio_telemetry": {
             "additionalProperties": true,
@@ -34192,82 +34160,25 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Video Telemetry"
+          },
+          "assessment_eval": {
+            "$ref": "#/components/schemas/AssessmentEvalData"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
-          "transcript"
+          "assessment_eval"
         ],
-        "title": "CandidateAssessmentDataDetail"
+        "title": "CandidateAssessmentUnifiedData"
       },
-      "CandidateAssessmentDetailData": {
+      "CandidateAssessmentUnifiedResponse": {
         "properties": {
-          "assessment": {
-            "$ref": "#/components/schemas/AssessmentMetaResponse"
-          },
-          "assessment_data": {
-            "$ref": "#/components/schemas/CandidateAssessmentDataDetail"
-          },
-          "report": {
-            "$ref": "#/components/schemas/CandidateAssessmentReportDetail"
-          }
-        },
-        "type": "object",
-        "required": [
-          "assessment",
-          "assessment_data",
-          "report"
-        ],
-        "title": "CandidateAssessmentDetailData"
-      },
-      "CandidateAssessmentDetailResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status",
-            "default": "success"
-          },
-          "data": {
-            "$ref": "#/components/schemas/CandidateAssessmentDetailData"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "CandidateAssessmentDetailResponse"
-      },
-      "CandidateAssessmentDetailTranscript": {
-        "properties": {
-          "full_text": {
-            "type": "string",
-            "title": "Full Text",
-            "default": ""
-          },
-          "word_count": {
+          "id": {
             "type": "integer",
-            "title": "Word Count",
-            "default": 0
+            "title": "Id"
           },
-          "segments": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Segments"
-          }
-        },
-        "type": "object",
-        "title": "CandidateAssessmentDetailTranscript"
-      },
-      "CandidateAssessmentReportDetail": {
-        "properties": {
-          "insufficient_content": {
-            "type": "boolean",
-            "title": "Insufficient Content"
-          },
-          "message": {
+          "assessment_uuid": {
             "anyOf": [
               {
                 "type": "string"
@@ -34276,26 +34187,74 @@
                 "type": "null"
               }
             ],
-            "title": "Message"
+            "title": "Assessment Uuid"
           },
-          "llm_evaluation": {
+          "candidate_id": {
+            "type": "integer",
+            "title": "Candidate Id"
+          },
+          "assessment_type": {
+            "type": "string",
+            "title": "Assessment Type"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "string",
+                "format": "date-time"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Llm Evaluation"
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "youtube_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Youtube Url"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CandidateAssessmentUnifiedData"
           }
         },
+        "additionalProperties": true,
         "type": "object",
         "required": [
-          "insufficient_content"
+          "id",
+          "candidate_id",
+          "assessment_type",
+          "media_type",
+          "status",
+          "data"
         ],
-        "title": "CandidateAssessmentReportDetail"
+        "title": "CandidateAssessmentUnifiedResponse"
       },
       "CandidateBase": {
         "properties": {
@@ -37818,36 +37777,6 @@
         "type": "object",
         "title": "CandidatePreparationUpdate"
       },
-      "CandidateSubmitAssessmentData": {
-        "properties": {
-          "assessment": {
-            "$ref": "#/components/schemas/AssessmentMetaResponse"
-          },
-          "assessment_data": {
-            "$ref": "#/components/schemas/AssessmentTelemetryData"
-          },
-          "audio_telemetry": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Audio Telemetry"
-          },
-          "video_telemetry": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Video Telemetry"
-          },
-          "report": {
-            "$ref": "#/components/schemas/AssessmentSubmitReportData"
-          }
-        },
-        "type": "object",
-        "required": [
-          "assessment",
-          "assessment_data",
-          "report"
-        ],
-        "title": "CandidateSubmitAssessmentData"
-      },
       "CandidateSubmitAssessmentRequest": {
         "properties": {
           "total_chunks_uploaded": {
@@ -37908,23 +37837,6 @@
         },
         "type": "object",
         "title": "CandidateSubmitAssessmentRequest"
-      },
-      "CandidateSubmitAssessmentResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status",
-            "default": "success"
-          },
-          "data": {
-            "$ref": "#/components/schemas/CandidateSubmitAssessmentData"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "CandidateSubmitAssessmentResponse"
       },
       "CandidateUpdate": {
         "properties": {
@@ -41943,6 +41855,30 @@
         "type": "object",
         "title": "CompanyUpdate"
       },
+      "ConceptEnum": {
+        "type": "string",
+        "enum": [
+          "Python & Data Manipulation",
+          "ML & Deep Learning Fundamentals",
+          "ML Frameworks & Tooling",
+          "NLP",
+          "Generative AI & LLMs",
+          "RAG & Retrieval",
+          "Agentic AI & Multi-Agent Systems",
+          "Models & Context Engineering",
+          "AI Systems Ops: Evaluation, Guardrails & Observability",
+          "System Architecture & Design",
+          "API Design & Microservices",
+          "Databases & Caching",
+          "Concurrency & Async Systems",
+          "Data Structures & Algorithms",
+          "Containers & Orchestration",
+          "CI/CD & GitOps",
+          "Cloud Architecture & Services",
+          "Infrastructure as Code & Security"
+        ],
+        "title": "ConceptEnum"
+      },
       "ContactClassificationEnum": {
         "type": "string",
         "enum": [
@@ -42690,6 +42626,19 @@
             ],
             "title": "Job Description",
             "description": "Optional job description for tailored assessments"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent",
+            "description": "User consent flags and metadata"
           }
         },
         "type": "object",
@@ -43445,8 +43394,7 @@
         "enum": [
           "EASY",
           "MEDIUM",
-          "HARD",
-          "EXPERT"
+          "HARD"
         ],
         "title": "DifficultyLevelEnum"
       },
@@ -53251,27 +53199,68 @@
             "$ref": "#/components/schemas/AssessmentCategoryEnum",
             "description": "Target assessment category"
           },
-          "sub_category": {
+          "subject": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/SubjectEnum"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Sub Category",
-            "description": "Optional subcategory / topic"
+            "description": "Technical subject area (TECHNICAL questions only)"
+          },
+          "concept": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConceptEnum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Specific concept/topic (TECHNICAL questions only)"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Answer scope: BROAD or SPECIFIC",
+            "default": "SPECIFIC"
           },
           "difficulty_level": {
             "$ref": "#/components/schemas/DifficultyLevelEnum",
             "description": "Difficulty rating",
             "default": "MEDIUM"
           },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds",
+            "description": "Allocated time budget for the question in seconds",
+            "default": 120
+          },
           "question_text": {
             "type": "string",
             "title": "Question Text",
             "description": "Question prompt text"
+          },
+          "ground_truth": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Truth",
+            "description": "Expected answer concepts and rubric (admin-only)"
           },
           "is_active": {
             "type": "boolean",
@@ -53317,7 +53306,7 @@
             "type": "string",
             "title": "Category"
           },
-          "sub_category": {
+          "subject": {
             "anyOf": [
               {
                 "type": "string"
@@ -53326,15 +53315,61 @@
                 "type": "null"
               }
             ],
-            "title": "Sub Category"
+            "title": "Subject"
+          },
+          "concept": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concept"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
           },
           "difficulty_level": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Difficulty Level"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds",
+            "default": 120
           },
           "question_text": {
             "type": "string",
             "title": "Question Text"
+          },
+          "ground_truth": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Truth"
           },
           "is_active": {
             "type": "boolean",
@@ -53357,7 +53392,6 @@
         "required": [
           "id",
           "category",
-          "difficulty_level",
           "question_text",
           "is_active"
         ],
@@ -53375,16 +53409,35 @@
               }
             ]
           },
-          "sub_category": {
+          "subject": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/SubjectEnum"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Sub Category"
+            ]
+          },
+          "concept": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConceptEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "difficulty_level": {
             "anyOf": [
@@ -53396,6 +53449,17 @@
               }
             ]
           },
+          "time_limit_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Limit Seconds"
+          },
           "question_text": {
             "anyOf": [
               {
@@ -53406,6 +53470,18 @@
               }
             ],
             "title": "Question Text"
+          },
+          "ground_truth": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Truth"
           },
           "is_active": {
             "anyOf": [
@@ -54117,6 +54193,14 @@
         ],
         "title": "ResumeStatusResponse"
       },
+      "ScopeEnum": {
+        "type": "string",
+        "enum": [
+          "BROAD",
+          "SPECIFIC"
+        ],
+        "title": "ScopeEnum"
+      },
       "SessionCreate": {
         "properties": {
           "title": {
@@ -54643,6 +54727,15 @@
           "description"
         ],
         "title": "SubjectCreate"
+      },
+      "SubjectEnum": {
+        "type": "string",
+        "enum": [
+          "AI Engineering",
+          "Software Engineering",
+          "DevOps and Cloud"
+        ],
+        "title": "SubjectEnum"
       },
       "SubjectResponse": {
         "properties": {

@@ -88,6 +88,10 @@ from fapi.ai_prep.schemas import (
     CandidateAssessmentReportDetail,
     CandidateAssessmentDetailData,
     CandidateAssessmentDetailResponse,
+    CandidateAssessmentUnifiedResponse,
+    CandidateAssessmentUnifiedData,
+    AssessmentTelemetryContainer,
+    AssessmentEvalData,
 )
 
 logger = logging.getLogger(__name__)
@@ -542,7 +546,7 @@ def candidate_list_assessments_logic(
     db: Session,
     current_user: AuthUserORM,
     candidate_id: Optional[Union[int, str]] = None,
-    limit: Optional[int] = None,
+    limit: Optional[int] = 50,
     offset: int = 0,
 ) -> AssessmentListResponse:
     """Lists assessments belonging to the candidate dynamically from DB.
@@ -592,13 +596,147 @@ def candidate_list_assessments_logic(
     )
 
 
+def build_assessment_eval_dict(
+    transcript_eval: Optional[Dict[str, Any]] = None,
+    audio_eval: Optional[Dict[str, Any]] = None,
+    video_eval: Optional[Dict[str, Any]] = None,
+    insufficient_content: bool = False,
+) -> Dict[str, Any]:
+    """
+    Builds the unified assessment_eval dictionary from persisted or in-memory evaluation records.
+    - If insufficient_content is True, sets the flag to True and sets all evaluation blocks to None.
+    - If insufficient_content is False, extracts readiness, summary, strongest_signal, biggest_gap,
+      audio, language, video, and general evaluation blocks.
+    """
+    if insufficient_content:
+        return {
+            "insufficient_content": True,
+            "readiness": None,
+            "summary": None,
+            "strongest_signal": None,
+            "biggest_gap": None,
+            "audio": None,
+            "language": None,
+            "video": None,
+            "general": None,
+        }
+
+    # If insufficient_content is False but no evaluation records exist yet (e.g. EVALUATING or unsubmitted)
+    if not transcript_eval and not audio_eval and not video_eval:
+        return {
+            "insufficient_content": False,
+            "readiness": None,
+            "summary": None,
+            "strongest_signal": None,
+            "biggest_gap": None,
+            "audio": None,
+            "language": None,
+            "video": None,
+            "general": None,
+        }
+
+    # Extract intro_eval from transcript_eval
+    t_eval = transcript_eval or {}
+    intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
+    if not intro_eval and isinstance(t_eval, dict) and "overall_assessment" in t_eval:
+        intro_eval = t_eval
+    if not isinstance(intro_eval, dict):
+        intro_eval = {}
+
+    oa = intro_eval.get("overall_assessment") or {}
+    if not isinstance(oa, dict):
+        oa = {}
+    readiness = oa.get("readiness")
+    summary = oa.get("summary")
+    strongest_signal = oa.get("strongest_signal")
+    biggest_gap = oa.get("biggest_gap")
+
+    # Extract audio_eval
+    a_eval = audio_eval or {}
+    audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
+    if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
+        audio_inner = a_eval
+    if not isinstance(audio_inner, dict):
+        audio_inner = {}
+
+    audio_factors = audio_inner.get("factors") or {}
+    if not isinstance(audio_factors, dict):
+        audio_factors = {}
+
+    # Extract video_eval
+    v_eval = video_eval or {}
+    video_inner = v_eval.get("video_evaluation") if isinstance(v_eval, dict) else {}
+    if not video_inner and isinstance(v_eval, dict) and ("factors" in v_eval or "summary" in v_eval):
+        video_inner = v_eval
+    if not isinstance(video_inner, dict):
+        video_inner = {}
+
+    # Build language block
+    language_dict = {
+        "fluency": audio_factors.get("fluency") or {},
+        "filler_word_usage": audio_factors.get("filler_word_usage") or {},
+        "pace": audio_factors.get("pace") or {},
+        "introduction_quality": intro_eval.get("introduction_quality") or {},
+    }
+
+    # Build general block
+    fa = intro_eval.get("final_assessment") or {}
+    if not isinstance(fa, dict):
+        fa = {}
+
+    ai_eng_raw = intro_eval.get("ai_engineering") or intro_eval.get("agentic_ai") or {}
+    ai_eng_dict = dict(ai_eng_raw) if isinstance(ai_eng_raw, dict) else {}
+    if "readiness" not in ai_eng_dict:
+        ai_eng_dict["readiness"] = ai_eng_dict.get("overall_status")
+    if "summary" not in ai_eng_dict:
+        ai_eng_dict["summary"] = ai_eng_dict.get("observation")
+
+    general_dict = {
+        "career_story": intro_eval.get("career_story") or {},
+        "current_project_clarity": intro_eval.get("current_project") or {},
+        "ai_engineering_depth": fa.get("ai_engineering_depth"),
+        "software_engineering_depth": fa.get("software_engineering_depth") or fa.get("production_engineering_depth"),
+        "production_engineering_depth": fa.get("production_engineering_depth"),
+        "transition_quality": fa.get("transition_quality"),
+        "most_important_improvement": fa.get("most_important_improvement"),
+        "ai_engineering": ai_eng_dict,
+        "software_engineering": intro_eval.get("software_engineering") or {},
+        "rag_and_retrieval": intro_eval.get("rag_and_retrieval") or {},
+        "cloud_and_infrastructure": intro_eval.get("cloud_and_infrastructure") or {},
+        "cicd_and_delivery": intro_eval.get("cicd_and_delivery") or {},
+        "models_and_ai_platforms": intro_eval.get("models_and_ai_platforms") or {},
+        "ai_engineering_evolution": intro_eval.get("ai_engineering_evolution") or {},
+        "current_role": intro_eval.get("current_role") or {},
+        "technology_inventory": intro_eval.get("technology_inventory") or {},
+        "strongest_points": intro_eval.get("strongest_points") or [],
+        "critical_gaps": intro_eval.get("critical_gaps") or [],
+        "priority_improvements": intro_eval.get("priority_improvements") or [],
+    }
+
+    # Pass through any other extra fields from intro_eval
+    for k, v in intro_eval.items():
+        if k not in ("overall_assessment", "introduction_quality", "final_assessment", "agentic_ai", "current_project") and k not in general_dict:
+            general_dict[k] = v
+
+    return {
+        "insufficient_content": False, 
+        "readiness": readiness,
+        "summary": summary,
+        "strongest_signal": strongest_signal,
+        "biggest_gap": biggest_gap,
+        "audio": audio_inner,
+        "language": language_dict,
+        "video": video_inner,
+        "general": general_dict,
+    }
+
 
 def candidate_get_assessment_detail_logic(
     db: Session,
     current_user: AuthUserORM,
     candidate_id: Union[int, str],
     assessment_id: Union[int, str],
-) -> CandidateAssessmentDetailResponse:
+) -> CandidateAssessmentUnifiedResponse:
     """
     Returns the complete details of a specific assessment for a candidate.
 
@@ -624,10 +762,72 @@ def candidate_get_assessment_detail_logic(
             detail="You do not have permission to access this assessment.",
         )
 
-    # --- Build `assessment` block ---
-    assessment_meta = AssessmentMetaResponse(
+    # --- Build `telemetry` block (transcript + telemetry) ---
+    if assessment.data_record:
+        raw_transcript = assessment.data_record.transcript or {}
+        if isinstance(raw_transcript, dict):
+            transcript_data = {
+                "full_text": raw_transcript.get("full_text", ""),
+                "word_count": raw_transcript.get("word_count", 0),
+                "segments": raw_transcript.get("segments", []),
+            }
+        elif isinstance(raw_transcript, str):
+            words = [w for w in raw_transcript.split() if w]
+            transcript_data = {
+                "full_text": raw_transcript,
+                "word_count": len(words),
+                "segments": [],
+            }
+        else:
+            transcript_data = {
+                "full_text": "",
+                "word_count": 0,
+                "segments": [],
+            }
+        raw_audio_tel = assessment.data_record.audio_telemetry
+        audio_telemetry = raw_audio_tel if isinstance(raw_audio_tel, dict) else {}
+        raw_video_tel = assessment.data_record.video_telemetry
+        video_telemetry = raw_video_tel if isinstance(raw_video_tel, dict) else {}
+    else:
+        transcript_data = {
+            "full_text": "",
+            "word_count": 0,
+            "segments": [],
+        }
+        audio_telemetry = {}
+        video_telemetry = {}
+
+    # --- Build `assessment_eval` block ---
+    status_str = (
+        assessment.status.value
+        if hasattr(assessment.status, "value")
+        else str(assessment.status or "")
+    ).upper()
+
+    if assessment.report_record:
+        # Full evaluation completed and report exists in DB
+        assessment_eval_dict = build_assessment_eval_dict(
+            transcript_eval=assessment.report_record.transcript_evaluation,
+            audio_eval=assessment.report_record.audio_evaluation,
+            video_eval=assessment.report_record.video_evaluation,
+            insufficient_content=False,
+        )
+    elif status_str == "COMPLETED":
+        # Assessment finished without a report: gatekeeper rejected it during submission
+        assessment_eval_dict = build_assessment_eval_dict(
+            insufficient_content=True,
+        )
+    else:
+        # Still EVALUATING, IN_PROGRESS, PENDING, or FAILED: not rejected by gatekeeper
+        assessment_eval_dict = build_assessment_eval_dict(
+            insufficient_content=False,
+        )
+
+    assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
+
+    return CandidateAssessmentUnifiedResponse(
         id=assessment.id,
-        assessment_uuid=assessment.assessment_uuid,
+        assessment_uuid=str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
         candidate_id=assessment.candidate_id,
         assessment_type=assessment.assessment_type,
         media_type=assessment.media_type,
@@ -635,58 +835,11 @@ def candidate_get_assessment_detail_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
-    )
-
-    # --- Build `assessment_data` block (transcript + telemetry) ---
-    if assessment.data_record:
-        raw_transcript = assessment.data_record.transcript or {}
-        transcript_obj = CandidateAssessmentDetailTranscript(
-            full_text=raw_transcript.get("full_text", ""),
-            word_count=raw_transcript.get("word_count", 0),
-            segments=raw_transcript.get("segments", []),
-        )
-        audio_telemetry = assessment.data_record.audio_telemetry or {}
-        video_telemetry = assessment.data_record.video_telemetry or {}
-    else:
-        transcript_obj = CandidateAssessmentDetailTranscript()
-        audio_telemetry: Dict[str, Any] = {}
-        video_telemetry: Dict[str, Any] = {}
-
-    assessment_data_obj = CandidateAssessmentDataDetail(
-        transcript=transcript_obj,
-        audio_telemetry=audio_telemetry,
-        video_telemetry=video_telemetry,
-    )
-
-    # --- Build `report` block ---
-    # insufficient_content=False when a full LLM evaluation report exists.
-    # insufficient_content=True when the assessment completed but the LLM evaluation
-    # was skipped (e.g. transcript too short) or the report has not been generated yet.
-    if assessment.report_record:
-        insufficient_content = False
-        message = None
-        llm_evaluation: Optional[Dict[str, Any]] = {
-            "transcript_evaluation": assessment.report_record.transcript_evaluation,
-            "audio_evaluation": assessment.report_record.audio_evaluation,
-            "video_evaluation": assessment.report_record.video_evaluation,
-        }
-    else:
-        insufficient_content = True
-        message = "Evaluation report is not yet available for this assessment."
-        llm_evaluation = None
-
-    report_obj = CandidateAssessmentReportDetail(
-        insufficient_content=insufficient_content,
-        message=message,
-        llm_evaluation=llm_evaluation,
-    )
-
-    return CandidateAssessmentDetailResponse(
-        status="success",
-        data=CandidateAssessmentDetailData(
-            assessment=assessment_meta,
-            assessment_data=assessment_data_obj,
-            report=report_obj,
+        data=CandidateAssessmentUnifiedData(
+            transcript=transcript_data,
+            audio_telemetry=audio_telemetry,
+            video_telemetry=video_telemetry,
+            assessment_eval=assessment_eval_obj,
         ),
     )
 
@@ -791,6 +944,43 @@ def _stitch_assessment_chunks(
     raise HTTPException(status_code=400, detail="No media chunks or recordings found to assemble for this assessment")
 
 
+def resolve_storage_plan(
+    consent: Optional[Dict[str, Any]],
+    media_type: Optional[str],
+    formatted_transcript: Dict[str, Any],
+    formatted_audio_telemetry: Dict[str, Any],
+    formatted_video_telemetry: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Centralized resolver that determines candidate consent flags and corresponding
+    data payloads to persist in the database, preserving all existing schemas.
+    """
+    consent_dict = consent if isinstance(consent, dict) else {}
+    save_recording = bool(consent_dict.get("save_recording", True))
+    save_transcript = bool(consent_dict.get("save_transcript", True))
+    video_analytics = bool(consent_dict.get("video_analytics", True))
+    if (media_type or "").upper() == "AUDIO":
+        video_analytics = False
+
+    transcript_to_persist = formatted_transcript if save_transcript else {
+        "full_text": "",
+        "word_count": formatted_transcript.get("word_count", 0),
+        "segments": [],
+        "saved": False,
+    }
+    audio_telemetry_to_persist = formatted_audio_telemetry if save_recording else {}
+    video_telemetry_to_persist = formatted_video_telemetry if video_analytics else {}
+
+    return {
+        "save_recording": save_recording,
+        "save_transcript": save_transcript,
+        "video_analytics": video_analytics,
+        "transcript_to_persist": transcript_to_persist,
+        "audio_telemetry_to_persist": audio_telemetry_to_persist,
+        "video_telemetry_to_persist": video_telemetry_to_persist,
+    }
+
+
 async def candidate_submit_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -846,6 +1036,18 @@ async def candidate_submit_assessment_logic(
             },
         }
 
+    # Lifecycle State Guard: Disallow resubmitting assessments that are already closed or evaluating
+    current_status = (
+        assessment.status.value
+        if hasattr(assessment.status, "value")
+        else str(assessment.status or "")
+    ).upper()
+    if current_status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Assessment is already {current_status}. Cannot resubmit or retake an assessment that is closed or currently evaluating.",
+        )
+
     payload = payload or CandidateSubmitAssessmentRequest()
 
     total_chunks = payload.total_chunks_uploaded
@@ -888,11 +1090,12 @@ async def candidate_submit_assessment_logic(
     segments = []
     if raw_segments:
         for seg in raw_segments:
-            segments.append({
-                "start": float(seg.get("start", 0.0)),
-                "end": float(seg.get("end", 0.0)),
-                "text": str(seg.get("text", "")).strip(),
-            })
+            if isinstance(seg, dict):
+                segments.append({
+                    "start": float(seg.get("start", 0.0) or 0.0),
+                    "end": float(seg.get("end", 0.0) or 0.0),
+                    "text": str(seg.get("text", "")).strip(),
+                })
     elif full_text:
         duration_val = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
         segments = [{"start": 0.0, "end": round(duration_val, 1), "text": full_text}]
@@ -954,58 +1157,33 @@ async def candidate_submit_assessment_logic(
         duration_seconds=interview_duration,
     )
 
-    # 7. Persist Assessment Data in DB
+    # 7. Resolve Candidate Consents & Persist Assessment Data in DB
+    plan = resolve_storage_plan(
+        consent=assessment.consent,
+        media_type=assessment.media_type,
+        formatted_transcript=formatted_transcript,
+        formatted_audio_telemetry=formatted_audio_telemetry,
+        formatted_video_telemetry=formatted_video_telemetry,
+    )
+    save_recording = plan["save_recording"]
+    save_transcript = plan["save_transcript"]
+    video_analytics = plan["video_analytics"]
+
     existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
     existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+
     crud.save_assessment_data(
         db=db,
         assessment_id=assessment.id,
         questions=existing_questions,
-        transcript=formatted_transcript,
-        audio_telemetry=formatted_audio_telemetry,
-        video_telemetry=formatted_video_telemetry,
+        transcript=plan["transcript_to_persist"],
+        audio_telemetry=plan["audio_telemetry_to_persist"],
+        video_telemetry=plan["video_telemetry_to_persist"],
     )
 
-    # 8. Handle Case 1 vs Case 2
-    if insufficient_content:
-        # Case A: Flag is ON
-        crud.update_assessment_status(db, assessment.id, "COMPLETED")
-        assessment.completed_at = datetime.utcnow()
-        db.commit()
-        db.refresh(assessment)
-        # LLM evaluation engine is completely skipped!
-        report_dict = {
-            "insufficient_content": True,
-            "message": "We don't have enough content of transcript and audio to evaluate you.",
-            "llm_evaluation": {},
-        }
-    else:
-        # Case B: Flag is OFF
-        # The llm_evaluation engine must be triggered and its information present in the response
-        crud.update_assessment_status(db, assessment.id, "EVALUATING")
-        db.commit()
-
-        # Trigger LLM evaluation engine and await results
-        try:
-            eval_result = await assessment_orchestrator.run_full_evaluation(
-                db=db,
-                assessment_id=assessment.id,
-            )
-            llm_report = eval_result.get("report") or {}
-            crud.update_assessment_status(db, assessment.id, "COMPLETED")
-            assessment.completed_at = datetime.utcnow()
-            db.commit()
-            db.refresh(assessment)
-        except Exception as eval_err:
-            logger.error(f"LLM Evaluation failed for assessment {assessment.id}: {eval_err}")
-            crud.update_assessment_status(db, assessment.id, "FAILED")
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Evaluation service temporarily unavailable. Please retry submission or contact support.",
-            )
-
-        # YouTube ingestion / media cleanup in background if needed
+    # 8. Handle Media Storage & YouTube Upload (Decoupled from Gatekeeper)
+    unconsented_media_to_delete: Optional[str] = None
+    if save_recording:
         if background_tasks and os.path.exists(target_media):
             background_tasks.add_task(
                 _process_youtube_upload_and_cleanup,
@@ -1014,35 +1192,86 @@ async def candidate_submit_assessment_logic(
                 media_type=assessment.media_type or "VIDEO",
                 candidate_id=resolved_cand_id,
             )
+    else:
+        # Candidate opted out of recording: clear youtube_url and schedule media for safe post-eval cleanup
+        assessment.youtube_url = None
+        unconsented_media_to_delete = target_media
 
-        report_dict = {
-            "insufficient_content": False,
-            "message": None,
-            "llm_evaluation": llm_report,
-        }
+    try:
+        # 9. Handle Case 1 vs Case 2
+        if insufficient_content:
+            # Case A: Flag is ON
+            crud.update_assessment_status(db, assessment.id, "COMPLETED")
+            assessment.completed_at = datetime.utcnow()
+            db.commit()
+            db.refresh(assessment)
+            # LLM evaluation engine is completely skipped!
+            assessment_eval_dict = build_assessment_eval_dict(insufficient_content=True)
+        else:
+            # Case B: Flag is OFF
+            # The llm_evaluation engine must be triggered and its information present in the response
+            crud.update_assessment_status(db, assessment.id, "EVALUATING")
+            db.commit()
 
-    meta_assessment = {
-        "id": assessment.id,
-        "assessment_uuid": str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
-        "candidate_id": assessment.candidate_id,
-        "assessment_type": assessment.assessment_type,
-        "media_type": assessment.media_type,
-        "status": assessment.status,
-        "started_at": assessment.started_at,
-        "completed_at": assessment.completed_at,
-        "youtube_url": assessment.youtube_url or f"https://storage.cdn.example.com/recordings/asm_{assessment.id}_full.webm",
-    }
+            # Trigger LLM evaluation engine and await results (passing in-memory full_text & telemetry)
+            try:
+                eval_result = await assessment_orchestrator.run_full_evaluation(
+                    db=db,
+                    assessment_id=assessment.id,
+                    in_memory_transcript_text=full_text,
+                    in_memory_audio_telemetry=formatted_audio_telemetry,
+                    in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                )
+                llm_report = eval_result.get("report") or {}
+                crud.update_assessment_status(db, assessment.id, "COMPLETED")
+                assessment.completed_at = datetime.utcnow()
+                db.commit()
+                db.refresh(assessment)
+            except Exception as eval_err:
+                logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
+                try:
+                    db.rollback()
+                    crud.update_assessment_status(db, assessment.id, "FAILED")
+                    db.commit()
+                except Exception as rollback_err:
+                    logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
+                raise HTTPException(
+                    status_code=502,
+                    detail="Evaluation service temporarily unavailable",
+                ) from eval_err
 
-    return CandidateSubmitAssessmentResponse(
-        status="success",
-        data=CandidateSubmitAssessmentData(
-            assessment=AssessmentMetaResponse(**meta_assessment),
-            assessment_data=AssessmentTelemetryData(
-                transcript=AssessmentTranscriptData(**formatted_transcript),
-            ),
-            audio_telemetry=formatted_audio_telemetry,
-            video_telemetry=formatted_video_telemetry,
-            report=AssessmentSubmitReportData(**report_dict),
+            assessment_eval_dict = build_assessment_eval_dict(
+                transcript_eval=llm_report.get("transcript_evaluation"),
+                audio_eval=llm_report.get("audio_evaluation"),
+                video_eval=llm_report.get("video_evaluation"),
+                insufficient_content=False,
+            )
+    finally:
+        # Failure-safe cleanup: purge unconsented media once evaluation workflow concludes
+        if unconsented_media_to_delete and os.path.exists(unconsented_media_to_delete):
+            try:
+                os.remove(unconsented_media_to_delete)
+                logger.info("Successfully purged unconsented media file: %s", unconsented_media_to_delete)
+            except Exception as cleanup_err:
+                logger.warning("Could not delete unconsented media file %s: %s", unconsented_media_to_delete, cleanup_err)
+
+    assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
+
+    return CandidateAssessmentUnifiedResponse(
+        id=assessment.id,
+        assessment_uuid=str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
+        candidate_id=assessment.candidate_id,
+        assessment_type=assessment.assessment_type,
+        media_type=assessment.media_type,
+        status=assessment.status,
+        started_at=assessment.started_at,
+        completed_at=assessment.completed_at,
+        youtube_url=assessment.youtube_url,
+        data=CandidateAssessmentUnifiedData(
+            transcript=plan["transcript_to_persist"],
+            audio_telemetry=plan["audio_telemetry_to_persist"],
+            video_telemetry=plan["video_telemetry_to_persist"],
+            assessment_eval=assessment_eval_obj,
         ),
     )
 
