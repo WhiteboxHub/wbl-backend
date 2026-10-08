@@ -176,17 +176,29 @@ def candidate_list_assessments(
 def candidate_get_assessment_detail(
     id: Union[int, str],
     assessment_id: Union[int, str],
+    request: Request,
+    stream: bool = Query(False, description="Set to true to stream real-time SSE progress updates"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Returns the complete details of a specific assessment for the authenticated candidate.
+    If stream=true, returns a Server-Sent Events (SSE) stream delivering real-time processing progress.
 
     Authorization:
     - A candidate can only retrieve their own assessment. Passing another candidate's
       `id` or an `assessment_id` that does not belong to them raises HTTP 403.
     - Staff / admin users may use this endpoint to inspect any candidate's assessment.
     """
+    if stream:
+        return aiprep_utils.stream_assessment_processing_sse_logic(
+            db=db,
+            current_user=current_user,
+            assessment_id=assessment_id,
+            request=request,
+            candidate_id=id,
+        )
+
     return aiprep_utils.candidate_get_assessment_detail_logic(
         db=db,
         current_user=current_user,
