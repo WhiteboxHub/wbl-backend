@@ -58,7 +58,7 @@ class TranscriptConfig:
 class TranscriptionConfig:
     """Transcription provider configuration."""
     DEFAULT_PROVIDER: str = os.getenv("TRANSCRIPTION_PROVIDER", "whisper")
-    DEFAULT_MODEL_SIZE: str = "base"
+    DEFAULT_MODEL_SIZE: str = "distil-small.en"
     SOCKET_ENDPOINT: str = os.getenv("SOCKET_STT_ENDPOINT", "ws://localhost:8080/stt")
 
 
