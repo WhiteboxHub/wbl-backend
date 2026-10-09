@@ -10,7 +10,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse
@@ -98,6 +98,16 @@ from fapi.ai_prep.schemas import (
 logger = logging.getLogger(__name__)
 
 STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR", "./storage/aiprep")
+
+# Strong reference set to prevent fire-and-forget background tasks from being garbage-collected mid-execution
+_ACTIVE_BACKGROUND_TASKS: Set[asyncio.Task] = set()
+
+
+def _track_background_task(task: asyncio.Task) -> asyncio.Task:
+    """Retains a strong reference to an asyncio Task until completion to prevent GC mid-execution."""
+    _ACTIVE_BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_ACTIVE_BACKGROUND_TASKS.discard)
+    return task
 
 
 # ---------------------------------------------------------------------------
@@ -1223,14 +1233,14 @@ async def candidate_submit_assessment_logic(
                     formatted_video_telemetry = payload.video_telemetry or {}
 
                     # 4. Save assessment data to DB with worker SessionLocal
+                    plan = resolve_storage_plan(
+                        consent=assessment_consent,
+                        media_type=assessment_media_type,
+                        formatted_transcript=formatted_transcript,
+                        formatted_audio_telemetry=formatted_audio_telemetry,
+                        formatted_video_telemetry=formatted_video_telemetry,
+                    )
                     with SessionLocal() as worker_db:
-                        plan = resolve_storage_plan(
-                            consent=assessment_consent,
-                            media_type=assessment_media_type,
-                            formatted_transcript=formatted_transcript,
-                            formatted_audio_telemetry=formatted_audio_telemetry,
-                            formatted_video_telemetry=formatted_video_telemetry,
-                        )
                         existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
                         existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
                         crud.save_assessment_data(
@@ -1243,13 +1253,15 @@ async def candidate_submit_assessment_logic(
                         )
 
                         if plan["save_recording"] and os.path.exists(target_media):
-                            asyncio.create_task(
-                                asyncio.to_thread(
-                                    _process_youtube_upload_and_cleanup,
-                                    assessment_id=assessment_id_int,
-                                    media_path=target_media,
-                                    media_type=assessment_media_type,
-                                    candidate_id=resolved_cand_id,
+                            _track_background_task(
+                                asyncio.create_task(
+                                    asyncio.to_thread(
+                                        _process_youtube_upload_and_cleanup,
+                                        assessment_id=assessment_id_int,
+                                        media_path=target_media,
+                                        media_type=assessment_media_type,
+                                        candidate_id=resolved_cand_id,
+                                    )
                                 )
                             )
 
@@ -1259,23 +1271,26 @@ async def candidate_submit_assessment_logic(
                             if ass_rec:
                                 ass_rec.completed_at = datetime.utcnow()
                             worker_db.commit()
-                            stream_manager.publish_progress(
-                                assessment_id_int,
-                                status="COMPLETED",
-                                progress=100,
-                            )
-                        else:
-                            stream_manager.publish_progress(
-                                assessment_id_int,
-                                status="EVALUATING",
-                                progress=50,
-                            )
-                            await assessment_orchestrator.run_full_evaluation(
-                                assessment_id=assessment_id_int,
-                                in_memory_transcript_text=full_text,
-                                in_memory_audio_telemetry=plan["audio_telemetry_to_persist"],
-                                in_memory_video_telemetry=plan["video_telemetry_to_persist"] if plan["video_analytics"] else {},
-                            )
+
+                    # Database session closed — connection returned to pool before long-running evaluation
+                    if insufficient_content:
+                        stream_manager.publish_progress(
+                            assessment_id_int,
+                            status="COMPLETED",
+                            progress=100,
+                        )
+                    else:
+                        stream_manager.publish_progress(
+                            assessment_id_int,
+                            status="EVALUATING",
+                            progress=50,
+                        )
+                        await assessment_orchestrator.run_full_evaluation(
+                            assessment_id=assessment_id_int,
+                            in_memory_transcript_text=full_text,
+                            in_memory_audio_telemetry=plan["audio_telemetry_to_persist"],
+                            in_memory_video_telemetry=plan["video_telemetry_to_persist"] if plan["video_analytics"] else {},
+                        )
                 except Exception as exc:
                     logger.exception("Streaming submission pipeline failed for assessment %s: %s", assessment_id_int, exc)
                     try:
@@ -1290,7 +1305,7 @@ async def candidate_submit_assessment_logic(
                         error="Assessment evaluation could not be completed.",
                     )
 
-            pipeline_task = asyncio.create_task(run_pipeline())
+            pipeline_task = _track_background_task(asyncio.create_task(run_pipeline()))
 
             try:
                 while True:
