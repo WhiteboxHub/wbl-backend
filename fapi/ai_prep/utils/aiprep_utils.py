@@ -845,7 +845,7 @@ def candidate_get_assessment_detail_logic(
     )
 
 
-MIN_TRANSCRIPT_WORDS_THRESHOLD = int(os.getenv("AIPREP_MIN_WORDS_THRESHOLD", "15"))
+MIN_TRANSCRIPT_WORDS_THRESHOLD = int(os.getenv("AIPREP_MIN_WORDS_THRESHOLD", "10"))
 MIN_INTERVIEW_DURATION_SECONDS = float(os.getenv("AIPREP_MIN_DURATION_SECONDS", "20.0"))
 
 
@@ -1034,11 +1034,14 @@ async def candidate_submit_assessment_logic(
     payload: Optional[CandidateSubmitAssessmentRequest] = None,
     status: Optional[str] = None,
     background_tasks: Optional[BackgroundTasks] = None,
-) -> Union[CandidateSubmitAssessmentResponse, Dict[str, Any]]:
+    request: Optional[Request] = None,
+    stream: bool = False,
+) -> Union[CandidateSubmitAssessmentResponse, Dict[str, Any], StreamingResponse]:
     """
     Candidate Submit Assessment:
     - If status == 'cancelled' (e.g. Exit button clicked): updates assessment status to CANCELLED in DB
       and immediately returns {"Status": "CANCELLED"}, skipping all other assessment logic.
+    - If stream=True or Accept: text/event-stream: streams real-time progress events directly over the PUT connection.
     - Otherwise:
       1. Validates candidate permissions and assessment existence.
       2. Stitches uploaded media chunks into assembled.webm.
@@ -1065,6 +1068,10 @@ async def candidate_submit_assessment_logic(
         status or (payload.status if payload else None) or ""
     ).strip().upper()
 
+    is_streaming_submission = bool(
+        stream or (request is not None and "text/event-stream" in request.headers.get("accept", ""))
+    )
+
     if status_override == "CANCELLED":
         crud.update_assessment_status(db, assessment.id, "CANCELLED")
         stream_manager.publish_progress(
@@ -1073,6 +1080,14 @@ async def candidate_submit_assessment_logic(
             step="Assessment Cancelled",
             progress=0,
         )
+        if is_streaming_submission:
+            async def sse_cancel_generator():
+                yield f'data: {json.dumps({"status": "CANCELLED", "progress": 0})}\n\n'
+            return StreamingResponse(
+                sse_cancel_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
         return {
             "Status": "CANCELLED",
             "status": "CANCELLED",
@@ -1106,6 +1121,202 @@ async def candidate_submit_assessment_logic(
         existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
         if existing_data and existing_data.video_telemetry:
             total_chunks = existing_data.video_telemetry.get("total_expected_chunks")
+
+    # ── Live Streaming Submission Branch (Single PUT Connection) ───────────────────
+    if is_streaming_submission:
+        assessment_id_int = int(assessment.id)
+        assessment_consent = dict(assessment.consent or {})
+        assessment_media_type = str(assessment.media_type or "VIDEO")
+        crud.update_assessment_status(db, assessment_id_int, "EVALUATING")
+        db.commit()
+
+        async def sse_submission_generator():
+            sub_queue, _ = stream_manager.subscribe(assessment_id_int)
+
+            # Instant initial frame at second 0
+            initial_event = {
+                "status": "PROCESSING",
+                "progress": 5,
+            }
+            yield f"data: {json.dumps(initial_event)}\n\n"
+
+            async def run_pipeline():
+                try:
+                    # 1. Stitch media chunks
+                    stream_manager.publish_progress(
+                        assessment_id_int,
+                        status="PROCESSING",
+                        progress=15,
+                    )
+                    target_media = await asyncio.to_thread(
+                        _stitch_assessment_chunks,
+                        candidate_id=resolved_cand_id,
+                        assessment_id=assessment_id_int,
+                        total_chunks_uploaded=total_chunks,
+                    )
+
+                    # 2. Audio Engine
+                    stream_manager.publish_progress(
+                        assessment_id_int,
+                        status="PROCESSING",
+                        progress=35,
+                    )
+                    try:
+                        audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+                        spoken_content = audio_result.get("spoken_content") or {}
+                        raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+                    except Exception as audio_err:
+                        logger.warning("Audio Engine execution error for assessment %s: %s", assessment_id_int, audio_err)
+                        spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+                        raw_audio_telemetry = {
+                            "speaking_duration_seconds": 0.0,
+                            "wpm": 0,
+                            "filler_count": 0,
+                            "silence_ratio": 1.0,
+                            "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+                        }
+
+                    # 3. Format Transcript
+                    full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+                    words = [w for w in full_text.split() if w]
+                    word_count = spoken_content.get("word_count")
+                    if word_count is None:
+                        word_count = len(words)
+
+                    raw_segments = spoken_content.get("segments") or []
+                    segments = []
+                    if raw_segments:
+                        for seg in raw_segments:
+                            if isinstance(seg, dict):
+                                segments.append({
+                                    "start": float(seg.get("start", 0.0) or 0.0),
+                                    "end": float(seg.get("end", 0.0) or 0.0),
+                                    "text": str(seg.get("text", "")).strip(),
+                                    })
+                    elif full_text:
+                        segments = [{
+                            "start": 0.0,
+                            "end": float(payload.client_duration_seconds or 0.0),
+                            "text": full_text,
+                        }]
+
+                    duration_s = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds", 0.0) or 0.0)
+                    insufficient_content = evaluate_gatekeeper_flag(
+                        word_count=word_count,
+                        duration_seconds=duration_s,
+                    )
+
+                    formatted_transcript = {
+                        "full_text": full_text,
+                        "word_count": word_count,
+                        "segments": segments,
+                    }
+                    speaking_duration_sec = float(raw_audio_telemetry.get("speaking_duration_seconds") or raw_audio_telemetry.get("speaking_duration_sec") or 0.0)
+                    silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
+                    silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
+                    formatted_audio_telemetry = {
+                        "speaking_duration_sec": round(speaking_duration_sec, 1),
+                        "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
+                        "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
+                        "silence_percentage": silence_pct,
+                    }
+                    formatted_video_telemetry = payload.video_telemetry or {}
+
+                    # 4. Save assessment data to DB with worker SessionLocal
+                    with SessionLocal() as worker_db:
+                        plan = resolve_storage_plan(
+                            consent=assessment_consent,
+                            media_type=assessment_media_type,
+                            formatted_transcript=formatted_transcript,
+                            formatted_audio_telemetry=formatted_audio_telemetry,
+                            formatted_video_telemetry=formatted_video_telemetry,
+                        )
+                        existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
+                        existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+                        crud.save_assessment_data(
+                            db=worker_db,
+                            assessment_id=assessment_id_int,
+                            questions=existing_questions,
+                            transcript=plan["transcript_to_persist"],
+                            audio_telemetry=plan["audio_telemetry_to_persist"],
+                            video_telemetry=plan["video_telemetry_to_persist"],
+                        )
+
+                        if plan["save_recording"] and os.path.exists(target_media):
+                            asyncio.create_task(
+                                asyncio.to_thread(
+                                    _process_youtube_upload_and_cleanup,
+                                    assessment_id=assessment_id_int,
+                                    media_path=target_media,
+                                    media_type=assessment_media_type,
+                                    candidate_id=resolved_cand_id,
+                                )
+                            )
+
+                        if insufficient_content:
+                            crud.update_assessment_status(worker_db, assessment_id_int, "COMPLETED")
+                            ass_rec = crud.get_assessment_by_id_or_uuid(worker_db, assessment_id_int)
+                            if ass_rec:
+                                ass_rec.completed_at = datetime.utcnow()
+                            worker_db.commit()
+                            stream_manager.publish_progress(
+                                assessment_id_int,
+                                status="COMPLETED",
+                                progress=100,
+                            )
+                        else:
+                            stream_manager.publish_progress(
+                                assessment_id_int,
+                                status="EVALUATING",
+                                progress=50,
+                            )
+                            await assessment_orchestrator.run_full_evaluation(
+                                assessment_id=assessment_id_int,
+                                in_memory_transcript_text=full_text,
+                                in_memory_audio_telemetry=plan["audio_telemetry_to_persist"],
+                                in_memory_video_telemetry=plan["video_telemetry_to_persist"] if plan["video_analytics"] else {},
+                            )
+                except Exception as exc:
+                    logger.exception("Streaming submission pipeline failed for assessment %s: %s", assessment_id_int, exc)
+                    try:
+                        with SessionLocal() as worker_db:
+                            crud.update_assessment_status(worker_db, assessment_id_int, "FAILED")
+                    except Exception:
+                        pass
+                    stream_manager.publish_progress(
+                        assessment_id_int,
+                        status="FAILED",
+                        progress=0,
+                        error="Assessment evaluation could not be completed.",
+                    )
+
+            pipeline_task = asyncio.create_task(run_pipeline())
+
+            try:
+                while True:
+                    if request and await request.is_disconnected():
+                        logger.info("Client disconnected from streaming submission %s", assessment_id_int)
+                        break
+
+                    try:
+                        event = await asyncio.wait_for(sub_queue.get(), timeout=5.0)
+                        yield f"data: {json.dumps(event)}\n\n"
+                        if event.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
+                            break
+                    except asyncio.TimeoutError:
+                        yield ": keep-alive\n\n"
+            finally:
+                stream_manager.unsubscribe(assessment_id_int, sub_queue)
+
+        return StreamingResponse(
+            sse_submission_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     # 1. Stitch media chunks
     target_media = _stitch_assessment_chunks(
@@ -2460,7 +2671,8 @@ def stream_assessment_processing_sse_logic(
     request: Optional[Request] = None,
     candidate_id: Optional[Union[int, str]] = None,
 ) -> StreamingResponse:
-    """Hybrid real-time push and snapshot-verified SSE event stream for live UI progress updates."""
+    """[DEPRECATED for candidate submission - use PUT /candidates/{id}/assessments/{id}?stream=true].
+    Retained for legacy progress listener routes and test compatibility."""
     if assessment_id is None:
         raise HTTPException(status_code=400, detail="Missing assessment_id")
     if current_user is None:
@@ -2549,7 +2761,6 @@ def stream_assessment_processing_sse_logic(
                     event = {
                         "assessment_id": internal_id,
                         "status": curr_status,
-                        "step": active_step,
                         "progress": pct,
                     }
                     if yt_url:
