@@ -450,6 +450,48 @@ class AssessmentEngine:
 
         return subj_selected, subject_time
 
+    def _find_exact_fit(
+        self,
+        pool: List[Dict[str, Any]],
+        target_sum: int,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Finds questions in the unused pool whose durations sum to exactly target_sum.
+        Checks 1-question matches, then 2-question pairs, then 3-question combos.
+        """
+        if target_sum <= 0:
+            return []
+
+        # 1. Single question exact match
+        for q in pool:
+            if self.get_question_time_limit(q) == target_sum:
+                return [q]
+
+        # 2. Two-question combo
+        for i, q1 in enumerate(pool):
+            t1 = self.get_question_time_limit(q1)
+            if t1 >= target_sum:
+                continue
+            for q2 in pool[i + 1:]:
+                if t1 + self.get_question_time_limit(q2) == target_sum:
+                    return [q1, q2]
+
+        # 3. Three-question combo
+        for i, q1 in enumerate(pool):
+            t1 = self.get_question_time_limit(q1)
+            if t1 >= target_sum:
+                continue
+            for j in range(i + 1, len(pool)):
+                q2 = pool[j]
+                t2 = t1 + self.get_question_time_limit(q2)
+                if t2 >= target_sum:
+                    continue
+                for q3 in pool[j + 1:]:
+                    if t2 + self.get_question_time_limit(q3) == target_sum:
+                        return [q1, q2, q3]
+
+        return None
+
     def _top_up_remaining_seconds(
         self,
         tech_pool: List[Dict[str, Any]],
@@ -459,15 +501,28 @@ class AssessmentEngine:
         current_total_time: int,
         target_seconds: int,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Fills remaining slack seconds up to target_seconds using unused, non-mastered questions."""
+        """Fills remaining slack seconds to hit exactly target_seconds (900s)."""
         remaining_seconds = target_seconds - current_total_time
-        if remaining_seconds < 60:
+        if remaining_seconds <= 0:
             return selected, current_total_time
 
         skip_ids = selected_ids | set(excluded or [])
         unused_pool = [q for q in tech_pool if q.get("id") not in skip_ids]
         unused_pool.sort(key=lambda x: 0 if self.normalize_subject(x.get("subject")) == "AI Engineering" else 1)
 
+        # 1. Exact-Fit: Find exact combination to hit spot on 900s
+        exact_match = self._find_exact_fit(unused_pool, remaining_seconds)
+        if exact_match:
+            for q in exact_match:
+                q_copy = dict(q)
+                q_time = self.get_question_time_limit(q)
+                q_copy["time_limit_seconds"] = q_time
+                selected.append(q_copy)
+                selected_ids.add(q.get("id"))
+                current_total_time += q_time
+            return selected, current_total_time
+
+        # 2. Fallback: Standard greedy fill if exact combo is mathematically unavailable in pool
         for uq in unused_pool:
             u_time = self.get_question_time_limit(uq)
             if u_time <= remaining_seconds:
