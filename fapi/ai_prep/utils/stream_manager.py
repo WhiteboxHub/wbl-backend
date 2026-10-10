@@ -64,9 +64,10 @@ class AssessmentStreamManager:
         self,
         assessment_id: int,
         status: str,
-        step: str,
-        progress: int,
+        step: Optional[str] = None,
+        progress: int = 0,
         error: Optional[str] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Publishes a real-time progress update to all connected SSE clients.
@@ -74,7 +75,6 @@ class AssessmentStreamManager:
         """
         payload: Dict[str, Any] = {
             "status": status,
-            "step": step,
             "progress": int(progress),
         }
         if error:
