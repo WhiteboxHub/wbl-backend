@@ -24956,7 +24956,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Get Complete Assessment Detail",
-        "description": "Returns the complete details of a specific assessment for the authenticated candidate.\nIf stream=true, returns a Server-Sent Events (SSE) stream delivering real-time processing progress.\n\nAuthorization:\n- A candidate can only retrieve their own assessment. Passing another candidate's\n  `id` or an `assessment_id` that does not belong to them raises HTTP 403.\n- Staff / admin users may use this endpoint to inspect any candidate's assessment.",
+        "description": "Returns the complete details of a specific assessment for the authenticated candidate.\n\nAuthorization:\n- A candidate can only retrieve their own assessment. Passing another candidate's\n  `id` or an `assessment_id` that does not belong to them raises HTTP 403.\n- Staff / admin users may use this endpoint to inspect any candidate's assessment.",
         "operationId": "candidate_get_assessment_detail_api_aiprep_candidates__id__assessments__assessment_id__get",
         "security": [
           {
@@ -24995,18 +24995,6 @@
               ],
               "title": "Assessment Id"
             }
-          },
-          {
-            "name": "stream",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Set to true to stream real-time SSE progress updates",
-              "default": false,
-              "title": "Stream"
-            },
-            "description": "Set to true to stream real-time SSE progress updates"
           }
         ],
         "responses": {
@@ -25041,7 +25029,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Submit Assessment or Cancel",
-        "description": "Candidate Submit Assessment:\n- If status == 'cancelled' (e.g. Exit clicked): Changes assessment status to CANCELLED in DB and exits immediately.\n- Otherwise: Notifies backend that recording is complete, stitches media chunks,\n  executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag\n  (insufficient_content) using transcript word count and interview duration,\n  and returns assessment details and flag status.",
+        "description": "Candidate Submit Assessment:\n- If status == 'cancelled' (e.g. Exit clicked): Changes assessment status to CANCELLED in DB and exits immediately.\n- Otherwise: Notifies backend that recording is complete, stitches media chunks,\n  executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag\n  (insufficient_content) using transcript word count and interview duration,\n  and returns assessment details and flag status.\n- If stream=true or Accept: text/event-stream: streams real-time progress events directly over the PUT connection.",
         "operationId": "candidate_submit_assessment_api_aiprep_candidates__candidate_id__assessments__assessment_id__put",
         "security": [
           {
@@ -25098,6 +25086,18 @@
               "title": "Status"
             },
             "description": "Set to 'cancelled' if exiting/cancelling assessment"
+          },
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to stream real-time SSE progress updates directly over the submission request",
+              "default": false,
+              "title": "Stream"
+            },
+            "description": "Set to true to stream real-time SSE progress updates directly over the submission request"
           }
         ],
         "requestBody": {
@@ -27406,7 +27406,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Get Complete Assessment Detail",
-        "description": "Returns the complete details of a specific assessment for the authenticated candidate.\nIf stream=true, returns a Server-Sent Events (SSE) stream delivering real-time processing progress.\n\nAuthorization:\n- A candidate can only retrieve their own assessment. Passing another candidate's\n  `id` or an `assessment_id` that does not belong to them raises HTTP 403.\n- Staff / admin users may use this endpoint to inspect any candidate's assessment.",
+        "description": "Returns the complete details of a specific assessment for the authenticated candidate.\n\nAuthorization:\n- A candidate can only retrieve their own assessment. Passing another candidate's\n  `id` or an `assessment_id` that does not belong to them raises HTTP 403.\n- Staff / admin users may use this endpoint to inspect any candidate's assessment.",
         "operationId": "candidate_get_assessment_detail_aiprep_candidates__id__assessments__assessment_id__get",
         "security": [
           {
@@ -27445,18 +27445,6 @@
               ],
               "title": "Assessment Id"
             }
-          },
-          {
-            "name": "stream",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "Set to true to stream real-time SSE progress updates",
-              "default": false,
-              "title": "Stream"
-            },
-            "description": "Set to true to stream real-time SSE progress updates"
           }
         ],
         "responses": {
@@ -27491,7 +27479,7 @@
           "AI Prep - Candidate"
         ],
         "summary": "Candidate: Submit Assessment or Cancel",
-        "description": "Candidate Submit Assessment:\n- If status == 'cancelled' (e.g. Exit clicked): Changes assessment status to CANCELLED in DB and exits immediately.\n- Otherwise: Notifies backend that recording is complete, stitches media chunks,\n  executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag\n  (insufficient_content) using transcript word count and interview duration,\n  and returns assessment details and flag status.",
+        "description": "Candidate Submit Assessment:\n- If status == 'cancelled' (e.g. Exit clicked): Changes assessment status to CANCELLED in DB and exits immediately.\n- Otherwise: Notifies backend that recording is complete, stitches media chunks,\n  executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag\n  (insufficient_content) using transcript word count and interview duration,\n  and returns assessment details and flag status.\n- If stream=true or Accept: text/event-stream: streams real-time progress events directly over the PUT connection.",
         "operationId": "candidate_submit_assessment_aiprep_candidates__candidate_id__assessments__assessment_id__put",
         "security": [
           {
@@ -27548,6 +27536,18 @@
               "title": "Status"
             },
             "description": "Set to 'cancelled' if exiting/cancelling assessment"
+          },
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to stream real-time SSE progress updates directly over the submission request",
+              "default": false,
+              "title": "Stream"
+            },
+            "description": "Set to true to stream real-time SSE progress updates directly over the submission request"
           }
         ],
         "requestBody": {
