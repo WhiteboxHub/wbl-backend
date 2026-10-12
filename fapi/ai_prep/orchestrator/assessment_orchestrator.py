@@ -28,7 +28,6 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
-from fapi.ai_prep.utils.telemetry_client import emit_pipeline_metric
 import sentry_sdk
 from fapi.ai_prep.utils.stream_manager import stream_manager
 
@@ -255,20 +254,6 @@ async def run_full_evaluation(
         )
 
         duration_ms = int((time.time() - t0) * 1000)
-        # Emit telemetry metric to wbl-observability (non-blocking)
-        try:
-            numeric_assessment_id = int(assessment_id) if str(assessment_id).isdigit() else 1
-            asyncio.create_task(emit_pipeline_metric(
-                assessment_id=numeric_assessment_id,
-                candidate_id=candidate_id,
-                stage="EVAL_ENGINE_LLM",
-                status="SUCCESS",
-                duration_ms=duration_ms,
-                metadata={"assessment_type": assessment_type}
-            ))
-        except Exception as tel_err:
-            logger.debug("Failed to dispatch telemetry task: %s", tel_err)
-
         logger.info(
             "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s (took %dms)",
             str(assessment_id), duration_ms,
@@ -288,38 +273,7 @@ async def run_full_evaluation(
         }
 
         # Step 5: Score processing and report persistence (SCORES_ENGINE)
-        t_scores = time.time()
-        try:
-            await asyncio.to_thread(_save_report_worker, parsed_report)
-            scores_duration_ms = int((time.time() - t_scores) * 1000)
-            asyncio.create_task(emit_pipeline_metric(
-                assessment_id=numeric_assessment_id,
-                candidate_id=candidate_id,
-                stage="SCORES_ENGINE",
-                status="SUCCESS",
-                duration_ms=scores_duration_ms,
-                metadata={"assessment_type": assessment_type}
-            ))
-        except Exception as score_exc:
-            scores_duration_ms = int((time.time() - t_scores) * 1000)
-            api_status_code = 500
-            error_msg = str(score_exc)
-            if hasattr(score_exc, "response") and hasattr(score_exc.response, "status_code"):
-                api_status_code = score_exc.response.status_code
-                error_msg = f"API Error: {api_status_code} - {score_exc}"
-            asyncio.create_task(emit_pipeline_metric(
-                assessment_id=numeric_assessment_id,
-                candidate_id=candidate_id,
-                stage="SCORES_ENGINE",
-                status="FAILURE",
-                duration_ms=scores_duration_ms,
-                message=error_msg,
-                metadata={
-                    "status_code": api_status_code,
-                    "error_type": type(score_exc).__name__
-                }
-            ))
-            raise score_exc
+        await asyncio.to_thread(_save_report_worker, parsed_report)
 
         # Step 6: Mark assessment as COMPLETED (offloaded to thread pool)
         await asyncio.to_thread(_update_status_worker, "COMPLETED")
@@ -331,28 +285,6 @@ async def run_full_evaluation(
         )
 
     except Exception as exc:
-        duration_ms = int((time.time() - t0) * 1000)
-        api_status_code = 500
-        error_msg = str(exc)
-        if hasattr(exc, "response") and hasattr(exc.response, "status_code"):
-            api_status_code = exc.response.status_code
-            error_msg = f"API Error: {api_status_code} - {exc}"
-        try:
-            numeric_assessment_id = int(assessment_id) if str(assessment_id).isdigit() else 1
-            asyncio.create_task(emit_pipeline_metric(
-                assessment_id=numeric_assessment_id,
-                candidate_id=candidate_id,
-                stage="EVAL_ENGINE_LLM",
-                status="FAILURE",
-                duration_ms=duration_ms,
-                message=error_msg,
-                metadata={
-                    "status_code": api_status_code,
-                    "error_type": type(exc).__name__
-                }
-            ))
-        except Exception:
-            pass
 
         logger.error(
             "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%s: %s",

@@ -12,7 +12,6 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 import sentry_sdk
-from fapi.ai_prep.utils.telemetry_client import emit_pipeline_metric
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse
@@ -457,6 +456,11 @@ def candidate_create_assessment_logic(
             detail=f"candidate_id in request body ({payload.candidate_id}) does not match candidate id in URL path ({candidate_id}).",
         )
     resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_create_assessment")
+        sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
+    except Exception:
+        pass
     _verify_prerequisites(db, resolved_candidate_id)
 
     assessment_type_str = (
@@ -762,6 +766,12 @@ def candidate_get_assessment_detail_logic(
     """
     # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
     resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
+        sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment_id))
+    except Exception:
+        pass
 
     # --- Fetch assessment (by integer PK or UUID string) ---
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
@@ -1131,6 +1141,7 @@ async def candidate_submit_assessment_logic(
 
     # Sentry contextual tagging
     try:
+        sentry_sdk.set_tag("endpoint", "candidate_submit_assessment")
         sentry_sdk.set_tag("candidate_id", str(resolved_cand_id))
         sentry_sdk.set_tag("assessment_id", str(assessment.id))
     except Exception:
@@ -1343,66 +1354,18 @@ async def candidate_submit_assessment_logic(
         )
 
     # 1. Stitch media chunks
-    t_video_start = time.time()
     target_media = _stitch_assessment_chunks(
         candidate_id=resolved_cand_id,
         assessment_id=assessment.id,
         total_chunks_uploaded=total_chunks,
     )
-    video_duration_ms = int((time.time() - t_video_start) * 1000)
-    video_ok = bool(target_media and os.path.exists(target_media))
-    try:
-        asyncio.create_task(emit_pipeline_metric(
-            assessment_id=int(assessment.id) if str(assessment.id).isdigit() else 1,
-            candidate_id=resolved_cand_id,
-            stage="VIDEO_ENGINE",
-            status="SUCCESS" if video_ok else "FAILURE",
-            duration_ms=video_duration_ms,
-            metadata={"chunks": total_chunks, "media_path": str(target_media)}
-        ))
-    except Exception as tel_err:
-        logger.debug("Failed to dispatch VIDEO_ENGINE telemetry: %s", tel_err)
 
     # 2. Run Audio Engine (WHISPER_AUDIO)
-    t_audio_start = time.time()
     try:
         audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
         spoken_content = audio_result.get("spoken_content") or {}
         raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
-        audio_duration_ms = int((time.time() - t_audio_start) * 1000)
-        try:
-            asyncio.create_task(emit_pipeline_metric(
-                assessment_id=int(assessment.id) if str(assessment.id).isdigit() else 1,
-                candidate_id=resolved_cand_id,
-                stage="WHISPER_AUDIO",
-                status="SUCCESS",
-                duration_ms=audio_duration_ms,
-                metadata={"words": len((spoken_content.get("transcript_text") or "").split())}
-            ))
-        except Exception as tel_err:
-            logger.debug("Failed to dispatch WHISPER_AUDIO telemetry: %s", tel_err)
     except Exception as audio_err:
-        audio_duration_ms = int((time.time() - t_audio_start) * 1000)
-        api_status_code = 500
-        error_msg = str(audio_err)
-        if hasattr(audio_err, "response") and hasattr(audio_err.response, "status_code"):
-            api_status_code = audio_err.response.status_code
-            error_msg = f"API Error: {api_status_code} - {audio_err}"
-        try:
-            asyncio.create_task(emit_pipeline_metric(
-                assessment_id=int(assessment.id) if str(assessment.id).isdigit() else 1,
-                candidate_id=resolved_cand_id,
-                stage="WHISPER_AUDIO",
-                status="FAILURE",
-                duration_ms=audio_duration_ms,
-                message=error_msg,
-                metadata={
-                    "status_code": api_status_code,
-                    "error_type": type(audio_err).__name__
-                }
-            ))
-        except Exception:
-            pass
         logger.warning("Audio Engine execution error for assessment %s: %s", assessment.id, audio_err)
         spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
         raw_audio_telemetry = {

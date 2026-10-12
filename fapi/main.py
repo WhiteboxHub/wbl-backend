@@ -38,14 +38,22 @@ from fapi.core.config import limiter
 import os
 import sentry_sdk
 
-# Initialize Sentry Error Tracking
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+# Initialize Sentry Error Tracking (Error monitoring & logging only)
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
         environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
         send_default_pii=True,
-        traces_sample_rate=1.0,
+        traces_sample_rate=0.0,
+        profiles_sample_rate=0.0,
+        integrations=[
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+            SqlalchemyIntegration(),
+        ],
     )
 
 app = FastAPI(
