@@ -104,32 +104,28 @@ def test_get_assessment_detail_regular_json(test_client, db_session):
     assert "data" in data
 
 
-def test_get_assessment_detail_sse_streaming(test_client, db_session):
-    """GET with stream=true returns text/event-stream with no-buffering headers."""
+def test_put_submit_assessment_sse_streaming_headers(test_client, db_session):
+    """PUT with stream=true returns text/event-stream with no-buffering headers."""
     asm = crud.create_assessment(
         db_session,
         candidate_id=501,
         assessment_type="INTRO",
         media_type="VIDEO",
     )
-    crud.update_assessment_status(db_session, asm.id, "COMPLETED")
+    crud.update_assessment_status(db_session, asm.id, "IN_PROGRESS")
 
-    res = test_client.get(f"/api/aiprep/candidates/501/assessments/{asm.id}?stream=true")
+    res = test_client.put(
+        f"/api/aiprep/candidates/501/assessments/{asm.id}?stream=true",
+        json={"total_chunks_uploaded": 0, "is_final": True},
+    )
     assert res.status_code == 200
     assert "text/event-stream" in res.headers.get("content-type", "")
     assert res.headers.get("cache-control") == "no-cache"
     assert res.headers.get("x-accel-buffering") == "no"
 
-    # Verify event stream payload contains expected event structure
-    chunks = list(res.iter_text())
-    content = "".join(chunks) or res.text
-    assert "data: " in content
-    assert '"status": "COMPLETED"' in content
-    assert '"progress": 100' in content
 
-
-def test_get_assessment_detail_sse_forbidden_other_candidate(test_client, db_session):
-    """Attempting to stream another candidate's assessment returns 403 Forbidden."""
+def test_put_submit_assessment_sse_forbidden_other_candidate(test_client, db_session):
+    """Attempting to stream-submit another candidate's assessment returns 403 Forbidden."""
     other_asm = crud.create_assessment(
         db_session,
         candidate_id=999,  # Belongs to candidate 999, not 501
@@ -137,42 +133,49 @@ def test_get_assessment_detail_sse_forbidden_other_candidate(test_client, db_ses
         media_type="VIDEO",
     )
 
-    res = test_client.get(f"/api/aiprep/candidates/501/assessments/{other_asm.id}?stream=true")
+    res = test_client.put(
+        f"/api/aiprep/candidates/501/assessments/{other_asm.id}?stream=true",
+        json={"total_chunks_uploaded": 0, "is_final": True},
+    )
     assert res.status_code == 403
 
 
-def test_stream_manager_push_events_delivered_to_sse(test_client, db_session):
-    """Verifies strict push-based streaming emits pipeline events without polling."""
-    from fapi.ai_prep.utils.stream_manager import stream_manager
-
+def test_put_submit_assessment_direct_sse_streaming(test_client, db_session):
+    """Verifies single API call PUT submission streaming directly over the response."""
     asm = crud.create_assessment(
         db_session,
         candidate_id=501,
-        assessment_type="INTRO",
-        media_type="VIDEO",
+        assessment_type="TECHNICAL",
+        media_type="AUDIO",
     )
-    crud.update_assessment_status(db_session, asm.id, "EVALUATING")
+    crud.update_assessment_status(db_session, asm.id, "IN_PROGRESS")
 
-    stream_manager.publish_progress(
-        asm.id,
-        status="EVALUATING",
-        step="Analyzing Candidate Performance with AI",
-        progress=65,
-    )
+    payload = {
+        "total_chunks_uploaded": 1,
+        "is_final": True,
+        "client_duration_seconds": 15.0,
+    }
 
-    stream_manager.publish_progress(
-        asm.id,
-        status="COMPLETED",
-        step="Report Generated",
-        progress=100,
-    )
+    with patch("fapi.ai_prep.utils.aiprep_utils._stitch_assessment_chunks", return_value="assembled.wav"), \
+         patch("fapi.ai_prep.utils.aiprep_utils.AudioMetricsEngine.process_audio_file") as mock_audio, \
+         patch("fapi.ai_prep.utils.aiprep_utils.evaluate_gatekeeper_flag", return_value=True):
+        mock_audio.return_value = {
+            "spoken_content": {"full_text": "Sample answer", "word_count": 2, "segments": []},
+            "audio_telemetry": {"speaking_duration_seconds": 5.0, "wpm": 24, "silence_ratio": 0.5},
+        }
 
-    res = test_client.get(f"/api/aiprep/candidates/501/assessments/{asm.id}?stream=true")
-    assert res.status_code == 200
-    assert "text/event-stream" in res.headers.get("content-type", "")
+        res = test_client.put(
+            f"/api/aiprep/candidates/501/assessments/{asm.id}?stream=true",
+            json=payload,
+        )
 
-    content = "".join(list(res.iter_text()))
-    assert "data: " in content
-    assert '"status": "COMPLETED"' in content
-    assert '"progress": 100' in content
-    assert '"step": "Report Generated"' in content
+        assert res.status_code == 200
+        assert "text/event-stream" in res.headers.get("content-type", "")
+
+        content = "".join(list(res.iter_text()))
+        assert "data: " in content
+        assert '"status": "PROCESSING"' in content
+        assert '"status": "COMPLETED"' in content
+        assert '"progress": 100' in content
+        assert '"step"' not in content
+

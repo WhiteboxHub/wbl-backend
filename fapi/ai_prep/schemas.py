@@ -319,6 +319,7 @@ class AssessmentMetaResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     youtube_url: Optional[str] = None
+    consent: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
