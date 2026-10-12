@@ -535,6 +535,8 @@ def candidate_create_assessment_logic(
             "question_text": q.get("question_text"),
             "subject": q.get("subject"),
             "concept": q.get("concept"),
+            "difficulty_level": q.get("difficulty_level"),
+            "scope": q.get("scope"),
             "time_limit_seconds": q.get("time_limit_seconds"),
         })
 
@@ -646,8 +648,47 @@ def build_assessment_eval_dict(
             "general": None,
         }
 
-    # Extract intro_eval from transcript_eval
+    # Detect evaluation type: technical takes priority if present
     t_eval = transcript_eval or {}
+
+    tech_eval = t_eval.get("technical_evaluation") if isinstance(t_eval, dict) else None
+    if isinstance(tech_eval, dict):
+        # ── Technical Assessment path ──────────────────────────────────────
+        oa = tech_eval.get("overall_assessment") or {}
+        if not isinstance(oa, dict):
+            oa = {}
+
+        a_eval = audio_eval or {}
+        audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
+        if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
+            audio_inner = a_eval
+        if not isinstance(audio_inner, dict):
+            audio_inner = {}
+
+        v_eval = video_eval or {}
+        video_inner = v_eval.get("video_evaluation") if isinstance(v_eval, dict) else {}
+        if not video_inner and isinstance(v_eval, dict) and ("factors" in v_eval or "summary" in v_eval):
+            video_inner = v_eval
+        if not isinstance(video_inner, dict):
+            video_inner = {}
+
+        top_strengths = oa.get("top_strengths") or []
+        priority_improvements = oa.get("priority_improvements") or []
+
+        return {
+            "insufficient_content": False,
+            "readiness": oa.get("rating") or oa.get("readiness"),
+            "summary": oa.get("summary"),
+            "strongest_signal": top_strengths[0] if top_strengths else None,
+            "biggest_gap": priority_improvements[0] if priority_improvements else None,
+            "audio": audio_inner,
+            "language": {},
+            "video": video_inner,
+            "general": None,
+            "technical_evaluation": tech_eval,
+        }
+
+    # ── Intro Assessment path (unchanged) ─────────────────────────────────
     intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
     if not intro_eval and isinstance(t_eval, dict) and "overall_assessment" in t_eval:
         intro_eval = t_eval

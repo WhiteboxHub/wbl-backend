@@ -539,7 +539,7 @@ def get_candidate_technical_question_history(
 
         for qe in q_evals:
             qid = qe.get("question_id")
-            score_band = str(qe.get("score_band") or qe.get("mastery_level") or "").upper().strip()
+            score_band = str(qe.get("rating") or qe.get("score_band") or qe.get("mastery_level") or "").upper().strip()
             diff = str(qe.get("difficulty_level", "MEDIUM")).upper().strip()
             concept = qe.get("concept")
 

@@ -622,12 +622,40 @@ class AssessmentEngine:
                 q_text = q.get("question_text") or q.get("text") or f"Question {idx}"
                 q_id = q.get("id") or q.get("question_id") or idx
                 difficulty = str(q.get("difficulty_level", "")).upper() or "MEDIUM"
-                concept = q.get("concept") or ""
-                concept_tag = f" [concept={concept}]" if concept else ""
-                ground_truth = q.get("ground_truth") or ""
-                lines.append(f"Q{idx} [question_id={q_id}] [difficulty={difficulty}]{concept_tag}: {q_text}")
-                if ground_truth:
-                    lines.append(f"  Expected Answer: {ground_truth}")
+                subject = q.get("subject") or "Unknown"
+                concept = q.get("concept") or "Unknown"
+                scope = q.get("scope") or "SPECIFIC"
+
+                lines.append(f"Q{idx}")
+                lines.append(f"  question_id: {q_id}")
+                lines.append(f"  subject: {subject}")
+                lines.append(f"  concept: {concept}")
+                lines.append(f"  difficulty_level: {difficulty}")
+                lines.append(f"  scope: {scope}")
+                lines.append(f"  question: {q_text}")
+
+                gt = q.get("ground_truth")
+                if isinstance(gt, dict):
+                    criteria = gt.get("criteria") or gt.get("key_points") or []
+                    keywords = gt.get("technical_keywords") or []
+                    critical = gt.get("critical_failures") or []
+                    lines.append(f"  ground_truth:")
+                    if criteria:
+                        lines.append(f"    criteria:")
+                        for c in criteria:
+                            req = " (required)" if isinstance(c, dict) and c.get("required") else ""
+                            point = c.get("point") if isinstance(c, dict) else str(c)
+                            lines.append(f"      - {point}{req}")
+                    if keywords:
+                        lines.append(f"    technical_keywords: {', '.join(keywords)}")
+                    if critical:
+                        lines.append(f"    critical_failures:")
+                        for cf in critical:
+                            lines.append(f"      - {cf}")
+                elif gt:
+                    lines.append(f"  ground_truth: {gt}")
+
+                lines.append("")
             lines.append("")
 
         full_text = ""
