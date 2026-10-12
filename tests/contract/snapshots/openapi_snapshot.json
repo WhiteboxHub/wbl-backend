@@ -34264,6 +34264,18 @@
             ],
             "title": "Youtube Url"
           },
+          "consent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent"
+          },
           "data": {
             "$ref": "#/components/schemas/CandidateAssessmentUnifiedData"
           }

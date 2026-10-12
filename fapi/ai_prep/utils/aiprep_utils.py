@@ -2,6 +2,7 @@
 Follows WBL Backend code architecture standards separating routing and logic.
 """
 import os
+import re
 import uuid
 import json
 import shutil
@@ -195,10 +196,13 @@ def _resolve_candidate_id(
     # 1. Parse requested_id if provided
     req_int: Optional[int] = None
     if requested_id is not None:
-        try:
-            req_int = int(requested_id)
-        except (ValueError, TypeError):
-            raise HTTPException(status_code=400, detail="Invalid candidate ID format.")
+        if str(requested_id).strip().lower() in ("me", "self", "null", "undefined"):
+            requested_id = None
+        else:
+            try:
+                req_int = int(requested_id)
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=400, detail="Invalid candidate ID format.")
 
     # 2. Staff / Admin can query any requested candidate ID
     if is_employee:
@@ -758,20 +762,29 @@ def candidate_get_assessment_detail_logic(
         2. An ownership check confirms the fetched assessment belongs to the resolved candidate.
     - Staff / admin users may access any candidate's assessment via the same endpoint.
     """
-    # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
-    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    # --- Resolve caller role ---
+    uname = (getattr(current_user, "uname", "") or "").strip().lower()
+    role = (getattr(current_user, "role", None) or "").lower()
+    is_employee = bool(
+        getattr(current_user, "is_employee", False)
+        or role in ("admin", "staff", "employee")
+        or uname == "admin"
+    )
 
     # --- Fetch assessment (by integer PK or UUID string) ---
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
 
-    # --- Layer 2: Ownership check — assessment must belong to the resolved candidate ---
-    if assessment.candidate_id != resolved_candidate_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have permission to access this assessment.",
-        )
+    # --- Layer 2: Ownership check — enforced strictly for candidate accounts ---
+    if not is_employee:
+        # Resolve & authorize the candidate_id path parameter for candidates
+        resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+        if assessment.candidate_id != resolved_candidate_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to access this assessment.",
+            )
 
     # --- Build `telemetry` block (transcript + telemetry) ---
     if assessment.data_record:

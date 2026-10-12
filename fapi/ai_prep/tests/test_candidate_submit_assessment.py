@@ -705,3 +705,72 @@ def test_candidate_get_assessment_detail_response_body_structure(submit_test_cli
     assert res_comp.json()["data"]["assessment_eval"]["insufficient_content"] is True
 
 
+def test_employee_can_view_candidate_assessment_via_original_route(db_session):
+    """Verifies employees can view any candidate's assessment report via GET /api/aiprep/candidates/{id}/assessments/{assessment_id}."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="AUDIO",
+    )
+    crud.update_assessment_status(db_session, assessment.id, "COMPLETED")
+
+    employee_user = AuthUserORM(
+        id=5,
+        uname="admin_staff@whitebox-learning.com",
+        fullname="Admin Staff",
+        role="employee",
+    )
+    setattr(employee_user, "is_employee", True)
+    setattr(employee_user, "is_admin", True)
+
+    app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_current_user] = lambda: employee_user
+    client = TestClient(app)
+
+    try:
+        # Employee querying the candidate's assessment via original candidate endpoint
+        res = client.get(f"/api/aiprep/candidates/1042/assessments/{assessment.id}")
+        assert res.status_code == 200
+        assert res.json()["id"] == assessment.id
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_candidate_cannot_view_other_candidate_assessment_isolation(db_session):
+    """Verifies strict candidate isolation: candidate 9999 cannot view assessment of candidate 1042."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=1042,
+        assessment_type="INTRO",
+        media_type="VIDEO",
+    )
+    other_cand = CandidateORM(
+        id=9999,
+        full_name="Other Candidate",
+        email="other_candidate@example.com",
+    )
+    db_session.add(other_cand)
+    db_session.commit()
+
+    other_user = AuthUserORM(
+        id=9999,
+        uname="other_candidate@example.com",
+        fullname="Other Candidate",
+        role="candidate",
+    )
+    setattr(other_user, "is_employee", False)
+    setattr(other_user, "is_admin", False)
+
+    app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_current_user] = lambda: other_user
+    client = TestClient(app)
+
+    try:
+        # Cross-candidate request must return 403 Forbidden
+        res = client.get(f"/api/aiprep/candidates/9999/assessments/{assessment.id}")
+        assert res.status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+
+
