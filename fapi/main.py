@@ -47,7 +47,7 @@ if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
         environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
-        send_default_pii=True,
+        send_default_pii=False,
         traces_sample_rate=0.0,
         profiles_sample_rate=0.0,
         integrations=[
