@@ -846,6 +846,7 @@ def candidate_get_assessment_detail_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
         data=CandidateAssessmentUnifiedData(
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
@@ -1255,8 +1256,7 @@ async def candidate_submit_assessment_logic(
                         if plan["save_recording"] and os.path.exists(target_media):
                             _track_background_task(
                                 asyncio.create_task(
-                                    asyncio.to_thread(
-                                        _process_youtube_upload_and_cleanup,
+                                    _process_youtube_upload_and_cleanup(
                                         assessment_id=assessment_id_int,
                                         media_path=target_media,
                                         media_type=assessment_media_type,
@@ -1571,6 +1571,7 @@ async def candidate_submit_assessment_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
         data=CandidateAssessmentUnifiedData(
             transcript=plan["transcript_to_persist"],
             audio_telemetry=plan["audio_telemetry_to_persist"],
@@ -2457,24 +2458,33 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
     if not os.path.exists(chunk_dir):
         return None
     try:
-        chunk_files = sorted(
-            [
-                os.path.join(chunk_dir, f)
-                for f in os.listdir(chunk_dir)
-                if f.startswith("chunk_") and f.endswith(".webm")
-            ]
-        )
-        if chunk_files:
-            if total_expected and len(chunk_files) < total_expected:
-                logger.info("Auto-assemble deferred: received %d chunks but expected %d", len(chunk_files), total_expected)
+        raw_files = [
+            f for f in os.listdir(chunk_dir)
+            if f.startswith("chunk_") and f.endswith(".webm")
+        ]
+        if raw_files:
+            indexed_chunks = []
+            for rf in raw_files:
+                match = re.search(r"chunk_(\d+)\.webm", rf)
+                if match:
+                    indexed_chunks.append((int(match.group(1)), os.path.join(chunk_dir, rf)))
+
+            if not indexed_chunks:
                 return None
 
-            expected_count = total_expected or len(chunk_files)
-            # Validate contiguous sequence starting from chunk_0001.webm without gaps
-            chunk_names = [os.path.basename(f) for f in chunk_files]
-            expected_names = [f"chunk_{i:04d}.webm" for i in range(1, expected_count + 1)]
-            if chunk_names != expected_names:
-                logger.warning("Auto-assemble skipped: chunk sequence is incomplete or contains gaps (%s)", chunk_names)
+            indexed_chunks.sort(key=lambda x: x[0])
+            indices = [x[0] for x in indexed_chunks]
+            chunk_files = [x[1] for x in indexed_chunks]
+
+            # Validate contiguous sequence without gaps
+            min_idx = indices[0]
+            expected_indices = list(range(min_idx, min_idx + len(indices)))
+            if indices != expected_indices:
+                logger.warning("Auto-assemble skipped: chunk sequence contains gaps (%s)", indices)
+                return None
+
+            if total_expected and len(chunk_files) < total_expected:
+                logger.info("Auto-assemble deferred: received %d chunks but expected %d", len(chunk_files), total_expected)
                 return None
 
             os.makedirs(assessment_dir, exist_ok=True)
