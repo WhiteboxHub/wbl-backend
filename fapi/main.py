@@ -72,11 +72,6 @@ import logging
 logger = logging.getLogger("wbl")
 
 
-@app.get("/api/sentry-debug", tags=["Debug"])
-async def trigger_sentry_debug_error():
-    """Debug route to test Sentry integration."""
-    return 1 / 0
-
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
