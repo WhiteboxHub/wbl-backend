@@ -26,8 +26,6 @@ ALLOWED_GET_PREFIXES = {
     "/api/automation-workflow",
     "/api/candidates/track-clicks-batch",
     "/api/setup",
-    "/api/aiprep/questions",
-    "/aiprep/questions",
 }
 
 
@@ -88,7 +86,6 @@ def enforce_access(request: Request, current_user=Depends(get_optional_current_u
     if current_user is None:
         if (
             (method == "GET" and (path in ("/api/course-content", "/api/course-contents") or path.startswith(("/api/course-content/", "/api/course-contents/"))))
-            or (method == "GET" and (path in ("/api/aiprep/questions", "/aiprep/questions") or path.startswith(("/api/aiprep/questions/", "/aiprep/questions/"))))
         ):
             return None
         
