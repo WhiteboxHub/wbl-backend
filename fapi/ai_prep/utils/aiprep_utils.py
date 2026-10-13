@@ -777,14 +777,6 @@ def candidate_get_assessment_detail_logic(
         or uname == "admin"
     )
 
-    # --- Sentry monitoring tags ---
-    try:
-        sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
-        sentry_sdk.set_tag("candidate_id", str(candidate_id))
-        sentry_sdk.set_tag("assessment_id", str(assessment_id))
-    except Exception:
-        pass
-
     # --- Fetch assessment (by integer PK or UUID string) ---
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
@@ -799,6 +791,14 @@ def candidate_get_assessment_detail_logic(
                 status_code=403,
                 detail="You do not have permission to access this assessment.",
             )
+
+    # --- Sentry monitoring tags ---
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
+        sentry_sdk.set_tag("candidate_id", str(assessment.candidate_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment_id))
+    except Exception:
+        pass
 
     # --- Build `telemetry` block (transcript + telemetry) ---
     if assessment.data_record:
