@@ -394,6 +394,7 @@ def create_new_assessment_type(
     summary="Question Bank: List Questions",
 )
 def list_questions_from_bank(
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     category: Optional[str] = Query(None),
     subject: Optional[str] = Query(None),
     concept: Optional[str] = Query(None),
@@ -405,7 +406,8 @@ def list_questions_from_bank(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """Fetches questions dynamically from ai_prep_questions DB table."""
+    """Fetches questions dynamically from ai_prep_questions DB table for authorized staff."""
+    _ = _staff
     return aiprep_utils.list_questions_from_bank_logic(
         db=db,
         category=category,
@@ -465,9 +467,11 @@ def update_question_in_bank(
 @router.get("/questions/{question_id}", response_model=QuestionResponse, tags=["AI Prep - Admin & Catalog"], summary="Get Question Bank Item by ID")
 def get_question_from_bank(
     question_id: int,
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Fetches a specific question by ID from the question bank."""
+    """Fetches a specific question by ID from the question bank for authorized staff."""
+    _ = _staff
     return aiprep_utils.get_question_from_bank_logic(db=db, question_id=question_id)
 
 
