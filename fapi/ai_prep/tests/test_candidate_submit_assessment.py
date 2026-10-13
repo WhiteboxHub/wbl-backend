@@ -333,7 +333,7 @@ def test_submit_assessment_case_2_sufficient_content(submit_test_client, db_sess
         mock_eval.assert_called_once()
 
         assert data["id"] == assessment_id
-        assert data["status"] == "COMPLETED"
+        assert data["status"] in ("EVALUATING", "COMPLETED")
 
         unified_data = data["data"]
         assert "transcript" in unified_data
@@ -347,7 +347,8 @@ def test_submit_assessment_case_2_sufficient_content(submit_test_client, db_sess
         assert "audio" in assessment_eval
         assert "video" in assessment_eval
 
-        # Database record verified
+        # Database record verified (expire session cache to read background worker commit)
+        db_session.expire_all()
         db_asm = crud.get_assessment_by_id_or_uuid(db_session, assessment_id)
         assert db_asm.status == "COMPLETED"
 
@@ -567,7 +568,7 @@ def test_submit_assessment_no_transcript_consent_omits_db_transcript_but_evaluat
         # Check that LLM evaluation was called with in-memory transcript text
         assert mock_eval.call_count == 1
         call_kwargs = mock_eval.call_args[1]
-        assert call_kwargs["db"] == db_session
+        assert call_kwargs.get("db") in (None, db_session)
         assert call_kwargs["assessment_id"] == assessment_id
         assert call_kwargs["in_memory_transcript_text"] == full_transcript
 

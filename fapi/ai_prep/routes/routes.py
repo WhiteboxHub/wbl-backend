@@ -205,8 +205,10 @@ async def candidate_submit_assessment(
     candidate_id: Union[int, str],
     assessment_id: Union[int, str],
     background_tasks: BackgroundTasks,
+    request: Request,
     payload: Optional[CandidateSubmitAssessmentRequest] = Body(default=None),
     status: Optional[str] = Query(None, description="Set to 'cancelled' if exiting/cancelling assessment"),
+    stream: bool = Query(False, description="Set to true to stream real-time SSE progress updates directly over the submission request"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -217,6 +219,7 @@ async def candidate_submit_assessment(
       executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag
       (insufficient_content) using transcript word count and interview duration,
       and returns assessment details and flag status.
+    - If stream=true or Accept: text/event-stream: streams real-time progress events directly over the PUT connection.
     """
     return await aiprep_utils.candidate_submit_assessment_logic(
         db=db,
@@ -226,6 +229,8 @@ async def candidate_submit_assessment(
         payload=payload,
         status=status,
         background_tasks=background_tasks,
+        request=request,
+        stream=stream,
     )
 
 

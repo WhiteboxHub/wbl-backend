@@ -18,7 +18,7 @@ class AudioMetricsEngine:
     def process_audio_file(
         cls,
         audio_path: str,
-        model_size: str = "base",
+        model_size: str = "distil-small.en",
         provider_name: Optional[str] = None,
         precomputed_transcript_text: Optional[str] = None,
         precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,

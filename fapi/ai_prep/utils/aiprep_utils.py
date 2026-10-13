@@ -7,11 +7,12 @@ import json
 import shutil
 import logging
 import asyncio
+import time
 import tempfile
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
-
+import sentry_sdk
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -29,6 +30,7 @@ from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
 from fapi.ai_prep.core.audio_engine import AudioMetricsEngine, InvalidProviderConfigError
+from fapi.ai_prep.utils.stream_manager import stream_manager
 from fapi.db.models import (
     AuthUserORM,
     CandidateORM,
@@ -98,6 +100,16 @@ logger = logging.getLogger(__name__)
 
 STORAGE_BASE_DIR = os.getenv("AIPREP_LOCAL_STORAGE_DIR", "./storage/aiprep")
 
+# Strong reference set to prevent fire-and-forget background tasks from being garbage-collected mid-execution
+_ACTIVE_BACKGROUND_TASKS: Set[asyncio.Task] = set()
+
+
+def _track_background_task(task: asyncio.Task) -> asyncio.Task:
+    """Retains a strong reference to an asyncio Task until completion to prevent GC mid-execution."""
+    _ACTIVE_BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_ACTIVE_BACKGROUND_TASKS.discard)
+    return task
+
 
 # ---------------------------------------------------------------------------
 # In-Memory Assessment Types Catalog
@@ -157,7 +169,7 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
             "title": "Technical Assessment",
             "description": "Deep technical evaluation covering core engineering, frameworks, databases, and algorithms.",
             "category": "TECHNICAL",
-            "time_estimate_mins": 30,
+            "time_estimate_mins": 15,
             "is_active": True,
         },
     ]
@@ -444,6 +456,11 @@ def candidate_create_assessment_logic(
             detail=f"candidate_id in request body ({payload.candidate_id}) does not match candidate id in URL path ({candidate_id}).",
         )
     resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_create_assessment")
+        sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
+    except Exception:
+        pass
     _verify_prerequisites(db, resolved_candidate_id)
 
     assessment_type_str = (
@@ -520,11 +537,11 @@ def candidate_create_assessment_logic(
     formatted_questions = []
     for q in questions_list:
         formatted_questions.append({
-            "id": q.get("id"),
-            "category": q.get("category"),
+            "id": q.get("id") or q.get("question_id"),
             "question_text": q.get("question_text"),
-            "difficulty_level": q.get("difficulty_level"),
-            **({} if q.get("sub_category") is None else {"sub_category": q.get("sub_category")}),
+            "subject": q.get("subject"),
+            "concept": q.get("concept"),
+            "time_limit_seconds": q.get("time_limit_seconds"),
         })
 
     return CreateAssessmentResponse(
@@ -749,6 +766,12 @@ def candidate_get_assessment_detail_logic(
     """
     # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
     resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
+        sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment_id))
+    except Exception:
+        pass
 
     # --- Fetch assessment (by integer PK or UUID string) ---
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
@@ -835,6 +858,7 @@ def candidate_get_assessment_detail_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
         data=CandidateAssessmentUnifiedData(
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
@@ -844,7 +868,7 @@ def candidate_get_assessment_detail_logic(
     )
 
 
-MIN_TRANSCRIPT_WORDS_THRESHOLD = int(os.getenv("AIPREP_MIN_WORDS_THRESHOLD", "15"))
+MIN_TRANSCRIPT_WORDS_THRESHOLD = int(os.getenv("AIPREP_MIN_WORDS_THRESHOLD", "10"))
 MIN_INTERVIEW_DURATION_SECONDS = float(os.getenv("AIPREP_MIN_DURATION_SECONDS", "20.0"))
 
 
@@ -981,6 +1005,50 @@ def resolve_storage_plan(
     }
 
 
+async def _background_evaluation_pipeline(
+    assessment_id: int,
+    in_memory_transcript_text: str,
+    in_memory_audio_telemetry: Dict[str, Any],
+    in_memory_video_telemetry: Dict[str, Any],
+    unconsented_media_to_delete: Optional[str] = None,
+):
+    """
+    Executes asynchronous LLM evaluation in FastAPI BackgroundTasks without blocking HTTP response.
+    Uses its own isolated worker SessionLocal() database session to prevent SQLAlchemy ClosedSessionError
+    that occurs when request-scoped database sessions are closed upon HTTP response delivery.
+    """
+    try:
+        await assessment_orchestrator.run_full_evaluation(
+            assessment_id=assessment_id,
+            in_memory_transcript_text=in_memory_transcript_text,
+            in_memory_audio_telemetry=in_memory_audio_telemetry,
+            in_memory_video_telemetry=in_memory_video_telemetry,
+        )
+        with SessionLocal() as worker_db:
+            crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
+    except Exception as err:
+        logger.exception("Background LLM evaluation failed for assessment %s: %s", assessment_id, err)
+        try:
+            with SessionLocal() as worker_db:
+                crud.update_assessment_status(worker_db, assessment_id, "FAILED")
+        except Exception:
+            pass
+        stream_manager.publish_progress(
+            assessment_id,
+            status="FAILED",
+            step="Processing Failed",
+            progress=0,
+            error=str(err),
+        )
+    finally:
+        if unconsented_media_to_delete and os.path.exists(unconsented_media_to_delete):
+            try:
+                os.remove(unconsented_media_to_delete)
+                logger.info("Successfully purged unconsented media file: %s", unconsented_media_to_delete)
+            except Exception as cleanup_err:
+                logger.warning("Could not delete unconsented media file %s: %s", unconsented_media_to_delete, cleanup_err)
+
+
 async def candidate_submit_assessment_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -989,11 +1057,14 @@ async def candidate_submit_assessment_logic(
     payload: Optional[CandidateSubmitAssessmentRequest] = None,
     status: Optional[str] = None,
     background_tasks: Optional[BackgroundTasks] = None,
-) -> Union[CandidateSubmitAssessmentResponse, Dict[str, Any]]:
+    request: Optional[Request] = None,
+    stream: bool = False,
+) -> Union[CandidateSubmitAssessmentResponse, Dict[str, Any], StreamingResponse]:
     """
     Candidate Submit Assessment:
     - If status == 'cancelled' (e.g. Exit button clicked): updates assessment status to CANCELLED in DB
       and immediately returns {"Status": "CANCELLED"}, skipping all other assessment logic.
+    - If stream=True or Accept: text/event-stream: streams real-time progress events directly over the PUT connection.
     - Otherwise:
       1. Validates candidate permissions and assessment existence.
       2. Stitches uploaded media chunks into assembled.webm.
@@ -1020,8 +1091,26 @@ async def candidate_submit_assessment_logic(
         status or (payload.status if payload else None) or ""
     ).strip().upper()
 
+    is_streaming_submission = bool(
+        stream or (request is not None and "text/event-stream" in request.headers.get("accept", ""))
+    )
+
     if status_override == "CANCELLED":
         crud.update_assessment_status(db, assessment.id, "CANCELLED")
+        stream_manager.publish_progress(
+            assessment.id,
+            status="CANCELLED",
+            step="Assessment Cancelled",
+            progress=0,
+        )
+        if is_streaming_submission:
+            async def sse_cancel_generator():
+                yield f'data: {json.dumps({"status": "CANCELLED", "progress": 0})}\n\n'
+            return StreamingResponse(
+                sse_cancel_generator(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
         return {
             "Status": "CANCELLED",
             "status": "CANCELLED",
@@ -1050,11 +1139,219 @@ async def candidate_submit_assessment_logic(
 
     payload = payload or CandidateSubmitAssessmentRequest()
 
+    # Sentry contextual tagging
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_submit_assessment")
+        sentry_sdk.set_tag("candidate_id", str(resolved_cand_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment.id))
+    except Exception:
+        pass
+
     total_chunks = payload.total_chunks_uploaded
     if not total_chunks:
         existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
         if existing_data and existing_data.video_telemetry:
             total_chunks = existing_data.video_telemetry.get("total_expected_chunks")
+
+    # ── Live Streaming Submission Branch (Single PUT Connection) ───────────────────
+    if is_streaming_submission:
+        assessment_id_int = int(assessment.id)
+        assessment_consent = dict(assessment.consent or {})
+        assessment_media_type = str(assessment.media_type or "VIDEO")
+        crud.update_assessment_status(db, assessment_id_int, "EVALUATING")
+        db.commit()
+
+        async def sse_submission_generator():
+            sub_queue, _ = stream_manager.subscribe(assessment_id_int)
+
+            # Instant initial frame at second 0
+            initial_event = {
+                "status": "PROCESSING",
+                "progress": 5,
+            }
+            yield f"data: {json.dumps(initial_event)}\n\n"
+
+            async def run_pipeline():
+                try:
+                    # 1. Stitch media chunks
+                    stream_manager.publish_progress(
+                        assessment_id_int,
+                        status="PROCESSING",
+                        progress=15,
+                    )
+                    target_media = await asyncio.to_thread(
+                        _stitch_assessment_chunks,
+                        candidate_id=resolved_cand_id,
+                        assessment_id=assessment_id_int,
+                        total_chunks_uploaded=total_chunks,
+                    )
+
+                    # 2. Audio Engine
+                    stream_manager.publish_progress(
+                        assessment_id_int,
+                        status="PROCESSING",
+                        progress=35,
+                    )
+                    try:
+                        audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+                        spoken_content = audio_result.get("spoken_content") or {}
+                        raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+                    except Exception as audio_err:
+                        logger.warning("Audio Engine execution error for assessment %s: %s", assessment_id_int, audio_err)
+                        spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+                        raw_audio_telemetry = {
+                            "speaking_duration_seconds": 0.0,
+                            "wpm": 0,
+                            "filler_count": 0,
+                            "silence_ratio": 1.0,
+                            "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+                        }
+
+                    # 3. Format Transcript
+                    full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+                    words = [w for w in full_text.split() if w]
+                    word_count = spoken_content.get("word_count")
+                    if word_count is None:
+                        word_count = len(words)
+
+                    raw_segments = spoken_content.get("segments") or []
+                    segments = []
+                    if raw_segments:
+                        for seg in raw_segments:
+                            if isinstance(seg, dict):
+                                segments.append({
+                                    "start": float(seg.get("start", 0.0) or 0.0),
+                                    "end": float(seg.get("end", 0.0) or 0.0),
+                                    "text": str(seg.get("text", "")).strip(),
+                                    })
+                    elif full_text:
+                        segments = [{
+                            "start": 0.0,
+                            "end": float(payload.client_duration_seconds or 0.0),
+                            "text": full_text,
+                        }]
+
+                    duration_s = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds", 0.0) or 0.0)
+                    insufficient_content = evaluate_gatekeeper_flag(
+                        word_count=word_count,
+                        duration_seconds=duration_s,
+                    )
+
+                    formatted_transcript = {
+                        "full_text": full_text,
+                        "word_count": word_count,
+                        "segments": segments,
+                    }
+                    speaking_duration_sec = float(raw_audio_telemetry.get("speaking_duration_seconds") or raw_audio_telemetry.get("speaking_duration_sec") or 0.0)
+                    silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
+                    silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
+                    formatted_audio_telemetry = {
+                        "speaking_duration_sec": round(speaking_duration_sec, 1),
+                        "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
+                        "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
+                        "silence_percentage": silence_pct,
+                    }
+                    formatted_video_telemetry = payload.video_telemetry or {}
+
+                    # 4. Save assessment data to DB with worker SessionLocal
+                    plan = resolve_storage_plan(
+                        consent=assessment_consent,
+                        media_type=assessment_media_type,
+                        formatted_transcript=formatted_transcript,
+                        formatted_audio_telemetry=formatted_audio_telemetry,
+                        formatted_video_telemetry=formatted_video_telemetry,
+                    )
+                    with SessionLocal() as worker_db:
+                        existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
+                        existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+                        crud.save_assessment_data(
+                            db=worker_db,
+                            assessment_id=assessment_id_int,
+                            questions=existing_questions,
+                            transcript=plan["transcript_to_persist"],
+                            audio_telemetry=plan["audio_telemetry_to_persist"],
+                            video_telemetry=plan["video_telemetry_to_persist"],
+                        )
+
+                        if plan["save_recording"] and os.path.exists(target_media):
+                            _track_background_task(
+                                asyncio.create_task(
+                                    _process_youtube_upload_and_cleanup(
+                                        assessment_id=assessment_id_int,
+                                        media_path=target_media,
+                                        media_type=assessment_media_type,
+                                        candidate_id=resolved_cand_id,
+                                    )
+                                )
+                            )
+
+                        if insufficient_content:
+                            crud.update_assessment_status(worker_db, assessment_id_int, "COMPLETED")
+                            ass_rec = crud.get_assessment_by_id_or_uuid(worker_db, assessment_id_int)
+                            if ass_rec:
+                                ass_rec.completed_at = datetime.utcnow()
+                            worker_db.commit()
+
+                    # Database session closed — connection returned to pool before long-running evaluation
+                    if insufficient_content:
+                        stream_manager.publish_progress(
+                            assessment_id_int,
+                            status="COMPLETED",
+                            progress=100,
+                        )
+                    else:
+                        stream_manager.publish_progress(
+                            assessment_id_int,
+                            status="EVALUATING",
+                            progress=50,
+                        )
+                        await assessment_orchestrator.run_full_evaluation(
+                            assessment_id=assessment_id_int,
+                            in_memory_transcript_text=full_text,
+                            in_memory_audio_telemetry=plan["audio_telemetry_to_persist"],
+                            in_memory_video_telemetry=plan["video_telemetry_to_persist"] if plan["video_analytics"] else {},
+                        )
+                except Exception as exc:
+                    logger.exception("Streaming submission pipeline failed for assessment %s: %s", assessment_id_int, exc)
+                    try:
+                        with SessionLocal() as worker_db:
+                            crud.update_assessment_status(worker_db, assessment_id_int, "FAILED")
+                    except Exception:
+                        pass
+                    stream_manager.publish_progress(
+                        assessment_id_int,
+                        status="FAILED",
+                        progress=0,
+                        error="Assessment evaluation could not be completed.",
+                    )
+
+            pipeline_task = _track_background_task(asyncio.create_task(run_pipeline()))
+
+            try:
+                while True:
+                    if request and await request.is_disconnected():
+                        logger.info("Client disconnected from streaming submission %s", assessment_id_int)
+                        break
+
+                    try:
+                        event = await asyncio.wait_for(sub_queue.get(), timeout=5.0)
+                        yield f"data: {json.dumps(event)}\n\n"
+                        if event.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
+                            break
+                    except asyncio.TimeoutError:
+                        yield ": keep-alive\n\n"
+            finally:
+                stream_manager.unsubscribe(assessment_id_int, sub_queue)
+
+        return StreamingResponse(
+            sse_submission_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     # 1. Stitch media chunks
     target_media = _stitch_assessment_chunks(
@@ -1063,7 +1360,7 @@ async def candidate_submit_assessment_logic(
         total_chunks_uploaded=total_chunks,
     )
 
-    # 2. Run Audio Engine
+    # 2. Run Audio Engine (WHISPER_AUDIO)
     try:
         audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
         spoken_content = audio_result.get("spoken_content") or {}
@@ -1207,45 +1504,72 @@ async def candidate_submit_assessment_logic(
             db.refresh(assessment)
             # LLM evaluation engine is completely skipped!
             assessment_eval_dict = build_assessment_eval_dict(insufficient_content=True)
+            stream_manager.publish_progress(
+                assessment.id,
+                status="COMPLETED",
+                step="Report Generated",
+                progress=100,
+            )
         else:
             # Case B: Flag is OFF
-            # The llm_evaluation engine must be triggered and its information present in the response
+            # Mark assessment as EVALUATING
             crud.update_assessment_status(db, assessment.id, "EVALUATING")
             db.commit()
+            stream_manager.publish_progress(
+                assessment.id,
+                status="EVALUATING",
+                step="Evaluation Queued",
+                progress=25,
+            )
 
-            # Trigger LLM evaluation engine and await results (passing in-memory full_text & telemetry)
-            try:
-                eval_result = await assessment_orchestrator.run_full_evaluation(
-                    db=db,
+            if background_tasks is not None:
+                # Offload evaluation to FastAPI BackgroundTasks to respond immediately (< 300ms)
+                # and prevent Cloud Run 503 proxy timeouts.
+                background_tasks.add_task(
+                    _background_evaluation_pipeline,
                     assessment_id=assessment.id,
                     in_memory_transcript_text=full_text,
                     in_memory_audio_telemetry=formatted_audio_telemetry,
                     in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                    unconsented_media_to_delete=unconsented_media_to_delete,
                 )
-                llm_report = eval_result.get("report") or {}
-                crud.update_assessment_status(db, assessment.id, "COMPLETED")
-                assessment.completed_at = datetime.utcnow()
-                db.commit()
-                db.refresh(assessment)
-            except Exception as eval_err:
-                logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
+                # Transfer cleanup responsibility to the background task
+                unconsented_media_to_delete = None
+                assessment_eval_dict = build_assessment_eval_dict(insufficient_content=False)
+            else:
+                # Synchronous fallback (e.g. direct programmatic invocations without background_tasks)
                 try:
-                    db.rollback()
-                    crud.update_assessment_status(db, assessment.id, "FAILED")
+                    eval_result = await assessment_orchestrator.run_full_evaluation(
+                        db=db,
+                        assessment_id=assessment.id,
+                        in_memory_transcript_text=full_text,
+                        in_memory_audio_telemetry=formatted_audio_telemetry,
+                        in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                    )
+                    llm_report = eval_result.get("report") or {}
+                    crud.update_assessment_status(db, assessment.id, "COMPLETED")
+                    assessment.completed_at = datetime.utcnow()
                     db.commit()
-                except Exception as rollback_err:
-                    logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
-                raise HTTPException(
-                    status_code=502,
-                    detail="Evaluation service temporarily unavailable",
-                ) from eval_err
+                    db.refresh(assessment)
+                except Exception as eval_err:
+                    logger.exception("LLM Evaluation failed for assessment %s: %s", assessment.id, eval_err)
+                    try:
+                        db.rollback()
+                        crud.update_assessment_status(db, assessment.id, "FAILED")
+                        db.commit()
+                    except Exception as rollback_err:
+                        logger.error("Failed to mark assessment %s as FAILED: %s", assessment.id, rollback_err)
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Evaluation service temporarily unavailable",
+                    ) from eval_err
 
-            assessment_eval_dict = build_assessment_eval_dict(
-                transcript_eval=llm_report.get("transcript_evaluation"),
-                audio_eval=llm_report.get("audio_evaluation"),
-                video_eval=llm_report.get("video_evaluation"),
-                insufficient_content=False,
-            )
+                assessment_eval_dict = build_assessment_eval_dict(
+                    transcript_eval=llm_report.get("transcript_evaluation"),
+                    audio_eval=llm_report.get("audio_evaluation"),
+                    video_eval=llm_report.get("video_evaluation"),
+                    insufficient_content=False,
+                )
     finally:
         # Failure-safe cleanup: purge unconsented media once evaluation workflow concludes
         if unconsented_media_to_delete and os.path.exists(unconsented_media_to_delete):
@@ -1267,6 +1591,7 @@ async def candidate_submit_assessment_logic(
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
+        consent=assessment.consent,
         data=CandidateAssessmentUnifiedData(
             transcript=plan["transcript_to_persist"],
             audio_telemetry=plan["audio_telemetry_to_persist"],
@@ -1937,6 +2262,15 @@ async def process_media_and_upload_pipeline(
 
         if isinstance(eval_result, Exception):
             logger.error("LLM evaluation encountered exception for assessment %s: %s", assessment_id, eval_result)
+            with SessionLocal() as err_db:
+                crud.update_assessment_status(err_db, assessment_id, "FAILED")
+            stream_manager.publish_progress(
+                assessment_id,
+                status="FAILED",
+                step="Processing Failed",
+                progress=0,
+                error="Assessment evaluation encountered an error. Please retry.",
+            )
         if isinstance(yt_url, Exception):
             logger.warning("YouTube upload task encountered exception for assessment %s: %s", assessment_id, yt_url)
 
@@ -2144,24 +2478,33 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
     if not os.path.exists(chunk_dir):
         return None
     try:
-        chunk_files = sorted(
-            [
-                os.path.join(chunk_dir, f)
-                for f in os.listdir(chunk_dir)
-                if f.startswith("chunk_") and f.endswith(".webm")
-            ]
-        )
-        if chunk_files:
-            if total_expected and len(chunk_files) < total_expected:
-                logger.info("Auto-assemble deferred: received %d chunks but expected %d", len(chunk_files), total_expected)
+        raw_files = [
+            f for f in os.listdir(chunk_dir)
+            if f.startswith("chunk_") and f.endswith(".webm")
+        ]
+        if raw_files:
+            indexed_chunks = []
+            for rf in raw_files:
+                match = re.search(r"chunk_(\d+)\.webm", rf)
+                if match:
+                    indexed_chunks.append((int(match.group(1)), os.path.join(chunk_dir, rf)))
+
+            if not indexed_chunks:
                 return None
 
-            expected_count = total_expected or len(chunk_files)
-            # Validate contiguous sequence starting from chunk_0001.webm without gaps
-            chunk_names = [os.path.basename(f) for f in chunk_files]
-            expected_names = [f"chunk_{i:04d}.webm" for i in range(1, expected_count + 1)]
-            if chunk_names != expected_names:
-                logger.warning("Auto-assemble skipped: chunk sequence is incomplete or contains gaps (%s)", chunk_names)
+            indexed_chunks.sort(key=lambda x: x[0])
+            indices = [x[0] for x in indexed_chunks]
+            chunk_files = [x[1] for x in indexed_chunks]
+
+            # Validate contiguous sequence without gaps
+            min_idx = indices[0]
+            expected_indices = list(range(min_idx, min_idx + len(indices)))
+            if indices != expected_indices:
+                logger.warning("Auto-assemble skipped: chunk sequence contains gaps (%s)", indices)
+                return None
+
+            if total_expected and len(chunk_files) < total_expected:
+                logger.info("Auto-assemble deferred: received %d chunks but expected %d", len(chunk_files), total_expected)
                 return None
 
             os.makedirs(assessment_dir, exist_ok=True)
@@ -2358,7 +2701,9 @@ def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str,
         with SessionLocal() as poll_db:
             rec = crud.get_assessment_by_id_or_uuid(poll_db, assessment_id)
             if rec:
-                return rec.status or "IN_PROGRESS", rec.youtube_url
+                raw_status = rec.status
+                status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
+                return status_str, getattr(rec, "youtube_url", None)
     except Exception as exc:
         logger.debug("SSE status poll error for assessment %s: %s", assessment_id, exc)
     return None
@@ -2369,74 +2714,130 @@ def stream_assessment_processing_sse_logic(
     current_user: Optional[AuthUserORM] = None,
     assessment_id: Optional[Union[int, str]] = None,
     request: Optional[Request] = None,
+    candidate_id: Optional[Union[int, str]] = None,
 ) -> StreamingResponse:
-    """Real-time SSE event stream for live UI progress updates reflecting true DB state without leaking connection pool."""
+    """[DEPRECATED for candidate submission - use PUT /candidates/{id}/assessments/{id}?stream=true].
+    Retained for legacy progress listener routes and test compatibility."""
     if assessment_id is None:
         raise HTTPException(status_code=400, detail="Missing assessment_id")
     if current_user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    # One-off validation in a short-lived session
-    if db is not None:
-        assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-        if not assessment:
+    def _validate_assessment(s: Session) -> Tuple[int, str]:
+        record = crud.get_assessment_by_id_or_uuid(s, assessment_id)
+        if not record:
             raise HTTPException(status_code=404, detail="Assessment not found")
-        _resolve_candidate_id(db, current_user, assessment.candidate_id)
-        internal_id = assessment.id
+        resolved_cand_id = _resolve_candidate_id(s, current_user, requested_id=candidate_id)
+        if hasattr(record, "candidate_id") and record.candidate_id != resolved_cand_id:
+            raise HTTPException(status_code=403, detail="You do not have permission to access this assessment.")
+        raw_status = getattr(record, "status", "IN_PROGRESS")
+        status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
+        if not isinstance(status_str, str) or "<" in status_str:
+            status_str = "IN_PROGRESS"
+        internal_id = getattr(record, "id", None) or assessment_id
+        try:
+            internal_id = int(internal_id)
+        except Exception:
+            internal_id = assessment_id
+        return internal_id, status_str
+
+    # One-off validation in a short-lived session (released immediately)
+    if db is not None:
+        internal_id, initial_db_status = _validate_assessment(db)
+        try:
+            db.close()
+        except Exception:
+            pass
     else:
         with SessionLocal() as init_db:
-            assessment = crud.get_assessment_by_id_or_uuid(init_db, assessment_id)
-            if not assessment:
-                raise HTTPException(status_code=404, detail="Assessment not found")
-            _resolve_candidate_id(init_db, current_user, assessment.candidate_id)
-            internal_id = assessment.id
+            internal_id, initial_db_status = _validate_assessment(init_db)
 
     ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
 
     async def event_generator():
-        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))  # Prevent infinite hanging connections
+        TERMINAL_STATUSES = {"COMPLETED", "FAILED", "CANCELLED"}
+        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))
         polls = 0
-        while polls < max_polls:
-            if request and await request.is_disconnected():
-                logger.info("SSE client disconnected for assessment %s", internal_id)
-                break
+        queue, initial_snapshot = stream_manager.subscribe(internal_id)
 
-            polls += 1
-            try:
-                snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
-                if not snapshot:
-                    break
-                curr_status, yt_url = snapshot
-                progress_map = {"IN_PROGRESS": 35, "EVALUATING": 75, "COMPLETED": 100, "FAILED": 0}
-                pct = progress_map.get(curr_status, 50)
-                active_step = (
-                    "Report Generated" if curr_status == "COMPLETED"
-                    else ("Processing Failed" if curr_status == "FAILED"
-                    else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
-                    else "Media Processing & YouTube Ingestion"))
-                )
-
-                data = json.dumps({
-                    "assessment_id": internal_id,
-                    "status": curr_status,
-                    "step": active_step,
-                    "progress": pct,
-                    "youtube_url": yt_url,
-                })
-                yield f"data: {data}\n\n"
-
-                if curr_status in {"COMPLETED", "FAILED"}:
+        try:
+            while polls < max_polls:
+                if request and await request.is_disconnected():
+                    logger.info("SSE client disconnected for assessment %s", internal_id)
                     break
 
-                await asyncio.sleep(min(ping_interval, 2.0))
-            except asyncio.CancelledError:
-                logger.info("SSE stream cancelled for assessment %s", internal_id)
-                break
+                polls += 1
+                event = None
+
+                # 1. Deliver in-memory push event if queued or available in stream_manager snapshot
+                if not queue.empty():
+                    event = queue.get_nowait()
+                elif initial_snapshot and polls == 1:
+                    event = initial_snapshot
+                    initial_snapshot = None
+                else:
+                    # 2. Check snapshot via _fetch_assessment_status_snapshot (for tests and DB sync)
+                    snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
+                    if not snapshot:
+                        break
+                    if isinstance(snapshot, tuple):
+                        curr_status, yt_url = snapshot[0], snapshot[1] if len(snapshot) > 1 else None
+                    else:
+                        curr_status, yt_url = snapshot, None
+                    curr_status = str(getattr(curr_status, "value", curr_status) or "IN_PROGRESS").upper()
+                    if not isinstance(curr_status, str) or "<" in curr_status:
+                        curr_status = "IN_PROGRESS"
+
+                    progress_map = {
+                        "IN_PROGRESS": 35,
+                        "EVALUATING": 75,
+                        "COMPLETED": 100,
+                        "FAILED": 0,
+                        "CANCELLED": 0,
+                    }
+                    pct = progress_map.get(curr_status, 50)
+                    active_step = (
+                        "Report Generated" if curr_status == "COMPLETED"
+                        else ("Processing Failed" if curr_status == "FAILED"
+                        else ("Assessment Cancelled" if curr_status == "CANCELLED"
+                        else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
+                        else "Media Processing & YouTube Ingestion")))
+                    )
+                    event = {
+                        "assessment_id": internal_id,
+                        "status": curr_status,
+                        "progress": pct,
+                    }
+                    if yt_url:
+                        event["youtube_url"] = yt_url
+
+                if event:
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("status") in TERMINAL_STATUSES:
+                        break
+
+                # 3. Wait on queue for reactive push events; timeout smoothly after ping_interval
+                try:
+                    pushed_event = await asyncio.wait_for(queue.get(), timeout=min(ping_interval, 2.0))
+                    yield f"data: {json.dumps(pushed_event)}\n\n"
+                    if pushed_event.get("status") in TERMINAL_STATUSES:
+                        break
+                except asyncio.TimeoutError:
+                    pass
+                except asyncio.CancelledError:
+                    logger.info("SSE stream cancelled for assessment %s", internal_id)
+                    break
+        finally:
+            stream_manager.unsubscribe(internal_id, queue)
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

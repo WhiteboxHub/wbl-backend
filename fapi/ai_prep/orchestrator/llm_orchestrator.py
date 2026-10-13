@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from fapi.ai_prep import crud
 from fapi.ai_prep.clients.llm_client import call_llm
+from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
 from fapi.ai_prep.core.llm_evaluation import EvalEngine
 from fapi.ai_prep.core.scores_engine import ScoresEngine
 
@@ -138,12 +139,20 @@ def _prepare_prompts(
     video_telemetry: Dict[str, Any],
     is_video_mode: bool,
     can_eval_audio: bool,
+    questions: Optional[List[Dict[str, Any]]] = None,  
 ) -> Tuple[Dict[str, str], Optional[Dict[str, str]], Optional[Dict[str, str]]]:
     """Prepares and compiles prompts for transcript, audio, and video evaluation."""
+    qa_context = None
+    if questions:
+        qa_context = AssessmentEngine().build_qa_context(
+            questions=questions,
+            transcript={"full_text": transcript_text},
+        )
     transcript_prompt = eval_engine.build_prompt(
         assessment_type=assessment_type,
         transcript_text=transcript_text,
         resume_json=resume_json,
+        qa_context=qa_context, 
     )
     audio_prompt = eval_engine.build_audio_prompt(audio_telemetry) if can_eval_audio else None
     video_prompt = eval_engine.build_video_prompt(video_telemetry) if is_video_mode else None
@@ -215,6 +224,7 @@ async def run_evaluation(
     audio_telemetry: Dict[str, Any],
     video_telemetry: Dict[str, Any],
     resume_json: Optional[Any] = None,
+    questions: Optional[List[Dict[str, Any]]] = None,
     llm_config: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
@@ -238,7 +248,7 @@ async def run_evaluation(
     can_eval_audio: bool = eval_engine.has_evaluable_audio(audio_telemetry)
     transcript_prompt, audio_prompt, video_prompt = _prepare_prompts(
         eval_engine, assessment_type, transcript_text, resume_json,
-        audio_telemetry, video_telemetry, is_video_mode, can_eval_audio,
+        audio_telemetry, video_telemetry, is_video_mode, can_eval_audio, questions=questions
     )
 
     call_labels: List[str] = ["transcript_eval"]
