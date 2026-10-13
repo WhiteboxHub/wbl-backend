@@ -78,12 +78,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidates/click-analytics/paginated": {
@@ -162,12 +157,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidates/click-analytics": {
@@ -246,12 +236,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidates/click-summary/today": {
@@ -274,12 +259,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidates/job-clicks/total": {
@@ -300,12 +280,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidates/click-analytics/{click_id}": {
@@ -471,11 +446,6 @@
         ],
         "summary": "Create Candidate",
         "operationId": "create_candidate_api_candidates_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -759,11 +729,6 @@
         ],
         "summary": "Delete Candidate",
         "operationId": "delete_candidate_api_candidates__candidate_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -883,11 +848,6 @@
         ],
         "summary": "Create Marketing Record",
         "operationId": "create_marketing_record_api_candidate_marketing_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -929,11 +889,6 @@
         ],
         "summary": "Get marketing record by ID",
         "operationId": "read_marketing_record_api_candidate_marketing__record_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "record_id",
@@ -972,11 +927,6 @@
         ],
         "summary": "Update Marketing Record",
         "operationId": "update_marketing_record_api_candidate_marketing__record_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "record_id",
@@ -1027,11 +977,6 @@
         ],
         "summary": "Delete Marketing Record",
         "operationId": "delete_marketing_record_api_candidate_marketing__record_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "record_id",
@@ -1196,11 +1141,6 @@
         ],
         "summary": "Create New Placement",
         "operationId": "create_new_placement_api_candidate_placements_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1315,11 +1255,6 @@
         ],
         "summary": "Update Existing Placement",
         "operationId": "update_existing_placement_api_candidate_placements__placement_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "placement_id",
@@ -1370,11 +1305,6 @@
         ],
         "summary": "Delete Existing Placement",
         "operationId": "delete_existing_placement_api_candidate_placements__placement_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "placement_id",
@@ -1506,12 +1436,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -1550,12 +1475,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -1587,11 +1507,6 @@
         ],
         "summary": "Read Candidate Interview",
         "operationId": "read_candidate_interview_api_interviews__interview_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "interview_id",
@@ -1632,11 +1547,6 @@
         ],
         "summary": "Update Interview",
         "operationId": "update_interview_api_interviews__interview_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "interview_id",
@@ -1687,11 +1597,6 @@
         ],
         "summary": "Delete Interview",
         "operationId": "delete_interview_api_interviews__interview_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "interview_id",
@@ -1808,12 +1713,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidate_preparation/{prep_id}": {
@@ -1823,11 +1723,6 @@
         ],
         "summary": "Get Prep",
         "operationId": "get_prep_api_candidate_preparation__prep_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "prep_id",
@@ -2005,12 +1900,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidate/preparation/metrics": {
@@ -2031,12 +1921,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/candidates/search-names/{search_term}": {
@@ -2091,11 +1976,6 @@
         ],
         "summary": "Get Candidate Details",
         "operationId": "get_candidate_details_api_candidates_details__candidate_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -2136,11 +2016,6 @@
         ],
         "summary": "Get Candidate Sessions Route",
         "operationId": "get_candidate_sessions_route_api_candidates_sessions__candidate_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -2191,12 +2066,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/vendor_contact_extracts": {
@@ -2221,12 +2091,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -2258,11 +2123,6 @@
         ],
         "summary": "Read Vendor Contact By Id",
         "operationId": "read_vendor_contact_by_id_api_vendor_contact_extracts__contact_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -2336,12 +2196,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/vendor_contact/bulk": {
@@ -2352,11 +2207,6 @@
         "summary": "Create Vendor Contacts Bulk Handler",
         "description": "Bulk insert vendor contacts",
         "operationId": "create_vendor_contacts_bulk_handler_api_vendor_contact_bulk_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2397,11 +2247,6 @@
         "summary": "Delete Vendor Contacts Bulk Handler",
         "description": "Bulk delete vendor contacts",
         "operationId": "delete_vendor_contacts_bulk_handler_api_vendor_contact_bulk_delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_ids",
@@ -2475,12 +2320,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/vendor_contact/touch-timestamps": {
@@ -2522,12 +2362,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/vendor_contact/{contact_id}": {
@@ -2538,11 +2373,6 @@
         "summary": "Update Vendor Contact Handler",
         "description": "Update existing vendor contact",
         "operationId": "update_vendor_contact_handler_api_vendor_contact__contact_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -2593,11 +2423,6 @@
         ],
         "summary": "Delete Vendor Contact Handler",
         "operationId": "delete_vendor_contact_handler_api_vendor_contact__contact_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -3176,11 +3001,6 @@
         ],
         "summary": "Create New Lead",
         "operationId": "create_new_lead_api_leads_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -3231,12 +3051,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/leads/{lead_id}": {
@@ -3246,11 +3061,6 @@
         ],
         "summary": "Get Lead",
         "operationId": "get_lead_api_leads__lead_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "lead_id",
@@ -3289,11 +3099,6 @@
         ],
         "summary": "Update Existing Lead",
         "operationId": "update_existing_lead_api_leads__lead_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "lead_id",
@@ -3342,11 +3147,6 @@
         ],
         "summary": "Delete Existing Lead",
         "operationId": "delete_existing_lead_api_leads__lead_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "lead_id",
@@ -3387,11 +3187,6 @@
         ],
         "summary": "Move Lead To Candidate",
         "operationId": "move_lead_to_candidate_api_leads__lead_id__move_to_candidate_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "lead_id",
@@ -3432,11 +3227,6 @@
         ],
         "summary": "Remove Lead From Candidate",
         "operationId": "remove_lead_from_candidate_api_leads_movetocandidate__lead_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "lead_id",
@@ -3581,12 +3371,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -3618,11 +3403,6 @@
         ],
         "summary": "Update Employee",
         "operationId": "update_employee_api_employees__employee_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -3673,11 +3453,6 @@
         ],
         "summary": "Delete Employee",
         "operationId": "delete_employee_api_employees__employee_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -3713,11 +3488,6 @@
         ],
         "summary": "Employee Search",
         "operationId": "employee_search_api_employees_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "query",
@@ -3765,11 +3535,6 @@
         ],
         "summary": "Employee Candidates",
         "operationId": "employee_candidates_api_employees__employee_id__candidates_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -3814,11 +3579,6 @@
         ],
         "summary": "Get Employee Session Class Data",
         "operationId": "get_employee_session_class_data_api_employees__employee_id__session_class_data_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -3859,11 +3619,6 @@
         ],
         "summary": "Get Employee Jobs Endpoint",
         "operationId": "get_employee_jobs_endpoint_api_employees__employee_id__jobs_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -3904,11 +3659,6 @@
         ],
         "summary": "Get Employee Tasks Endpoint",
         "operationId": "get_employee_tasks_endpoint_api_employees__employee_id__tasks_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -3949,11 +3699,6 @@
         ],
         "summary": "Get Employee Placements Endpoint",
         "operationId": "get_employee_placements_endpoint_api_employees__employee_id__placements_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -4003,12 +3748,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/employee-tasks/": {
@@ -4235,11 +3975,6 @@
         ],
         "summary": "Get Talent Search",
         "operationId": "get_talent_search_api_talent_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "role",
@@ -4546,12 +4281,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/user_dashboard": {
@@ -4573,10 +4303,10 @@
         },
         "security": [
           {
-            "HTTPBearer": []
+            "OAuth2PasswordBearer": []
           },
           {
-            "OAuth2PasswordBearer": []
+            "HTTPBearer": []
           }
         ]
       }
@@ -4668,11 +4398,6 @@
         ],
         "summary": "Create Batch",
         "operationId": "create_batch_api_batch_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -4759,11 +4484,6 @@
         ],
         "summary": "Update Batch",
         "operationId": "update_batch_api_batch__batch_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "batch_id",
@@ -4814,11 +4534,6 @@
         ],
         "summary": "Delete Batch",
         "operationId": "delete_batch_api_batch__batch_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "batch_id",
@@ -4968,11 +4683,6 @@
         ],
         "summary": "Create User",
         "operationId": "create_user_api_user_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -5111,11 +4821,6 @@
         ],
         "summary": "Update User",
         "operationId": "update_user_api_user__user_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "user_id",
@@ -5166,11 +4871,6 @@
         ],
         "summary": "Delete User",
         "operationId": "delete_user_api_user__user_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "user_id",
@@ -5213,11 +4913,6 @@
         ],
         "summary": "Read Sessions",
         "operationId": "read_sessions_api_session_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "search_title",
@@ -5284,11 +4979,6 @@
         ],
         "summary": "Create New Session",
         "operationId": "create_new_session_api_session_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -5330,11 +5020,6 @@
         ],
         "summary": "Read Session",
         "operationId": "read_session_api_session__sessionid__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "sessionid",
@@ -5375,11 +5060,6 @@
         ],
         "summary": "Update Existing Session",
         "operationId": "update_existing_session_api_session__sessionid__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "sessionid",
@@ -5430,11 +5110,6 @@
         ],
         "summary": "Delete Existing Session",
         "operationId": "delete_existing_session_api_session__sessionid__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "sessionid",
@@ -5557,11 +5232,6 @@
         ],
         "summary": "Create Recording",
         "operationId": "create_recording_api_recordings_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -5603,11 +5273,6 @@
         ],
         "summary": "Get Recording",
         "operationId": "get_recording_api_recordings__recording_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "recording_id",
@@ -5648,11 +5313,6 @@
         ],
         "summary": "Update Recording",
         "operationId": "update_recording_api_recordings__recording_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "recording_id",
@@ -5703,11 +5363,6 @@
         ],
         "summary": "Delete Recording",
         "operationId": "delete_recording_api_recordings__recording_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "recording_id",
@@ -6186,12 +5841,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -6268,11 +5918,6 @@
         ],
         "summary": "Update Course",
         "operationId": "update_course_api_courses__course_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course_id",
@@ -6323,11 +5968,6 @@
         ],
         "summary": "Delete Course",
         "operationId": "delete_course_api_courses__course_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course_id",
@@ -6427,12 +6067,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -6464,11 +6099,6 @@
         ],
         "summary": "Get Subject",
         "operationId": "get_subject_api_subjects__subject_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "subject_id",
@@ -6509,11 +6139,6 @@
         ],
         "summary": "Update Subject",
         "operationId": "update_subject_api_subjects__subject_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "subject_id",
@@ -6564,11 +6189,6 @@
         ],
         "summary": "Delete Subject",
         "operationId": "delete_subject_api_subjects__subject_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "subject_id",
@@ -6669,12 +6289,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -6713,12 +6328,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -6750,11 +6360,6 @@
         ],
         "summary": "Delete Course Subject",
         "operationId": "delete_course_subject_api_course_subjects__course_id___subject_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course_id",
@@ -6863,12 +6468,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -6946,11 +6546,6 @@
         "summary": "Update Course Content",
         "description": "Update a course content",
         "operationId": "update_course_content_api_course_contents__content_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "content_id",
@@ -7001,11 +6596,6 @@
         ],
         "summary": "Delete Course Content",
         "operationId": "delete_course_content_api_course_contents__content_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "content_id",
@@ -7105,12 +6695,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -7142,11 +6727,6 @@
         ],
         "summary": "Update Course Material",
         "operationId": "update_course_material_api_course_materials__material_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "material_id",
@@ -7197,11 +6777,6 @@
         ],
         "summary": "Delete Course Material",
         "operationId": "delete_course_material_api_course_materials__material_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "material_id",
@@ -7298,12 +6873,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/metrics/all": {
@@ -7324,12 +6894,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/top-batches-revenue": {
@@ -7339,11 +6904,6 @@
         ],
         "summary": "Get Top Batches Revenue Endpoint",
         "operationId": "get_top_batches_revenue_endpoint_api_top_batches_revenue_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "limit",
@@ -7385,11 +6945,6 @@
         ],
         "summary": "Get Upcoming Batches Endpoint",
         "operationId": "get_upcoming_batches_endpoint_api_upcoming_batches_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "limit",
@@ -7452,12 +7007,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/projects/": {
@@ -7468,11 +7018,6 @@
         ],
         "summary": "Check Version",
         "operationId": "check_version_api_projects__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7491,11 +7036,6 @@
         ],
         "summary": "Create Project",
         "operationId": "create_project_api_projects__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -7536,11 +7076,6 @@
         ],
         "summary": "List Projects",
         "operationId": "list_projects_api_projects__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "status",
@@ -7627,11 +7162,6 @@
         ],
         "summary": "Get Project",
         "operationId": "get_project_api_projects__project_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "project_id",
@@ -7673,11 +7203,6 @@
         ],
         "summary": "Update Project",
         "operationId": "update_project_api_projects__project_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "project_id",
@@ -7729,11 +7254,6 @@
         ],
         "summary": "Delete Project",
         "operationId": "delete_project_api_projects__project_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "project_id",
@@ -7850,12 +7370,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/session-types": {
@@ -7989,11 +7504,6 @@
         ],
         "summary": "Get Materials",
         "operationId": "get_materials_api_materials_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course",
@@ -8047,11 +7557,6 @@
         ],
         "summary": "Get Github Classroom Repos",
         "operationId": "get_github_classroom_repos_api_github_classroom_repos_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course",
@@ -8095,11 +7600,6 @@
         ],
         "summary": "Check Batches Version",
         "operationId": "check_batches_version_api_batches_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8117,11 +7617,6 @@
         ],
         "summary": "Get Batches",
         "operationId": "get_batches_api_batches_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course",
@@ -8175,12 +7670,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/recording": {
@@ -8190,11 +7680,6 @@
         ],
         "summary": "Check Recording Version",
         "operationId": "check_recording_version_api_recording_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8212,11 +7697,6 @@
         ],
         "summary": "Get Recordings",
         "operationId": "get_recordings_api_recording_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "course",
@@ -10195,9 +9675,6 @@
         },
         "security": [
           {
-            "HTTPBearer": []
-          },
-          {
             "OAuth2PasswordBearer": []
           }
         ]
@@ -10281,9 +9758,6 @@
         "description": "Update job activity log",
         "operationId": "update_job_activity_log_api_job_activity_logs__log_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "OAuth2PasswordBearer": []
           }
@@ -10527,9 +10001,6 @@
         },
         "security": [
           {
-            "HTTPBearer": []
-          },
-          {
             "OAuth2PasswordBearer": []
           }
         ]
@@ -10605,9 +10076,6 @@
           }
         },
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "OAuth2PasswordBearer": []
           }
@@ -10692,9 +10160,6 @@
         "description": "Update job type",
         "operationId": "update_job_type_api_job_types__job_type_id__put",
         "security": [
-          {
-            "HTTPBearer": []
-          },
           {
             "OAuth2PasswordBearer": []
           }
@@ -10812,12 +10277,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -10878,12 +10338,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/placement-fee/{fee_id}": {
@@ -10893,11 +10348,6 @@
         ],
         "summary": "Get Placement Fee",
         "operationId": "get_placement_fee_api_placement_fee__fee_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "fee_id",
@@ -10993,11 +10443,6 @@
         ],
         "summary": "Delete Placement Fee",
         "operationId": "delete_placement_fee_api_placement_fee__fee_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "fee_id",
@@ -11054,12 +10499,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -11099,12 +10539,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/placement-commission/by-placement/{placement_id}": {
@@ -11115,11 +10550,6 @@
         "summary": "Get Commissions By Placement",
         "description": "Get all commissions for a specific placement.",
         "operationId": "get_commissions_by_placement_api_placement_commission_by_placement__placement_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "placement_id",
@@ -11167,11 +10597,6 @@
         "summary": "Get Commission",
         "description": "Get a single placement commission by ID.",
         "operationId": "get_commission_api_placement_commission__commission_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "commission_id",
@@ -11213,11 +10638,6 @@
         "summary": "Update Commission",
         "description": "Update an existing placement commission.",
         "operationId": "update_commission_api_placement_commission__commission_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "commission_id",
@@ -11269,11 +10689,6 @@
         "summary": "Delete Commission",
         "description": "Delete a placement commission (cascades to scheduler entries).",
         "operationId": "delete_commission_api_placement_commission__commission_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "commission_id",
@@ -11315,11 +10730,6 @@
         "summary": "List Schedulers",
         "description": "List all installment schedule entries for a commission.",
         "operationId": "list_schedulers_api_placement_commission_scheduler_by_commission__commission_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "commission_id",
@@ -11367,11 +10777,6 @@
         "summary": "Get Scheduler",
         "description": "Get a single scheduler entry by ID.",
         "operationId": "get_scheduler_api_placement_commission_scheduler__scheduler_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "scheduler_id",
@@ -11413,11 +10818,6 @@
         "summary": "Update Scheduler",
         "description": "Update a scheduler entry (e.g. mark as Paid).",
         "operationId": "update_scheduler_api_placement_commission_scheduler__scheduler_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "scheduler_id",
@@ -11469,11 +10869,6 @@
         "summary": "Delete Scheduler",
         "description": "Delete a scheduler entry.",
         "operationId": "delete_scheduler_api_placement_commission_scheduler__scheduler_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "scheduler_id",
@@ -11546,12 +10941,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/job-automation-keywords": {
@@ -11583,11 +10973,6 @@
         ],
         "summary": "Get Keywords",
         "operationId": "get_keywords_api_job_automation_keywords_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "category",
@@ -11684,11 +11069,6 @@
         "summary": "Create Keyword",
         "description": "Create a new job automation keyword",
         "operationId": "create_keyword_api_job_automation_keywords_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -11731,11 +11111,6 @@
         "summary": "Get Keyword",
         "description": "Get a specific keyword by ID",
         "operationId": "get_keyword_api_job_automation_keywords__keyword_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "keyword_id",
@@ -11777,11 +11152,6 @@
         "summary": "Update Keyword",
         "description": "Update an existing keyword",
         "operationId": "update_keyword_api_job_automation_keywords__keyword_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "keyword_id",
@@ -11833,11 +11203,6 @@
         "summary": "Delete Keyword",
         "description": "Delete a keyword",
         "operationId": "delete_keyword_api_job_automation_keywords__keyword_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "keyword_id",
@@ -11874,11 +11239,6 @@
         "summary": "Get Keywords By Category",
         "description": "Get all active keywords for a specific category, ordered by priority",
         "operationId": "get_keywords_by_category_api_job_automation_keywords_category__category__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "category",
@@ -13449,11 +12809,6 @@
         "summary": "Read Positions Paginated",
         "description": "Get job listings with page-based pagination",
         "operationId": "read_positions_paginated_api_positions_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -13561,11 +12916,6 @@
         ],
         "summary": "Read Positions",
         "operationId": "read_positions_api_positions__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -13628,11 +12978,6 @@
         ],
         "summary": "Create Position",
         "operationId": "create_position_api_positions__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -13689,12 +13034,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/positions/search": {
@@ -13705,11 +13045,6 @@
         ],
         "summary": "Search Positions",
         "operationId": "search_positions_api_positions_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -13854,11 +13189,6 @@
         ],
         "summary": "Read Position",
         "operationId": "read_position_api_positions__position_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "position_id",
@@ -13900,11 +13230,6 @@
         ],
         "summary": "Update Position",
         "operationId": "update_position_api_positions__position_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "position_id",
@@ -13956,11 +13281,6 @@
         ],
         "summary": "Delete Position",
         "operationId": "delete_position_api_positions__position_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "position_id",
@@ -14028,12 +13348,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/email-positions/paginated": {
@@ -14067,11 +13382,6 @@
         ],
         "summary": "Read Email Positions Paginated",
         "operationId": "read_email_positions_paginated_api_email_positions_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -14147,11 +13457,6 @@
         ],
         "summary": "Read Email Positions",
         "operationId": "read_email_positions_api_email_positions__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -14214,11 +13519,6 @@
         ],
         "summary": "Create Email Position",
         "operationId": "create_email_position_api_email_positions__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -14274,12 +13574,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/email-positions/search": {
@@ -14290,11 +13585,6 @@
         ],
         "summary": "Search Email Positions",
         "operationId": "search_email_positions_api_email_positions_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -14342,11 +13632,6 @@
         ],
         "summary": "Read Email Position",
         "operationId": "read_email_position_api_email_positions__email_position_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "email_position_id",
@@ -14388,11 +13673,6 @@
         ],
         "summary": "Update Email Position",
         "operationId": "update_email_position_api_email_positions__email_position_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "email_position_id",
@@ -14444,11 +13724,6 @@
         ],
         "summary": "Delete Email Position",
         "operationId": "delete_email_position_api_email_positions__email_position_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "email_position_id",
@@ -14516,12 +13791,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/metrics/employee": {
@@ -14540,12 +13810,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/email-service/send": {
@@ -14831,11 +14096,6 @@
         ],
         "summary": "Check Companies Version",
         "operationId": "check_companies_version_api_companies_paginated_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -14854,11 +14114,6 @@
         ],
         "summary": "Read Companies Paginated",
         "operationId": "read_companies_paginated_api_companies_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -14911,11 +14166,6 @@
         ],
         "summary": "Check Companies Version",
         "operationId": "check_companies_version_api_companies__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -14935,11 +14185,6 @@
         "summary": "Read Companies",
         "description": "Get companies with pagination.\n\nParameters:\n- skip: Number of records to skip (default: 0)\n- limit: Number of records to return (default: 1000, max: 999999)\n\nExamples:\n- /api/companies/ \u2192 Returns first 1000 records\n- /api/companies/?limit=50 \u2192 Returns first 50 records\n- /api/companies/?skip=50&limit=50 \u2192 Returns records 51-100\n- /api/companies/?limit=999999 \u2192 Returns all records (may timeout!)",
         "operationId": "read_companies_api_companies__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -15002,11 +14247,6 @@
         ],
         "summary": "Create Company",
         "operationId": "create_company_api_companies__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -15063,12 +14303,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/companies/search": {
@@ -15079,11 +14314,6 @@
         ],
         "summary": "Search Companies",
         "operationId": "search_companies_api_companies_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -15131,11 +14361,6 @@
         ],
         "summary": "Read Company",
         "operationId": "read_company_api_companies__company_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "company_id",
@@ -15177,11 +14402,6 @@
         ],
         "summary": "Update Company",
         "operationId": "update_company_api_companies__company_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "company_id",
@@ -15233,11 +14453,6 @@
         ],
         "summary": "Delete Company",
         "operationId": "delete_company_api_companies__company_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "company_id",
@@ -15274,11 +14489,6 @@
         ],
         "summary": "Check Company Contacts Version",
         "operationId": "check_company_contacts_version_api_company_contacts_paginated_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -15297,11 +14507,6 @@
         ],
         "summary": "Read Company Contacts Paginated",
         "operationId": "read_company_contacts_paginated_api_company_contacts_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -15354,11 +14559,6 @@
         ],
         "summary": "Check Company Contacts Version",
         "operationId": "check_company_contacts_version_api_company_contacts__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -15377,11 +14577,6 @@
         ],
         "summary": "Read Company Contacts",
         "operationId": "read_company_contacts_api_company_contacts__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -15444,11 +14639,6 @@
         ],
         "summary": "Create Company Contact",
         "operationId": "create_company_contact_api_company_contacts__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -15505,12 +14695,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/company-contacts/search": {
@@ -15521,11 +14706,6 @@
         ],
         "summary": "Search Company Contacts",
         "operationId": "search_company_contacts_api_company_contacts_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -15573,11 +14753,6 @@
         ],
         "summary": "Read Contacts By Company",
         "operationId": "read_contacts_by_company_api_company_contacts_company__company_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "company_id",
@@ -15625,11 +14800,6 @@
         ],
         "summary": "Read Company Contact",
         "operationId": "read_company_contact_api_company_contacts__contact_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -15671,11 +14841,6 @@
         ],
         "summary": "Update Company Contact",
         "operationId": "update_company_contact_api_company_contacts__contact_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -15727,11 +14892,6 @@
         ],
         "summary": "Delete Company Contact",
         "operationId": "delete_company_contact_api_company_contacts__contact_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -16053,11 +15213,6 @@
         ],
         "summary": "Check Personal Contacts Version",
         "operationId": "check_personal_contacts_version_api_personal_domain_contacts_paginated_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -16076,11 +15231,6 @@
         ],
         "summary": "Read Contacts Paginated",
         "operationId": "read_contacts_paginated_api_personal_domain_contacts_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -16133,11 +15283,6 @@
         ],
         "summary": "Check Personal Contacts Version",
         "operationId": "check_personal_contacts_version_api_personal_domain_contacts__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -16156,11 +15301,6 @@
         ],
         "summary": "Read Contacts",
         "operationId": "read_contacts_api_personal_domain_contacts__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -16223,11 +15363,6 @@
         ],
         "summary": "Create Contact",
         "operationId": "create_contact_api_personal_domain_contacts__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -16283,12 +15418,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/personal-domain-contacts/search": {
@@ -16299,11 +15429,6 @@
         ],
         "summary": "Search Contacts",
         "operationId": "search_contacts_api_personal_domain_contacts_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -16351,11 +15476,6 @@
         ],
         "summary": "Read Contact",
         "operationId": "read_contact_api_personal_domain_contacts__contact_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -16397,11 +15517,6 @@
         ],
         "summary": "Update Contact",
         "operationId": "update_contact_api_personal_domain_contacts__contact_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -16453,11 +15568,6 @@
         ],
         "summary": "Delete Contact",
         "operationId": "delete_contact_api_personal_domain_contacts__contact_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -16494,11 +15604,6 @@
         ],
         "summary": "Check Recipients Version",
         "operationId": "check_recipients_version_api_outreach_email_recipients_paginated_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -16517,11 +15622,6 @@
         ],
         "summary": "Read Recipients Paginated",
         "operationId": "read_recipients_paginated_api_outreach_email_recipients_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -16574,11 +15674,6 @@
         ],
         "summary": "Check Recipients Version",
         "operationId": "check_recipients_version_api_outreach_email_recipients__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -16597,11 +15692,6 @@
         ],
         "summary": "Read Recipients",
         "operationId": "read_recipients_api_outreach_email_recipients__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -16664,11 +15754,6 @@
         ],
         "summary": "Create Recipient Route",
         "operationId": "create_recipient_route_api_outreach_email_recipients__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -16724,12 +15809,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/outreach-email-recipients/search": {
@@ -16740,11 +15820,6 @@
         ],
         "summary": "Search Recipients Route",
         "operationId": "search_recipients_route_api_outreach_email_recipients_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -16792,11 +15867,6 @@
         ],
         "summary": "Read Recipient",
         "operationId": "read_recipient_api_outreach_email_recipients__recipient_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "recipient_id",
@@ -16838,11 +15908,6 @@
         ],
         "summary": "Update Recipient Route",
         "operationId": "update_recipient_route_api_outreach_email_recipients__recipient_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "recipient_id",
@@ -16894,11 +15959,6 @@
         ],
         "summary": "Delete Recipient Route",
         "operationId": "delete_recipient_route_api_outreach_email_recipients__recipient_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "recipient_id",
@@ -16935,11 +15995,6 @@
         ],
         "summary": "Check Linkedin Contacts Version",
         "operationId": "check_linkedin_contacts_version_api_linkedin_only_contacts_paginated_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -16958,11 +16013,6 @@
         ],
         "summary": "Read Linkedin Only Contacts Paginated",
         "operationId": "read_linkedin_only_contacts_paginated_api_linkedin_only_contacts_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -17017,11 +16067,6 @@
         ],
         "summary": "Check Linkedin Contacts Version",
         "operationId": "check_linkedin_contacts_version_api_linkedin_only_contacts__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -17040,11 +16085,6 @@
         ],
         "summary": "Read Linkedin Only Contacts",
         "operationId": "read_linkedin_only_contacts_api_linkedin_only_contacts__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -17107,11 +16147,6 @@
         ],
         "summary": "Create Linkedin Only Contact",
         "operationId": "create_linkedin_only_contact_api_linkedin_only_contacts__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -17168,12 +16203,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/linkedin-only-contacts/search": {
@@ -17184,11 +16214,6 @@
         ],
         "summary": "Search Linkedin Only Contacts",
         "operationId": "search_linkedin_only_contacts_api_linkedin_only_contacts_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -17236,11 +16261,6 @@
         ],
         "summary": "Read Linkedin Only Contact",
         "operationId": "read_linkedin_only_contact_api_linkedin_only_contacts__contact_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -17282,11 +16302,6 @@
         ],
         "summary": "Update Linkedin Only Contact",
         "operationId": "update_linkedin_only_contact_api_linkedin_only_contacts__contact_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -17338,11 +16353,6 @@
         ],
         "summary": "Delete Linkedin Only Contact",
         "operationId": "delete_linkedin_only_contact_api_linkedin_only_contacts__contact_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "contact_id",
@@ -18119,11 +17129,6 @@
         ],
         "summary": "Read Extension Keys Paginated",
         "operationId": "read_extension_keys_paginated_api_extension_keys_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -18199,11 +17204,6 @@
         ],
         "summary": "Read Extension Keys",
         "operationId": "read_extension_keys_api_extension_keys__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -18266,11 +17266,6 @@
         ],
         "summary": "Create Extension Key",
         "operationId": "create_extension_key_api_extension_keys__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -18326,12 +17321,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/extension-keys/search": {
@@ -18342,11 +17332,6 @@
         ],
         "summary": "Search Extension Keys",
         "operationId": "search_extension_keys_api_extension_keys_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -18394,11 +17379,6 @@
         ],
         "summary": "Read Extension Key",
         "operationId": "read_extension_key_api_extension_keys__key_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "key_id",
@@ -18440,11 +17420,6 @@
         ],
         "summary": "Update Extension Key",
         "operationId": "update_extension_key_api_extension_keys__key_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "key_id",
@@ -18496,11 +17471,6 @@
         ],
         "summary": "Delete Extension Key",
         "operationId": "delete_extension_key_api_extension_keys__key_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "key_id",
@@ -18568,12 +17538,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/delivery-engine/": {
@@ -18599,12 +17564,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -18644,12 +17604,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -18683,11 +17638,6 @@
         ],
         "summary": "Update Delivery Engine",
         "operationId": "update_delivery_engine_api_delivery_engine__engine_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "engine_id",
@@ -18739,11 +17689,6 @@
         ],
         "summary": "Delete Delivery Engine",
         "operationId": "delete_delivery_engine_api_delivery_engine__engine_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "engine_id",
@@ -18800,12 +17745,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -18845,12 +17785,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -18884,11 +17819,6 @@
         ],
         "summary": "Get Email Template By Key",
         "operationId": "get_email_template_by_key_api_email_template_by_key__template_key__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "template_key",
@@ -18932,11 +17862,6 @@
         ],
         "summary": "Update Email Template",
         "operationId": "update_email_template_api_email_template__template_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "template_id",
@@ -18988,11 +17913,6 @@
         ],
         "summary": "Delete Email Template",
         "operationId": "delete_email_template_api_email_template__template_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "template_id",
@@ -19049,12 +17969,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -19094,12 +18009,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -19134,11 +18044,6 @@
         "summary": "Get Automation Workflow By Key",
         "description": "Fetch an active workflow configuration by its unique workflow_key.",
         "operationId": "get_automation_workflow_by_key_api_automation_workflow_by_key__workflow_key__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "workflow_key",
@@ -19183,11 +18088,6 @@
         "summary": "Get Automation Workflow Execution Bundle",
         "description": "Fetch all necessary configurations in a single atomic bundle for workflow execution.",
         "operationId": "get_automation_workflow_execution_bundle_api_automation_workflow__workflow_id__execution_bundle_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "workflow_id",
@@ -19231,11 +18131,6 @@
         ],
         "summary": "Update Automation Workflow",
         "operationId": "update_automation_workflow_api_automation_workflow__workflow_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "workflow_id",
@@ -19287,11 +18182,6 @@
         ],
         "summary": "Delete Automation Workflow",
         "operationId": "delete_automation_workflow_api_automation_workflow__workflow_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "workflow_id",
@@ -19348,12 +18238,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -19393,12 +18278,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -19432,11 +18312,6 @@
         ],
         "summary": "Update Automation Workflow Schedule",
         "operationId": "update_automation_workflow_schedule_api_automation_workflow_schedule__schedule_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "schedule_id",
@@ -19488,11 +18363,6 @@
         ],
         "summary": "Delete Automation Workflow Schedule",
         "operationId": "delete_automation_workflow_schedule_api_automation_workflow_schedule__schedule_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "schedule_id",
@@ -19549,12 +18419,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -19595,12 +18460,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "head": {
         "tags": [
@@ -19635,11 +18495,6 @@
         "summary": "Get Latest Automation Workflow Log",
         "description": "Return the most recently *finished* workflow log entry for the given workflow\nthat has non-null execution_metadata. Used by the bot to recover last_uid\nper candidate when last_run.json is missing.",
         "operationId": "get_latest_automation_workflow_log_api_automation_workflow_log_latest_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "workflow_id",
@@ -19683,11 +18538,6 @@
         ],
         "summary": "Get Automation Workflow Log",
         "operationId": "get_automation_workflow_log_api_automation_workflow_log__log_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "log_id",
@@ -19729,11 +18579,6 @@
         ],
         "summary": "Delete Automation Workflow Log",
         "operationId": "delete_automation_workflow_log_api_automation_workflow_log__log_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "log_id",
@@ -19776,11 +18621,6 @@
         "summary": "Update Automation Workflow Log By Run Id",
         "description": "Update status, metadata, and timing of a workflow run log by run_id.",
         "operationId": "update_automation_workflow_log_by_run_id_api_automation_workflow_log_by_run_id__run_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "run_id",
@@ -20269,11 +19109,6 @@
         "summary": "Trigger Snapshot",
         "description": "Generate a frozen snapshot of all eligible recruiter emails for a\ncandidate. Inserts them into campaign_emails as 'pending'.\nSafe to call multiple times \u2014 INSERT IGNORE prevents duplicates.",
         "operationId": "trigger_snapshot_api_campaign_emails_candidates__candidate_id__snapshot_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -20334,11 +19169,6 @@
         "summary": "Trigger Dispatch",
         "description": "Atomically claim up to `limit` pending emails using FOR UPDATE SKIP LOCKED.\nReturns the locked records so the scheduler can enqueue them to Celery.",
         "operationId": "trigger_dispatch_api_campaign_emails_candidates__candidate_id__dispatch_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -20399,11 +19229,6 @@
         "summary": "Get Pending Count",
         "description": "Return the number of still-pending emails for a candidate.",
         "operationId": "get_pending_count_api_campaign_emails_candidates__candidate_id__pending_count_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -20454,11 +19279,6 @@
         ],
         "summary": "Check Emails Version",
         "operationId": "check_emails_version_api_outreach_emails_paginated_head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -20477,11 +19297,6 @@
         ],
         "summary": "Read Emails Paginated",
         "operationId": "read_emails_paginated_api_outreach_emails_paginated_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "page",
@@ -20534,11 +19349,6 @@
         ],
         "summary": "Check Emails Version",
         "operationId": "check_emails_version_api_outreach_emails__head",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -20557,11 +19367,6 @@
         ],
         "summary": "Read Emails",
         "operationId": "read_emails_api_outreach_emails__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -20624,11 +19429,6 @@
         ],
         "summary": "Create Email Route",
         "operationId": "create_email_route_api_outreach_emails__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -20684,12 +19484,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/outreach-emails/search": {
@@ -20700,11 +19495,6 @@
         ],
         "summary": "Search Emails Route",
         "operationId": "search_emails_route_api_outreach_emails_search_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "term",
@@ -20752,11 +19542,6 @@
         ],
         "summary": "Read Email",
         "operationId": "read_email_api_outreach_emails__email_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "email_id",
@@ -20798,11 +19583,6 @@
         ],
         "summary": "Update Email Route",
         "operationId": "update_email_route_api_outreach_emails__email_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "email_id",
@@ -20854,11 +19634,6 @@
         ],
         "summary": "Delete Email Route",
         "operationId": "delete_email_route_api_outreach_emails__email_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "email_id",
@@ -23561,12 +22336,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/weekly-workflow/reset/{candidate_id}": {
@@ -23577,11 +22347,6 @@
         "summary": "Reset Candidate Workflow",
         "description": "Manually reset run_weekly_workflow = 0 for a candidate.",
         "operationId": "reset_candidate_workflow_api_weekly_workflow_reset__candidate_id__post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "candidate_id",
@@ -23702,11 +22467,6 @@
         ],
         "summary": "Read Email Smtp Credentials",
         "operationId": "read_email_smtp_credentials_api_email_smtp_credentials_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "skip",
@@ -23773,11 +22533,6 @@
         ],
         "summary": "Create New Email Smtp Credential",
         "operationId": "create_new_email_smtp_credential_api_email_smtp_credentials_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -23819,11 +22574,6 @@
         ],
         "summary": "Read Email Smtp Credential",
         "operationId": "read_email_smtp_credential_api_email_smtp_credentials__credential_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "credential_id",
@@ -23864,11 +22614,6 @@
         ],
         "summary": "Update Existing Email Smtp Credential",
         "operationId": "update_existing_email_smtp_credential_api_email_smtp_credentials__credential_id__put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "credential_id",
@@ -23919,11 +22664,6 @@
         ],
         "summary": "Delete Existing Email Smtp Credential",
         "operationId": "delete_existing_email_smtp_credential_api_email_smtp_credentials__credential_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "credential_id",
@@ -23967,11 +22707,6 @@
         "summary": "Increment Credential Sent",
         "description": "B4: Atomically increment current_day_sent for an SMTP credential.\nResets the counter to 1 if last_reset_date < today.\nReturns updated counters so callers don't need a follow-up GET.",
         "operationId": "increment_credential_sent_api_email_smtp_credentials__credential_id__increment_sent_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "credential_id",
@@ -25854,11 +24589,6 @@
         "summary": "Question Bank: List Questions",
         "description": "Fetches questions dynamically from ai_prep_questions DB table.",
         "operationId": "list_questions_from_bank_api_aiprep_questions_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "category",
@@ -25874,6 +24604,38 @@
                 }
               ],
               "title": "Category"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "concept",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Concept"
             }
           },
           {
@@ -25893,6 +24655,22 @@
             }
           },
           {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          },
+          {
             "name": "is_active",
             "in": "query",
             "required": false,
@@ -25906,6 +24684,22 @@
                 }
               ],
               "title": "Is Active"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           },
           {
@@ -25962,7 +24756,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Add Question Bank Item",
-        "description": "Adds a new question to the ai_prep_questions table in DB.",
+        "description": "Adds a new question to the question bank for authorized staff.",
         "operationId": "add_question_to_bank_api_aiprep_questions_post",
         "security": [
           {
@@ -26011,7 +24805,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Add Question Bank Item",
-        "description": "Adds a new question to the ai_prep_questions table in DB.",
+        "description": "Adds a new question to the question bank for authorized staff.",
         "operationId": "add_question_to_bank_api_aiprep_employee_questions_post",
         "requestBody": {
           "content": {
@@ -26060,7 +24854,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Update Question Bank Item",
-        "description": "Updates fields on an existing question dynamically in DB.",
+        "description": "Updates an existing question for authorized staff.",
         "operationId": "update_question_in_bank_api_aiprep_questions__question_id__patch",
         "security": [
           {
@@ -26120,11 +24914,6 @@
         "summary": "Get Question Bank Item by ID",
         "description": "Fetches a specific question by ID from the question bank.",
         "operationId": "get_question_from_bank_api_aiprep_questions__question_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "question_id",
@@ -26166,7 +24955,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Deactivate Question Bank Item",
-        "description": "Deactivates/deletes a question from the question bank.",
+        "description": "Deactivates a question for authorized staff to preserve assessment history.",
         "operationId": "delete_question_from_bank_api_aiprep_questions__question_id__delete",
         "security": [
           {
@@ -26214,7 +25003,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Update Question Bank Item",
-        "description": "Updates fields on an existing question dynamically in DB.",
+        "description": "Updates an existing question for authorized staff.",
         "operationId": "update_question_in_bank_api_aiprep_employee_questions__question_id__patch",
         "security": [
           {
@@ -26274,11 +25063,6 @@
         "summary": "Admin: Get Question Bank Item by ID",
         "description": "Fetches a specific question by ID from the question bank.",
         "operationId": "get_question_from_bank_api_aiprep_employee_questions__question_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "question_id",
@@ -26320,7 +25104,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Deactivate Question Bank Item",
-        "description": "Deactivates/deletes a question from the question bank.",
+        "description": "Deactivates a question for authorized staff to preserve assessment history.",
         "operationId": "delete_question_from_bank_api_aiprep_employee_questions__question_id__delete",
         "security": [
           {
@@ -28304,11 +27088,6 @@
         "summary": "Question Bank: List Questions",
         "description": "Fetches questions dynamically from ai_prep_questions DB table.",
         "operationId": "list_questions_from_bank_aiprep_questions_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "category",
@@ -28324,6 +27103,38 @@
                 }
               ],
               "title": "Category"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "concept",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Concept"
             }
           },
           {
@@ -28343,6 +27154,22 @@
             }
           },
           {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          },
+          {
             "name": "is_active",
             "in": "query",
             "required": false,
@@ -28356,6 +27183,22 @@
                 }
               ],
               "title": "Is Active"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           },
           {
@@ -28412,7 +27255,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Add Question Bank Item",
-        "description": "Adds a new question to the ai_prep_questions table in DB.",
+        "description": "Adds a new question to the question bank for authorized staff.",
         "operationId": "add_question_to_bank_aiprep_questions_post",
         "security": [
           {
@@ -28461,7 +27304,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Add Question Bank Item",
-        "description": "Adds a new question to the ai_prep_questions table in DB.",
+        "description": "Adds a new question to the question bank for authorized staff.",
         "operationId": "add_question_to_bank_aiprep_employee_questions_post",
         "requestBody": {
           "content": {
@@ -28510,7 +27353,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Update Question Bank Item",
-        "description": "Updates fields on an existing question dynamically in DB.",
+        "description": "Updates an existing question for authorized staff.",
         "operationId": "update_question_in_bank_aiprep_questions__question_id__patch",
         "security": [
           {
@@ -28570,11 +27413,6 @@
         "summary": "Get Question Bank Item by ID",
         "description": "Fetches a specific question by ID from the question bank.",
         "operationId": "get_question_from_bank_aiprep_questions__question_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "question_id",
@@ -28616,7 +27454,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Deactivate Question Bank Item",
-        "description": "Deactivates/deletes a question from the question bank.",
+        "description": "Deactivates a question for authorized staff to preserve assessment history.",
         "operationId": "delete_question_from_bank_aiprep_questions__question_id__delete",
         "security": [
           {
@@ -28664,7 +27502,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Update Question Bank Item",
-        "description": "Updates fields on an existing question dynamically in DB.",
+        "description": "Updates an existing question for authorized staff.",
         "operationId": "update_question_in_bank_aiprep_employee_questions__question_id__patch",
         "security": [
           {
@@ -28724,11 +27562,6 @@
         "summary": "Admin: Get Question Bank Item by ID",
         "description": "Fetches a specific question by ID from the question bank.",
         "operationId": "get_question_from_bank_aiprep_employee_questions__question_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "parameters": [
           {
             "name": "question_id",
@@ -28770,7 +27603,7 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Deactivate Question Bank Item",
-        "description": "Deactivates/deletes a question from the question bank.",
+        "description": "Deactivates a question for authorized staff to preserve assessment history.",
         "operationId": "delete_question_from_bank_aiprep_employee_questions__question_id__delete",
         "security": [
           {
@@ -34263,6 +33096,18 @@
               }
             ],
             "title": "Youtube Url"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent"
           },
           "data": {
             "$ref": "#/components/schemas/CandidateAssessmentUnifiedData"
@@ -53232,7 +52077,7 @@
                 "type": "null"
               }
             ],
-            "description": "Technical subject area (TECHNICAL questions only)"
+            "description": "Subject or discipline associated with the question"
           },
           "concept": {
             "anyOf": [
@@ -53243,7 +52088,7 @@
                 "type": "null"
               }
             ],
-            "description": "Specific concept/topic (TECHNICAL questions only)"
+            "description": "Specific concept or topic associated with the question"
           },
           "scope": {
             "anyOf": [
@@ -53278,6 +52123,9 @@
               {
                 "additionalProperties": true,
                 "type": "object"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -53390,6 +52238,9 @@
                 "type": "object"
               },
               {
+                "type": "string"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -53500,6 +52351,9 @@
               {
                 "additionalProperties": true,
                 "type": "object"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"

@@ -23,6 +23,7 @@ from sqlalchemy.pool import StaticPool
 from fapi.main import app
 from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
+from fapi.utils.permission_gate import get_optional_current_user
 from fapi.db.models import Base, AuthUserORM, CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
@@ -164,6 +165,8 @@ def get_candidate_client(db_session, candidate_id: int = 1001):
 
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user
+    # Match the app-level permission gate's optional-user resolution to the test user.
+    app.dependency_overrides[get_optional_current_user] = lambda: mock_user
     return TestClient(app)
 
 
@@ -179,6 +182,10 @@ def get_employee_client(db_session, employee_id: int = 50):
 
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: mock_staff
+    # The app-level enforce_access dependency uses get_optional_current_user,
+    # which calls get_current_user directly. Override it too so test requests
+    # are authenticated consistently without requiring a real JWT.
+    app.dependency_overrides[get_optional_current_user] = lambda: mock_staff
     app.dependency_overrides[staff_or_admin_required] = lambda: mock_staff
     return TestClient(app)
 
@@ -452,21 +459,36 @@ def test_question_bank_management(db_session):
     assert patch_res.status_code == 200
     assert patch_res.json()["difficulty_level"] == "MEDIUM"
 
-    # 3. Add non-TECHNICAL question (verifies constraint: subject, concept, scope are nullified)
+    # 3. Add a non-TECHNICAL question and preserve optional taxonomy fields.
     non_tech_q = {
-        "category": "INTRO",
+        "category": "HIRING_MANAGER",
         "subject": "AI Engineering",
         "concept": "Generative AI & LLMs",
         "scope": "BROAD",
         "difficulty_level": "EASY",
-        "question_text": "Tell me about your background and core achievements.",
+        "question_text": "How did you collaborate with ML engineers?",
         "is_active": True,
     }
     intro_res = client.post("/api/aiprep/employee/questions", json=non_tech_q)
     assert intro_res.status_code == 201
-    assert intro_res.json()["subject"] is None
-    assert intro_res.json()["concept"] is None
-    assert intro_res.json()["scope"] is None
+    intro_data = intro_res.json()
+    assert intro_data["subject"] == non_tech_q["subject"]
+    assert intro_data["concept"] == non_tech_q["concept"]
+    assert intro_data["scope"] == non_tech_q["scope"]
+
+    # 4. Editing taxonomy fields on a non-TECHNICAL question persists to the DB.
+    patch_taxonomy = {
+        "subject": "Software Engineering",
+        "concept": "API Design & Microservices",
+        "scope": "SPECIFIC",
+    }
+    patch_taxonomy_res = client.patch(
+        f"/api/aiprep/employee/questions/{intro_data['id']}", json=patch_taxonomy
+    )
+    assert patch_taxonomy_res.status_code == 200
+    assert patch_taxonomy_res.json()["subject"] == patch_taxonomy["subject"]
+    assert patch_taxonomy_res.json()["concept"] == patch_taxonomy["concept"]
+    assert patch_taxonomy_res.json()["scope"] == patch_taxonomy["scope"]
 
     # 4. Reject invalid Enum values with 422 Unprocessable Entity
     invalid_q = {

@@ -1,4 +1,6 @@
 from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import get_current_user
 
 
@@ -23,15 +25,19 @@ ALLOWED_GET_PREFIXES = {
     "/api/weekly-workflow/eligible-candidates",
     "/api/automation-workflow",
     "/api/candidates/track-clicks-batch",
-    "/api/github-classroom-repos",
     "/api/setup",
+    "/api/aiprep/questions",
+    "/aiprep/questions",
 }
+
 
 ALLOWED_POST_PREFIXES = {
     "/api/candidates/track-clicks-batch",
     "/api/interviews",
     "/api/candidate/generate-prep-token",
     "/api/setup",
+    "/api/aiprep/questions",
+    "/aiprep/questions",
 }
 
 ALLOWED_PUT_PREFIXES = {
@@ -42,13 +48,19 @@ ALLOWED_PUT_PREFIXES = {
 
 ALLOWED_PATCH_PREFIXES = {
     "/api/candidates/interviews",
+    "/api/aiprep/questions",
+    "/aiprep/questions",
 }
 
 ALLOWED_DELETE_PREFIXES = {
     "/api/setup",
+    "/api/aiprep/questions",
+    "/aiprep/questions",
 }
 
 def _is_admin(user) -> bool:
+    if not user:
+        return False
     uname = (getattr(user, "uname", None) or getattr(user, "username", "") or "").lower()
     return (
         getattr(user, "role", None) == "admin"
@@ -57,20 +69,36 @@ def _is_admin(user) -> bool:
     )
 
 def _is_employee(user) -> bool:
+    if not user:
+        return False
     return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
 
-def enforce_access(request: Request, current_user=Depends(get_current_user)):
+def get_optional_current_user(request: Request, db: Session = Depends(get_db)):
+    """Resolves current user if token is provided and valid, otherwise returns None without throwing 401."""
+    try:
+        return get_current_user(request=request, credentials=None, db=db)
+    except Exception:
+        return None
+
+def enforce_access(request: Request, current_user=Depends(get_optional_current_user)):
     method = request.method.upper()
     path = request.url.path.rstrip("/")
     
+    # 1. Truly public unauthenticated routes (no login required)
     if current_user is None:
-        if method == "GET" and (path == "/api/course-content" or path.startswith("/api/course-content/") or path == "/api/course-contents" or path.startswith("/api/course-contents/")):
+        if (
+            (method == "GET" and (path in ("/api/course-content", "/api/course-contents") or path.startswith(("/api/course-content/", "/api/course-contents/"))))
+            or (method == "GET" and (path in ("/api/aiprep/questions", "/aiprep/questions") or path.startswith(("/api/aiprep/questions/", "/aiprep/questions/"))))
+        ):
             return None
+        
+        # All other endpoints require authentication
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated"
         )
 
+    # 2. Authenticated user authorization
     if _is_admin(current_user):
         return current_user
 
@@ -92,11 +120,12 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
         for prefix in ALLOWED_GET_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
-    
+
     if method == "POST":
         for prefix in ALLOWED_POST_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
                 return current_user
+
     if method == "PUT":
         for prefix in ALLOWED_PUT_PREFIXES:
             if path == prefix or path.startswith(prefix + "/"):
@@ -116,5 +145,6 @@ def enforce_access(request: Request, current_user=Depends(get_current_user)):
         status_code=status.HTTP_403_FORBIDDEN,
         detail="You do not have permission to access this resource."
     )
+
 
 

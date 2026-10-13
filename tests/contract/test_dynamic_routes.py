@@ -77,6 +77,8 @@ def test_enforce_permission_gates_across_all_routes(client):
         # Made public by recent changes
         "/api/course-content",
         "/api/course-contents",
+        "/api/aiprep/questions",
+        "/aiprep/questions",
     ]
     
     checked_routes = 0
@@ -90,7 +92,7 @@ def test_enforce_permission_gates_across_all_routes(client):
             continue
             
         # Combine prefix and path, then normalize double slashes
-        full_path = f"{prefix}{path}".replace("//", "/")
+        full_path = f"{prefix}{path}".replace("//", "/")  
             
         # Skip endpoints we know are public
         is_public = False
