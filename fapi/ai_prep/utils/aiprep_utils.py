@@ -768,7 +768,15 @@ def candidate_get_assessment_detail_logic(
         2. An ownership check confirms the fetched assessment belongs to the resolved candidate.
     - Staff / admin users may access any candidate's assessment via the same endpoint.
     """
-    # --- Resolve caller role ---
+    # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
+    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+
+    # --- Fetch assessment (by integer PK or UUID string) ---
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # --- Layer 2: Authorization & Ownership check ---
     uname = (getattr(current_user, "uname", "") or "").strip().lower()
     role = (getattr(current_user, "role", None) or "").lower()
     is_employee = bool(
@@ -777,19 +785,21 @@ def candidate_get_assessment_detail_logic(
         or uname == "admin"
     )
 
-    # --- Fetch assessment (by integer PK or UUID string) ---
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    # --- Layer 2: Ownership check — enforced strictly for candidate accounts ---
     if not is_employee:
-        # Resolve & authorize the candidate_id path parameter for candidates
-        resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+        # Candidates can ONLY access their own assessments
         if assessment.candidate_id != resolved_candidate_id:
             raise HTTPException(
                 status_code=403,
                 detail="You do not have permission to access this assessment.",
+            )
+    else:
+        # Employees: If a specific candidate ID was in the URL (e.g. /candidates/1042/assessments/55),
+        # verify the assessment actually belongs to that candidate (prevents path tampering/mismatch).
+        is_generic_alias = str(candidate_id).strip().lower() in ("me", "self", "null", "undefined")
+        if not is_generic_alias and assessment.candidate_id != resolved_candidate_id:
+            raise HTTPException(
+                status_code=404,
+                detail="Assessment does not belong to the specified candidate.",
             )
 
     # --- Sentry monitoring tags ---
