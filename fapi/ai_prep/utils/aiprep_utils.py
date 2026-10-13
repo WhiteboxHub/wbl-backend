@@ -785,18 +785,13 @@ def candidate_get_assessment_detail_logic(
         or uname == "admin"
     )
 
-    if not is_employee:
-        # Candidates can ONLY access their own assessments
-        if assessment.candidate_id != resolved_candidate_id:
+    if assessment.candidate_id != resolved_candidate_id:
+        if not is_employee:
             raise HTTPException(
                 status_code=403,
                 detail="You do not have permission to access this assessment.",
             )
-    else:
-        # Employees: If a specific candidate ID was in the URL (e.g. /candidates/1042/assessments/55),
-        # verify the assessment actually belongs to that candidate (prevents path tampering/mismatch).
-        is_generic_alias = str(candidate_id).strip().lower() in ("me", "self", "null", "undefined")
-        if not is_generic_alias and assessment.candidate_id != resolved_candidate_id:
+        else:
             raise HTTPException(
                 status_code=404,
                 detail="Assessment does not belong to the specified candidate.",
