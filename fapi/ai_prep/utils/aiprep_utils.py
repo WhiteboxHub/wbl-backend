@@ -7,11 +7,12 @@ import json
 import shutil
 import logging
 import asyncio
+import time
 import tempfile
 from pathlib import Path
 from datetime import datetime
+import sentry_sdk
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
@@ -455,6 +456,11 @@ def candidate_create_assessment_logic(
             detail=f"candidate_id in request body ({payload.candidate_id}) does not match candidate id in URL path ({candidate_id}).",
         )
     resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_create_assessment")
+        sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
+    except Exception:
+        pass
     _verify_prerequisites(db, resolved_candidate_id)
 
     assessment_type_str = (
@@ -801,6 +807,12 @@ def candidate_get_assessment_detail_logic(
     """
     # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
     resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
+        sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment_id))
+    except Exception:
+        pass
 
     # --- Fetch assessment (by integer PK or UUID string) ---
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
@@ -1168,6 +1180,14 @@ async def candidate_submit_assessment_logic(
 
     payload = payload or CandidateSubmitAssessmentRequest()
 
+    # Sentry contextual tagging
+    try:
+        sentry_sdk.set_tag("endpoint", "candidate_submit_assessment")
+        sentry_sdk.set_tag("candidate_id", str(resolved_cand_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment.id))
+    except Exception:
+        pass
+
     total_chunks = payload.total_chunks_uploaded
     if not total_chunks:
         existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
@@ -1381,7 +1401,7 @@ async def candidate_submit_assessment_logic(
         total_chunks_uploaded=total_chunks,
     )
 
-    # 2. Run Audio Engine
+    # 2. Run Audio Engine (WHISPER_AUDIO)
     try:
         audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
         spoken_content = audio_result.get("spoken_content") or {}

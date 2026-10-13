@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
@@ -27,6 +28,7 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
+import sentry_sdk
 from fapi.ai_prep.utils.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
@@ -177,6 +179,12 @@ async def run_full_evaluation(
     candidate_id = ctx["candidate_id"]
     assessment_type = ctx["assessment_type"]
 
+    try:
+        sentry_sdk.set_tag("candidate_id", str(candidate_id))
+        sentry_sdk.set_tag("assessment_id", str(assessment_id))
+    except Exception:
+        pass
+
     logger.info(
         "[AssessmentOrchestrator] Context loaded: candidate=%d type=%s media=%s",
         candidate_id, assessment_type, ctx["media_type"],
@@ -226,6 +234,7 @@ async def run_full_evaluation(
     )
 
     # Step 4: Dispatch evaluation, save report, and mark COMPLETED
+    t0 = time.time()
     try:
         stream_manager.publish_progress(
             assessment_id,
@@ -244,9 +253,10 @@ async def run_full_evaluation(
             llm_config=llm_config,
         )
 
+        duration_ms = int((time.time() - t0) * 1000)
         logger.info(
-            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s",
-            str(assessment_id),
+            "[AssessmentOrchestrator] LLM evaluation complete. Persisting report: assessment=%s (took %dms)",
+            str(assessment_id), duration_ms,
         )
 
         stream_manager.publish_progress(
@@ -262,7 +272,7 @@ async def run_full_evaluation(
             "video_evaluation": evaluation_result.get("video_evaluation"),
         }
 
-        # Step 5: Persist report to DB (offloaded to thread pool)
+        # Step 5: Score processing and report persistence (SCORES_ENGINE)
         await asyncio.to_thread(_save_report_worker, parsed_report)
 
         # Step 6: Mark assessment as COMPLETED (offloaded to thread pool)
@@ -275,6 +285,7 @@ async def run_full_evaluation(
         )
 
     except Exception as exc:
+
         logger.error(
             "[AssessmentOrchestrator] Evaluation pipeline failed for assessment=%s: %s",
             str(assessment_id), exc,
