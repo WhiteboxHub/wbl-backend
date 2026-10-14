@@ -70,6 +70,12 @@ class AssessmentEngine:
     # Total technical interview budget (15 minutes in seconds)
     TECHNICAL_TOTAL_TIME_BUDGET: int = 900
 
+    # Total recruiter interview budget (10 minutes in seconds)
+    RECRUITER_TOTAL_TIME_BUDGET: int = 600
+
+    # Default answering time for recruiter question if missing or invalid (in seconds)
+    RECRUITER_DEFAULT_QUESTION_TIME: int = 120
+
     # Subject quota allocation (60% AI, 20% SE, 20% DevOps)
     TECHNICAL_SUBJECT_BUDGETS: Dict[str, int] = {
         "AI Engineering": 540,         # 60% of 900s
@@ -151,6 +157,16 @@ class AssessmentEngine:
                 previously_asked_ids=excluded_ids,
                 weak_question_ids=set(kwargs.get("weak_question_ids") or []),
                 concept_ladder=dict(kwargs.get("concept_ladder") or {}),
+            )
+            return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
+
+        # RECRUITER: 10-minute time-budgeted algorithm
+        if normalized_type == "RECRUITER":
+            selected = self.select_recruiter_timed_questions(
+                available_questions=available_questions,
+                target_seconds=kwargs.get("target_seconds") or self.RECRUITER_TOTAL_TIME_BUDGET,
+                limit=limit,
+                previously_asked_ids=excluded_ids,
             )
             return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
@@ -269,6 +285,91 @@ class AssessmentEngine:
                 break
 
         return picked
+
+    def select_recruiter_timed_questions(
+        self,
+        available_questions: List[Dict[str, Any]],
+        target_seconds: int = 600,
+        limit: Optional[int] = None,
+        previously_asked_ids: Optional[Set[int]] = None,
+        **kwargs: Any,
+    ) -> List[Dict[str, Any]]:
+        """
+        10-Minute Recruiter Question Selection Algorithm:
+        - Independent of subject, concept, difficulty_level, or scope.
+        - Uses explicit time_limit_seconds per question, falling back to 120s if missing/invalid.
+        - Total accumulated answering time never exceeds target_seconds (600s).
+        - Excludes questions previously asked to this candidate in completed assessments.
+        - If fresh questions are exhausted, randomly reuses previously asked questions to fill the remaining duration.
+        - Strictly prevents duplicates within the same assessment.
+        """
+        import random
+
+        excluded = set(previously_asked_ids or [])
+
+        # Filter active recruiter questions (independent of subject, concept, difficulty, scope)
+        recruiter_pool = [
+            q for q in available_questions
+            if str(q.get("category", "")).upper() == "RECRUITER"
+            and q.get("is_active", True)
+        ]
+
+        if not recruiter_pool:
+            logger.warning("[AssessmentEngine] No active RECRUITER questions found.")
+            return []
+
+        fresh_questions = [q for q in recruiter_pool if (q.get("id") or q.get("question_id")) not in excluded]
+        previously_asked = [q for q in recruiter_pool if (q.get("id") or q.get("question_id")) in excluded]
+
+        random.shuffle(fresh_questions)
+        random.shuffle(previously_asked)
+
+        selected: List[Dict[str, Any]] = []
+        selected_ids: Set[int] = set()
+        total_time = 0
+
+        def _get_q_time(q: Dict[str, Any]) -> int:
+            t = q.get("time_limit_seconds")
+            if isinstance(t, int) and t > 0:
+                return t
+            return self.RECRUITER_DEFAULT_QUESTION_TIME
+
+        # Phase 1: Select fresh questions fitting within target_seconds
+        for q in fresh_questions:
+            if limit is not None and len(selected) >= limit:
+                break
+            qid = q.get("id") or q.get("question_id")
+            if qid in selected_ids:
+                continue
+            q_time = _get_q_time(q)
+            if total_time + q_time <= target_seconds:
+                q_copy = dict(q)
+                q_copy["time_limit_seconds"] = q_time
+                selected.append(q_copy)
+                selected_ids.add(qid)
+                total_time += q_time
+
+        # Phase 2: If remaining budget allows, randomly backfill from previously asked questions
+        if total_time < target_seconds and (limit is None or len(selected) < limit):
+            for q in previously_asked:
+                if limit is not None and len(selected) >= limit:
+                    break
+                qid = q.get("id") or q.get("question_id")
+                if qid in selected_ids:
+                    continue
+                q_time = _get_q_time(q)
+                if total_time + q_time <= target_seconds:
+                    q_copy = dict(q)
+                    q_copy["time_limit_seconds"] = q_time
+                    selected.append(q_copy)
+                    selected_ids.add(qid)
+                    total_time += q_time
+
+        logger.info(
+            "[AssessmentEngine] Selected %d RECRUITER questions totaling %ds (target: %ds).",
+            len(selected), total_time, target_seconds,
+        )
+        return selected
 
     def select_technical_timed_questions(
         self,
