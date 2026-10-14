@@ -472,28 +472,20 @@ class AssessmentEngine:
             if self.get_question_time_limit(q) == target_sum:
                 return [q]
 
-        # 2. DP Subset-Sum: dp[s] = (prev_sum, question)
-        # Allows reconstructing the exact combination of any length in O(N * W) time
-        dp: Dict[int, Tuple[int, Dict[str, Any]]] = {0: (-1, {})}
+        # 2. DP Subset-Sum directly mapping: sum -> List[Question]
+        # Bounded by target_sum <= 900 (at most 901 entries in memory).
+        # Eliminates backtracking pointers entirely, making broken chains or infinite loops impossible.
+        dp: Dict[int, List[Dict[str, Any]]] = {0: []}
 
         for q in candidates:
             w = self.get_question_time_limit(q)
-            new_entries: Dict[int, Tuple[int, Dict[str, Any]]] = {}
-            for s in dp:
+            new_entries: Dict[int, List[Dict[str, Any]]] = {}
+            for s, combo in dp.items():
                 ns = s + w
-                if ns <= target_sum and ns not in dp and ns not in new_entries:
-                    new_entries[ns] = (s, q)
-                    if ns == target_sum:
-                        # Found exact match! Backtrack to reconstruct combination
-                        result = []
-                        curr = target_sum
-                        entry = (s, q)
-                        while curr > 0:
-                            prev_s, matched_q = entry
-                            result.append(matched_q)
-                            curr = prev_s
-                            entry = dp.get(curr, (-1, {}))
-                        return result
+                if ns == target_sum:
+                    return combo + [q]
+                if ns < target_sum and ns not in dp and ns not in new_entries:
+                    new_entries[ns] = combo + [q]
 
             dp.update(new_entries)
 
