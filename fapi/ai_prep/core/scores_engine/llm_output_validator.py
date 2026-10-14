@@ -321,10 +321,10 @@ class ScoresEngine:
                         continue
                     if not qe.get("question_id"):
                         errors.append(f"technical_evaluation.question_evaluations[{idx}] missing 'question_id'")
-                    band = str(qe.get("score_band", "")).upper()
+                    band = str(qe.get("rating") or qe.get("score_band") or "").upper()
                     if band not in self.VALID_TECHNICAL_SCORE_BANDS:
                         errors.append(
-                            f"technical_evaluation.question_evaluations[{idx}].score_band must be one of "
+                            f"technical_evaluation.question_evaluations[{idx}] 'rating' must be one of "
                             f"{', '.join(sorted(self.VALID_TECHNICAL_SCORE_BANDS))}"
                         )
 
