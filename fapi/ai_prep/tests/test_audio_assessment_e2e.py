@@ -507,9 +507,10 @@ def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidat
     def failing_update_media_url(*args, **kwargs):
         raise RuntimeError("Database connection lost during update_assessment_media_url")
 
+    from fapi.ai_prep.clients.youtube_client import youtube_client
     with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
          patch("fapi.ai_prep.core.video_processor_engine.VideoProcessorEngine.convert_audio_for_youtube", side_effect=lambda x: x), \
-         patch("fapi.ai_prep.clients.youtube_client.youtube_client.upload_unlisted_media", return_value={"youtube_url": "https://youtu.be/dummy"}), \
+         patch.object(youtube_client, "upload_unlisted_media", return_value={"youtube_url": "https://youtu.be/dummy"}), \
          patch("fapi.ai_prep.crud.update_assessment_media_url", side_effect=failing_update_media_url), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value=mock_eval), \
          patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", E2ESessionLocal):

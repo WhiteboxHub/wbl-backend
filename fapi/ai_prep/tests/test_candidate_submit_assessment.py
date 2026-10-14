@@ -468,8 +468,9 @@ def test_submit_assessment_silent_candidate_uploads_youtube_if_consented(submit_
 
     mock_yt_res = {"youtube_url": "https://www.youtube.com/watch?v=mock_silent_123"}
 
+    from fapi.ai_prep.clients.youtube_client import youtube_client
     with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
-         patch("fapi.ai_prep.clients.youtube_client.youtube_client.upload_unlisted_media", return_value=mock_yt_res), \
+         patch.object(youtube_client, "upload_unlisted_media", return_value=mock_yt_res), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation") as mock_eval:
 
         payload = {"total_chunks_uploaded": 1, "is_final": True, "client_duration_seconds": 60.0}

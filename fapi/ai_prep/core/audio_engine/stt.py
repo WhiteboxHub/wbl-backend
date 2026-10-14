@@ -24,10 +24,10 @@ _MODEL_LOCK = threading.Lock()
 
 
 def get_whisper_model(
-    model_size: str = "distil-small.en",
+    model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo"),
     device: str = "cpu",
     compute_type: str = "int8",
-    cpu_threads: int = 2,
+    cpu_threads: int = 4,
 ) -> WhisperModel:
     """Returns singleton cached instance of WhisperModel keyed by configuration."""
     if WhisperModel is None:
@@ -143,7 +143,7 @@ def merge_word_timestamps(
 def transcribe_audio_chunk(
     audio_input: Union[str, bytes, np.ndarray],
     chunk_start_time: float = 0.0,
-    model_size: str = "distil-small.en",
+    model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo"),
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> Dict[str, Any]:
@@ -151,6 +151,7 @@ def transcribe_audio_chunk(
     model = get_whisper_model(model_size=model_size, device=device, compute_type=compute_type)
 
     temp_file = None
+    wav_temp_file = None
     audio_target = audio_input
 
     if isinstance(audio_input, bytes):
@@ -163,12 +164,58 @@ def transcribe_audio_chunk(
     elif isinstance(audio_input, np.ndarray):
         audio_target = audio_input.astype(np.float32)
 
+    # Convert non-WAV file inputs to 16kHz mono PCM WAV via FFmpeg before Whisper.
+    # Raw binary-concatenated WebM files contain duplicate EBML headers at chunk
+    # boundaries; libav (used internally by faster-whisper) stops decoding at the
+    # first invalid boundary, truncating the transcript.  Extracting the full audio
+    # stream as a flat WAV bypasses this entirely.
+    if isinstance(audio_target, str) and not audio_target.lower().endswith(".wav"):
+        try:
+            import subprocess as _sp
+            wav_temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            wav_temp_file.close()
+            ffmpeg_result = _sp.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", audio_target,
+                    "-vn",                  # strip video stream
+                    "-acodec", "pcm_s16le",
+                    "-ar", "16000",
+                    "-ac", "1",
+                    wav_temp_file.name,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if ffmpeg_result.returncode == 0:
+                logger.info("FFmpeg WAV extraction succeeded for transcription: %s -> %s", audio_target, wav_temp_file.name)
+                audio_target = wav_temp_file.name
+            else:
+                logger.warning(
+                    "FFmpeg WAV extraction failed (rc=%s): %s — using original path.",
+                    ffmpeg_result.returncode,
+                    ffmpeg_result.stderr[-400:],
+                )
+                try:
+                    os.remove(wav_temp_file.name)
+                except OSError:
+                    pass
+                wav_temp_file = None
+        except Exception as ffmpeg_exc:
+            logger.warning("FFmpeg WAV extraction error: %s — using original path.", ffmpeg_exc)
+            wav_temp_file = None
+
+
     try:
         technical_prompt = (
-            "The candidate is answering technical interview questions on software engineering, "
-            "data structures, algorithms, system design, Python, React, JavaScript, SQL, Docker, AWS, APIs."
+            "The candidate is answering technical interview questions on software engineering, system design, "
+            "Generative AI, RAG, and Agentic AI systems. "
+            "Technical vocabulary: FastAPI, Milvus, LangChain, LangGraph, ArgoCD, Kubernetes, MLOps, AWS Bedrock, "
+            "Claude Sonnet, Docling, Terraform, microservices, PyTorch, SageMaker, Lambda, S3, ECS, CI/CD, "
+            "sentence transformers, vector database, supervisor pattern, MCP, Model Context Protocol, Prometheus, Grafana."
         )
-        
+
         segments, info = model.transcribe(
             audio_target,
             initial_prompt=technical_prompt,
@@ -177,7 +224,10 @@ def transcribe_audio_chunk(
             condition_on_previous_text=False,
             word_timestamps=True,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=300),
+            vad_parameters=dict(
+                min_silence_duration_ms=1500,  # Raised from 300ms: only cut truly silent gaps
+                speech_pad_ms=500,             # Keep 500ms audio padding around speech edges
+            ),
             repetition_penalty=1.1,
         )
 
@@ -213,11 +263,16 @@ def transcribe_audio_chunk(
                 os.remove(temp_file.name)
             except OSError:
                 pass
+        if wav_temp_file and os.path.exists(wav_temp_file.name):
+            try:
+                os.remove(wav_temp_file.name)
+            except OSError:
+                pass
 
 
 def transcribe_audio(
     audio_path: str,
-    model_size: str = "distil-small.en",
+    model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo"),
     device: str = "cpu",
     compute_type: str = "int8",
 ) -> Dict[str, Any]:
@@ -251,7 +306,7 @@ class LiveSTTStore:
         audio_input: Union[str, bytes, np.ndarray],
         chunk_start_time: float = 0.0,
         chunk_index: Optional[int] = None,
-        model_size: str = "distil-small.en",
+        model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo"),
     ) -> Dict[str, Any]:
         chunk_result = transcribe_audio_chunk(
             audio_input=audio_input,

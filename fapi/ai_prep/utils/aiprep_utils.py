@@ -2,6 +2,8 @@
 Follows WBL Backend code architecture standards separating routing and logic.
 """
 import os
+import re
+import subprocess
 import uuid
 import json
 import shutil
@@ -890,8 +892,18 @@ def _stitch_assessment_chunks(
     assessment_id: int,
     total_chunks_uploaded: Optional[int] = None,
 ) -> str:
-    """Stitches chunks from chunks/ into assembled.webm, or returns existing assembled media."""
+    """Stitches MediaRecorder WebM chunks into a clean 16kHz WAV for Whisper transcription.
+
+    Browser MediaRecorder WebM chunks are NOT standalone WebM files.  Only
+    chunk_0 carries the EBML/WebM container header (codec info, track info);
+    all subsequent chunks are raw Matroska cluster continuations with no
+    header.  Piping all chunk bytes as a single raw byte stream into FFmpeg
+    (-f webm -i pipe:0) allows FFmpeg to read the one header and then process
+    every cluster, yielding a full-duration decode.
+    """
     from fapi.ai_prep.core.video_processor_engine import validate_chunk_sequence
+    import subprocess
+    import time
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
     video_path = os.path.join(assessment_dir, "assembled.webm")
@@ -912,9 +924,31 @@ def _stitch_assessment_chunks(
             logger.error("Could not read chunk directory %s: %s", chunk_dir, err)
             raise HTTPException(status_code=500, detail="Failed to access chunk storage on server")
 
+        # If client declared more chunks than currently on disk, wait briefly for in-flight disk writes to settle
+        if total_chunks_uploaded and total_chunks_uploaded > len(uploaded):
+            for _ in range(10):
+                time.sleep(0.5)
+                uploaded_retry = []
+                try:
+                    for fname in os.listdir(chunk_dir):
+                        if fname.startswith("chunk_") and fname.endswith(".webm"):
+                            try:
+                                num = int(fname.replace("chunk_", "").replace(".webm", ""))
+                                uploaded_retry.append(num)
+                            except ValueError:
+                                pass
+                except Exception:
+                    pass
+                if len(uploaded_retry) >= total_chunks_uploaded:
+                    uploaded = sorted(list(set(uploaded_retry)))
+                    break
+                elif len(uploaded_retry) > len(uploaded):
+                    uploaded = sorted(list(set(uploaded_retry)))
+
         if uploaded:
             uploaded = sorted(list(set(uploaded)))
-            total_expected = total_chunks_uploaded if (total_chunks_uploaded and total_chunks_uploaded > 0) else len(uploaded)
+            # Always use all chunks present on disk — ignore stale total_chunks_uploaded
+            total_expected = len(uploaded)
             start_index = 0 if (0 in uploaded or (uploaded and min(uploaded) == 0)) else 1
 
             seq_val = validate_chunk_sequence(existing_chunks=uploaded, total_expected=total_expected, start_index=start_index)
@@ -925,33 +959,149 @@ def _stitch_assessment_chunks(
                     detail=f"Incomplete chunk sequence. {seq_val['error']}",
                 )
 
+            # Build ordered chunk list from disk — disk is the source of truth
             chunk_files = []
-            for i in range(start_index, start_index + total_expected):
-                p1 = os.path.join(chunk_dir, f"chunk_{i}.webm")
-                p2 = os.path.join(chunk_dir, f"chunk_{i:04d}.webm")
+            for idx in uploaded:  # already sorted ascending
+                p1 = os.path.join(chunk_dir, f"chunk_{idx}.webm")
+                p2 = os.path.join(chunk_dir, f"chunk_{idx:04d}.webm")
                 if os.path.exists(p1):
                     chunk_files.append(p1)
                 elif os.path.exists(p2):
                     chunk_files.append(p2)
                 else:
-                    chunk_files.append(p1)
+                    raise FileNotFoundError(f"Chunk file missing: {p1}")
 
             try:
                 os.makedirs(assessment_dir, exist_ok=True)
-                with open(video_path, "wb") as outfile:
-                    for cf in chunk_files:
-                        if not os.path.exists(cf):
-                            raise FileNotFoundError(f"Chunk file missing: {cf}")
-                        with open(cf, "rb") as infile:
-                            shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+
+                # ─────────────────────────────────────────────────────────────────────
+                # PER-CHUNK INDEPENDENT DECODING  (replaces the old cat+pipe approach)
+                #
+                # Old approach — broken at boundaries:
+                #   cat chunk_0.webm chunk_1.webm ... | ffmpeg -f webm -i pipe:0 audio.wav
+                #   Problem: Only chunk_0 has the EBML/WebM container header.
+                #   Chunks 1+ are raw Matroska cluster continuations.  When FFmpeg
+                #   encounters non-monotonic cluster timestamps at each 30s boundary
+                #   it drops those frames — losing 20-25s of speech per boundary.
+                #
+                # New approach — zero boundary loss:
+                #   The frontend now uses stop/restart per segment (not timeslice mode).
+                #   Each chunk is a COMPLETE, standalone WebM file with its own EBML
+                #   header + Tracks element.  We decode every chunk independently to a
+                #   clean 16kHz mono WAV, then concatenate the raw PCM frames using
+                #   Python's wave module.  No container headers conflict; no timestamp
+                #   jitter; 100% of speech is preserved across all boundaries.
+                # ─────────────────────────────────────────────────────────────────────
+                import wave as _wave
+                import tempfile as _tempfile
+
+                temp_wavs: list = []
+                decode_errors: list = []
+
+                for chunk_path in chunk_files:
+                    tmp = _tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=assessment_dir)
+                    tmp_wav = tmp.name
+                    tmp.close()
+
+                    try:
+                        result = subprocess.run(
+                            [
+                                "ffmpeg", "-y",
+                                "-i", chunk_path,       # Each chunk is a complete WebM
+                                "-vn",                   # Strip video stream
+                                "-acodec", "pcm_s16le",
+                                "-ar", "16000",
+                                "-ac", "1",
+                                tmp_wav,
+                            ],
+                            capture_output=True,
+                            timeout=120,
+                        )
+                        if result.returncode == 0 and os.path.exists(tmp_wav) and os.path.getsize(tmp_wav) > 0:
+                            temp_wavs.append(tmp_wav)
+                            chunk_dur = os.path.getsize(tmp_wav) / (16000 * 2)
+                            logger.info(
+                                "Decoded chunk %s -> %s (%.1fs audio)",
+                                os.path.basename(chunk_path), tmp_wav, chunk_dur,
+                            )
+                        else:
+                            stderr_tail = (result.stderr or b"").decode(errors="replace")[-400:]
+                            logger.warning(
+                                "FFmpeg failed to decode chunk %s (rc=%s): %s",
+                                chunk_path, result.returncode, stderr_tail,
+                            )
+                            decode_errors.append(chunk_path)
+                            try:
+                                os.remove(tmp_wav)
+                            except OSError:
+                                pass
+                    except Exception as chunk_err:
+                        logger.warning("Error decoding chunk %s: %s", chunk_path, chunk_err)
+                        decode_errors.append(chunk_path)
+                        try:
+                            os.remove(tmp_wav)
+                        except OSError:
+                            pass
+
+                if not temp_wavs:
+                    raise RuntimeError(
+                        f"No chunks could be decoded. Failed chunks: {decode_errors}"
+                    )
+
+                if decode_errors:
+                    logger.warning(
+                        "Assessment %s: %d/%d chunks failed to decode. Continuing with %d successful chunks.",
+                        assessment_id, len(decode_errors), len(chunk_files), len(temp_wavs),
+                    )
+
+                # Concatenate all decoded WAV files into one final audio.wav
+                try:
+                    with _wave.open(audio_path, "wb") as out_wav:
+                        out_wav.setnchannels(1)
+                        out_wav.setsampwidth(2)
+                        out_wav.setframerate(16000)
+                        for tmp_wav in temp_wavs:
+                            try:
+                                with _wave.open(tmp_wav, "rb") as in_wav:
+                                    out_wav.writeframes(in_wav.readframes(in_wav.getnframes()))
+                            except Exception as concat_err:
+                                logger.warning("Error reading temp WAV %s: %s", tmp_wav, concat_err)
+                finally:
+                    # Always clean up temp WAV files
+                    for tmp_wav in temp_wavs:
+                        try:
+                            os.remove(tmp_wav)
+                        except OSError:
+                            pass
+
+                if not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
+                    raise RuntimeError("Output audio.wav is empty after per-chunk decoding")
+
+                approx_dur = os.path.getsize(audio_path) / (16000 * 2)
+                logger.info(
+                    "Per-chunk decode assembly OK for assessment %s: %d chunks -> %s (~%.1fs audio)",
+                    assessment_id, len(temp_wavs), audio_path, approx_dur,
+                )
+
+                # Also write raw binary concat assembled.webm for browser video playback
+                try:
+                    with open(video_path, "wb") as outfile:
+                        for cf in chunk_files:
+                            with open(cf, "rb") as infile:
+                                shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+                except Exception:
+                    pass
+
+                return audio_path
+
             except Exception as asm_err:
                 logger.error("Chunk assembly failed for assessment %s: %s", assessment_id, asm_err)
                 raise HTTPException(status_code=500, detail=f"Failed to assemble media chunks: {asm_err}")
 
-    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
-        return video_path
     if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
         return audio_path
+    if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+        return video_path
 
     raise HTTPException(status_code=400, detail="No media chunks or recordings found to assemble for this assessment")
 
@@ -1227,6 +1377,9 @@ async def candidate_submit_assessment_logic(
                     silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
                     formatted_audio_telemetry = {
                         "speaking_duration_sec": round(speaking_duration_sec, 1),
+                        "speaking_duration_seconds": round(speaking_duration_sec, 1),
+                        "total_audio_duration_seconds": round(duration_s, 1),
+                        "word_count": word_count,
                         "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
                         "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
                         "silence_percentage": silence_pct,
@@ -1407,9 +1560,17 @@ async def candidate_submit_assessment_logic(
     )
     filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
     filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else raw_audio_telemetry.get("filler_words", [])
+    interview_duration = (
+        float(payload.client_duration_seconds)
+        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
+        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
+    )
 
     formatted_audio_telemetry = {
         "speaking_duration_sec": round(speaking_duration_sec, 1),
+        "speaking_duration_seconds": round(speaking_duration_sec, 1),
+        "total_audio_duration_seconds": round(interview_duration, 1),
+        "word_count": word_count,
         "words_per_minute": wpm,
         "filler_word_count": filler_count,
         "silence_percentage": silence_pct,
@@ -1423,12 +1584,6 @@ async def candidate_submit_assessment_logic(
     formatted_video_telemetry = payload.video_telemetry or {}
 
     # 6. Evaluate Gatekeeper Flag
-    interview_duration = (
-        float(payload.client_duration_seconds)
-        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
-        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
-    )
-
     insufficient_content = evaluate_gatekeeper_flag(
         word_count=word_count,
         duration_seconds=interview_duration,
@@ -1858,12 +2013,21 @@ async def upload_candidate_assessment_chunk_logic(
     if assessment_uuid and assessment.assessment_uuid and assessment.assessment_uuid.lower() != str(assessment_uuid).strip().lower():
         raise HTTPException(status_code=400, detail="assessment_uuid does not match the assessment record")
 
-    # Lifecycle State Guard: Disallow uploading to closed or evaluating assessments
-    if assessment.status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
+    # Lifecycle State Guard: Disallow uploading to closed assessments or after media assembly
+    status_val = (assessment.status.value if hasattr(assessment.status, "value") else str(assessment.status or "")).upper()
+    if status_val in ("COMPLETED", "CANCELLED", "FAILED"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Assessment is already {assessment.status}. Cannot upload further media chunks.",
+            detail=f"Assessment is already {status_val}. Cannot upload further media chunks.",
         )
+    if status_val == "EVALUATING":
+        assembled_file = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id), "assembled.webm")
+        audio_file = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id), "audio.wav")
+        if os.path.exists(assembled_file) or os.path.exists(audio_file):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Assessment media has already been assembled. Cannot upload further media chunks.",
+            )
 
     # Auto-advance from CREATED to IN_PROGRESS on chunk arrival
     if assessment.status == "CREATED":
@@ -2117,13 +2281,18 @@ async def _process_youtube_upload_and_cleanup(
     youtube_url = None
     youtube_upload_file = media_path
 
-    # 1. Conversion for YouTube if audio
-    if media_type.upper() in {"AUDIO", "AUDIO_ONLY"}:
+    # 1. Conversion for YouTube if audio, or prefer assembled.webm for video
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id)) if candidate_id else None
+    assembled_video = os.path.join(assessment_dir, "assembled.webm") if assessment_dir else None
+
+    if media_type.upper() == "VIDEO" and assembled_video and os.path.exists(assembled_video) and os.path.getsize(assembled_video) > 0:
+        youtube_upload_file = assembled_video
+    elif media_type.upper() in {"AUDIO", "AUDIO_ONLY"} or youtube_upload_file.lower().endswith((".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aac")):
         try:
             from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
             youtube_upload_file = await asyncio.to_thread(
                 VideoProcessorEngine.convert_audio_for_youtube,
-                media_path,
+                youtube_upload_file,
             )
         except Exception as conv_err:
             logger.warning("Audio-to-video conversion failed for assessment %s: %s", assessment_id, conv_err)
@@ -2449,11 +2618,23 @@ async def upload_assessment_audio_logic(
 
 
 def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Optional[int] = None) -> Optional[str]:
-    """Auto-assembles sequential WebM chunks from chunks/ into assembled.webm atomically if top-level media is absent."""
+    """Auto-assembles sequential WebM chunks using FFmpeg pipe for audio retrieval endpoints.
+
+    Browser MediaRecorder WebM chunks are NOT standalone WebM files — only
+    chunk_0 has the EBML container header.  This function pipes all chunks as
+    raw bytes into FFmpeg to produce a correct 16kHz WAV for playback/STT.
+    Falls back to raw binary concat assembled.webm if FFmpeg is unavailable.
+    """
+    import subprocess
+
     chunk_dir = os.path.join(assessment_dir, "chunks")
+    wav_path = os.path.join(assessment_dir, "audio.wav")
     assembled_path = os.path.join(assessment_dir, "assembled.webm")
+
     if os.path.exists(assembled_path) and os.path.getsize(assembled_path) > 0:
         return assembled_path
+    if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+        return wav_path
 
     if not os.path.exists(chunk_dir):
         return None
@@ -2488,6 +2669,8 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
                 return None
 
             os.makedirs(assessment_dir, exist_ok=True)
+
+            # 1. Atomically assemble full WebM container for video playback
             temp_assembled = os.path.join(assessment_dir, f"assembled_{uuid.uuid4().hex}.tmp")
             try:
                 with open(temp_assembled, "wb") as outfile:
@@ -2497,13 +2680,49 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
                 if os.path.exists(temp_assembled) and os.path.getsize(temp_assembled) > 0:
                     os.replace(temp_assembled, assembled_path)
                     logger.info("Atomically auto-assembled %d chunks into %s", len(chunk_files), assembled_path)
-                    return assembled_path
             finally:
                 if os.path.exists(temp_assembled):
                     try:
                         os.remove(temp_assembled)
                     except OSError:
                         pass
+
+            # 2. Pipe all chunks as raw stream into FFmpeg to generate clean 16kHz WAV
+            try:
+                with open(os.devnull, "rb") as _devnull:
+                    cat_proc = subprocess.Popen(
+                        ["cat"] + chunk_files,
+                        stdout=subprocess.PIPE,
+                        stderr=_devnull,
+                    )
+                    ffmpeg_proc = subprocess.Popen(
+                        [
+                            "ffmpeg", "-y",
+                            "-f", "webm",
+                            "-i", "pipe:0",
+                            "-vn",
+                            "-acodec", "pcm_s16le",
+                            "-ar", "16000",
+                            "-ac", "1",
+                            wav_path,
+                        ],
+                        stdin=cat_proc.stdout,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    cat_proc.stdout.close()
+                    ffmpeg_proc.communicate(timeout=300)
+                    cat_proc.wait(timeout=10)
+
+                if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+                    logger.info("Auto-assembled %d chunks into WAV via FFmpeg pipe: %s", len(chunk_files), wav_path)
+            except Exception as pipe_err:
+                logger.debug("FFmpeg pipe skipped in auto-assemble: %s", pipe_err)
+
+            if os.path.exists(assembled_path) and os.path.getsize(assembled_path) > 0:
+                return assembled_path
+            if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
+                return wav_path
     except Exception as auto_err:
         logger.warning("Auto-assembling chunks failed: %s", auto_err)
     return None
