@@ -45,13 +45,16 @@ from fapi.ai_prep.core.scores_engine import ScoresEngine
 # In-memory SQLite with required tables, test candidate, and question bank seed
 # =============================================================================
 
-sqlite_test_db_url = "sqlite:///:memory:"
-test_engine = create_engine(
-    sqlite_test_db_url,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+try:
+    from fapi.ai_prep.tests.test_candidate_submit_assessment import test_engine, TestingSessionLocal
+except ImportError:
+    sqlite_test_db_url = "sqlite:///:memory:"
+    test_engine = create_engine(
+        sqlite_test_db_url,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 import fapi.db.database
 fapi.db.database.SessionLocal = TestingSessionLocal
@@ -497,6 +500,39 @@ def test_api_put_submit_technical_assessment_sync(
     assert body["status"] in ("COMPLETED", "EVALUATING")
 
 
+@patch("fapi.ai_prep.orchestrator.llm_orchestrator.call_llm")
+def test_api_put_submit_direct_transcript_without_audio(
+    mock_llm, auth_client, seed_questions, test_candidate, db_session
+):
+    """Verifies that submitting with direct transcript evaluates cleanly without needing audio files."""
+    assessment = crud.create_assessment(
+        db_session,
+        candidate_id=test_candidate.id,
+        assessment_type="TECHNICAL",
+        media_type="AUDIO",
+    )
+    crud.save_assessment_data(
+        db_session,
+        assessment_id=assessment.id,
+        questions=[{"id": 7001, "question_text": "What is RAG?", "subject": "AI Engineering", "concept": "RAG & Retrieval", "difficulty_level": "MEDIUM", "scope": "SPECIFIC", "time_limit_seconds": 120}],
+        transcript={},
+        audio_telemetry={},
+        video_telemetry={},
+    )
+    mock_llm.return_value = json.dumps(MOCK_TECHNICAL_LLM_EVALUATION)
+
+    submit_url = f"/api/aiprep/candidates/{test_candidate.id}/assessments/{assessment.id}"
+    response = auth_client.put(
+        submit_url,
+        json={"transcript": "RAG architecture combines dense vector embeddings with LLM generation.", "is_final": True},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] in ("COMPLETED", "EVALUATING")
+
+
+
 # =============================================================================
 # SECTION 5: API Test 3 — GET /candidates/{id}/assessments/{id}
 # =============================================================================
@@ -605,3 +641,101 @@ def test_e2e_technical_assessment_full_flow(
     assert report_data["technical_evaluation"] is not None
     assert report_data["readiness"] == "GOOD"
     assert report_data["technical_evaluation"]["overall_assessment"]["rating"] == "GOOD"
+
+
+# =============================================================================
+# SECTION 6: LLM Client Exponential Backoff Retry Tests
+# =============================================================================
+
+def test_llm_client_retries_transient_429_and_succeeds(monkeypatch):
+    """Verifies that transient 429 rate limit is retried and succeeds on attempt 2."""
+    import asyncio
+    from fapi.ai_prep.clients.llm_client import _execute_http_post
+    import urllib.error
+    import io
+
+    attempts = 0
+
+    class MockHTTPResponse:
+        def __init__(self):
+            self.headers = {"content-type": "application/json"}
+        def read(self):
+            return b'{"choices": [{"message": {"content": "success"}}]}'
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    def mock_urlopen(req, timeout):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            fp = io.BytesIO(b'{"error": "rate limit"}')
+            raise urllib.error.HTTPError(
+                url="https://api.openai.com",
+                code=429,
+                msg="Too Many Requests",
+                hdrs={},
+                fp=fp,
+            )
+        return MockHTTPResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    async def _run():
+        return await _execute_http_post(
+            url="https://api.openai.com/v1/chat/completions",
+            headers={},
+            payload={"model": "gpt-4o"},
+            timeout_seconds=5.0,
+            provider="openai",
+            max_retries=3,
+            retry_delays=[0.01, 0.01],
+        )
+
+    res, _ = asyncio.run(_run())
+    assert attempts == 2
+    assert res["choices"][0]["message"]["content"] == "success"
+
+
+def test_llm_client_does_not_retry_auth_error_401(monkeypatch):
+    """Verifies that 401 authentication error fails immediately on attempt 1 without retrying."""
+    import asyncio
+    from fapi.ai_prep.clients.llm_client import _execute_http_post, LLMAuthenticationError
+    import urllib.error
+    import io
+
+    attempts = 0
+
+    def mock_urlopen(req, timeout):
+        nonlocal attempts
+        attempts += 1
+        fp = io.BytesIO(b'{"error": "invalid api key"}')
+        raise urllib.error.HTTPError(
+            url="https://api.openai.com",
+            code=401,
+            msg="Unauthorized",
+            hdrs={},
+            fp=fp,
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    async def _run():
+        await _execute_http_post(
+            url="https://api.openai.com/v1/chat/completions",
+            headers={},
+            payload={"model": "gpt-4o"},
+            timeout_seconds=5.0,
+            provider="openai",
+            max_retries=3,
+            retry_delays=[0.01, 0.01],
+        )
+
+    with pytest.raises(LLMAuthenticationError):
+        asyncio.run(_run())
+
+    assert attempts == 1
+
+
+

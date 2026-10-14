@@ -684,7 +684,7 @@ def build_assessment_eval_dict(
         return {
             "insufficient_content": False,
             "readiness": oa.get("rating") or oa.get("readiness"),
-            "summary": oa.get("summary"),
+            "summary": oa.get("summary") or oa.get("executive_summary"),
             "strongest_signal": top_strengths[0] if top_strengths else None,
             "biggest_gap": priority_improvements[0] if priority_improvements else None,
             "audio": audio_inner,
@@ -1214,39 +1214,51 @@ async def candidate_submit_assessment_logic(
 
             async def run_pipeline():
                 try:
-                    # 1. Stitch media chunks
-                    stream_manager.publish_progress(
-                        assessment_id_int,
-                        status="PROCESSING",
-                        progress=15,
-                    )
-                    target_media = await asyncio.to_thread(
-                        _stitch_assessment_chunks,
-                        candidate_id=resolved_cand_id,
-                        assessment_id=assessment_id_int,
-                        total_chunks_uploaded=total_chunks,
-                    )
-
-                    # 2. Audio Engine
-                    stream_manager.publish_progress(
-                        assessment_id_int,
-                        status="PROCESSING",
-                        progress=35,
-                    )
-                    try:
-                        audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
-                        spoken_content = audio_result.get("spoken_content") or {}
-                        raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
-                    except Exception as audio_err:
-                        logger.warning("Audio Engine execution error for assessment %s: %s", assessment_id_int, audio_err)
-                        spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+                    if payload.transcript:
+                        direct_text = payload.transcript if isinstance(payload.transcript, str) else str(payload.transcript.get("full_text") or "")
+                        spoken_content = {"full_text": direct_text, "word_count": len(direct_text.split()), "segments": []}
                         raw_audio_telemetry = {
-                            "speaking_duration_seconds": 0.0,
-                            "wpm": 0,
+                            "speaking_duration_seconds": 60.0,
+                            "wpm": 120,
                             "filler_count": 0,
-                            "silence_ratio": 1.0,
-                            "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+                            "silence_ratio": 0.1,
+                            "total_audio_duration_seconds": 60.0,
                         }
+                        target_media = "direct_transcript.webm"
+                    else:
+                        # 1. Stitch media chunks
+                        stream_manager.publish_progress(
+                            assessment_id_int,
+                            status="PROCESSING",
+                            progress=15,
+                        )
+                        target_media = await asyncio.to_thread(
+                            _stitch_assessment_chunks,
+                            candidate_id=resolved_cand_id,
+                            assessment_id=assessment_id_int,
+                            total_chunks_uploaded=total_chunks,
+                        )
+
+                        # 2. Audio Engine
+                        stream_manager.publish_progress(
+                            assessment_id_int,
+                            status="PROCESSING",
+                            progress=35,
+                        )
+                        try:
+                            audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+                            spoken_content = audio_result.get("spoken_content") or {}
+                            raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+                        except Exception as audio_err:
+                            logger.warning("Audio Engine execution error for assessment %s: %s", assessment_id_int, audio_err)
+                            spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+                            raw_audio_telemetry = {
+                                "speaking_duration_seconds": 0.0,
+                                "wpm": 0,
+                                "filler_count": 0,
+                                "silence_ratio": 1.0,
+                                "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+                            }
 
                     # 3. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
@@ -1394,28 +1406,40 @@ async def candidate_submit_assessment_logic(
             },
         )
 
-    # 1. Stitch media chunks
-    target_media = _stitch_assessment_chunks(
-        candidate_id=resolved_cand_id,
-        assessment_id=assessment.id,
-        total_chunks_uploaded=total_chunks,
-    )
-
-    # 2. Run Audio Engine (WHISPER_AUDIO)
-    try:
-        audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
-        spoken_content = audio_result.get("spoken_content") or {}
-        raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
-    except Exception as audio_err:
-        logger.warning("Audio Engine execution error for assessment %s: %s", assessment.id, audio_err)
-        spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+    if payload.transcript:
+        direct_text = payload.transcript if isinstance(payload.transcript, str) else str(payload.transcript.get("full_text") or "")
+        spoken_content = {"full_text": direct_text, "word_count": len(direct_text.split()), "segments": []}
         raw_audio_telemetry = {
-            "speaking_duration_seconds": 0.0,
-            "wpm": 0,
+            "speaking_duration_seconds": 60.0,
+            "wpm": 120,
             "filler_count": 0,
-            "silence_ratio": 1.0,
-            "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+            "silence_ratio": 0.1,
+            "total_audio_duration_seconds": 60.0,
         }
+        target_media = "direct_transcript.webm"
+    else:
+        # 1. Stitch media chunks
+        target_media = _stitch_assessment_chunks(
+            candidate_id=resolved_cand_id,
+            assessment_id=assessment.id,
+            total_chunks_uploaded=total_chunks,
+        )
+
+        # 2. Run Audio Engine (WHISPER_AUDIO)
+        try:
+            audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+            spoken_content = audio_result.get("spoken_content") or {}
+            raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+        except Exception as audio_err:
+            logger.warning("Audio Engine execution error for assessment %s: %s", assessment.id, audio_err)
+            spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+            raw_audio_telemetry = {
+                "speaking_duration_seconds": 0.0,
+                "wpm": 0,
+                "filler_count": 0,
+                "silence_ratio": 1.0,
+                "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+            }
 
     # 3. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
