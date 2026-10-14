@@ -416,7 +416,7 @@ class AssessmentEngine:
         # Step B: Broad Question (1 architectural question per subject)
         for bq in broad_q:
             b_time = self.get_question_time_limit(bq)
-            if bq.get("id") not in selected_ids and (subject_time + b_time) <= (budget + 30):
+            if bq.get("id") not in selected_ids and (subject_time + b_time) <= budget:
                 bq_copy = dict(bq)
                 bq_copy["time_limit_seconds"] = b_time
                 subj_selected.append(bq_copy)
@@ -456,39 +456,46 @@ class AssessmentEngine:
         target_sum: int,
     ) -> Optional[List[Dict[str, Any]]]:
         """
-        Finds questions in the unused pool whose durations sum to exactly target_sum.
-        Checks 1-question matches, then 2-question pairs, then 3-question combos.
+        Finds questions in the unused pool whose durations sum to exactly target_sum
+        using a bounded Subset-Sum Dynamic Programming algorithm (O(N * W)).
+        Supports exact fits of ANY number of questions (1, 2, 3, 4+).
         """
         if target_sum <= 0:
             return []
 
-        # 1. Single question exact match
-        for q in pool:
+        candidates = [q for q in pool if 0 < self.get_question_time_limit(q) <= target_sum]
+        if not candidates:
+            return None
+
+        # 1. Quick check: Single-question exact match
+        for q in candidates:
             if self.get_question_time_limit(q) == target_sum:
                 return [q]
 
-        # 2. Two-question combo
-        for i, q1 in enumerate(pool):
-            t1 = self.get_question_time_limit(q1)
-            if t1 >= target_sum:
-                continue
-            for q2 in pool[i + 1:]:
-                if t1 + self.get_question_time_limit(q2) == target_sum:
-                    return [q1, q2]
+        # 2. DP Subset-Sum: dp[s] = (prev_sum, question)
+        # Allows reconstructing the exact combination of any length in O(N * W) time
+        dp: Dict[int, Tuple[int, Dict[str, Any]]] = {0: (-1, {})}
 
-        # 3. Three-question combo
-        for i, q1 in enumerate(pool):
-            t1 = self.get_question_time_limit(q1)
-            if t1 >= target_sum:
-                continue
-            for j in range(i + 1, len(pool)):
-                q2 = pool[j]
-                t2 = t1 + self.get_question_time_limit(q2)
-                if t2 >= target_sum:
-                    continue
-                for q3 in pool[j + 1:]:
-                    if t2 + self.get_question_time_limit(q3) == target_sum:
-                        return [q1, q2, q3]
+        for q in candidates:
+            w = self.get_question_time_limit(q)
+            new_entries: Dict[int, Tuple[int, Dict[str, Any]]] = {}
+            for s in dp:
+                ns = s + w
+                if ns <= target_sum and ns not in dp and ns not in new_entries:
+                    new_entries[ns] = (s, q)
+                    if ns == target_sum:
+                        # Found exact match! Backtrack to reconstruct combination
+                        result = []
+                        curr = target_sum
+                        entry = (s, q)
+                        while curr > 0:
+                            prev_s, matched_q = entry
+                            result.append(matched_q)
+                            curr = prev_s
+                            entry = dp.get(curr, (-1, {}))
+                        return result
+
+            dp.update(new_entries)
 
         return None
 

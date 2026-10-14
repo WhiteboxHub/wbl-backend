@@ -738,4 +738,82 @@ def test_llm_client_does_not_retry_auth_error_401(monkeypatch):
     assert attempts == 1
 
 
+# =============================================================================
+# SECTION 8: DP Subset-Sum Exact Fit & Strict 900s Hard Cap Tests
+# =============================================================================
+
+def test_find_exact_fit_dp_finds_four_question_combo():
+    """Verifies DP exact fit finds combinations of 4+ questions (which O(n^3) couldn't)."""
+    engine = AssessmentEngine()
+    pool = [
+        {"id": 1, "time_limit_seconds": 60, "question_text": "Q1"},
+        {"id": 2, "time_limit_seconds": 60, "question_text": "Q2"},
+        {"id": 3, "time_limit_seconds": 60, "question_text": "Q3"},
+        {"id": 4, "time_limit_seconds": 60, "question_text": "Q4"},
+        {"id": 5, "time_limit_seconds": 90, "question_text": "Q5"},
+    ]
+    # Target 240 can only be formed by 60 + 60 + 60 + 60 (4 questions)
+    match = engine._find_exact_fit(pool, target_sum=240)
+    assert match is not None
+    assert len(match) == 4
+    assert sum(engine.get_question_time_limit(q) for q in match) == 240
+
+
+def test_find_exact_fit_dp_performance_large_pool():
+    """Verifies DP subset-sum algorithm scales efficiently (< 100ms) on a 1,000-question pool."""
+    import time
+    engine = AssessmentEngine()
+    # Generate 1,000 questions with varying times
+    pool = [
+        {"id": i, "time_limit_seconds": 60 + (i % 5) * 30, "question_text": f"Q{i}"}
+        for i in range(1, 1001)
+    ]
+    start_time = time.perf_counter()
+    match = engine._find_exact_fit(pool, target_sum=330)
+    elapsed = time.perf_counter() - start_time
+
+    assert elapsed < 0.1, f"DP exact fit took {elapsed:.4f}s, expected < 0.1s"
+    assert match is not None
+    assert sum(engine.get_question_time_limit(q) for q in match) == 330
+
+
+def test_technical_timed_selection_strict_900s_hard_cap():
+    """Verifies that subject quotas strictly enforce budget and never exceed 900 seconds."""
+    engine = AssessmentEngine()
+    # Create large pool with heavy broad questions
+    pool = []
+    qid = 1
+    for subj in ["AI Engineering", "Software Engineering", "DevOps and Cloud"]:
+        for _ in range(20):
+            pool.append({
+                "id": qid,
+                "subject": subj,
+                "concept": f"Concept_{qid}",
+                "difficulty_level": "HARD",
+                "scope": "BROAD",
+                "time_limit_seconds": 210,
+                "question_text": f"Broad architectural question {qid}",
+            })
+            qid += 1
+            pool.append({
+                "id": qid,
+                "subject": subj,
+                "concept": f"Concept_{qid}",
+                "difficulty_level": "EASY",
+                "scope": "SPECIFIC",
+                "time_limit_seconds": 60,
+                "question_text": f"Specific question {qid}",
+            })
+            qid += 1
+
+    selected = engine.select_technical_timed_questions(
+        available_questions=pool,
+        target_seconds=900,
+    )
+
+    total_time = sum(q.get("time_limit_seconds") or engine.get_question_time_limit(q) for q in selected)
+    assert total_time <= 900, f"Assessment exceeded 900s budget: got {total_time}s"
+
+
+
 
