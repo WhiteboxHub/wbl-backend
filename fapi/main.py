@@ -35,8 +35,26 @@ from sqlalchemy import text
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
-import logging
-import traceback
+import os
+import sentry_sdk
+
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+# Initialize Sentry Error Tracking (Error monitoring & logging only)
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        profiles_sample_rate=0.0,
+        integrations=[
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+            SqlalchemyIntegration(),
+        ],
+    )
 
 app = FastAPI(
     title="WBL Backend",
@@ -54,10 +72,12 @@ import logging
 logger = logging.getLogger("wbl")
 
 
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception during request: %s %s: %s", request.method, request.url, exc)
     logger.error(traceback.format_exc())
+    sentry_sdk.capture_exception(exc)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"}
