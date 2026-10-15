@@ -219,6 +219,20 @@ def get_assessment_by_id_or_uuid(db: Session, identifier: Union[int, str]) -> Op
     return get_assessment_by_uuid(db, ident_str)
 
 
+def get_assessment_expected_media_type(db: Session, identifier: Union[int, str]) -> str:
+    """
+    Deterministically resolves the configured media type (AUDIO or VIDEO) for an assessment
+    directly from its database record.
+    Never inspects or guesses media type from incoming chunks.
+    Raises ValueError if assessment does not exist.
+    """
+    assessment = get_assessment_by_id_or_uuid(db, identifier)
+    if not assessment:
+        raise ValueError(f"Assessment '{identifier}' not found in database.")
+    raw_type = str(assessment.media_type or "VIDEO").upper().strip()
+    return "AUDIO" if raw_type in {"AUDIO", "AUDIO_ONLY"} else "VIDEO"
+
+
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 

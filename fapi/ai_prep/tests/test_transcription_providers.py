@@ -177,3 +177,70 @@ def test_audio_path_sibling_directory_rejected(monkeypatch, tmp_path):
     app.dependency_overrides.clear()
     assert response.status_code == 400
     assert "storage directory" in response.json()["detail"]
+
+
+def test_openai_whisper_provider_registered():
+    from fapi.ai_prep.core.audio_engine.providers import OpenAIWhisperProvider
+    p = get_transcription_provider("openai")
+    assert isinstance(p, OpenAIWhisperProvider)
+    p2 = get_transcription_provider("openai_whisper")
+    assert isinstance(p2, OpenAIWhisperProvider)
+
+
+def test_openai_whisper_provider_missing_key_raises(tmp_path):
+    from fapi.ai_prep.core.audio_engine.providers import OpenAIWhisperProvider
+    audio = tmp_path / "test.wav"
+    audio.write_bytes(b"dummy")
+    provider = OpenAIWhisperProvider(default_api_key=None)
+    with pytest.raises(TranscriptionProviderError, match="OpenAI API key is required"):
+        provider.transcribe(audio_path=str(audio), openai_api_key=None)
+
+
+def test_openai_whisper_provider_transcribe_mocked(tmp_path, monkeypatch):
+    from fapi.ai_prep.core.audio_engine.providers import OpenAIWhisperProvider
+
+    audio = tmp_path / "test.mp3"
+    audio.write_bytes(b"dummy mp3 data")
+
+    mock_word1 = MagicMock(word="Hello", start=0.1, end=0.8)
+    mock_word2 = MagicMock(word="world", start=0.9, end=1.5)
+    mock_response = MagicMock(
+        text="Hello world",
+        duration=2.5,
+        words=[mock_word1, mock_word2]
+    )
+
+    mock_client = MagicMock()
+    mock_client.audio.transcriptions.create.return_value = mock_response
+
+    monkeypatch.setattr("openai.OpenAI", lambda api_key: mock_client)
+
+    provider = OpenAIWhisperProvider()
+    result = provider.transcribe(audio_path=str(audio), openai_api_key="sk-test-key-123")
+
+    assert result["transcript_text"] == "Hello world"
+    assert len(result["word_timestamps"]) == 2
+    assert result["word_timestamps"][0]["word"] == "Hello"
+    assert result["duration"] == 2.5
+    assert result["quality_audit"]["passed"] is True
+
+
+def test_quality_checker_functions():
+    from fapi.ai_prep.core.audio_engine.quality_checker import (
+        detect_repetition_loops,
+        deduplicate_repetitive_loops,
+        validate_transcript_quality,
+    )
+
+    # 1. Clean transcript passes
+    normal_text = "FastAPI is a modern web framework for building APIs with Python based on standard type hints."
+    audit_ok = validate_transcript_quality(normal_text, duration_seconds=10.0)
+    assert audit_ok["passed"] is True
+    assert audit_ok["repetition_loop_detected"] is False
+
+    # 2. Repeated hallucination loops detected
+    loop_text = "Thank you very much. Thank you very much. Thank you very much. Thank you very much."
+    assert detect_repetition_loops(loop_text) is True
+    audit_loop = validate_transcript_quality(loop_text, duration_seconds=10.0)
+    assert audit_loop["repetition_loop_detected"] is True
+

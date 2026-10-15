@@ -28,7 +28,17 @@ from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
-import sentry_sdk
+try:
+    import sentry_sdk
+except ImportError:
+    class _DummySentry:
+        @staticmethod
+        def set_tag(*args, **kwargs):
+            pass
+        @staticmethod
+        def capture_exception(*args, **kwargs):
+            pass
+    sentry_sdk = _DummySentry()
 from fapi.ai_prep.utils.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
@@ -133,6 +143,7 @@ async def run_full_evaluation(
     in_memory_transcript_text: Optional[str] = None,
     in_memory_audio_telemetry: Optional[Dict[str, Any]] = None,
     in_memory_video_telemetry: Optional[Dict[str, Any]] = None,
+    openai_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Full async evaluation pipeline: load → build contexts → LLM eval → save report.
@@ -146,6 +157,7 @@ async def run_full_evaluation(
         in_memory_transcript_text:  Optional in-memory transcript text override.
         in_memory_audio_telemetry:  Optional in-memory audio telemetry override.
         in_memory_video_telemetry:  Optional in-memory video telemetry override.
+        openai_api_key:             Optional candidate-supplied or fallback OpenAI API key.
 
     Returns:
         Dict with keys: assessment_id, status, report (audio, video, transcript evals).
@@ -192,6 +204,13 @@ async def run_full_evaluation(
 
     # Step 2: Validate LLM config is available
     llm_config = ctx.get("llm_config")
+    if openai_api_key:
+        if not llm_config or not isinstance(llm_config, dict):
+            llm_config = {}
+        llm_config["api_key"] = openai_api_key
+        llm_config["is_configured"] = True
+        ctx["llm_config"] = llm_config
+
     if (
         not llm_config
         or not isinstance(llm_config, dict)

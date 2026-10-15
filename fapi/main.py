@@ -20,7 +20,7 @@ from fapi.api.routes import (
     email_position, job_click, coderpad, dynamic_weekly_report, extension_keys, report_data, report_pdf, sync_cli, cli_analytics,
     campaign_email, outreach_email, tracking, aiprep_setup, llm_providers
 )
-from fapi.ai_prep.routes import router as aiprep_router
+from fapi.ai_prep.routes import router as aiprep_router, ws_router as aiprep_ws_router
 from fapi.api.routes import aiprep_analytics
 from fapi.utils.auth_dependencies import staff_or_admin_required
 import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow scheduler
@@ -36,25 +36,27 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
 import os
-import sentry_sdk
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.logging import LoggingIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
-from sentry_sdk.integrations.logging import LoggingIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-
-# Initialize Sentry Error Tracking (Error monitoring & logging only)
-sentry_dsn = os.getenv("SENTRY_DSN")
-if sentry_dsn:
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
-        send_default_pii=False,
-        traces_sample_rate=0.0,
-        profiles_sample_rate=0.0,
-        integrations=[
-            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
-            SqlalchemyIntegration(),
-        ],
-    )
+    # Initialize Sentry Error Tracking (Error monitoring & logging only)
+    sentry_dsn = os.getenv("SENTRY_DSN")
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
+            send_default_pii=False,
+            traces_sample_rate=0.0,
+            profiles_sample_rate=0.0,
+            integrations=[
+                LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+                SqlalchemyIntegration(),
+            ],
+        )
+except ImportError:
+    sentry_sdk = None
 
 app = FastAPI(
     title="WBL Backend",
@@ -296,3 +298,5 @@ app.include_router(aiprep_setup.router, prefix="/api/setup", tags=["AI Prep Setu
 app.include_router(llm_providers.router, prefix="/api", tags=["LLM Providers"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_router, prefix="/api/aiprep", tags=["AI Prep Tool"], dependencies=[Depends(enforce_access)])
 app.include_router(aiprep_router, prefix="/aiprep", tags=["AI Prep Tool Alias"], dependencies=[Depends(enforce_access)])
+app.include_router(aiprep_ws_router, prefix="/api/aiprep", tags=["AI Prep Media Stream"])
+app.include_router(aiprep_ws_router, prefix="/aiprep", tags=["AI Prep Media Stream Alias"])

@@ -15,6 +15,7 @@ from fastapi import (
     BackgroundTasks,
     HTTPException,
     Body,
+    WebSocket,
 )
 from sqlalchemy.orm import Session
 
@@ -53,6 +54,7 @@ from fapi.ai_prep.utils import aiprep_utils
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["AI Prep Tool"])
+ws_router = APIRouter(tags=["AI Prep - Media & Streaming"])
 
 
 # ===========================================================================
@@ -533,6 +535,29 @@ def get_chunk_upload_status(
     )
 
 
+
+
+@ws_router.websocket("/candidates/{candidate_id}/assessments/{assessment_id}/audio/stream")
+@ws_router.websocket("/candidates/{candidate_id}/assessments/{assessment_id}/media/stream")
+async def websocket_media_stream(
+    websocket: WebSocket,
+    candidate_id: Union[int, str],
+    assessment_id: Union[int, str],
+    db: Session = Depends(get_db),
+):
+    """
+    Real-time WebSocket endpoint for live media ingestion:
+    - Pre-determines expected media type (AUDIO or VIDEO) directly from database.
+    - Ingests binary frames [4-byte seq][payload] into scratch disk.
+    - Sends ACK for each frame.
+    - Audits missing frames on EOF, handles RESEND if missing, and stitches final media file.
+    """
+    return await aiprep_utils.websocket_media_stream_logic(
+        websocket=websocket,
+        candidate_id=candidate_id,
+        assessment_id=assessment_id,
+        db=db,
+    )
 
 
 @router.post(

@@ -11,9 +11,19 @@ import time
 import tempfile
 from pathlib import Path
 from datetime import datetime
-import sentry_sdk
+try:
+    import sentry_sdk
+except ImportError:
+    class _DummySentry:
+        @staticmethod
+        def set_tag(*args, **kwargs):
+            pass
+        @staticmethod
+        def capture_exception(*args, **kwargs):
+            pass
+    sentry_sdk = _DummySentry()
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
+from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func, or_
@@ -30,6 +40,7 @@ from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
 from fapi.ai_prep.core.audio_engine import AudioMetricsEngine, InvalidProviderConfigError
+from fapi.ai_prep.core.websocket_stream_manager import get_preassembled_media_path
 from fapi.ai_prep.utils.stream_manager import stream_manager
 from fapi.db.models import (
     AuthUserORM,
@@ -1052,6 +1063,7 @@ async def _background_evaluation_pipeline(
     in_memory_audio_telemetry: Dict[str, Any],
     in_memory_video_telemetry: Dict[str, Any],
     unconsented_media_to_delete: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
 ):
     """
     Executes asynchronous LLM evaluation in FastAPI BackgroundTasks without blocking HTTP response.
@@ -1064,6 +1076,7 @@ async def _background_evaluation_pipeline(
             in_memory_transcript_text=in_memory_transcript_text,
             in_memory_audio_telemetry=in_memory_audio_telemetry,
             in_memory_video_telemetry=in_memory_video_telemetry,
+            openai_api_key=openai_api_key,
         )
         with SessionLocal() as worker_db:
             crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
@@ -1226,18 +1239,37 @@ async def candidate_submit_assessment_logic(
                         }
                         target_media = "direct_transcript.webm"
                     else:
-                        # 1. Stitch media chunks
-                        stream_manager.publish_progress(
-                            assessment_id_int,
-                            status="PROCESSING",
-                            progress=15,
-                        )
-                        target_media = await asyncio.to_thread(
-                            _stitch_assessment_chunks,
-                            candidate_id=resolved_cand_id,
-                            assessment_id=assessment_id_int,
-                            total_chunks_uploaded=total_chunks,
-                        )
+                        # 1. Resolve media source: check for pre-assembled WebSocket stream media first
+                        preassembled_media = get_preassembled_media_path(assessment_id_int, assessment_media_type)
+                        if preassembled_media and os.path.exists(preassembled_media):
+                            logger.info("Using pre-assembled media from WebSocket stream: %s", preassembled_media)
+                            target_media = preassembled_media
+                        else:
+                            stream_manager.publish_progress(
+                                assessment_id_int,
+                                status="PROCESSING",
+                                progress=15,
+                            )
+                            target_media = await asyncio.to_thread(
+                                _stitch_assessment_chunks,
+                                candidate_id=resolved_cand_id,
+                                assessment_id=assessment_id_int,
+                                total_chunks_uploaded=total_chunks,
+                            )
+
+                        # Resolve Candidate LLM Key:
+                        # Priority 1: Decrypted AES-256 key from DB vault
+                        candidate_key = None
+                        with SessionLocal() as worker_db:
+                            llm_cfg = crud.get_candidate_llm_config(worker_db, resolved_cand_id)
+                            if llm_cfg and isinstance(llm_cfg, dict) and llm_cfg.get("is_configured") and llm_cfg.get("api_key"):
+                                candidate_key = llm_cfg["api_key"]
+
+                        # Priority 2: Fallback / Header / Payload override
+                        header_key = request.headers.get("x-openai-key") if request else None
+                        override_key = getattr(payload, "openai_api_key", None) or header_key
+                        if override_key:
+                            candidate_key = override_key
 
                         # 2. Audio Engine
                         stream_manager.publish_progress(
@@ -1246,7 +1278,16 @@ async def candidate_submit_assessment_logic(
                             progress=35,
                         )
                         try:
-                            audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+                            audio_kwargs = {}
+                            if candidate_key:
+                                audio_kwargs["provider_name"] = "openai"
+                                audio_kwargs["openai_api_key"] = candidate_key
+
+                            audio_result = await asyncio.to_thread(
+                                AudioMetricsEngine.process_audio_file,
+                                target_media,
+                                **audio_kwargs,
+                            )
                             spoken_content = audio_result.get("spoken_content") or {}
                             raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
                         except Exception as audio_err:
@@ -1363,6 +1404,7 @@ async def candidate_submit_assessment_logic(
                             in_memory_transcript_text=full_text,
                             in_memory_audio_telemetry=plan["audio_telemetry_to_persist"],
                             in_memory_video_telemetry=plan["video_telemetry_to_persist"] if plan["video_analytics"] else {},
+                            openai_api_key=candidate_key,
                         )
                 except Exception as exc:
                     logger.exception("Streaming submission pipeline failed for assessment %s: %s", assessment_id_int, exc)
@@ -1418,16 +1460,43 @@ async def candidate_submit_assessment_logic(
         }
         target_media = "direct_transcript.webm"
     else:
-        # 1. Stitch media chunks
-        target_media = _stitch_assessment_chunks(
-            candidate_id=resolved_cand_id,
-            assessment_id=assessment.id,
-            total_chunks_uploaded=total_chunks,
-        )
+        # 1. Resolve media source: check for pre-assembled WebSocket stream media first
+        preassembled_media = get_preassembled_media_path(assessment.id, assessment.media_type)
+        if preassembled_media and os.path.exists(preassembled_media):
+            logger.info("Using pre-assembled media from WebSocket stream: %s", preassembled_media)
+            target_media = preassembled_media
+        else:
+            target_media = _stitch_assessment_chunks(
+                candidate_id=resolved_cand_id,
+                assessment_id=assessment.id,
+                total_chunks_uploaded=total_chunks,
+            )
+
+        # Resolve Candidate LLM Key:
+        # Priority 1: Decrypted AES-256 key from DB vault
+        candidate_key = None
+        llm_cfg = crud.get_candidate_llm_config(db, resolved_cand_id)
+        if llm_cfg and isinstance(llm_cfg, dict) and llm_cfg.get("is_configured") and llm_cfg.get("api_key"):
+            candidate_key = llm_cfg["api_key"]
+
+        # Priority 2: Fallback / Header / Payload override
+        header_key = request.headers.get("x-openai-key") if request else None
+        override_key = getattr(payload, "openai_api_key", None) or header_key
+        if override_key:
+            candidate_key = override_key
 
         # 2. Run Audio Engine (WHISPER_AUDIO)
         try:
-            audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+            audio_kwargs = {}
+            if candidate_key:
+                audio_kwargs["provider_name"] = "openai"
+                audio_kwargs["openai_api_key"] = candidate_key
+
+            audio_result = await asyncio.to_thread(
+                AudioMetricsEngine.process_audio_file,
+                target_media,
+                **audio_kwargs,
+            )
             spoken_content = audio_result.get("spoken_content") or {}
             raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
         except Exception as audio_err:
@@ -1597,6 +1666,7 @@ async def candidate_submit_assessment_logic(
                     in_memory_audio_telemetry=formatted_audio_telemetry,
                     in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
                     unconsented_media_to_delete=unconsented_media_to_delete,
+                    openai_api_key=candidate_key,
                 )
                 # Transfer cleanup responsibility to the background task
                 unconsented_media_to_delete = None
@@ -1610,6 +1680,7 @@ async def candidate_submit_assessment_logic(
                         in_memory_transcript_text=full_text,
                         in_memory_audio_telemetry=formatted_audio_telemetry,
                         in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                        openai_api_key=candidate_key,
                     )
                     llm_report = eval_result.get("report") or {}
                     crud.update_assessment_status(db, assessment.id, "COMPLETED")
@@ -3144,3 +3215,100 @@ async def process_audio_engine_logic(
     finally:
         if (not async_mode or not task_queued) and temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+async def websocket_media_stream_logic(
+    websocket: WebSocket,
+    candidate_id: Union[int, str],
+    assessment_id: Union[int, str],
+    db: Session,
+):
+    """
+    WebSocket streaming logic for real-time media ingestion.
+    - Resolves expected media type (AUDIO or VIDEO) deterministically from DB upfront.
+    - Ingests binary frames [4-byte seq][payload] and buffers to disk.
+    - Sends ACK for every frame received.
+    - On EOF: audits frames 0..N-1, handles RESEND if missing, and stitches final media file.
+    """
+    from fapi.ai_prep.core.websocket_stream_manager import (
+        get_or_create_stream_session,
+        parse_binary_frame,
+    )
+    import json
+
+    await websocket.accept()
+
+    # 1. Deterministic media type lookup from DB before processing any media
+    try:
+        expected_media_type = crud.get_assessment_expected_media_type(db, assessment_id)
+    except Exception as exc:
+        logger.warning("WebSocket rejected: assessment %s not found: %s", assessment_id, exc)
+        await websocket.send_json({"type": "ERROR", "message": str(exc)})
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    session = get_or_create_stream_session(
+        candidate_id=candidate_id,
+        assessment_id=assessment_id,
+        expected_media_type=expected_media_type,
+    )
+
+    # Handshake ready response to client
+    await websocket.send_json({
+        "type": "READY",
+        "assessment_id": int(assessment_id),
+        "expected_media_type": expected_media_type,
+    })
+
+    try:
+        while True:
+            message = await websocket.receive()
+            if "bytes" in message and message["bytes"]:
+                raw_bytes = message["bytes"]
+                try:
+                    frame_idx, payload = parse_binary_frame(raw_bytes)
+                    session.write_frame(frame_idx, payload)
+                    await websocket.send_json({"type": "ACK", "seq": frame_idx})
+                except Exception as frame_err:
+                    logger.warning("Error parsing binary frame for %s: %s", assessment_id, frame_err)
+                    await websocket.send_json({"type": "ERROR", "message": f"Frame error: {frame_err}"})
+
+            elif "text" in message and message["text"]:
+                try:
+                    data = json.loads(message["text"])
+                    msg_type = (data.get("type") or "").upper().strip()
+
+                    if msg_type == "PING":
+                        await websocket.send_json({"type": "PONG"})
+
+                    elif msg_type == "EOF":
+                        total_frames = int(data.get("total_frames", 0))
+                        missing = session.audit_frames(total_frames)
+                        if missing:
+                            logger.info("Assessment %s EOF audit: %d frames missing. Requesting resend.", assessment_id, len(missing))
+                            await websocket.send_json({"type": "RESEND", "missing": missing})
+                        else:
+                            media_path = session.finalize(total_frames)
+                            logger.info("Assessment %s stream finalized: %s (%s)", assessment_id, media_path, expected_media_type)
+                            await websocket.send_json({
+                                "type": "FINALIZED",
+                                "total_frames": total_frames,
+                                "media_path": media_path,
+                                "expected_media_type": expected_media_type,
+                            })
+
+                    elif msg_type == "STATUS":
+                        await websocket.send_json({
+                            "type": "STATUS_REPORT",
+                            "received_frames_count": len(session.received_frames),
+                            "total_bytes": session.total_bytes,
+                            "is_finalized": session.is_finalized,
+                        })
+                except Exception as json_err:
+                    logger.warning("Malformed JSON text packet on ws %s: %s", assessment_id, json_err)
+                    await websocket.send_json({"type": "ERROR", "message": "Malformed JSON payload"})
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected for assessment %s (frames received: %d)", assessment_id, len(session.received_frames))
+    except Exception as exc:
+        logger.exception("Unexpected error in websocket loop for assessment %s: %s", assessment_id, exc)
