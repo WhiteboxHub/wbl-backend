@@ -24587,8 +24587,13 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Question Bank: List Questions",
-        "description": "Fetches questions dynamically from ai_prep_questions DB table.",
+        "description": "Fetches questions dynamically from ai_prep_questions DB table for authorized staff.",
         "operationId": "list_questions_from_bank_api_aiprep_questions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "category",
@@ -24912,8 +24917,13 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Get Question Bank Item by ID",
-        "description": "Fetches a specific question by ID from the question bank.",
+        "description": "Fetches a specific question by ID from the question bank for authorized staff.",
         "operationId": "get_question_from_bank_api_aiprep_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "question_id",
@@ -25061,8 +25071,13 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Get Question Bank Item by ID",
-        "description": "Fetches a specific question by ID from the question bank.",
+        "description": "Fetches a specific question by ID from the question bank for authorized staff.",
         "operationId": "get_question_from_bank_api_aiprep_employee_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "question_id",
@@ -27086,8 +27101,13 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Question Bank: List Questions",
-        "description": "Fetches questions dynamically from ai_prep_questions DB table.",
+        "description": "Fetches questions dynamically from ai_prep_questions DB table for authorized staff.",
         "operationId": "list_questions_from_bank_aiprep_questions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "category",
@@ -27411,8 +27431,13 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Get Question Bank Item by ID",
-        "description": "Fetches a specific question by ID from the question bank.",
+        "description": "Fetches a specific question by ID from the question bank for authorized staff.",
         "operationId": "get_question_from_bank_aiprep_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "question_id",
@@ -27560,8 +27585,13 @@
           "AI Prep - Admin & Catalog"
         ],
         "summary": "Admin: Get Question Bank Item by ID",
-        "description": "Fetches a specific question by ID from the question bank.",
+        "description": "Fetches a specific question by ID from the question bank for authorized staff.",
         "operationId": "get_question_from_bank_aiprep_employee_questions__question_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "question_id",
@@ -36702,6 +36732,22 @@
             ],
             "title": "Status",
             "description": "Status override (e.g. 'cancelled')"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript",
+            "description": "Optional direct transcript text for testing without audio"
           }
         },
         "type": "object",
@@ -52121,11 +52167,11 @@
           "ground_truth": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "string"
               },
               {
-                "type": "string"
+                "additionalProperties": true,
+                "type": "object"
               },
               {
                 "type": "null"
@@ -52234,11 +52280,11 @@
           "ground_truth": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "string"
               },
               {
-                "type": "string"
+                "additionalProperties": true,
+                "type": "object"
               },
               {
                 "type": "null"
@@ -52349,11 +52395,11 @@
           "ground_truth": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "string"
               },
               {
-                "type": "string"
+                "additionalProperties": true,
+                "type": "object"
               },
               {
                 "type": "null"

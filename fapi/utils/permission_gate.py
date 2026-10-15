@@ -34,8 +34,6 @@ ALLOWED_POST_PREFIXES = {
     "/api/interviews",
     "/api/candidate/generate-prep-token",
     "/api/setup",
-    "/api/aiprep/questions",
-    "/aiprep/questions",
 }
 
 ALLOWED_PUT_PREFIXES = {
@@ -46,14 +44,10 @@ ALLOWED_PUT_PREFIXES = {
 
 ALLOWED_PATCH_PREFIXES = {
     "/api/candidates/interviews",
-    "/api/aiprep/questions",
-    "/aiprep/questions",
 }
 
 ALLOWED_DELETE_PREFIXES = {
     "/api/setup",
-    "/api/aiprep/questions",
-    "/aiprep/questions",
 }
 
 def _is_admin(user) -> bool:
@@ -72,11 +66,17 @@ def _is_employee(user) -> bool:
     return getattr(user, "role", None) == "employee" or getattr(user, "is_employee", False)
 
 def get_optional_current_user(request: Request, db: Session = Depends(get_db)):
-    """Resolves current user if token is provided and valid, otherwise returns None without throwing 401."""
+    """Resolve the user without turning unexpected backend failures into anonymous access.
+
+    Missing/invalid credentials are handled by the permission gate as unauthenticated.
+    Unexpected database or application errors must remain visible as server errors.
+    """
     try:
         return get_current_user(request=request, credentials=None, db=db)
-    except Exception:
-        return None
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            return None
+        raise
 
 def enforce_access(request: Request, current_user=Depends(get_optional_current_user)):
     method = request.method.upper()

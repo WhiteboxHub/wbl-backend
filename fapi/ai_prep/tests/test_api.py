@@ -500,7 +500,25 @@ def test_question_bank_management(db_session):
     invalid_res = client.post("/api/aiprep/employee/questions", json=invalid_q)
     assert invalid_res.status_code == 422
 
-    # 5. Get specific question by ID
+    # 5. Reject a TECHNICAL question whose concept belongs to another subject.
+    mismatched_q = {
+        "category": "TECHNICAL",
+        "subject": "Software Engineering",
+        "concept": "Agentic AI & Multi-Agent Systems",
+        "question_text": "Taxonomy consistency test",
+    }
+    mismatched_create_res = client.post("/api/aiprep/employee/questions", json=mismatched_q)
+    assert mismatched_create_res.status_code == 422
+
+    # A PATCH that changes only the subject must validate against the existing concept.
+    mismatched_patch_res = client.patch(
+        f"/api/aiprep/employee/questions/{q_id}",
+        json={"subject": "Software Engineering"},
+    )
+    assert mismatched_patch_res.status_code == 422
+    assert mismatched_patch_res.json()["detail"]
+
+    # 6. Get specific question by ID
     get_res = client.get(f"/api/aiprep/questions/{q_id}")
     assert get_res.status_code == 200
     assert get_res.json()["id"] == q_id
