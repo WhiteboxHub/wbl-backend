@@ -2930,19 +2930,37 @@ def create_new_assessment_type_logic(type_in: AssessmentTypeCreate) -> Assessmen
 def list_questions_from_bank_logic(
     db: Session,
     category: Optional[str] = None,
+    subject: Optional[str] = None,
+    concept: Optional[str] = None,
     difficulty_level: Optional[str] = None,
+    scope: Optional[str] = None,
     is_active: Optional[bool] = None,
+    search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> QuestionListResponse:
-    """Fetches questions dynamically from ai_prep_questions DB table."""
+    """Fetches questions dynamically from ai_prep_questions DB table with full taxonomy filtering."""
     query = db.query(AiPrepQuestionORM)
     if category:
         query = query.filter(AiPrepQuestionORM.category == category)
+    if subject:
+        query = query.filter(AiPrepQuestionORM.subject == subject)
+    if concept:
+        query = query.filter(AiPrepQuestionORM.concept == concept)
     if difficulty_level:
         query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+    if scope:
+        query = query.filter(AiPrepQuestionORM.scope == scope)
     if is_active is not None:
         query = query.filter(AiPrepQuestionORM.is_active == is_active)
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                AiPrepQuestionORM.question_text.ilike(s),
+                AiPrepQuestionORM.concept.ilike(s),
+            )
+        )
 
     total = query.count()
     items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
@@ -2993,11 +3011,8 @@ def update_question_in_bank_logic(
         if hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
 
-    cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
-    if cat != "TECHNICAL":
-        q_row.subject = None
-        q_row.concept = None
-        q_row.scope = None
+    # Do not clear subject/concept/scope based on category: the Question Bank UI
+    # supports these fields for non-technical categories as well.
 
     q_row.updated_at = datetime.utcnow()
     db.commit()

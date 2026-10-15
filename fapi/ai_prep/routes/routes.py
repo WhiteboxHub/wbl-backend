@@ -394,20 +394,29 @@ def create_new_assessment_type(
     summary="Question Bank: List Questions",
 )
 def list_questions_from_bank(
+    _staff: AuthUserORM = Depends(staff_or_admin_required),
     category: Optional[str] = Query(None),
+    subject: Optional[str] = Query(None),
+    concept: Optional[str] = Query(None),
     difficulty_level: Optional[str] = Query(None),
+    scope: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Fetches questions dynamically from ai_prep_questions DB table."""
+    """Fetches questions dynamically from ai_prep_questions DB table for authorized staff."""
+    _ = _staff
     return aiprep_utils.list_questions_from_bank_logic(
         db=db,
         category=category,
+        subject=subject,
+        concept=concept,
         difficulty_level=difficulty_level,
+        scope=scope,
         is_active=is_active,
+        search=search,
         limit=limit,
         offset=offset,
     )
@@ -426,7 +435,8 @@ def add_question_to_bank(
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Adds a new question to the ai_prep_questions table in DB."""
+    """Adds a new question to the question bank for authorized staff."""
+    _ = _staff
     return aiprep_utils.add_question_to_bank_logic(db=db, payload=payload)
 
 
@@ -443,7 +453,8 @@ def update_question_in_bank(
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Updates fields on an existing question dynamically in DB."""
+    """Updates an existing question for authorized staff."""
+    _ = _staff
     return aiprep_utils.update_question_in_bank_logic(db=db, question_id=question_id, payload=payload)
 
 
@@ -459,7 +470,8 @@ def get_question_from_bank(
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Fetches a specific question by ID from the question bank."""
+    """Fetches a specific question by ID from the question bank for authorized staff."""
+    _ = _staff
     return aiprep_utils.get_question_from_bank_logic(db=db, question_id=question_id)
 
 
@@ -474,7 +486,8 @@ def delete_question_from_bank(
     _staff: AuthUserORM = Depends(staff_or_admin_required),
     db: Session = Depends(get_db),
 ):
-    """Deactivates/deletes a question from the question bank."""
+    """Deactivates a question for authorized staff to preserve assessment history."""
+    _ = _staff
     return aiprep_utils.delete_question_from_bank_logic(db=db, question_id=question_id)
 
 
