@@ -98,6 +98,8 @@ class ScoresEngine:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
         elif "technical_evaluation" in parsed_data:
             self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
+        elif "recruiter_evaluation" in parsed_data:
+            self._validate_recruiter_payload(parsed_data["recruiter_evaluation"], errors)
         elif "audio_evaluation" in parsed_data:
             self._validate_audio_payload(parsed_data["audio_evaluation"], errors)
         elif "video_evaluation" in parsed_data:
@@ -106,7 +108,7 @@ class ScoresEngine:
             self._validate_legacy_report_payload(parsed_data, errors)
         else:
             errors.append(
-                "Missing recognized evaluation root key: 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
+                "Missing recognized evaluation root key: 'intro_evaluation', 'technical_evaluation', 'recruiter_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
             )
 
         is_valid = len(errors) == 0
@@ -325,6 +327,38 @@ class ScoresEngine:
                     if band not in self.VALID_TECHNICAL_SCORE_BANDS:
                         errors.append(
                             f"technical_evaluation.question_evaluations[{idx}] 'rating' must be one of "
+                            f"{', '.join(sorted(self.VALID_TECHNICAL_SCORE_BANDS))}"
+                        )
+
+    def _validate_recruiter_payload(
+        self, recruiter: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """Validates recruiter_evaluation payload from recruiter_prompt.py."""
+        if not isinstance(recruiter, dict):
+            errors.append("recruiter_evaluation must be a dictionary")
+            return
+
+        for key in ["overall_assessment", "question_evaluations"]:
+            if key not in recruiter:
+                errors.append(f"Missing required key '{key}' in recruiter_evaluation")
+
+        q_evals = recruiter.get("question_evaluations")
+        if q_evals is not None:
+            if not isinstance(q_evals, list):
+                errors.append("recruiter_evaluation.question_evaluations must be a list")
+            elif len(q_evals) == 0:
+                errors.append("recruiter_evaluation.question_evaluations must not be empty")
+            else:
+                for idx, qe in enumerate(q_evals):
+                    if not isinstance(qe, dict):
+                        errors.append(f"recruiter_evaluation.question_evaluations[{idx}] must be a dictionary")
+                        continue
+                    if not qe.get("question_id"):
+                        errors.append(f"recruiter_evaluation.question_evaluations[{idx}] missing 'question_id'")
+                    band = str(qe.get("rating") or qe.get("score_band") or "").upper()
+                    if band not in self.VALID_TECHNICAL_SCORE_BANDS:
+                        errors.append(
+                            f"recruiter_evaluation.question_evaluations[{idx}] 'rating' must be one of "
                             f"{', '.join(sorted(self.VALID_TECHNICAL_SCORE_BANDS))}"
                         )
 
