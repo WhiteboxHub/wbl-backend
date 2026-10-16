@@ -206,7 +206,6 @@ async def candidate_submit_assessment(
     assessment_id: Union[int, str],
     background_tasks: BackgroundTasks,
     request: Request,
-    payload: Optional[CandidateSubmitAssessmentRequest] = Body(default=None),
     status: Optional[str] = Query(None, description="Set to 'cancelled' if exiting/cancelling assessment"),
     stream: bool = Query(False, description="Set to true to stream real-time SSE progress updates directly over the submission request"),
     current_user: AuthUserORM = Depends(get_current_user),
@@ -214,9 +213,10 @@ async def candidate_submit_assessment(
 ):
     """
     Candidate Submit Assessment:
+    - Supports both multipart/form-data (direct audio file upload + assessment_data JSON)
+      and application/json (legacy chunk submissions).
     - If status == 'cancelled' (e.g. Exit clicked): Changes assessment status to CANCELLED in DB and exits immediately.
-    - Otherwise: Notifies backend that recording is complete, stitches media chunks,
-      executes Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag
+    - Otherwise: Processes audio/media, runs Audio Engine (Whisper + audio metrics), evaluates gatekeeper flag
       (insufficient_content) using transcript word count and interview duration,
       and returns assessment details and flag status.
     - If stream=true or Accept: text/event-stream: streams real-time progress events directly over the PUT connection.
@@ -226,7 +226,7 @@ async def candidate_submit_assessment(
         current_user=current_user,
         candidate_id=candidate_id,
         assessment_id=assessment_id,
-        payload=payload,
+        payload=None,
         status=status,
         background_tasks=background_tasks,
         request=request,
@@ -489,6 +489,7 @@ def delete_question_from_bank(
     """Deactivates a question for authorized staff to preserve assessment history."""
     _ = _staff
     return aiprep_utils.delete_question_from_bank_logic(db=db, question_id=question_id)
+
 
 
 

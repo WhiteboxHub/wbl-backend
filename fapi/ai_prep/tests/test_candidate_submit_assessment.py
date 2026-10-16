@@ -28,22 +28,27 @@ from fapi.ai_prep.utils.aiprep_utils import (
     _stitch_assessment_chunks,
 )
 
-sqlite_test_db_url = "sqlite:///:memory:"
-test_engine = create_engine(
-    sqlite_test_db_url,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
-
 import fapi.db.database
-fapi.db.database.SessionLocal = TestingSessionLocal
-fapi.db.database.engine = test_engine
+
+if getattr(fapi.db.database, "_is_test_engine", False):
+    test_engine = fapi.db.database.engine
+    TestingSessionLocal = fapi.db.database.SessionLocal
+else:
+    sqlite_test_db_url = "sqlite:///:memory:"
+    test_engine = create_engine(
+        sqlite_test_db_url,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    fapi.db.database.SessionLocal = TestingSessionLocal
+    fapi.db.database.engine = test_engine
+    fapi.db.database._is_test_engine = True
 
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_db():
-    tables = [
+Base.metadata.create_all(
+    bind=test_engine,
+    tables=[
         AuthUserORM.__table__,
         CandidateORM.__table__,
         CandidateMarketingORM.__table__,
@@ -52,10 +57,13 @@ def setup_db():
         AiPrepAssessmentDataORM.__table__,
         AiPrepAssessmentReportORM.__table__,
         AiPrepQuestionORM.__table__,
-    ]
-    Base.metadata.create_all(bind=test_engine, tables=tables)
+    ],
+)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_db():
     yield
-    Base.metadata.drop_all(bind=test_engine, tables=tables)
 
 
 @pytest.fixture
@@ -103,8 +111,12 @@ def submit_test_client(db_session, mock_candidate_user):
     def override_current_user():
         return mock_candidate_user
 
+    from fapi.utils.permission_gate import enforce_access, get_optional_current_user
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[enforce_access] = lambda: mock_candidate_user
+    app.dependency_overrides[get_optional_current_user] = override_current_user
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
@@ -468,8 +480,9 @@ def test_submit_assessment_silent_candidate_uploads_youtube_if_consented(submit_
 
     mock_yt_res = {"youtube_url": "https://www.youtube.com/watch?v=mock_silent_123"}
 
+    from fapi.ai_prep.clients.youtube_client import youtube_client
     with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
-         patch("fapi.ai_prep.clients.youtube_client.youtube_client.upload_unlisted_media", return_value=mock_yt_res), \
+         patch.object(youtube_client, "upload_unlisted_media", return_value=mock_yt_res), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation") as mock_eval:
 
         payload = {"total_chunks_uploaded": 1, "is_final": True, "client_duration_seconds": 60.0}

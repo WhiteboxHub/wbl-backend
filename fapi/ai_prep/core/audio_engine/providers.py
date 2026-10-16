@@ -154,11 +154,102 @@ class BrowserTranscriptionProvider(BaseTranscriptionProvider):
         }
 
 
+class OpenAIWhisperProvider(BaseTranscriptionProvider):
+    """
+    Transcription provider using OpenAI's cloud Whisper API (whisper-1).
+    Offloads heavy model execution from container memory to OpenAI.
+    Supports candidate-supplied API keys for zero-company cost.
+    """
+    provider_name: ClassVar[str] = "openai"
+
+    def __init__(self, default_api_key: Optional[str] = None):
+        self.default_api_key = default_api_key
+
+    def transcribe(
+        self,
+        audio_path: Optional[str] = None,
+        model_size: str = "whisper-1",
+        precomputed_transcript_text: Optional[str] = None,
+        precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any
+    ) -> Dict[str, Any]:
+        if precomputed_transcript_text is not None and precomputed_word_timestamps is not None:
+            logger.info("[OpenAIWhisperProvider] Reusing precomputed transcript & timestamps")
+            return {
+                "transcript_text": precomputed_transcript_text,
+                "word_timestamps": precomputed_word_timestamps,
+                "duration": kwargs.get("duration", 0.0),
+            }
+
+        if not audio_path or not os.path.exists(audio_path):
+            raise FileNotFoundError(f"OpenAIWhisperProvider requires a valid audio_path. Given: {audio_path}")
+
+        api_key = kwargs.get("openai_api_key") or kwargs.get("api_key") or self.default_api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise TranscriptionProviderError(
+                "OpenAI API key is required for OpenAI Whisper transcription. "
+                "Please configure candidate's OpenAI API key."
+            )
+
+        from openai import OpenAI
+
+        technical_prompt = (
+            "The candidate is answering technical interview questions on software engineering, system design, "
+            "Generative AI, RAG, and Agentic AI systems. "
+            "Technical vocabulary: FastAPI, Milvus, LangChain, LangGraph, ArgoCD, Kubernetes, MLOps, AWS Bedrock, "
+            "Claude Sonnet, Docling, Terraform, microservices, PyTorch, SageMaker, Lambda, S3, ECS, CI/CD."
+        )
+
+        try:
+            logger.info("[OpenAIWhisperProvider] Calling OpenAI Whisper-1 cloud API for '%s' using candidate API key", audio_path)
+            client = OpenAI(api_key=api_key)
+            with open(audio_path, "rb") as f:
+                response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=f,
+                    response_format="verbose_json",
+                    timestamp_granularities=["word"],
+                    prompt=technical_prompt,
+                    language="en",
+                )
+
+            full_text = getattr(response, "text", "") or ""
+            duration = getattr(response, "duration", 0.0) or 0.0
+            logger.info(
+                "[OpenAIWhisperProvider] Successfully transcribed %d words (duration: %.1fs) via OpenAI Whisper-1 cloud model",
+                len(full_text.split()),
+                duration,
+            )
+
+            word_timestamps: List[Dict[str, Any]] = []
+            raw_words = getattr(response, "words", None)
+            if raw_words:
+                for w in raw_words:
+                    word_str = getattr(w, "word", "") or ""
+                    if word_str.strip():
+                        word_timestamps.append({
+                            "word": word_str.strip(),
+                            "start": round(float(getattr(w, "start", 0.0)), 2),
+                            "end": round(float(getattr(w, "end", 0.0)), 2),
+                        })
+
+            return {
+                "transcript_text": full_text,
+                "word_timestamps": word_timestamps,
+                "duration": duration,
+            }
+        except Exception as exc:
+            logger.error(f"[OpenAIWhisperProvider] OpenAI Whisper transcription failed for {audio_path}: {exc}", exc_info=True)
+            raise TranscriptionProviderError(f"OpenAI Whisper transcription failed: {str(exc)}") from exc
+
+
 # Registry of supported providers
 PROVIDER_REGISTRY = {
     "whisper": WhisperTranscriptionProvider,
     "socket": SocketTranscriptionProvider,
     "browser": BrowserTranscriptionProvider,
+    "openai": OpenAIWhisperProvider,
+    "openai_whisper": OpenAIWhisperProvider,
 }
 
 _PROVIDER_CACHE: Dict[str, BaseTranscriptionProvider] = {}
