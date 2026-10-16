@@ -32,6 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 import traceback
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
@@ -51,8 +52,8 @@ try:
         try:
             # 1. Drop database duplicate key errors (IntegrityError from scrapers/batch inserts)
             if hint and "exc_info" in hint and hint["exc_info"]:
-                exc_type = hint["exc_info"][0]
-                if exc_type and getattr(exc_type, "__name__", "") == "IntegrityError":
+                exc_value = hint["exc_info"][1]
+                if isinstance(exc_value, IntegrityError):
                     return None
 
             # 2. Drop high-frequency scraper transactions
