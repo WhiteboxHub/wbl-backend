@@ -9,6 +9,7 @@ import pytest
 
 from fapi.ai_prep.core.analytics_engine.engine import AnalyticsEngine
 from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
+from fapi.ai_prep.core.scores_engine import ScoresEngine
 
 
 class TestAnalyticsEngineExhaustive(unittest.TestCase):
@@ -425,6 +426,47 @@ class TestAssessmentEngineStateValidation:
     def test_terminal_states_reject_transitions(self):
         assert self.engine.is_valid_transition("COMPLETED", "IN_PROGRESS") is False
         assert self.engine.is_valid_transition("FAILED", "IN_PROGRESS") is False
+
+
+class TestScoresEngineJsonRepair:
+
+    def setup_method(self):
+        self.engine = ScoresEngine()
+
+    def test_repair_truncated_json_string(self):
+        truncated = '{"technical_evaluation": {"overall_assessment": {"rating": "GOOD"}, "subject_evaluations": [], "question_evaluations": [{"question_id": 1, "rating": "GOOD", "feedback": "Good depth'
+        result = self.engine.validate_and_parse(truncated)
+        assert result["is_valid"] is True
+        assert result["parsed_report"]["technical_evaluation"]["question_evaluations"][0]["feedback"] == "Good depth"
+
+    def test_repair_truncated_json_trailing_comma(self):
+        truncated = '{"technical_evaluation": {"overall_assessment": {"rating": "GOOD"}, "subject_evaluations": [], "question_evaluations": [{"question_id": 1, "rating": "GOOD"}, '
+        result = self.engine.validate_and_parse(truncated)
+        assert result["is_valid"] is True
+        assert len(result["parsed_report"]["technical_evaluation"]["question_evaluations"]) == 1
+
+    def test_repair_string_with_commas_not_sliced(self):
+        """Verify naive rfind(',') does not slice inside string literals."""
+        truncated = '{"technical_evaluation": {"overall_assessment": {"rating": "GOOD"}, "subject_evaluations": [], "question_evaluations": [{"question_id": 1, "rating": "GOOD", "feedback": "Good depth, clear examples, but miss'
+        result = self.engine.validate_and_parse(truncated)
+        assert result["is_valid"] is True
+        assert result["parsed_report"]["technical_evaluation"]["question_evaluations"][0]["feedback"] == "Good depth, clear examples, but miss"
+
+    def test_repair_with_prompt_ordering_preserves_overall_assessment(self):
+        """Verify prompt order where overall_assessment and subject_evaluations are emitted first."""
+        truncated = (
+            '{"technical_evaluation": {'
+            '"overall_assessment": {"rating": "EXCELLENT", "executive_summary": "Strong candidate"}, '
+            '"subject_evaluations": [{"subject": "Software Engineering", "rating": "EXCELLENT"}], '
+            '"difficulty_analysis": {"easy": "Well done", "medium": "Solid", "hard": "Partial"}, '
+            '"question_evaluations": [{"question_id": 1, "rating": "EXCELLENT", "observation": "Great understanding, precise explanation'
+        )
+        result = self.engine.validate_and_parse(truncated)
+        assert result["is_valid"] is True
+        tech = result["parsed_report"]["technical_evaluation"]
+        assert tech["overall_assessment"]["rating"] == "EXCELLENT"
+        assert len(tech["subject_evaluations"]) == 1
+        assert tech["question_evaluations"][0]["observation"] == "Great understanding, precise explanation"
 
 
 if __name__ == "__main__":
