@@ -41,15 +41,40 @@ try:
     from sentry_sdk.integrations.logging import LoggingIntegration
     from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
-    # Initialize Sentry Error Tracking (Error monitoring & logging only)
+    # Initialize Sentry Error Tracking (Production only, with noise filters)
     sentry_dsn = os.getenv("SENTRY_DSN")
-    if sentry_dsn:
+    sentry_env = os.getenv("SENTRY_ENVIRONMENT", "").lower()
+
+    def sentry_before_send(event, hint):
+        try:
+            # 1. Drop database duplicate key errors (IntegrityError from scrapers/batch inserts)
+            if hint and "exc_info" in hint and hint["exc_info"]:
+                exc_type = hint["exc_info"][0]
+                if exc_type and getattr(exc_type, "__name__", "") == "IntegrityError":
+                    return None
+
+            # 2. Drop high-frequency scraper transactions
+            transaction = event.get("transaction") or ""
+            if "/api/positions" in transaction:
+                return None
+
+            # 3. Drop background scheduler loop errors
+            logger_name = event.get("logger") or ""
+            if "workflow_scheduler" in logger_name:
+                return None
+        except Exception:
+            pass
+        return event
+
+    # Only enable Sentry in production to protect monthly quota (5,000 events)
+    if sentry_dsn and sentry_env in ("production", "prod"):
         sentry_sdk.init(
             dsn=sentry_dsn,
-            environment=os.getenv("SENTRY_ENVIRONMENT", "local"),
+            environment="production",
             send_default_pii=False,
             traces_sample_rate=0.0,
             profiles_sample_rate=0.0,
+            before_send=sentry_before_send,
             integrations=[
                 LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
                 SqlalchemyIntegration(),
@@ -79,7 +104,8 @@ logger = logging.getLogger("wbl")
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception during request: %s %s: %s", request.method, request.url, exc)
     logger.error(traceback.format_exc())
-    sentry_sdk.capture_exception(exc)
+    if sentry_sdk:
+        sentry_sdk.capture_exception(exc)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"}
