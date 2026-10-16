@@ -153,64 +153,103 @@ class ScoresEngine:
 
     def _attempt_json_repair(self, s: str) -> Optional[Dict[str, Any]]:
         """
-        Attempts heuristic repair on truncated JSON (e.g. cut off by token limits).
-        Closes unclosed quotes and balances brackets/braces using stack analysis.
+        Attempts robust state-machine repair on truncated JSON (cut off by token limits).
+        Closes unclosed string literals and balances open brackets and braces.
+        Avoids slicing inside string literals.
         """
         if not s or not isinstance(s, str):
             return None
 
-        def balance_delimiters(raw: str) -> str:
-            curr = raw.strip()
-            if curr.endswith("\\"):
-                curr = curr[:-1]
-            quotes = [m.start() for m in re.finditer(r'(?<!\\)"', curr)]
-            if len(quotes) % 2 != 0:
-                curr += '"'
-            curr = re.sub(r',\s*$', '', curr)
+        clean_text = s.strip()
+        first_brace = clean_text.find("{")
+        if first_brace != -1:
+            clean_text = clean_text[first_brace:]
 
-            stack = []
+        def repair_and_close(raw: str) -> Optional[Dict[str, Any]]:
+            stack: List[str] = []
             in_str = False
             escaped = False
-            for char in curr:
+
+            for char in raw:
                 if escaped:
                     escaped = False
                     continue
-                if char == '\\':
+                if char == "\\":
                     escaped = True
                     continue
                 if char == '"':
                     in_str = not in_str
                     continue
                 if not in_str:
-                    if char in ('{', '['):
+                    if char in ("{", "["):
                         stack.append(char)
-                    elif char == '}':
-                        if stack and stack[-1] == '{':
+                    elif char == "}":
+                        if stack and stack[-1] == "{":
                             stack.pop()
-                    elif char == ']':
-                        if stack and stack[-1] == '[':
+                    elif char == "]":
+                        if stack and stack[-1] == "[":
                             stack.pop()
 
-            for opener in reversed(stack):
-                if opener == '{':
-                    curr += '}'
-                elif opener == '[':
-                    curr += ']'
-            return curr
+            candidate = raw
+            if in_str:
+                candidate += '"'
 
-        candidates_to_try = [s]
-        last_comma = s.rfind(',')
-        if last_comma != -1:
-            candidates_to_try.append(s[:last_comma])
+            candidate = re.sub(r',\s*$', '', candidate)
+            candidate = re.sub(r':\s*$', ': null', candidate)
+            candidate = re.sub(r',\s*"[^"]*"\s*$', '', candidate)
+            candidate = re.sub(r',\s*$', '', candidate)
 
-        for text in candidates_to_try:
+            # Re-compute stack to close remaining open containers
+            final_stack: List[str] = []
+            c_in_str = False
+            c_escaped = False
+            for char in candidate:
+                if c_escaped:
+                    c_escaped = False
+                    continue
+                if char == "\\":
+                    c_escaped = True
+                    continue
+                if char == '"':
+                    c_in_str = not c_in_str
+                    continue
+                if not c_in_str:
+                    if char in ("{", "["):
+                        final_stack.append(char)
+                    elif char == "}":
+                        if final_stack and final_stack[-1] == "{":
+                            final_stack.pop()
+                    elif char == "]":
+                        if final_stack and final_stack[-1] == "[":
+                            final_stack.pop()
+
+            for opener in reversed(final_stack):
+                if opener == "{":
+                    candidate += "}"
+                elif opener == "[":
+                    candidate += "]"
+
             try:
-                fixed = balance_delimiters(text)
-                res = json.loads(fixed)
+                res = json.loads(candidate)
                 if isinstance(res, dict):
                     return res
             except Exception:
-                continue
+                pass
+
+            return None
+
+        # 1. Try direct stack closure
+        result = repair_and_close(clean_text)
+        if result is not None:
+            return result
+
+        # 2. Try trimming back to the last balanced object boundary if needed
+        last_obj_close = clean_text.rfind("}")
+        if last_obj_close != -1:
+            fallback_text = clean_text[: last_obj_close + 1]
+            result = repair_and_close(fallback_text)
+            if result is not None:
+                return result
 
         return None
 
