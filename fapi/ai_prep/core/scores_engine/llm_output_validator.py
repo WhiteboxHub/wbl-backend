@@ -7,8 +7,11 @@
 # =============================================================================
 
 import json
+import logging
 import re
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class ScoresEngine:
@@ -74,17 +77,27 @@ class ScoresEngine:
             }
 
         # 1. Sanitize & extract clean JSON string
+        stripped_str = raw_llm_json_string.strip()
+        if stripped_str.startswith("```"):
+            stripped_str = re.sub(r"^```(?:json)?\s*", "", stripped_str, flags=re.IGNORECASE)
+            stripped_str = re.sub(r"\s*```$", "", stripped_str).strip()
+
         cleaned_str = self._sanitize_raw_text(raw_llm_json_string)
 
         # 2. Parse JSON
+        parsed_data = None
         try:
             parsed_data = json.loads(cleaned_str)
         except json.JSONDecodeError as exc:
-            return {
-                "is_valid": False,
-                "validation_errors": [f"Invalid JSON syntax: {str(exc)}"],
-                "parsed_report": None,
-            }
+            # Resilient fallback: attempt heuristic repair on stripped text (preserving tail content)
+            parsed_data = self._attempt_json_repair(stripped_str) or self._attempt_json_repair(cleaned_str)
+            if parsed_data is None:
+                return {
+                    "is_valid": False,
+                    "validation_errors": [f"Invalid JSON syntax: {str(exc)}"],
+                    "parsed_report": None,
+                }
+            logger.warning("[ScoresEngine] Successfully repaired truncated JSON response.")
 
         if not isinstance(parsed_data, dict):
             return {
@@ -137,6 +150,69 @@ class ScoresEngine:
             return stripped[start_idx : end_idx + 1]
 
         return stripped
+
+    def _attempt_json_repair(self, s: str) -> Optional[Dict[str, Any]]:
+        """
+        Attempts heuristic repair on truncated JSON (e.g. cut off by token limits).
+        Closes unclosed quotes and balances brackets/braces using stack analysis.
+        """
+        if not s or not isinstance(s, str):
+            return None
+
+        def balance_delimiters(raw: str) -> str:
+            curr = raw.strip()
+            if curr.endswith("\\"):
+                curr = curr[:-1]
+            quotes = [m.start() for m in re.finditer(r'(?<!\\)"', curr)]
+            if len(quotes) % 2 != 0:
+                curr += '"'
+            curr = re.sub(r',\s*$', '', curr)
+
+            stack = []
+            in_str = False
+            escaped = False
+            for char in curr:
+                if escaped:
+                    escaped = False
+                    continue
+                if char == '\\':
+                    escaped = True
+                    continue
+                if char == '"':
+                    in_str = not in_str
+                    continue
+                if not in_str:
+                    if char in ('{', '['):
+                        stack.append(char)
+                    elif char == '}':
+                        if stack and stack[-1] == '{':
+                            stack.pop()
+                    elif char == ']':
+                        if stack and stack[-1] == '[':
+                            stack.pop()
+
+            for opener in reversed(stack):
+                if opener == '{':
+                    curr += '}'
+                elif opener == '[':
+                    curr += ']'
+            return curr
+
+        candidates_to_try = [s]
+        last_comma = s.rfind(',')
+        if last_comma != -1:
+            candidates_to_try.append(s[:last_comma])
+
+        for text in candidates_to_try:
+            try:
+                fixed = balance_delimiters(text)
+                res = json.loads(fixed)
+                if isinstance(res, dict):
+                    return res
+            except Exception:
+                continue
+
+        return None
 
     def _validate_intro_payload(
         self, intro: Dict[str, Any], errors: List[str]

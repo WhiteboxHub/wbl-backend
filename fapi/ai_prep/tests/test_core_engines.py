@@ -9,6 +9,7 @@ import pytest
 
 from fapi.ai_prep.core.analytics_engine.engine import AnalyticsEngine
 from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
+from fapi.ai_prep.core.scores_engine import ScoresEngine
 
 
 class TestAnalyticsEngineExhaustive(unittest.TestCase):
@@ -425,6 +426,24 @@ class TestAssessmentEngineStateValidation:
     def test_terminal_states_reject_transitions(self):
         assert self.engine.is_valid_transition("COMPLETED", "IN_PROGRESS") is False
         assert self.engine.is_valid_transition("FAILED", "IN_PROGRESS") is False
+
+
+class TestScoresEngineJsonRepair:
+
+    def setup_method(self):
+        self.engine = ScoresEngine()
+
+    def test_repair_truncated_json_string(self):
+        truncated = '{"technical_evaluation": {"overall_assessment": {"rating": "GOOD"}, "subject_evaluations": [], "question_evaluations": [{"question_id": 1, "rating": "GOOD", "feedback": "Good depth'
+        result = self.engine.validate_and_parse(truncated)
+        assert result["is_valid"] is True
+        assert result["parsed_report"]["technical_evaluation"]["question_evaluations"][0]["feedback"] == "Good depth"
+
+    def test_repair_truncated_json_trailing_comma(self):
+        truncated = '{"technical_evaluation": {"overall_assessment": {"rating": "GOOD"}, "subject_evaluations": [], "question_evaluations": [{"question_id": 1, "rating": "GOOD"}, '
+        result = self.engine.validate_and_parse(truncated)
+        assert result["is_valid"] is True
+        assert len(result["parsed_report"]["technical_evaluation"]["question_evaluations"]) == 1
 
 
 if __name__ == "__main__":
