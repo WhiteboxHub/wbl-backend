@@ -7,6 +7,8 @@ and pure unit tests for AssessmentEngine core business logic.
 import unittest
 import pytest
 
+from typing import Any, Dict, List, Optional, Set
+
 from fapi.ai_prep.core.analytics_engine.engine import AnalyticsEngine
 from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
 
@@ -425,6 +427,152 @@ class TestAssessmentEngineStateValidation:
     def test_terminal_states_reject_transitions(self):
         assert self.engine.is_valid_transition("COMPLETED", "IN_PROGRESS") is False
         assert self.engine.is_valid_transition("FAILED", "IN_PROGRESS") is False
+
+
+
+# =============================================================================
+# AssessmentEngine — Recruiter Timed Question Selection
+# =============================================================================
+
+
+class TestRecruiterTimedQuestionSelection:
+
+    def setup_method(self):
+        self.engine = AssessmentEngine()
+
+    def _make_recruiter_questions(self, count: int, time_limit: Optional[int] = 120) -> list:
+        return [
+            {
+                "id": i + 1,
+                "category": "RECRUITER",
+                "subject": None,
+                "concept": None,
+                "scope": None,
+                "difficulty_level": "MEDIUM",
+                "time_limit_seconds": time_limit,
+                "question_text": f"Recruiter question {i + 1}",
+                "is_active": True,
+            }
+            for i in range(count)
+        ]
+
+    def test_recruiter_default_question_time(self):
+        """Rule 1: If time_limit_seconds is missing, None, or non-positive, default to 120s."""
+        questions = [
+            {"id": 1, "category": "RECRUITER", "is_active": True, "time_limit_seconds": None},
+            {"id": 2, "category": "RECRUITER", "is_active": True, "time_limit_seconds": 0},
+            {"id": 3, "category": "RECRUITER", "is_active": True},
+        ]
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600)
+        assert len(result) == 3
+        for q in result:
+            assert q["time_limit_seconds"] == 120
+
+    def test_recruiter_total_time_cap_never_exceeds_600s(self):
+        """Rule 3: Total estimated time must never exceed 600s (10 min)."""
+        questions = self._make_recruiter_questions(10, time_limit=120)  # Total 1200s available
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600)
+        total_time = sum(q["time_limit_seconds"] for q in result)
+        assert len(result) == 5
+        assert total_time == 600
+        assert total_time <= 600
+
+    def test_recruiter_variable_question_times_never_exceeds_600s(self):
+        """Rule 3: Variable question times fit within 600s without exceeding."""
+        questions = [
+            {"id": 1, "category": "RECRUITER", "is_active": True, "time_limit_seconds": 150},
+            {"id": 2, "category": "RECRUITER", "is_active": True, "time_limit_seconds": 180},
+            {"id": 3, "category": "RECRUITER", "is_active": True, "time_limit_seconds": 200},
+            {"id": 4, "category": "RECRUITER", "is_active": True, "time_limit_seconds": 120},
+            {"id": 5, "category": "RECRUITER", "is_active": True, "time_limit_seconds": 90},
+        ]
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600)
+        total_time = sum(q["time_limit_seconds"] for q in result)
+        assert total_time <= 600
+
+    def test_recruiter_independent_of_subject_concept_difficulty_scope(self):
+        """Rule 2: Selection does not depend on subject, concept, difficulty, or scope."""
+        questions = [
+            {"id": 1, "category": "RECRUITER", "subject": None, "concept": None, "scope": None, "difficulty_level": None, "is_active": True, "time_limit_seconds": 120},
+            {"id": 2, "category": "RECRUITER", "subject": "AI", "concept": "NLP", "scope": "BROAD", "difficulty_level": "HARD", "is_active": True, "time_limit_seconds": 120},
+            {"id": 3, "category": "RECRUITER", "subject": "SE", "concept": "Design", "scope": "SPECIFIC", "difficulty_level": "EASY", "is_active": True, "time_limit_seconds": 120},
+        ]
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600)
+        assert len(result) == 3
+
+    def test_recruiter_no_duplicate_questions(self):
+        """Rule 4: Never include duplicate questions within the same assessment."""
+        questions = self._make_recruiter_questions(15, time_limit=120)
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600)
+        ids = [q["id"] for q in result]
+        assert len(ids) == len(set(ids))
+
+    def test_recruiter_prioritizes_fresh_questions(self):
+        """Rule 5: Exclude previously completed questions when fresh questions are available."""
+        questions = self._make_recruiter_questions(10, time_limit=120)
+        previously_asked = {1, 2, 3, 4, 5}
+        result = self.engine.select_recruiter_timed_questions(
+            questions, target_seconds=600, previously_asked_ids=previously_asked
+        )
+        selected_ids = {q["id"] for q in result}
+        assert len(result) == 5
+        # Must only pick from 6, 7, 8, 9, 10
+        assert selected_ids == {6, 7, 8, 9, 10}
+        assert not selected_ids.intersection(previously_asked)
+
+    def test_recruiter_exhaustion_reuses_previously_asked(self):
+        """Rule 6: If all questions are previously asked, randomly reuse them up to 600s without duplicates."""
+        questions = self._make_recruiter_questions(6, time_limit=120)
+        all_asked = {1, 2, 3, 4, 5, 6}
+        result = self.engine.select_recruiter_timed_questions(
+            questions, target_seconds=600, previously_asked_ids=all_asked
+        )
+        assert len(result) == 5
+        ids = [q["id"] for q in result]
+        assert len(ids) == len(set(ids))
+        assert sum(q["time_limit_seconds"] for q in result) == 600
+
+    def test_recruiter_partial_exhaustion_backfills_from_previously_asked(self):
+        """Rule 6: If fresh questions are insufficient, backfill from previously asked up to 600s."""
+        questions = self._make_recruiter_questions(6, time_limit=120)
+        # Questions 1-5 already asked; only question 6 is fresh
+        previously_asked = {1, 2, 3, 4, 5}
+        result = self.engine.select_recruiter_timed_questions(
+            questions, target_seconds=600, previously_asked_ids=previously_asked
+        )
+        assert len(result) == 5
+        ids = [q["id"] for q in result]
+        assert 6 in ids  # Fresh question guaranteed to be picked
+        assert len(ids) == len(set(ids))  # No duplicates
+
+    def test_recruiter_explicit_limit_respected(self):
+        """Rule: Explicit limit caps the number of selected questions."""
+        questions = self._make_recruiter_questions(10, time_limit=120)
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600, limit=2)
+        assert len(result) == 2
+
+    def test_recruiter_inactive_questions_excluded(self):
+        """Rule: Inactive questions are never selected."""
+        questions = self._make_recruiter_questions(5, time_limit=120)
+        questions[0]["is_active"] = False
+        result = self.engine.select_recruiter_timed_questions(questions, target_seconds=600)
+        assert len(result) == 4
+        assert 1 not in [q["id"] for q in result]
+
+    def test_other_assessment_types_unaffected(self):
+        """Rule 7: Other assessment types remain completely unchanged."""
+        tech_q = [
+            {"id": 1, "category": "TECHNICAL", "subject": "AI Engineering", "concept": "NLP", "scope": "BROAD", "difficulty_level": "HARD", "time_limit_seconds": 120, "is_active": True},
+            {"id": 2, "category": "TECHNICAL", "subject": "Software Engineering", "concept": "API", "scope": "SPECIFIC", "difficulty_level": "MEDIUM", "time_limit_seconds": 120, "is_active": True},
+        ]
+        intro_q = [
+            {"id": 10, "category": "INTRO", "is_active": True, "time_limit_seconds": 120},
+            {"id": 11, "category": "INTRO", "is_active": True, "time_limit_seconds": 120},
+        ]
+        tech_res = self.engine.select_questions_for_assessment("TECHNICAL", tech_q, sanitize=False)
+        assert len(tech_res) == 2
+        intro_res = self.engine.select_questions_for_assessment("INTRO", intro_q, sanitize=False)
+        assert len(intro_res) == 1
 
 
 if __name__ == "__main__":
