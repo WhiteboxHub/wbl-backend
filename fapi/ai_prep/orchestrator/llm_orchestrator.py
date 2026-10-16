@@ -140,6 +140,7 @@ def _prepare_prompts(
     is_video_mode: bool,
     can_eval_audio: bool,
     questions: Optional[List[Dict[str, Any]]] = None,  
+    job_description: Optional[str] = None,
 ) -> Tuple[Dict[str, str], Optional[Dict[str, str]], Optional[Dict[str, str]]]:
     """Prepares and compiles prompts for transcript, audio, and video evaluation."""
     qa_context = None
@@ -153,6 +154,7 @@ def _prepare_prompts(
         transcript_text=transcript_text,
         resume_json=resume_json,
         qa_context=qa_context, 
+        jd_text=job_description,
     )
     audio_prompt = eval_engine.build_audio_prompt(audio_telemetry) if can_eval_audio else None
     video_prompt = eval_engine.build_video_prompt(video_telemetry) if is_video_mode else None
@@ -225,6 +227,7 @@ async def run_evaluation(
     video_telemetry: Dict[str, Any],
     resume_json: Optional[Any] = None,
     questions: Optional[List[Dict[str, Any]]] = None,
+    job_description: Optional[str] = None,
     llm_config: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
@@ -248,7 +251,7 @@ async def run_evaluation(
     can_eval_audio: bool = eval_engine.has_evaluable_audio(audio_telemetry)
     transcript_prompt, audio_prompt, video_prompt = _prepare_prompts(
         eval_engine, assessment_type, transcript_text, resume_json,
-        audio_telemetry, video_telemetry, is_video_mode, can_eval_audio, questions=questions
+        audio_telemetry, video_telemetry, is_video_mode, can_eval_audio, questions=questions , job_description=job_description,
     )
 
     call_labels: List[str] = ["transcript_eval"]
