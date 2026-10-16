@@ -22,6 +22,7 @@ class AudioMetricsEngine:
         provider_name: Optional[str] = None,
         precomputed_transcript_text: Optional[str] = None,
         precomputed_word_timestamps: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
@@ -35,6 +36,7 @@ class AudioMetricsEngine:
             model_size=model_size,
             precomputed_transcript_text=precomputed_transcript_text,
             precomputed_word_timestamps=precomputed_word_timestamps,
+            **kwargs,
         )
         transcript_text = stt_result.get("transcript_text", "")
         word_timestamps = stt_result.get("word_timestamps", [])
@@ -65,6 +67,7 @@ class AudioMetricsEngine:
             "wpm": transcript_metrics["wpm"],
             "speaking_duration_seconds": transcript_metrics["speaking_duration_seconds"],
             "total_audio_duration_seconds": actual_total_duration,
+            "stt_provider": provider.provider_name,
         }
 
         # 5. Explicitly discard temporary word timestamps
@@ -73,6 +76,7 @@ class AudioMetricsEngine:
         return {
             "spoken_content": {
                 "transcript_text": transcript_text,
+                "stt_provider": provider.provider_name,
             },
             "audio_telemetry": audio_telemetry
         }
