@@ -36,6 +36,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 from fapi.core.config import limiter
 import os
+
+sentry_sdk = None
 try:
     import sentry_sdk
     from sentry_sdk.integrations.logging import LoggingIntegration
