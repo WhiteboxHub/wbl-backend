@@ -2,6 +2,7 @@
 Follows WBL Backend code architecture standards separating routing and logic.
 """
 import os
+import re
 import uuid
 import json
 import shutil
@@ -329,45 +330,7 @@ def _verify_prerequisites(db: Session, candidate_id: int):
 # 1. Candidate Business Logic Functions
 # ---------------------------------------------------------------------------
 
-def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM) -> LLMKeyStatusResponse:
-    """Candidate self-check for configured LLM key dynamically from DB."""
-    try:
-        candidate_id = _resolve_candidate_id(db, current_user)
-        result = _check_candidate_llm_db(db, candidate_id)
-        return LLMKeyStatusResponse(**result)
-    except HTTPException as e:
-        if e.status_code == 404:
-            return LLMKeyStatusResponse(
-                status="failure",
-                is_configured=False,
-                provider=None,
-                model=None,
-                voice_enabled=False,
-                message="Candidate profile record not found. Please configure an API key in setup.",
-                available_models=[],
-            )
-        raise
 
-
-def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) -> ResumeStatusResponse:
-    """Candidate self-check for parsed resume status dynamically from DB."""
-    try:
-        candidate_id = _resolve_candidate_id(db, current_user)
-        result = _check_candidate_resume_db(db, candidate_id)
-        return ResumeStatusResponse(**result)
-    except HTTPException as e:
-        if e.status_code == 404:
-            cand_name = getattr(current_user, "fullname", None) or getattr(current_user, "uname", "Candidate")
-            return ResumeStatusResponse(
-                status="failure",
-                has_resume=False,
-                has_parsed_json=False,
-                candidate_name=cand_name,
-                current_title=None,
-                skills=[],
-                message="Candidate profile record not found. Please complete profile setup.",
-            )
-        raise
 
 
 def assessment_readiness_precheck_logic(
@@ -548,6 +511,7 @@ def candidate_create_assessment_logic(
     for q in questions_list:
         formatted_questions.append({
             "id": q.get("id") or q.get("question_id"),
+            "category": q.get("category"),
             "question_text": q.get("question_text"),
             "subject": q.get("subject"),
             "concept": q.get("concept"),
@@ -906,6 +870,7 @@ def candidate_get_assessment_detail_logic(
         assessment_type=assessment.assessment_type,
         media_type=assessment.media_type,
         status=assessment.status,
+        job_description=assessment.job_description,
         started_at=assessment.started_at,
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
@@ -1852,38 +1817,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
 
 
 
-def candidate_update_media_url_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    payload: UpdateMediaURLRequest,
-) -> UpdateMediaURLResponse:
-    """Updates YouTube/video playback URL on assessment in DB via crud."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
 
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    crud.update_assessment_media_url(db, assessment.id, payload.youtube_url)
-    return UpdateMediaURLResponse(id=assessment.id, assessment_uuid=assessment.assessment_uuid, youtube_url=payload.youtube_url)
-
-
-
-
-# ---------------------------------------------------------------------------
-# 2. Employee & Admin Business Logic Functions
-# ---------------------------------------------------------------------------
-
-def employee_check_candidate_llm_keys_logic(db: Session, candidate_id: int) -> LLMKeyStatusResponse:
-    """Employee inspects LLM key validity for any candidate dynamically from DB."""
-    result = _check_candidate_llm_db(db, candidate_id)
-    return LLMKeyStatusResponse(**result)
-
-
-def employee_check_candidate_resume_logic(db: Session, candidate_id: int) -> ResumeStatusResponse:
-    """Employee inspects resume setup for any candidate dynamically from DB."""
-    result = _check_candidate_resume_db(db, candidate_id)
-    return ResumeStatusResponse(**result)
 
 
 def employee_check_candidate_pre_check_logic(db: Session, candidate_id: int) -> PreAssessmentCheckResponse:
@@ -1962,39 +1896,7 @@ def employee_list_assessments_table_logic(
     )
 
 
-def employee_list_candidate_assessments_logic(db: Session, candidate_id: int) -> AssessmentListResponse:
-    """Employee view of assessment history for any specific candidate ID."""
-    cand = db.query(CandidateORM).filter(CandidateORM.id == candidate_id).first() if candidate_id else None
-    candidate_name = cand.full_name if (cand and cand.full_name) else None
-    candidate_email = cand.email if (cand and cand.email) else None
 
-    query = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == candidate_id)
-    total = query.count()
-    items = query.order_by(desc(AiPrepAssessmentORM.created_at)).all()
-
-    return AssessmentListResponse(
-        items=[
-            AssessmentListItem(
-                id=a.id,
-                assessment_uuid=a.assessment_uuid,
-                candidate_id=a.candidate_id,
-                candidate_name=candidate_name,
-                candidate_email=candidate_email,
-                score=a.report_record.overall_score if a.report_record else None,
-                assessment_type=a.assessment_type,
-                media_type=a.media_type,
-                status=a.status,
-                job_description=a.job_description,
-                youtube_url=a.youtube_url,
-                consent=a.consent,
-                started_at=a.started_at,
-                completed_at=a.completed_at,
-                created_at=a.created_at,
-            )
-            for a in items
-        ],
-        total=total,
-    )
 
 
 
@@ -2237,49 +2139,7 @@ async def upload_media_chunk_logic(
     )
 
 
-def get_chunk_upload_status_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    total_chunks: Optional[int] = None,
-) -> ChunkStatusResponse:
-    """Dynamically reads disk storage to check uploaded vs missing chunk numbers."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
-    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id), "chunks")
-    uploaded = []
-    if os.path.exists(chunk_dir):
-        try:
-            for fname in os.listdir(chunk_dir):
-                if fname.startswith("chunk_") and fname.endswith(".webm"):
-                    try:
-                        num = int(fname.replace("chunk_", "").replace(".webm", ""))
-                        uploaded.append(num)
-                    except ValueError:
-                        pass
-        except (PermissionError, OSError):
-            pass
-
-    uploaded = sorted(list(set(uploaded)))
-    start_index = 0 if (0 in uploaded or (uploaded and min(uploaded) == 0)) else 1
-    missing = [i for i in range(start_index, start_index + total_chunks) if i not in uploaded] if total_chunks else []
-    is_complete = bool(total_chunks and len(missing) == 0 and len(uploaded) >= total_chunks)
-
-    return ChunkStatusResponse(
-        assessment_id=assessment.id,
-        total_chunks=total_chunks or len(uploaded),
-        total_chunks_expected=total_chunks,
-        uploaded_chunks=uploaded,
-        uploaded_chunks_count=len(uploaded),
-        uploaded_chunk_numbers=uploaded,
-        missing_chunks=missing,
-        missing_chunk_numbers=missing,
-        is_complete=is_complete,
-        is_ready_for_assembly=is_complete,
-    )
 
 
 
@@ -2466,165 +2326,7 @@ async def process_audio_and_save_data(
 
 
 
-async def upload_raw_media_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    media_type: str,
-    file: UploadFile,
-    background_tasks: Optional[BackgroundTasks] = None,
-) -> LocalMediaUploadResponse:
-    """Uploads single binary media file directly to disk storage using streaming with size limits."""
-    normalized_media = (media_type or "").upper().strip()
-    if normalized_media not in {"AUDIO", "VIDEO", "AUDIO_ONLY"}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid media_type '{media_type}'. Allowed values: AUDIO, VIDEO, AUDIO_ONLY",
-        )
 
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    safe_filename = os.path.basename(file.filename or "media.webm")
-    dest_path = os.path.join(assessment_dir, f"raw_{safe_filename}")
-
-    max_media_bytes = int(getattr(settings, "MAX_MEDIA_UPLOAD_MB", 500)) * 1024 * 1024
-    total_written = 0
-
-    try:
-        os.makedirs(assessment_dir, exist_ok=True)
-        with open(dest_path, "wb") as buffer:
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                total_written += len(chunk)
-                if total_written > max_media_bytes:
-                    buffer.close()
-                    if os.path.exists(dest_path):
-                        os.remove(dest_path)
-                    raise HTTPException(
-                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                        detail=f"Media file ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_MEDIA_UPLOAD_MB}MB)",
-                    )
-                await asyncio.to_thread(buffer.write, chunk)
-    except HTTPException:
-        raise
-    except (PermissionError, OSError) as err:
-        logging.error("Could not write raw media file to disk: %s", err)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to write media file to server storage",
-        )
-
-    if background_tasks:
-        background_tasks.add_task(
-            process_media_and_upload_pipeline,
-            assessment.id,
-            dest_path,
-            normalized_media,
-            candidate_id,
-        )
-
-    return LocalMediaUploadResponse(
-        success=True,
-        assessment_id=assessment.id,
-        file_path=dest_path,
-        media_type=normalized_media,
-        message="Media uploaded and processing pipeline queued successfully",
-    )
-
-
-AUDIO_MIME_TO_EXTENSION: Dict[str, str] = {
-    "audio/wav": "wav",
-    "audio/x-wav": "wav",
-    "audio/webm": "webm",
-    "audio/mpeg": "mp3",
-    "audio/mp3": "mp3",
-    "audio/ogg": "ogg",
-    "audio/m4a": "m4a",
-    "audio/aac": "aac",
-    "audio/flac": "flac",
-}
-
-
-async def upload_assessment_audio_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    file: UploadFile,
-    mime_type: Optional[str] = None,
-    background_tasks: Optional[BackgroundTasks] = None,
-) -> AudioUploadResponse:
-    """Uploads direct audio recording binary to server storage with extension detection and size limits."""
-    from fapi.ai_prep.schemas import AudioUploadResponse
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    os.makedirs(assessment_dir, exist_ok=True)
-
-    ext = None
-    if mime_type and mime_type.lower() in AUDIO_MIME_TO_EXTENSION:
-        ext = AUDIO_MIME_TO_EXTENSION[mime_type.lower()]
-    elif file.filename and "." in file.filename:
-        file_ext = file.filename.rsplit(".", 1)[-1].lower()
-        if file_ext in {"wav", "webm", "mp3", "ogg", "m4a", "aac", "flac"}:
-            ext = file_ext
-    if not ext:
-        ext = "webm" if (mime_type and "webm" in mime_type) else "wav"
-
-    dest_path = os.path.join(assessment_dir, f"audio.{ext}")
-    max_audio_bytes = int(getattr(settings, "MAX_AUDIO_UPLOAD_MB", 100)) * 1024 * 1024
-    total_written = 0
-
-    try:
-        with open(dest_path, "wb") as buffer:
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                total_written += len(chunk)
-                if total_written > max_audio_bytes:
-                    buffer.close()
-                    if os.path.exists(dest_path):
-                        os.remove(dest_path)
-                    raise HTTPException(
-                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                        detail=f"Audio file ({total_written / (1024*1024):.1f}MB) exceeds maximum allowed size ({settings.MAX_AUDIO_UPLOAD_MB}MB)",
-                    )
-                await asyncio.to_thread(buffer.write, chunk)
-    except HTTPException:
-        raise
-    except (PermissionError, OSError) as err:
-        logging.error("Could not write audio recording file to disk: %s", err)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to write audio file to server storage",
-        )
-
-    if background_tasks:
-        background_tasks.add_task(
-            process_media_and_upload_pipeline,
-            assessment.id,
-            dest_path,
-            "AUDIO",
-            candidate_id,
-        )
-
-    return AudioUploadResponse(
-        success=True,
-        assessment_id=assessment.id,
-        message="Audio recording uploaded and processing pipeline queued successfully",
-        size_bytes=total_written,
-        mime_type=mime_type or f"audio/{ext}",
-        file_path=dest_path,
-    )
 
 
 def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Optional[int] = None) -> Optional[str]:
@@ -2688,337 +2390,9 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
     return None
 
 
-def get_assessment_audio_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    range_header: Optional[str] = None,
-) -> FileResponse:
-    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    candidate_files = [
-        os.path.join(assessment_dir, "audio.wav"),
-        os.path.join(assessment_dir, "audio.webm"),
-        os.path.join(assessment_dir, "recording.webm"),
-        os.path.join(assessment_dir, "audio.mp3"),
-        os.path.join(assessment_dir, "audio.ogg"),
-        os.path.join(assessment_dir, "assembled.webm"),
-    ]
-    target_file = None
-    for cf in candidate_files:
-        if os.path.exists(cf) and os.path.getsize(cf) > 0:
-            target_file = cf
-            break
-
-    if not target_file and os.path.exists(assessment_dir):
-        for fname in os.listdir(assessment_dir):
-            fpath = os.path.join(assessment_dir, fname)
-            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(s) for s in (".wav", ".webm", ".mp3", ".ogg")):
-                target_file = fpath
-                break
-
-    if not target_file and os.path.exists(assessment_dir):
-        target_file = _auto_assemble_chunks_if_present(assessment_dir)
-
-    if not target_file or not os.path.exists(target_file):
-        if getattr(assessment, "youtube_url", None):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Local audio recording purged following YouTube ingestion. Media stream available at: {assessment.youtube_url}",
-            )
-        raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
-
-    mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
-
-    return FileResponse(
-        path=target_file,
-        media_type=mime_type,
-        filename=os.path.basename(target_file),
-        content_disposition_type="inline",
-    )
-
-
-def get_assessment_video_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-    range_header: Optional[str] = None,
-) -> FileResponse:
-    """Retrieves and streams stored video recording from server storage with range seeking support."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
-
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    candidate_files = [
-        os.path.join(assessment_dir, "assembled.webm"),
-        os.path.join(assessment_dir, "video.mp4"),
-        os.path.join(assessment_dir, "recording.webm"),
-    ]
-    target_file = None
-    for cf in candidate_files:
-        if os.path.exists(cf) and os.path.getsize(cf) > 0:
-            target_file = cf
-            break
-
-    if not target_file and os.path.exists(assessment_dir):
-        for fname in os.listdir(assessment_dir):
-            fpath = os.path.join(assessment_dir, fname)
-            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and (fname.endswith(".webm") or fname.endswith(".mp4") or fname.endswith(".mkv")):
-                target_file = fpath
-                break
-
-    if not target_file and os.path.exists(assessment_dir):
-        target_file = _auto_assemble_chunks_if_present(assessment_dir)
-
-    if not target_file or not os.path.exists(target_file):
-        if getattr(assessment, "youtube_url", None):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Local video recording purged following YouTube ingestion. Media stream available at: {assessment.youtube_url}",
-            )
-        raise HTTPException(status_code=404, detail="Assessment video recording not found in server storage")
-
-    mime_type = "video/webm" if target_file.endswith(".webm") else "video/mp4"
-
-    return FileResponse(
-        path=target_file,
-        media_type=mime_type,
-        filename=os.path.basename(target_file),
-        content_disposition_type="inline",
-    )
-
-
-def get_media_storage_info_logic() -> StorageInfoResponse:
-    """Returns real storage directory disk usage and assessment folder count across nested candidate partitions."""
-    total, used, free = shutil.disk_usage(STORAGE_BASE_DIR if os.path.exists(STORAGE_BASE_DIR) else ".")
-    assessment_count = 0
-    if os.path.exists(STORAGE_BASE_DIR):
-        try:
-            for cand_dir in os.listdir(STORAGE_BASE_DIR):
-                cand_path = os.path.join(STORAGE_BASE_DIR, cand_dir)
-                if os.path.isdir(cand_path):
-                    try:
-                        valid_assessments = [
-                            item for item in os.listdir(cand_path)
-                            if os.path.isdir(os.path.join(cand_path, item))
-                        ]
-                        assessment_count += len(valid_assessments)
-                    except (PermissionError, OSError):
-                        pass
-        except (PermissionError, OSError) as err:
-            logger.warning("Error calculating storage assessment count: %s", err)
-    return StorageInfoResponse(
-        storage_dir=os.path.abspath(STORAGE_BASE_DIR),
-        total_bytes=total,
-        used_bytes=used,
-        free_bytes=free,
-        assessment_count=assessment_count,
-    )
-
-
-def get_assessment_processing_status_logic(
-    db: Session,
-    current_user: AuthUserORM,
-    assessment_id: Union[int, str],
-) -> ProcessingStatusResponse:
-    """Returns assessment pipeline processing progress snapshot dynamically from DB."""
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-    _resolve_candidate_id(db, current_user, assessment.candidate_id)
-    status_str = assessment.status if assessment.status else "IN_PROGRESS"
-
-    progress_map = {"IN_PROGRESS": 25.0, "EVALUATING": 70.0, "COMPLETED": 100.0, "FAILED": 0.0}
-    active_step = (
-        "Evaluation Completed" if status_str == "COMPLETED"
-        else ("Processing Failed" if status_str == "FAILED"
-        else ("Evaluating Responses with LLM" if status_str == "EVALUATING"
-        else "Processing Ingested Media"))
-    )
-    return ProcessingStatusResponse(
-        assessment_id=assessment.id,
-        status=status_str,
-        progress_percentage=int(progress_map.get(status_str, 50.0)),
-        active_step=active_step,
-        step=active_step,
-        progress_pct=progress_map.get(status_str, 50.0),
-        youtube_url=assessment.youtube_url,
-        message=f"Assessment is {status_str}",
-    )
-
-
-def _fetch_assessment_status_snapshot(assessment_id: int) -> Optional[Tuple[str, Optional[str]]]:
-    """Helper to query assessment status in an isolated short-lived DB session without holding connection pool."""
-    try:
-        with SessionLocal() as poll_db:
-            rec = crud.get_assessment_by_id_or_uuid(poll_db, assessment_id)
-            if rec:
-                raw_status = rec.status
-                status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
-                return status_str, getattr(rec, "youtube_url", None)
-    except Exception as exc:
-        logger.debug("SSE status poll error for assessment %s: %s", assessment_id, exc)
-    return None
-
-
-def stream_assessment_processing_sse_logic(
-    db: Optional[Session] = None,
-    current_user: Optional[AuthUserORM] = None,
-    assessment_id: Optional[Union[int, str]] = None,
-    request: Optional[Request] = None,
-    candidate_id: Optional[Union[int, str]] = None,
-) -> StreamingResponse:
-    """[DEPRECATED for candidate submission - use PUT /candidates/{id}/assessments/{id}?stream=true].
-    Retained for legacy progress listener routes and test compatibility."""
-    if assessment_id is None:
-        raise HTTPException(status_code=400, detail="Missing assessment_id")
-    if current_user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    def _validate_assessment(s: Session) -> Tuple[int, str]:
-        record = crud.get_assessment_by_id_or_uuid(s, assessment_id)
-        if not record:
-            raise HTTPException(status_code=404, detail="Assessment not found")
-        resolved_cand_id = _resolve_candidate_id(s, current_user, requested_id=candidate_id)
-        if hasattr(record, "candidate_id") and record.candidate_id != resolved_cand_id:
-            raise HTTPException(status_code=403, detail="You do not have permission to access this assessment.")
-        raw_status = getattr(record, "status", "IN_PROGRESS")
-        status_str = (raw_status.value if hasattr(raw_status, "value") else str(raw_status or "IN_PROGRESS")).upper()
-        if not isinstance(status_str, str) or "<" in status_str:
-            status_str = "IN_PROGRESS"
-        internal_id = getattr(record, "id", None) or assessment_id
-        try:
-            internal_id = int(internal_id)
-        except Exception:
-            internal_id = assessment_id
-        return internal_id, status_str
-
-    # One-off validation in a short-lived session (released immediately)
-    if db is not None:
-        internal_id, initial_db_status = _validate_assessment(db)
-        try:
-            db.close()
-        except Exception:
-            pass
-    else:
-        with SessionLocal() as init_db:
-            internal_id, initial_db_status = _validate_assessment(init_db)
-
-    ping_interval = float(getattr(settings, "SSE_PING_INTERVAL_SECONDS", 2))
-
-    async def event_generator():
-        TERMINAL_STATUSES = {"COMPLETED", "FAILED", "CANCELLED"}
-        max_polls = int(getattr(settings, "SSE_MAX_POLLS", 60))
-        polls = 0
-        queue, initial_snapshot = stream_manager.subscribe(internal_id)
-
-        try:
-            while polls < max_polls:
-                if request and await request.is_disconnected():
-                    logger.info("SSE client disconnected for assessment %s", internal_id)
-                    break
-
-                polls += 1
-                event = None
-
-                # 1. Deliver in-memory push event if queued or available in stream_manager snapshot
-                if not queue.empty():
-                    event = queue.get_nowait()
-                elif initial_snapshot and polls == 1:
-                    event = initial_snapshot
-                    initial_snapshot = None
-                else:
-                    # 2. Check snapshot via _fetch_assessment_status_snapshot (for tests and DB sync)
-                    snapshot = await asyncio.to_thread(_fetch_assessment_status_snapshot, internal_id)
-                    if not snapshot:
-                        break
-                    if isinstance(snapshot, tuple):
-                        curr_status, yt_url = snapshot[0], snapshot[1] if len(snapshot) > 1 else None
-                    else:
-                        curr_status, yt_url = snapshot, None
-                    curr_status = str(getattr(curr_status, "value", curr_status) or "IN_PROGRESS").upper()
-                    if not isinstance(curr_status, str) or "<" in curr_status:
-                        curr_status = "IN_PROGRESS"
-
-                    progress_map = {
-                        "IN_PROGRESS": 35,
-                        "EVALUATING": 75,
-                        "COMPLETED": 100,
-                        "FAILED": 0,
-                        "CANCELLED": 0,
-                    }
-                    pct = progress_map.get(curr_status, 50)
-                    active_step = (
-                        "Report Generated" if curr_status == "COMPLETED"
-                        else ("Processing Failed" if curr_status == "FAILED"
-                        else ("Assessment Cancelled" if curr_status == "CANCELLED"
-                        else ("LLM Evaluation in Progress" if curr_status == "EVALUATING"
-                        else "Media Processing & YouTube Ingestion")))
-                    )
-                    event = {
-                        "assessment_id": internal_id,
-                        "status": curr_status,
-                        "progress": pct,
-                    }
-                    if yt_url:
-                        event["youtube_url"] = yt_url
-
-                if event:
-                    yield f"data: {json.dumps(event)}\n\n"
-                    if event.get("status") in TERMINAL_STATUSES:
-                        break
-
-                # 3. Wait on queue for reactive push events; timeout smoothly after ping_interval
-                try:
-                    pushed_event = await asyncio.wait_for(queue.get(), timeout=min(ping_interval, 2.0))
-                    yield f"data: {json.dumps(pushed_event)}\n\n"
-                    if pushed_event.get("status") in TERMINAL_STATUSES:
-                        break
-                except asyncio.TimeoutError:
-                    pass
-                except asyncio.CancelledError:
-                    logger.info("SSE stream cancelled for assessment %s", internal_id)
-                    break
-        finally:
-            stream_manager.unsubscribe(internal_id, queue)
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
 # ---------------------------------------------------------------------------
 # 4. Question Bank & Catalog Logic
 # ---------------------------------------------------------------------------
-
-def list_available_assessment_types_logic() -> AssessmentTypeListResponse:
-    """Fetches all active assessment types from the hardcoded catalog."""
-    catalog = get_default_assessment_types()
-    return AssessmentTypeListResponse(
-        items=[AssessmentTypeResponse(**t) for t in catalog],
-        total=len(catalog),
-    )
-
-
-def create_new_assessment_type_logic(type_in: AssessmentTypeCreate) -> AssessmentTypeResponse:
-    """Admin endpoint to create a new assessment type in catalog."""
-    catalog = get_default_assessment_types()
-    new_item = type_in.dict()
-    new_item["id"] = len(catalog) + 1
-    return AssessmentTypeResponse(**new_item)
 
 
 def list_questions_from_bank_logic(
@@ -3115,11 +2489,15 @@ def update_question_in_bank_logic(
 
 
 def get_question_from_bank_logic(db: Session, question_id: int) -> QuestionResponse:
-    """Fetches a specific question by ID from ai_prep_question_bank."""
-    q_row = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == question_id).first()
+    """Retrieves an existing question by ID from the question bank."""
+    q_row = crud.get_question_by_id(db, question_id)
     if not q_row:
         raise HTTPException(status_code=404, detail="Question not found")
     return QuestionResponse.from_orm(q_row)
+
+
+
+
 
 
 def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, Any]:

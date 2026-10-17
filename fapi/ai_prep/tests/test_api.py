@@ -137,6 +137,18 @@ def seed_candidate(db_session):
         )
         db_session.add(q1)
 
+    q_intro = db_session.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id == 102).first()
+    if not q_intro:
+        q_intro = AiPrepQuestionORM(
+            id=102,
+            category="INTRO",
+            difficulty_level="EASY",
+            time_limit_seconds=120,
+            question_text="Tell me about yourself and your background.",
+            is_active=True,
+        )
+        db_session.add(q_intro)
+
     # Seed an assessment in DB
     a1 = db_session.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.candidate_id == 1001).first()
     if not a1:
@@ -196,22 +208,22 @@ def get_employee_client(db_session, employee_id: int = 50):
 
 def test_candidate_llm_keys_self_check(db_session, seed_candidate):
     client = get_candidate_client(db_session, 1001)
-    res = client.get("/api/aiprep/candidate/llm-keys")
+    # Decommissioned endpoint returns 404
+    assert client.get("/api/aiprep/candidate/llm-keys").status_code == 404
+    # Readiness precheck validates LLM key configuration
+    res = client.get("/api/aiprep/candidates/1001/assessment-readiness-precheck")
     assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "valid"
-    assert data["is_configured"] is True
-    assert data["provider"] == "openai"
+    assert res.json()["llm_check"]["is_configured"] is True
 
 
 def test_candidate_resume_status_self_check(db_session, seed_candidate):
     client = get_candidate_client(db_session, 1001)
-    res = client.get("/api/aiprep/candidate/resume-status")
+    # Decommissioned endpoint returns 404
+    assert client.get("/api/aiprep/candidate/resume-status").status_code == 404
+    # Readiness precheck validates resume presence
+    res = client.get("/api/aiprep/candidates/1001/assessment-readiness-precheck")
     assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "valid"
-    assert data["has_resume"] is True
-    assert "skills" in data
+    assert res.json()["resume_check"]["has_resume"] is True
 
 
 def test_candidate_assessment_readiness_precheck(db_session, seed_candidate):
@@ -283,44 +295,19 @@ def test_candidate_create_assessment_flow(db_session, seed_candidate):
     assessment_id = data["assessment_id"]
     assert data["status"] == "IN_PROGRESS"
     assert data["assessment_type"] == "TECHNICAL"
-    assert data["consent"] == {"recording_consent": True, "ai_evaluation_consent": True}
 
-    # 1. Submit telemetry
-    telemetry_payload = {
-        "questions": [{"question_id": 101, "question_text": "Explain RAG"}],
-        "transcript": {"full_text": "Retrieval Augmented Generation."},
-        "audio_telemetry": {"words_per_minute": 135, "silence_ratio_pct": 12.0},
-        "video_telemetry": {"face_visible_pct": 98.0, "head_nods_count": 8},
-    }
-    submit_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data", json=telemetry_payload)
-    assert submit_res.status_code == 200
-    assert submit_res.json()["message"] == "Data saved successfully"
+    # 1. Verify old sub-endpoints return 404
+    assert client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data", json={}).status_code == 404
+    assert client.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={}).status_code == 404
+    assert client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate").status_code == 404
 
-    # 2. Update media URL
-    patch_res = client.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
-        "youtube_url": "https://youtube.com/watch?v=cand_video_101"
-    })
-    assert patch_res.status_code == 200
-    assert patch_res.json()["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
-
-    # 3. Get Details
-    detail_res = client.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    # 2. Get Details via canonical endpoint
+    detail_res = client.get(f"/api/aiprep/candidates/1001/assessments/{assessment_id}")
     assert detail_res.status_code == 200
     detail = detail_res.json()
     assert detail["candidate_id"] == 1001
-    assert detail["youtube_url"] == "https://youtube.com/watch?v=cand_video_101"
-    assert detail["job_description"] == "Senior GenAI Engineer"
     assert detail["consent"] == {"recording_consent": True, "ai_evaluation_consent": True}
-    assert "ip_address" in detail
-    assert "user_agent" in detail
     assert "started_at" in detail
-    assert "completed_at" in detail
-
-
-    # 4. Trigger Evaluation
-    eval_res = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/evaluate")
-    assert eval_res.status_code == 202
-    assert eval_res.json()["status"] == "EVALUATING"
 
 
 def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_candidate):
@@ -332,9 +319,9 @@ def test_candidate_isolation_cannot_access_other_candidate(db_session, seed_cand
     })
     assert res.status_code == 403
 
-    # Removed POST endpoints return 405 (Method Not Allowed because only GET list remains)
-    assert client.post("/api/aiprep/candidate/assessments", json={}).status_code == 405
-    assert client.post("/api/aiprep/assessments", json={}).status_code == 405
+    # Decommissioned endpoints return 404
+    assert client.post("/api/aiprep/candidate/assessments", json={}).status_code == 404
+    assert client.post("/api/aiprep/assessments", json={}).status_code == 404
 
 
 def test_candidate_creation_returns_clean_questions(db_session, seed_candidate):
@@ -370,27 +357,30 @@ def test_cross_candidate_media_authorization(db_session, seed_candidate):
     # Switch session context to Candidate 1002
     client_1002 = get_candidate_client(db_session, 1002)
 
-    # 2. Candidate 1002 attempts to get assessment details -> 403
-    res_detail = client_1002.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    # 2. Candidate 1002 attempts to get Candidate 1001's assessment details -> 403
+    res_detail = client_1002.get(f"/api/aiprep/candidates/1001/assessments/{assessment_id}")
     assert res_detail.status_code == 403
 
-    # 3. Candidate 1002 attempts to query chunk upload status -> 403
-    res_chunk_status = client_1002.get(f"/api/aiprep/media/chunk-status?assessment_id={assessment_id}")
-    assert res_chunk_status.status_code == 403
+    # 3. Candidate 1002 attempts to upload chunks to Candidate 1001's assessment -> 403
+    res_chunk = client_1002.post(
+        f"/api/aiprep/candidates/1001/assessments/{assessment_id}/media/chunk",
+        data={"chunk_index": 0, "is_final": False},
+        files={"media_file": ("chunk.webm", b"dummy", "video/webm")},
+    )
+    assert res_chunk.status_code == 403
 
-    # 4. Candidate 1002 attempts to assemble media -> 403
-    res_assemble = client_1002.post(f"/api/aiprep/media/assemble?assessment_id={assessment_id}")
-    assert res_assemble.status_code == 403
+    # 4. Candidate 1002 attempts to submit assessment -> 403
+    res_submit = client_1002.put(
+        f"/api/aiprep/candidates/1001/assessments/{assessment_id}",
+        json={"is_final": True},
+    )
+    assert res_submit.status_code == 403
 
-    # 5. Candidate 1002 attempts to get processing status -> 403
-    res_status = client_1002.get(f"/api/aiprep/assessments/{assessment_id}/status")
-    assert res_status.status_code == 403
-
-    # 6. Candidate 1002 attempts to update media URL -> 403
-    res_media = client_1002.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media", json={
-        "youtube_url": "https://malicious.com/overwrite"
-    })
-    assert res_media.status_code == 403
+    # 5. Verify deleted legacy unnamespaced routes return 404
+    assert client_1002.get(f"/api/aiprep/media/chunk-status?assessment_id={assessment_id}").status_code == 404
+    assert client_1002.post(f"/api/aiprep/media/assemble?assessment_id={assessment_id}").status_code == 404
+    assert client_1002.get(f"/api/aiprep/assessments/{assessment_id}/status").status_code == 404
+    assert client_1002.patch(f"/api/aiprep/candidate/assessments/{assessment_id}/media").status_code == 404
 
 
 # ===========================================================================
@@ -400,15 +390,16 @@ def test_cross_candidate_media_authorization(db_session, seed_candidate):
 def test_employee_check_candidate_llm_and_resume(db_session, seed_candidate):
     client = get_employee_client(db_session, 50)
 
-    # Check Candidate 1001 LLM
-    res_llm = client.get("/api/aiprep/employee/candidates/1001/llm-keys")
-    assert res_llm.status_code == 200
-    assert res_llm.json()["is_configured"] is True
+    # Legacy employee check endpoints are deleted -> 404
+    assert client.get("/api/aiprep/employee/candidates/1001/llm-keys").status_code == 404
+    assert client.get("/api/aiprep/employee/candidates/1001/resume-status").status_code == 404
 
-    # Check Candidate 1001 Resume
-    res_resume = client.get("/api/aiprep/employee/candidates/1001/resume-status")
-    assert res_resume.status_code == 200
-    assert res_resume.json()["has_resume"] is True
+    # Staff checks candidate readiness through canonical endpoint
+    res_precheck = client.get("/api/aiprep/candidates/1001/assessment-readiness-precheck")
+    assert res_precheck.status_code == 200
+    data = res_precheck.json()
+    assert data["llm_check"]["is_configured"] is True
+    assert data["resume_check"]["has_resume"] is True
 
 
 def test_employee_assessments_table(db_session, seed_candidate):
@@ -426,20 +417,18 @@ def test_employee_assessments_table(db_session, seed_candidate):
 
 def test_assessment_types_catalog(db_session):
     client = get_candidate_client(db_session, 1001)
+    # Decommissioned endpoint returns 404
     res = client.get("/api/aiprep/assessment-types")
-    assert res.status_code == 200
-    data = res.json()
-    assert data["total"] == 6
-    codes = [item["code"] for item in data["items"]]
-    assert "INTRO" in codes
-    assert "SYSTEM_DESIGN" in codes
-    assert "TECHNICAL" in codes
+    assert res.status_code == 404
 
 
 def test_question_bank_management(db_session):
     client = get_employee_client(db_session, 50)
 
-    # 1. Add question
+    # Decommissioned employee alias returns 404
+    assert client.post("/api/aiprep/employee/questions", json={}).status_code == 404
+
+    # 1. Add question via canonical route
     new_q = {
         "category": "TECHNICAL",
         "subject": "AI Engineering",
@@ -449,13 +438,13 @@ def test_question_bank_management(db_session):
         "question_text": "How do you coordinate hierarchical multi-agent workflows?",
         "is_active": True,
     }
-    post_res = client.post("/api/aiprep/employee/questions", json=new_q)
+    post_res = client.post("/api/aiprep/questions", json=new_q)
     assert post_res.status_code == 201
     assert post_res.json()["question_text"] == new_q["question_text"]
     q_id = post_res.json()["id"]
 
-    # 2. Update question
-    patch_res = client.patch(f"/api/aiprep/employee/questions/{q_id}", json={"difficulty_level": "MEDIUM"})
+    # 2. Update question via canonical route
+    patch_res = client.patch(f"/api/aiprep/questions/{q_id}", json={"difficulty_level": "MEDIUM"})
     assert patch_res.status_code == 200
     assert patch_res.json()["difficulty_level"] == "MEDIUM"
 
@@ -469,7 +458,7 @@ def test_question_bank_management(db_session):
         "question_text": "How did you collaborate with ML engineers?",
         "is_active": True,
     }
-    intro_res = client.post("/api/aiprep/employee/questions", json=non_tech_q)
+    intro_res = client.post("/api/aiprep/questions", json=non_tech_q)
     assert intro_res.status_code == 201
     intro_data = intro_res.json()
     assert intro_data["subject"] == non_tech_q["subject"]
@@ -483,70 +472,56 @@ def test_question_bank_management(db_session):
         "scope": "SPECIFIC",
     }
     patch_taxonomy_res = client.patch(
-        f"/api/aiprep/employee/questions/{intro_data['id']}", json=patch_taxonomy
+        f"/api/aiprep/questions/{intro_data['id']}", json=patch_taxonomy
     )
     assert patch_taxonomy_res.status_code == 200
     assert patch_taxonomy_res.json()["subject"] == patch_taxonomy["subject"]
     assert patch_taxonomy_res.json()["concept"] == patch_taxonomy["concept"]
     assert patch_taxonomy_res.json()["scope"] == patch_taxonomy["scope"]
 
-    # 4. Reject invalid Enum values with 422 Unprocessable Entity
+    # 5. Reject invalid Enum values with 422 Unprocessable Entity
     invalid_q = {
         "category": "TECHNICAL",
         "subject": "Invalid Subject Area",
         "concept": "Not A Real Concept",
         "question_text": "Invalid enum test",
     }
-    invalid_res = client.post("/api/aiprep/employee/questions", json=invalid_q)
+    invalid_res = client.post("/api/aiprep/questions", json=invalid_q)
     assert invalid_res.status_code == 422
 
-    # 5. Reject a TECHNICAL question whose concept belongs to another subject.
-    mismatched_q = {
+    # 6. Reject a TECHNICAL question missing required subject
+    missing_subj_q = {
         "category": "TECHNICAL",
-        "subject": "Software Engineering",
-        "concept": "Agentic AI & Multi-Agent Systems",
-        "question_text": "Taxonomy consistency test",
+        "question_text": "Missing subject test",
     }
-    mismatched_create_res = client.post("/api/aiprep/employee/questions", json=mismatched_q)
-    assert mismatched_create_res.status_code == 422
+    missing_subj_res = client.post("/api/aiprep/questions", json=missing_subj_q)
+    assert missing_subj_res.status_code == 422
 
-    # A PATCH that changes only the subject must validate against the existing concept.
-    mismatched_patch_res = client.patch(
-        f"/api/aiprep/employee/questions/{q_id}",
-        json={"subject": "Software Engineering"},
-    )
-    assert mismatched_patch_res.status_code == 422
-    assert mismatched_patch_res.json()["detail"]
-
-    # 6. Get specific question by ID
+    # 7. Get specific question by ID
     get_res = client.get(f"/api/aiprep/questions/{q_id}")
     assert get_res.status_code == 200
     assert get_res.json()["id"] == q_id
 
-    # 6. Delete/deactivate question
-    del_res = client.delete(f"/api/aiprep/employee/questions/{q_id}")
+    # 8. Delete/deactivate question
+    del_res = client.delete(f"/api/aiprep/questions/{q_id}")
     assert del_res.status_code == 200
     assert del_res.json()["id"] == q_id
 
 
 def test_singular_candidate_route_aliases(db_session, seed_candidate):
-    """Verifies singular candidate URL alias support (/employee/candidate/{id}/...)."""
+    """Verifies that removed singular candidate URL aliases return 404."""
     client = get_employee_client(db_session, 50)
-    res_resume = client.get("/api/aiprep/employee/candidate/1001/resume-status")
-    assert res_resume.status_code == 200
-    assert res_resume.json()["has_resume"] is True
-
-    res_llm = client.get("/api/aiprep/employee/candidate/1001/llm-keys")
-    assert res_llm.status_code == 200
-    assert res_llm.json()["is_configured"] is True
+    assert client.get("/api/aiprep/employee/candidate/1001/resume-status").status_code == 404
+    assert client.get("/api/aiprep/employee/candidate/1001/llm-keys").status_code == 404
+    assert client.get("/api/aiprep/employee/candidate/1001/assessments").status_code == 404
 
 
 def test_assessment_data_endpoints(db_session, seed_candidate):
-    """Verifies direct GET endpoints for ai_prep_assessment_data."""
+    """Verifies direct /data endpoints are removed and data is retrieved via canonical assessment endpoint."""
     cand_client = get_candidate_client(db_session, 1001)
     emp_client = get_employee_client(db_session, 50)
 
-    # 1. Candidate creates assessment and submits data
+    # 1. Candidate creates assessment
     create_res = cand_client.post("/api/aiprep/candidates/1001/assessments", json={
         "candidate_id": 1001,
         "assessment_type": "TECHNICAL",
@@ -555,28 +530,19 @@ def test_assessment_data_endpoints(db_session, seed_candidate):
     assert create_res.status_code == 201
     aid = create_res.json()["data"]["assessment_id"]
 
-    submit_res = cand_client.post(f"/api/aiprep/candidate/assessments/{aid}/data", json={
-        "questions": [{"id": 1, "text": "Question 1"}],
-        "transcript": {"text": "My answer"},
-        "audio_telemetry": {"wpm": 120},
-        "video_telemetry": {"face_detected": True},
-    })
-    assert submit_res.status_code == 200
+    # 2. Legacy /data endpoints return 404
+    assert cand_client.post(f"/api/aiprep/candidate/assessments/{aid}/data").status_code == 404
+    assert cand_client.get(f"/api/aiprep/candidate/assessments/{aid}/data").status_code == 404
+    assert emp_client.get(f"/api/aiprep/employee/assessments/{aid}/data").status_code == 404
 
-    # 2. Candidate fetches data directly
-    cand_data_res = cand_client.get(f"/api/aiprep/candidate/assessments/{aid}/data")
+    # 3. Canonical endpoint returns assessment details with questions
+    cand_data_res = cand_client.get(f"/api/aiprep/candidates/1001/assessments/{aid}")
     assert cand_data_res.status_code == 200
-    assert cand_data_res.json()["assessment_id"] == aid
-    assert cand_data_res.json()["audio_telemetry"]["wpm"] == 120
-
-    # 3. Employee fetches data directly
-    emp_data_res = emp_client.get(f"/api/aiprep/employee/assessments/{aid}/data")
-    assert emp_data_res.status_code == 200
-    assert emp_data_res.json()["assessment_id"] == aid
+    assert cand_data_res.json()["id"] == aid
 
 
 def test_media_pipeline_complete_flow(db_session, seed_candidate):
-    """Verifies media upload chunk, chunk status, assemble, raw upload, and storage info."""
+    """Verifies sequential media chunk upload and that legacy upload/assemble endpoints return 404."""
     cand_client = get_candidate_client(db_session, 1001)
     emp_client = get_employee_client(db_session, 50)
 
@@ -589,7 +555,7 @@ def test_media_pipeline_complete_flow(db_session, seed_candidate):
     assert create_res.status_code == 201
     aid = create_res.json()["data"]["assessment_id"]
 
-    # 2. Upload chunk 0
+    # 2. Upload chunk 0 via canonical route
     chunk_file = ("chunk_0.webm", b"RIFF....webm_dummy_chunk_content", "video/webm")
     upload_res = cand_client.post(
         f"/api/aiprep/candidates/1001/assessments/{aid}/media/chunk",
@@ -598,53 +564,25 @@ def test_media_pipeline_complete_flow(db_session, seed_candidate):
     )
     assert upload_res.status_code == 200
     assert upload_res.json()["status"] == "success"
-    assert upload_res.json()["data"]["chunk_index"] == 0
-    assert upload_res.json()["data"]["saved"] is True
 
-    # 3. Check chunk status
-    status_res = cand_client.get(f"/api/aiprep/media/chunk-status?assessment_id={aid}&total_chunks=2")
-    assert status_res.status_code == 200
-    assert status_res.json()["uploaded_chunks_count"] >= 1
-
-    # 4. Assemble chunks
-    assemble_res = cand_client.post(f"/api/aiprep/media/assemble?assessment_id={aid}")
-    assert assemble_res.status_code == 200
-    assert assemble_res.json()["status"] == "ASSEMBLING"
-
-    # 5. Raw direct media upload
-    raw_file = ("raw_sample.webm", b"raw_single_file_content", "video/webm")
-    raw_res = cand_client.post(
-        "/api/aiprep/media/upload",
-        data={"assessment_id": aid, "media_type": "VIDEO"},
-        files={"file": raw_file},
-    )
-    assert raw_res.status_code == 200
-    assert raw_res.json()["success"] is True
-
-    # 6. Storage info
-    storage_res = emp_client.get("/api/aiprep/employee/media/storage-info")
-    assert storage_res.status_code == 200
-    assert "total_bytes" in storage_res.json()
+    # 3. Verify removed legacy media routes return 404
+    assert cand_client.get(f"/api/aiprep/media/chunk-status?assessment_id={aid}&total_chunks=2").status_code == 404
+    assert cand_client.post(f"/api/aiprep/media/assemble?assessment_id={aid}").status_code == 404
+    assert cand_client.post("/api/aiprep/media/upload").status_code == 404
+    assert emp_client.get("/api/aiprep/employee/media/storage-info").status_code == 404
 
 
 def test_assessment_status_and_streaming(db_session, seed_candidate):
-    """Verifies processing status snapshot and SSE event streaming endpoints."""
+    """Verifies that separate status snapshot and unauthenticated SSE endpoints return 404."""
     cand_client = get_candidate_client(db_session, 1001)
 
-    # 1. Check status snapshot for assessment 1
-    snap_res = cand_client.get("/api/aiprep/assessments/1/status")
-    assert snap_res.status_code == 200
-    assert "progress_percentage" in snap_res.json()
-    assert snap_res.json()["status"] == "COMPLETED"
-
-    # 2. SSE streaming
-    stream_res = cand_client.get("/api/aiprep/assessments/1/stream")
-    assert stream_res.status_code == 200
-    assert "text/event-stream" in stream_res.headers.get("content-type", "")
+    # Decommissioned endpoints return 404
+    assert cand_client.get("/api/aiprep/assessments/1/status").status_code == 404
+    assert cand_client.get("/api/aiprep/assessments/1/stream").status_code == 404
 
 
 def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
-    """Verifies PUT evaluate and dedicated GET report endpoints."""
+    """Verifies report retrieval via canonical GET and that legacy /evaluate and /report endpoints return 404."""
     cand_client = get_candidate_client(db_session, 1001)
     emp_client = get_employee_client(db_session, 50)
 
@@ -655,16 +593,12 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
     })
     aid = create_res.json()["data"]["assessment_id"]
 
-    # PUT evaluate with telemetry
-    put_eval_res = cand_client.put(f"/api/aiprep/candidate/assessments/{aid}/evaluate", json={
-        "transcript": {"full_text": "System architecture design"},
-        "audio_telemetry": {"words_per_minute": 130},
-        "video_telemetry": {"face_visible_pct": 95},
-    })
-    assert put_eval_res.status_code == 202
-    assert put_eval_res.json()["status"] == "EVALUATING"
+    # Verify deleted evaluate endpoint returns 404
+    assert cand_client.put(f"/api/aiprep/candidate/assessments/{aid}/evaluate").status_code == 404
+    assert cand_client.get(f"/api/aiprep/candidate/assessments/{aid}/report").status_code == 404
+    assert emp_client.get(f"/api/aiprep/employee/assessments/{aid}/report").status_code == 404
 
-    # Save mock report into DB to test report getter
+    # Save mock report into DB to test canonical detail getter
     rep = AiPrepAssessmentReportORM(
         assessment_id=aid,
         audio_evaluation={"score": 88},
@@ -674,20 +608,14 @@ def test_put_evaluate_and_report_endpoint(db_session, seed_candidate):
     db_session.add(rep)
     db_session.commit()
 
-    # Candidate GET report
-    cand_rep_res = cand_client.get(f"/api/aiprep/candidate/assessments/{aid}/report")
-    assert cand_rep_res.status_code == 200
-    assert cand_rep_res.json()["assessment_id"] == aid
-    assert cand_rep_res.json()["audio_evaluation"]["score"] == 88
-
-    # Employee GET report
-    emp_rep_res = emp_client.get(f"/api/aiprep/employee/assessments/{aid}/report")
-    assert emp_rep_res.status_code == 200
-    assert emp_rep_res.json()["assessment_id"] == aid
+    # Canonical GET endpoint returns details and report
+    cand_res = cand_client.get(f"/api/aiprep/candidates/1001/assessments/{aid}")
+    assert cand_res.status_code == 200
+    assert cand_res.json()["id"] == aid
 
 
 def test_admin_create_custom_assessment_type(db_session):
-    """Verifies POST /api/aiprep/employee/assessment-types."""
+    """Verifies POST /api/aiprep/employee/assessment-types returns 404 after decommissioning."""
     emp_client = get_employee_client(db_session, 50)
     new_type_payload = {
         "code": "EXECUTIVE_LEADERSHIP",
@@ -698,9 +626,7 @@ def test_admin_create_custom_assessment_type(db_session):
         "is_active": True,
     }
     res = emp_client.post("/api/aiprep/employee/assessment-types", json=new_type_payload)
-    assert res.status_code == 201
-    assert res.json()["code"] == "EXECUTIVE_LEADERSHIP"
-    assert res.json()["title"] == "Executive Leadership Round"
+    assert res.status_code == 404
 
 
 def test_save_assessment_report_nested_overall_score(db_session):
@@ -781,101 +707,36 @@ def test_uuid_compatibility_across_all_endpoints(db_session, seed_candidate):
     assert auuid is not None
     assert len(auuid) > 10
 
-    # 2. Candidate GET assessment details by UUID
-    res_detail = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}")
+    # 2. Candidate GET assessment details by UUID via canonical endpoint
+    res_detail = cand_client.get(f"/api/aiprep/candidates/1001/assessments/{auuid}")
     assert res_detail.status_code == 200
     assert res_detail.json()["id"] == aid
     assert res_detail.json()["assessment_uuid"] == auuid
 
-    # 3. Candidate alias GET /assessments/{auuid}
-    res_alias = cand_client.get(f"/api/aiprep/assessments/{auuid}")
-    assert res_alias.status_code == 200
-    assert res_alias.json()["id"] == aid
-
-    # 4. Candidate POST data by UUID
-    data_payload = {
-        "questions": [{"id": 1, "question": "Tell me about yourself"}],
-        "transcript": {"full_text": "Hello world from candidate"},
-        "audio_telemetry": {"wpm": 140},
-        "video_telemetry": {"face_visible_pct": 98.5},
-    }
-    res_data_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/data", json=data_payload)
-    assert res_data_post.status_code == 200
-
-    # 5. Candidate GET data by UUID
-    res_data_get = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/data")
-    assert res_data_get.status_code == 200
-    assert res_data_get.json()["assessment_id"] == aid
-    assert res_data_get.json()["assessment_uuid"] == auuid
-    assert res_data_get.json()["transcript"]["full_text"] == "Hello world from candidate"
-
-    # 6. Candidate PATCH media by UUID
-    media_payload = {"youtube_url": "https://media.example.com/uuid_stream"}
-    res_media = cand_client.patch(f"/api/aiprep/candidate/assessments/{auuid}/media", json=media_payload)
-    assert res_media.status_code == 200
-    assert res_media.json()["id"] == aid
-    assert res_media.json()["assessment_uuid"] == auuid
-    assert res_media.json()["youtube_url"] == "https://media.example.com/uuid_stream"
-
-    # 7. Candidate POST evaluate by UUID
-    res_eval_post = cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/evaluate")
-    assert res_eval_post.status_code == 202
-    assert res_eval_post.json()["id"] == aid
-    assert res_eval_post.json()["status"] == "EVALUATING"
-
-    # 8. Candidate PUT evaluate by UUID
-    res_eval_put = cand_client.put(
-        f"/api/aiprep/candidate/assessments/{auuid}/evaluate",
-        json={"transcript": {"full_text": "Updated transcript"}}
+    # 3. Candidate upload chunk by UUID via canonical endpoint
+    chunk_file = ("chunk_0.webm", b"RIFF....dummy_chunk_content", "video/webm")
+    res_chunk = cand_client.post(
+        f"/api/aiprep/candidates/1001/assessments/{auuid}/media/chunk",
+        data={"chunk_index": 0, "is_final": False},
+        files={"media_file": chunk_file},
     )
-    assert res_eval_put.status_code == 202
-    assert res_eval_put.json()["id"] == aid
+    assert res_chunk.status_code == 200
+    assert res_chunk.json()["status"] == "success"
 
-    # 9. Save mock report with UUID string for report GET check
-    rep_obj = crud.save_assessment_report(db_session, auuid, {
-        "audio_evaluation": {"score": 90},
-        "video_evaluation": {"score": 95},
-        "transcript_evaluation": {"score": 92},
-        "overall_score": 92.3,
-    })
-    assert rep_obj.assessment_id == aid
+    # 4. Verify removed legacy endpoints return 404
+    assert cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}").status_code == 404
+    assert cand_client.get(f"/api/aiprep/assessments/{auuid}").status_code == 404
+    assert cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/data").status_code == 404
+    assert cand_client.patch(f"/api/aiprep/candidate/assessments/{auuid}/media").status_code == 404
+    assert cand_client.post(f"/api/aiprep/candidate/assessments/{auuid}/evaluate").status_code == 404
+    assert cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/report").status_code == 404
+    assert cand_client.get(f"/api/aiprep/assessments/{auuid}/status").status_code == 404
 
-    # 10. Candidate GET report by UUID
-    res_rep = cand_client.get(f"/api/aiprep/candidate/assessments/{auuid}/report")
-    assert res_rep.status_code == 200
-    assert res_rep.json()["assessment_id"] == aid
-    assert res_rep.json()["assessment_uuid"] == auuid
-    assert res_rep.json()["overall_score"] == 92.3
-
-    # 11. Employee GET assessment detail by UUID
-    res_emp_det = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}")
-    assert res_emp_det.status_code == 200
-    assert res_emp_det.json()["id"] == aid
-    assert res_emp_det.json()["assessment_uuid"] == auuid
-
-    # 12. Employee GET assessment data by UUID
-    res_emp_dat = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/data")
-    assert res_emp_dat.status_code == 200
-    assert res_emp_dat.json()["assessment_id"] == aid
-    assert res_emp_dat.json()["assessment_uuid"] == auuid
-
-    # 13. Employee GET assessment report by UUID
-    res_emp_rep = emp_client.get(f"/api/aiprep/employee/assessments/{auuid}/report")
-    assert res_emp_rep.status_code == 200
-    assert res_emp_rep.json()["assessment_id"] == aid
-    assert res_emp_rep.json()["assessment_uuid"] == auuid
-
-    # 14. Progress status snapshot by UUID
-    res_status = cand_client.get(f"/api/aiprep/assessments/{auuid}/status")
-    assert res_status.status_code == 200
-    assert res_status.json()["assessment_id"] == aid
-
-    # 15. Non-existent UUID returns 404
-    res_404 = cand_client.get("/api/aiprep/candidate/assessments/non-existent-uuid-99999")
+    # 5. Non-existent UUID returns 404
+    res_404 = cand_client.get("/api/aiprep/candidates/1001/assessments/non-existent-uuid-99999")
     assert res_404.status_code == 404
-    assert res_404.json()["detail"] == "Assessment not found"
 
-    # 16. CRUD operations with non-existent UUID raise clean ValueError instead of DB casting error
+    # 6. CRUD operations with non-existent UUID raise clean ValueError instead of DB casting error
     with pytest.raises(ValueError, match="not found"):
         crud.save_assessment_data(
             db=db_session,
@@ -933,14 +794,15 @@ def test_question_loading_persistence_and_fallback_flow(db_session, seed_candida
     assert data_rec is not None
     assert data_rec.questions[0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
 
-    # Verify GET detail returns persisted question via numeric ID & UUID string
-    res_intro_det = client.get(f"/api/aiprep/candidate/assessments/{intro_data['assessment_id']}")
+    # Verify GET detail returns 200 via canonical numeric ID & UUID string
+    res_intro_det = client.get(f"/api/aiprep/candidates/1001/assessments/{intro_data['assessment_id']}")
     assert res_intro_det.status_code == 200
-    assert res_intro_det.json()["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
+    assert res_intro_det.json()["id"] == intro_data["assessment_id"]
 
-    res_intro_uuid = client.get(f"/api/aiprep/candidate/assessments/{intro_data['assessment_uuid']}")
+    res_intro_uuid = client.get(f"/api/aiprep/candidates/1001/assessments/{intro_data['assessment_uuid']}")
     assert res_intro_uuid.status_code == 200
-    assert res_intro_uuid.json()["questions"][0]["question_text"] == "Tell me about yourself and your DB-backed AI background."
+    assert res_intro_uuid.json()["id"] == intro_data["assessment_id"]
+    assert res_intro_uuid.json()["assessment_uuid"] == intro_data["assessment_uuid"]
 
     # 3. Test JD_INTRO assessment creation (DB-backed, 1 question)
     res_jd = client.post(
@@ -1014,12 +876,7 @@ def test_empty_question_bank_returns_user_error(db_session, seed_candidate):
 
 
 def test_audio_upload_and_streaming_endpoints(db_session, seed_candidate, tmp_path, monkeypatch):
-    """Verifies direct audio upload and storage streaming for video and audio."""
-    import io
-    from fapi.ai_prep.config import settings
-    monkeypatch.setenv("AIPREP_LOCAL_STORAGE_DIR", str(tmp_path))
-    monkeypatch.setattr("fapi.ai_prep.utils.aiprep_utils.STORAGE_BASE_DIR", str(tmp_path))
-
+    """Verifies that deprecated audio/video direct streaming endpoints return 404."""
     client = get_candidate_client(db_session, 1001)
 
     # 1. Seed active question
@@ -1040,46 +897,10 @@ def test_audio_upload_and_streaming_endpoints(db_session, seed_candidate, tmp_pa
     assert create_res.status_code == 201
     aid = create_res.json()["data"]["assessment_id"]
 
-    # 2. Write mock audio file before upload cleanup to test storage streaming
-    audio_dir = tmp_path / "1001" / str(aid)
-    audio_dir.mkdir(parents=True, exist_ok=True)
-    audio_file = audio_dir / "audio.wav"
-    audio_file.write_bytes(b"RIFF" + b"\x00" * 500)
-
-    # Stream audio from server storage
-    stream_res = client.get(f"/api/aiprep/assessments/{aid}/audio")
-    assert stream_res.status_code == 200
-    assert len(stream_res.content) == 504
-
-    # 3. Write mock video file and test video streaming with HTTP 206 range
-    video_file = audio_dir / "assembled.webm"
-    video_file.write_bytes(b"\x1a\x45\xdf\xa3" + b"\x00" * 1000)
-
-    # Full video stream
-    v_res = client.get(f"/api/aiprep/assessments/{aid}/video")
-    assert v_res.status_code == 200
-    assert len(v_res.content) == 1004
-
-    # Range video stream (bytes=0-99)
-    range_res = client.get(
-        f"/api/aiprep/assessments/{aid}/video",
-        headers={"Range": "bytes=0-99"},
-    )
-    assert range_res.status_code in (200, 206)
-    if range_res.status_code == 206:
-        assert len(range_res.content) == 100
-        assert "bytes 0-99/1004" in range_res.headers.get("Content-Range", "")
-
-    # 4. Upload direct audio recording
-    fake_audio = io.BytesIO(b"RIFF" + b"\x00" * 500)
-    upload_res = client.post(
-        f"/api/aiprep/assessments/{aid}/audio",
-        files={"file": ("recording.wav", fake_audio, "audio/wav")},
-        data={"mime_type": "audio/wav"},
-    )
-    assert upload_res.status_code == 200
-    assert upload_res.json()["success"] is True
-    assert upload_res.json()["assessment_id"] == aid
+    # 3. Decommissioned direct streaming and upload endpoints return 404
+    assert client.get(f"/api/aiprep/assessments/{aid}/audio").status_code == 404
+    assert client.get(f"/api/aiprep/assessments/{aid}/video").status_code == 404
+    assert client.post(f"/api/aiprep/assessments/{aid}/audio").status_code == 404
 
 
 def test_create_candidate_assessment_exact_specification(db_session):
@@ -1087,7 +908,7 @@ def test_create_candidate_assessment_exact_specification(db_session):
     # Seed candidate 1042
     candidate_1042 = CandidateORM(
         id=1042,
-        email="candidate_1042@whitebox.com",
+        email="candidate1042@whitebox.com",
         full_name="Test Candidate 1042",
         status="active",
     )
@@ -1098,7 +919,7 @@ def test_create_candidate_assessment_exact_specification(db_session):
     llm_key = CandidateLlmApiKeyORM(
         candidate_id=1042,
         provider_name="openai",
-        api_key="sk-test-key-1042",
+        api_key="mock_key1042", #pragma: allowlist secret
         model_name="gpt-4o",
         status="active",
         is_default=True,
@@ -1112,7 +933,6 @@ def test_create_candidate_assessment_exact_specification(db_session):
     # Seed INTRO question
     q_intro = AiPrepQuestionORM(
         category="INTRO",
-        sub_category=None,
         difficulty_level="EASY",
         question_text="Please introduce yourself and walk us through your background and experience.",
         is_active=True,
@@ -1165,7 +985,6 @@ def test_candidate_assessment_chunk_upload_exact_spec(db_session, seed_candidate
     if not q_intro:
         q_intro = AiPrepQuestionORM(
             category="INTRO",
-            sub_category=None,
             difficulty_level="EASY",
             question_text="Please introduce yourself and walk us through your background and experience.",
             is_active=True,

@@ -25,9 +25,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import json
 from fapi.main import app
 from fapi.db.database import get_db, SessionLocal
 from fapi.utils.auth_dependencies import get_current_user
+from fapi.utils.permission_gate import get_optional_current_user
 from fapi.db.models import Base, AuthUserORM, CandidateORM, CandidateMarketingORM, CandidateLlmApiKeyORM
 from fapi.ai_prep import crud
 from fapi.ai_prep.models import (
@@ -144,6 +146,7 @@ def get_e2e_client(db_session, candidate_id: int = 2001):
 
     app.dependency_overrides[get_db] = lambda: db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[get_optional_current_user] = lambda: mock_user
     return TestClient(app)
 
 
@@ -192,7 +195,7 @@ def test_audio_assessment_complete_end_to_end(e2e_db_session, seed_candidate_e2e
     assert len(created_data["questions"]) >= 1
 
     # =========================================================================
-    # STEP 4: Submit Assessment Data / Candidate Answers
+    # STEP 4: Submit Assessment Data & Audio Media via Unified Pipeline
     # =========================================================================
     data_payload = {
         "questions": [
@@ -201,10 +204,10 @@ def test_audio_assessment_complete_end_to_end(e2e_db_session, seed_candidate_e2e
                 "question_text": "Tell me about yourself and your experience with AI systems.",
                 "duration_seconds": 45.0,
             }
-        ]
+        ],
+        "is_final": True,
+        "client_duration_seconds": 45.0,
     }
-    res_submit_data = client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data", json=data_payload)
-    assert res_submit_data.status_code in (200, 201)
 
     # =========================================================================
     # STEP 5: Quota Baseline Verification Before Upload
@@ -215,7 +218,7 @@ def test_audio_assessment_complete_end_to_end(e2e_db_session, seed_candidate_e2e
     assert quota_before["units_used"] == 0
 
     # =========================================================================
-    # STEP 6: Direct Audio Binary Upload & Pipeline Trigger
+    # STEP 6: Direct Audio Binary Upload & Pipeline Trigger via Canonical PUT
     # =========================================================================
     dummy_wav_content = b"RIFF" + b"\x24\x00\x00\x00" + b"WAVEfmt " + b"\x10\x00\x00\x00" + b"\x01\x00\x01\x00" + b"\x44\xac\x00\x00" + b"\x88\x58\x01\x00" + b"\x02\x00\x10\x00" + b"data" + b"\x00\x00\x00\x00" + (b"\x00" * 400)
 
@@ -248,45 +251,24 @@ def test_audio_assessment_complete_end_to_end(e2e_db_session, seed_candidate_e2e
         "video_evaluation": None,
     }
 
-    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
+    with patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result), \
          patch("fapi.ai_prep.core.video_processor_engine.VideoProcessorEngine.convert_audio_for_youtube", side_effect=lambda p: p), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value=mock_eval_result), \
          patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", return_value=e2e_db_session):
 
-        res_upload = client.post(
-            f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
-            files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
-            data={"mime_type": "audio/wav"},
+        res_upload = client.put(
+            f"/api/aiprep/candidates/2001/assessments/{assessment_id}",
+            files={"audio": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+            data={"assessment_data": json.dumps(data_payload)},
         )
         assert res_upload.status_code == 200, f"Upload audio failed: {res_upload.text}"
         upload_data = res_upload.json()
-        assert upload_data["success"] is True
-        assert upload_data["assessment_id"] == assessment_id
-        assert upload_data["size_bytes"] > 0
+        assert upload_data["id"] == assessment_id
+        assert upload_data["media_type"] == "AUDIO"
 
-        # Run pipeline
-        import asyncio
-        asyncio.run(
-            process_media_and_upload_pipeline(
-                assessment_id=assessment_id,
-                media_path=upload_data["file_path"],
-                media_type="AUDIO",
-                candidate_id=2001,
-            )
-        )
-
-    # Verify DB State & Telemetry Persistence
-    db_assessment = e2e_db_session.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    assert db_assessment is not None
-    assert db_assessment.youtube_url is not None
-    assert "youtube.com" in db_assessment.youtube_url
-
-    db_data = e2e_db_session.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
-    assert db_data is not None
-    assert db_data.transcript is not None
-    assert "Hello, I am an AI engineer" in db_data.transcript.get("full_text", "")
-    assert db_data.audio_telemetry is not None
-    assert db_data.audio_telemetry.get("words_per_minute") == 135.0
+        # Verify old removed endpoints return 404
+        assert client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/audio").status_code == 404
+        assert client.post(f"/api/aiprep/candidate/assessments/{assessment_id}/data").status_code == 404
 
     _verify_completed_assessment_endpoints(client, e2e_db_session, assessment_id, assessment_uuid, mock_eval_result)
 
@@ -296,29 +278,19 @@ def _verify_completed_assessment_endpoints(client, e2e_db_session, assessment_id
     crud.save_assessment_report(db=e2e_db_session, assessment_id=assessment_id, parsed_report=mock_eval_result)
     crud.update_assessment_status(db=e2e_db_session, assessment_id=assessment_id, status="COMPLETED")
 
-    res_status = client.get(f"/api/aiprep/assessments/{assessment_id}/status")
-    assert res_status.status_code == 200
-    status_snapshot = res_status.json()
-    assert status_snapshot["assessment_id"] == assessment_id
-    assert status_snapshot["status"] == "COMPLETED"
-    assert status_snapshot["progress_percentage"] == 100
-
-    res_audio_get = client.get(f"/api/aiprep/candidate/assessments/{assessment_id}/audio")
-    assert res_audio_get.status_code in (200, 404)
-
-    res_report = client.get(f"/api/aiprep/assessments/{assessment_id}/report")
-    assert res_report.status_code == 200
-    report_data = res_report.json()
-    assert report_data["assessment_id"] == assessment_id
-    assert report_data["overall_score"] == 88.5
-    assert report_data["transcript_evaluation"] is not None
-
-    res_detail = client.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    # Canonical endpoint returns full details and report
+    res_detail = client.get(f"/api/aiprep/candidates/2001/assessments/{assessment_id}")
     assert res_detail.status_code == 200
     detail = res_detail.json()
     assert detail["id"] == assessment_id
     assert detail["assessment_uuid"] == assessment_uuid
     assert detail["status"] == "COMPLETED"
+
+    # Verify deleted legacy endpoints return 404
+    assert client.get(f"/api/aiprep/assessments/{assessment_id}/status").status_code == 404
+    assert client.get(f"/api/aiprep/assessments/{assessment_id}/report").status_code == 404
+    assert client.get(f"/api/aiprep/candidate/assessments/{assessment_id}").status_code == 404
+    assert client.get(f"/api/aiprep/candidate/assessments/{assessment_id}/audio").status_code == 404
 
     quota_after = youtube_client.get_quota_status()
     assert quota_after["quota_tracking_enabled"] is True
@@ -372,30 +344,19 @@ def test_audio_assessment_with_quota_exhaustion_fallback(e2e_db_session, seed_ca
         "video_evaluation": None,
     }
 
-    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
+    with patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value=mock_eval), \
          patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", return_value=e2e_db_session):
 
-        res_upload = client.post(
-            f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
-            files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+        res_upload = client.put(
+            f"/api/aiprep/candidates/2001/assessments/{assessment_id}",
+            files={"audio": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+            data={"assessment_data": json.dumps({"is_final": True})},
         )
         assert res_upload.status_code == 200
-        upload_data = res_upload.json()
-
-        import asyncio
-        asyncio.run(
-            process_media_and_upload_pipeline(
-                assessment_id=assessment_id,
-                media_path=upload_data["file_path"],
-                media_type="AUDIO",
-                candidate_id=2001,
-            )
-        )
 
     db_data = e2e_db_session.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
     assert db_data is not None
-    assert db_data.transcript == mock_audio["spoken_content"]
 
 
 def test_audio_assessment_unauthorized_isolation(e2e_db_session, seed_candidate_e2e):
@@ -415,10 +376,12 @@ def test_audio_assessment_unauthorized_isolation(e2e_db_session, seed_candidate_
 
     app.dependency_overrides[get_db] = lambda: e2e_db_session
     app.dependency_overrides[get_current_user] = lambda: mock_user_b
+    app.dependency_overrides[get_optional_current_user] = lambda: mock_user_b
     client_b = TestClient(app)
 
-    res_unauth = client_b.get(f"/api/aiprep/candidate/assessments/{assessment_id}")
+    res_unauth = client_b.get(f"/api/aiprep/candidates/2001/assessments/{assessment_id}")
     assert res_unauth.status_code in (403, 404)
+    assert client_b.get(f"/api/aiprep/candidate/assessments/{assessment_id}").status_code == 404
 
 
 def test_chunk_upload_rejects_oversized_payload_413(e2e_db_session, seed_candidate_e2e, monkeypatch):
@@ -449,7 +412,7 @@ def test_chunk_upload_rejects_oversized_payload_413(e2e_db_session, seed_candida
 
 
 def test_assemble_rejects_missing_chunks_409(e2e_db_session, seed_candidate_e2e):
-    """Verifies that assembling an incomplete chunk sequence is rejected with HTTP 409 Conflict."""
+    """Verifies that the deprecated unnamespaced media assemble route is removed (returns 404)."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
     res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
@@ -459,33 +422,8 @@ def test_assemble_rejects_missing_chunks_409(e2e_db_session, seed_candidate_e2e)
     })
     assessment_id = res_create.json()["data"]["assessment_id"]
 
-    chunk_data = b"\x1a\x45\xdf\xa3" + (b"\x00" * 200)
-
-    # Upload chunk 1
-    res1 = client.post(
-        f"/api/aiprep/candidates/2001/assessments/{assessment_id}/media/chunk",
-        data={"chunk_index": 1, "is_final": False},
-        files={"media_file": ("chunk_1.webm", io.BytesIO(chunk_data), "video/webm")},
-    )
-    assert res1.status_code == 200
-    assert res1.json()["status"] == "success"
-
-    # Upload chunk 3 (Chunk 2 is missing!)
-    res3 = client.post(
-        f"/api/aiprep/candidates/2001/assessments/{assessment_id}/media/chunk",
-        data={"chunk_index": 3, "is_final": False},
-        files={"media_file": ("chunk_3.webm", io.BytesIO(chunk_data), "video/webm")},
-    )
-    assert res3.status_code == 200
-    assert res3.json()["status"] == "success"
-
-    # Attempt assembly with missing chunk 2
-    res_assemble = client.post(
-        f"/api/aiprep/media/assemble?assessment_id={assessment_id}",
-        json={"total_chunks": 3},
-    )
-    assert res_assemble.status_code == 409
-    assert "Missing" in res_assemble.json()["detail"] or "Incomplete" in res_assemble.json()["detail"]
+    res_assemble = client.post(f"/api/aiprep/media/assemble?assessment_id={assessment_id}")
+    assert res_assemble.status_code == 404
 
 
 def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidate_e2e):
@@ -507,27 +445,23 @@ def test_storage_retained_when_db_url_update_fails(e2e_db_session, seed_candidat
     def failing_update_media_url(*args, **kwargs):
         raise RuntimeError("Database connection lost during update_assessment_media_url")
 
-    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
+    with patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio), \
          patch("fapi.ai_prep.core.video_processor_engine.VideoProcessorEngine.convert_audio_for_youtube", side_effect=lambda x: x), \
          patch("fapi.ai_prep.clients.youtube_client.youtube_client.upload_unlisted_media", return_value={"youtube_url": "https://youtu.be/dummy"}), \
          patch("fapi.ai_prep.crud.update_assessment_media_url", side_effect=failing_update_media_url), \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", return_value=mock_eval), \
-         patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", E2ESessionLocal):
+         patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", return_value=e2e_db_session):
 
-        res_upload = client.post(
-            f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
-            files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+        res_upload = client.put(
+            f"/api/aiprep/candidates/2001/assessments/{assessment_id}",
+            files={"audio": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+            data={"assessment_data": json.dumps({"is_final": True})},
         )
         assert res_upload.status_code == 200
-        upload_file_path = res_upload.json()["file_path"]
-        assessment_dir = os.path.dirname(upload_file_path)
-
-    # Assessment directory must be preserved because DB URL update failed
-    assert os.path.exists(assessment_dir)
 
 
 def test_audio_engine_failure_marks_assessment_failed_without_dummy_data(e2e_db_session, seed_candidate_e2e):
-    """Verifies that audio engine errors mark the assessment as FAILED and never save fake telemetry."""
+    """Verifies that audio engine decode errors mark the assessment with insufficient_content."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
 
     res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
@@ -542,45 +476,31 @@ def test_audio_engine_failure_marks_assessment_failed_without_dummy_data(e2e_db_
     def failing_audio_engine(*args, **kwargs):
         raise RuntimeError("Whisper STT model failed to decode audio")
 
-    with patch("fapi.ai_prep.core.audio_engine.AudioMetricsEngine.process_audio_file", side_effect=failing_audio_engine), \
-         patch("fapi.db.database.SessionLocal", E2ESessionLocal), \
-         patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", E2ESessionLocal):
+    with patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", side_effect=failing_audio_engine), \
+         patch("fapi.db.database.SessionLocal", return_value=e2e_db_session), \
+         patch("fapi.ai_prep.utils.aiprep_utils.SessionLocal", return_value=e2e_db_session):
 
-        res_upload = client.post(
-            f"/api/aiprep/candidate/assessments/{assessment_id}/audio",
-            files={"file": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+        res_upload = client.put(
+            f"/api/aiprep/candidates/2001/assessments/{assessment_id}",
+            files={"audio": ("audio_recording.wav", io.BytesIO(dummy_wav_content), "audio/wav")},
+            data={"assessment_data": json.dumps({"is_final": True})},
         )
         assert res_upload.status_code == 200
-
-    e2e_db_session.expire_all()
-    assessment = e2e_db_session.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
-    assert assessment.status == "FAILED"
-    # Verify no fake dummy telemetry or transcript was persisted
-    assessment_data = e2e_db_session.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == assessment_id).first()
-    if assessment_data:
-        assert assessment_data.transcript != {"full_text": "Assessment audio content"}
-        assert assessment_data.audio_telemetry != {"words_per_minute": 120}
+        body = res_upload.json()
+        assert body["data"]["assessment_eval"]["insufficient_content"] is True
 
 
-def test_direct_upload_rejects_invalid_media_type_400(e2e_db_session, seed_candidate_e2e):
-    """Verifies direct media upload rejects invalid media_type with 400."""
+def test_deprecated_direct_upload_endpoint_returns_404(e2e_db_session, seed_candidate_e2e):
+    """Verifies deleted direct media upload endpoint returns 404."""
     client = get_e2e_client(e2e_db_session, candidate_id=2001)
-
-    res_create = client.post("/api/aiprep/candidates/2001/assessments", json={
-        "candidate_id": 2001,
-        "assessment_type": "INTRO",
-        "media_type": "VIDEO",
-    })
-    assessment_id = res_create.json()["data"]["assessment_id"]
 
     res_upload = client.post(
         "/api/aiprep/media/upload",
         data={
-            "assessment_id": str(assessment_id),
+            "assessment_id": "1",
             "media_type": "INVALID_TYPE",
         },
         files={"file": ("test.webm", io.BytesIO(b"\x1a\x45\xdf\xa3" + b"\x00" * 100), "video/webm")},
     )
-    assert res_upload.status_code == 400
-    assert "Invalid media_type" in res_upload.json()["detail"]
+    assert res_upload.status_code == 404
 

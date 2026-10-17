@@ -283,37 +283,3 @@ def test_redis_quota_manager_fail_closed_on_error():
 
 
 
-@pytest.mark.anyio
-async def test_sse_streaming_generator_short_lived_sessions_and_disconnect():
-    """Verify that SSE stream does not hold open long-lived DB sessions and terminates on disconnect."""
-    from unittest.mock import AsyncMock
-    from fapi.ai_prep.utils.aiprep_utils import stream_assessment_processing_sse_logic
-    from fapi.db.models import AuthUserORM
-
-    user = AuthUserORM(id=1, uname="candidate@example.com")
-    mock_request = MagicMock()
-    # Simulate client disconnect after 2 polls
-    mock_request.is_disconnected = AsyncMock(side_effect=[False, False, True])
-
-    with patch("fapi.ai_prep.utils.aiprep_utils.crud.get_assessment_by_id_or_uuid") as mock_get, \
-         patch("fapi.ai_prep.utils.aiprep_utils._resolve_candidate_id", return_value=1), \
-         patch("fapi.ai_prep.utils.aiprep_utils._fetch_assessment_status_snapshot", return_value=("IN_PROGRESS", None)) as mock_poll:
-
-        mock_assessment = MagicMock()
-        mock_assessment.id = 1001
-        mock_assessment.candidate_id = 1
-        mock_get.return_value = mock_assessment
-
-        streaming_resp = stream_assessment_processing_sse_logic(
-            current_user=user,
-            assessment_id=1001,
-            request=mock_request,
-        )
-
-        chunks = []
-        async for chunk in streaming_resp.body_iterator:
-            chunks.append(chunk)
-
-        # Should yield 2 events and then exit cleanly on disconnect
-        assert len(chunks) == 2
-        assert mock_poll.call_count == 2

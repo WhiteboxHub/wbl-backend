@@ -67,10 +67,3 @@ def list_api_keys(current_user=Depends(enforce_access), _auth=Depends(get_curren
 def delete_api_key(key_id: int, current_user=Depends(enforce_access), _auth=Depends(get_current_user), db: Session = Depends(get_db)):
     return aiprep_setup_utils.delete_api_key_logic(key_id, current_user.uname, db)
 
-@router.post("/extract-project")
-def extract_project_endpoint(current_user=Depends(enforce_access), _auth=Depends(get_current_user), db: Session = Depends(get_db)):
-    return aiprep_setup_utils.extract_project_logic(current_user.uname, db)
-
-@router.get("/latest-project")
-def get_latest_project(current_user=Depends(enforce_access), _auth=Depends(get_current_user), db: Session = Depends(get_db)):
-    return aiprep_setup_utils.get_latest_project_logic(current_user.uname, db)

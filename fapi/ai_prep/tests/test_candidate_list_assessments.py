@@ -22,6 +22,7 @@ os.environ["ENV"] = "test"
 from fapi.main import app
 from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
+from fapi.utils.permission_gate import get_optional_current_user
 from fapi.db.models import Base, AuthUserORM, CandidateORM
 from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
@@ -151,6 +152,7 @@ def get_client_for_user(db_session, user: AuthUserORM):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_optional_current_user] = override_get_current_user
     app.dependency_overrides[staff_or_admin_required] = override_staff_required
     return TestClient(app)
 
