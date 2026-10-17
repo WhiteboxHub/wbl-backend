@@ -4,6 +4,7 @@ Follows WBL Backend code architecture standards separating routing and logic.
 import os
 import uuid
 import json
+import re
 import shutil
 import logging
 import asyncio
@@ -785,6 +786,33 @@ def build_assessment_eval_dict(
     for k, v in intro_eval.items():
         if k not in ("overall_assessment", "introduction_quality", "final_assessment", "agentic_ai", "current_project") and k not in general_dict:
             general_dict[k] = v
+
+    # Extract hiring_manager_evaluation if present (Hiring Manager assessment)
+    hm_eval = t_eval.get("hiring_manager_evaluation") if isinstance(t_eval, dict) else None
+    if isinstance(hm_eval, dict) and hm_eval:
+        hm_oa = hm_eval.get("overall_assessment") or {}
+        readiness = readiness or hm_oa.get("rating") or hm_oa.get("readiness")
+        summary = summary or hm_oa.get("executive_summary") or hm_oa.get("summary")
+        strongest_signal = strongest_signal or hm_oa.get("primary_strength") or hm_oa.get("strongest_signal")
+        biggest_gap = biggest_gap or hm_oa.get("primary_risk") or hm_oa.get("biggest_gap")
+        general_dict["project_ownership"] = hm_eval.get("project_ownership") or {}
+        general_dict["technical_roadblocks"] = hm_eval.get("technical_roadblocks") or {}
+        general_dict["conflict_and_collaboration"] = hm_eval.get("conflict_and_collaboration") or {}
+        general_dict["trade_offs_and_deadlines"] = hm_eval.get("trade_offs_and_deadlines") or {}
+        general_dict["delivery_and_excellence"] = hm_eval.get("delivery_and_excellence") or {}
+        general_dict["strongest_points"] = hm_eval.get("strongest_points") or hm_oa.get("top_strengths") or general_dict.get("strongest_points") or []
+        general_dict["critical_gaps"] = hm_eval.get("critical_gaps") or general_dict.get("critical_gaps") or []
+        general_dict["priority_improvements"] = hm_eval.get("priority_improvements") or hm_oa.get("priority_improvements") or general_dict.get("priority_improvements") or []
+        general_dict["final_assessment"] = hm_eval.get("final_assessment") or {}
+        general_dict["hiring_manager_evaluation"] = hm_eval
+        if "question_evaluations" in hm_eval:
+            general_dict["question_evaluations"] = hm_eval["question_evaluations"]
+        comps = hm_eval.get("competency_evaluations") or hm_eval.get("pillar_evaluations")
+        if comps:
+            general_dict["competency_evaluations"] = comps
+            general_dict["pillar_evaluations"] = comps
+        if "behavioral_delivery_analysis" in hm_eval:
+            general_dict["behavioral_delivery_analysis"] = hm_eval["behavioral_delivery_analysis"]
 
     return {
         "insufficient_content": False, 
@@ -1817,6 +1845,26 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 else str(assessment.assessment_type)
             )
 
+            # Load and enrich questions with ground_truth strictly for HIRING_MANAGER evaluation
+            questions = None
+            if assessment_type_str == "HIRING_MANAGER":
+                questions = (data_rec.questions if data_rec else []) or []
+                if questions and any(not q.get("ground_truth") for q in questions):
+                    q_ids = [q.get("id") or q.get("question_id") for q in questions]
+                    q_ids = [qid for qid in q_ids if qid is not None]
+                    if q_ids:
+                        try:
+                            db_qs = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id.in_(q_ids)).all()
+                            q_map = {db_q.id: db_q.ground_truth for db_q in db_qs}
+                            for q in questions:
+                                qid = q.get("id") or q.get("question_id")
+                                if not q.get("ground_truth") and qid in q_map:
+                                    q["ground_truth"] = q_map[qid]
+                        except Exception as e:
+                            logger.warning(
+                                "[LLMOrchestrator Worker] Could not enrich questions with ground_truth: %s", e
+                            )
+
             eval_result = await llm_orchestrator.run_evaluation(
                 candidate_id=candidate_id,
                 assessment_type=assessment_type_str,
@@ -1824,6 +1872,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 audio_telemetry=audio_telemetry,
                 video_telemetry=video_telemetry,
                 resume_json=resume_json,
+                questions=questions,
                 llm_config=llm_config,
             )
 
