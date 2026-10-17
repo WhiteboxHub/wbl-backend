@@ -48,6 +48,19 @@ class ScoresEngine:
         "AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION",
     }
 
+    REQUIRED_HM_PILLARS = [
+        "project_ownership",
+        "technical_roadblocks",
+        "conflict_and_collaboration",
+        "trade_offs_and_deadlines",
+        "delivery_and_excellence",
+    ]
+
+    VALID_HM_SCORE_BANDS = {
+        "STRONG", "GOOD", "NEEDS_POLISH", "WEAK",
+        "AVERAGE", "POOR", "NOT_TESTED",
+    }
+
     def __init__(self) -> None:
         pass
 
@@ -87,7 +100,7 @@ class ScoresEngine:
         # 2. Parse JSON
         parsed_data = None
         try:
-            parsed_data = json.loads(cleaned_str)
+            parsed_data = json.loads(cleaned_str, strict=False)
         except json.JSONDecodeError as exc:
             # Resilient fallback: attempt heuristic repair on stripped text (preserving tail content)
             parsed_data = self._attempt_json_repair(stripped_str) or self._attempt_json_repair(cleaned_str)
@@ -106,9 +119,11 @@ class ScoresEngine:
                 "parsed_report": None,
             }
 
-        # 3. Validate Payload (Intro Evaluation, Technical, Audio, Video, or Master Assessment Report)
+        # 3. Validate Payload (Intro Evaluation, Hiring Manager, Technical, Audio, Video, or Master Assessment Report)
         if "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
+        elif "hiring_manager_evaluation" in parsed_data:
+            self._validate_hiring_manager_payload(parsed_data["hiring_manager_evaluation"], errors)
         elif "technical_evaluation" in parsed_data:
             self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
         elif "audio_evaluation" in parsed_data:
@@ -119,7 +134,7 @@ class ScoresEngine:
             self._validate_legacy_report_payload(parsed_data, errors)
         else:
             errors.append(
-                "Missing recognized evaluation root key: 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
+                "Missing recognized evaluation root key: 'hiring_manager_evaluation', 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
             )
 
         is_valid = len(errors) == 0
@@ -132,7 +147,7 @@ class ScoresEngine:
 
     def _sanitize_raw_text(self, text: str) -> str:
         """
-        Strips markdown code fences (```json ... ```) and isolates outer JSON braces.
+        Strips markdown code fences, isolates outer JSON braces, and cleans minor syntax anomalies.
         """
         stripped = text.strip()
 
@@ -147,9 +162,30 @@ class ScoresEngine:
         start_idx = stripped.find("{")
         end_idx = stripped.rfind("}")
         if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            return stripped[start_idx : end_idx + 1]
+            stripped = stripped[start_idx : end_idx + 1]
 
-        return stripped
+        # Strip trailing commas before } or ]
+        stripped = re.sub(r',\s*([}\]])', r'\1', stripped)
+
+        # Escape internal unescaped quotes in speech/evidence fields
+        out, in_str, esc = [], False, False
+        for i, c in enumerate(stripped):
+            if esc:
+                esc = False
+            elif c == '\\':
+                esc = True
+            elif c == '"':
+                if in_str:
+                    nxt = stripped[i + 1:].lstrip()[:1]
+                    if nxt in ',}:]\n' or not nxt:
+                        in_str = False
+                    else:
+                        c = '\\"'
+                else:
+                    in_str = True
+            out.append(c)
+
+        return "".join(out)
 
     def _attempt_json_repair(self, s: str) -> Optional[Dict[str, Any]]:
         """
@@ -350,6 +386,79 @@ class ScoresEngine:
         )
         if improvements is not None and not isinstance(improvements, list):
             errors.append("'priority_improvements' must be a list if provided")
+
+    def _validate_hiring_manager_payload(
+        self, hm: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """
+        Validates the hiring_manager_evaluation structure from hiring_manager_prompt.py.
+        Supports both:
+          1. V2.8 schema: question_evaluations, pillar_evaluations, overall_assessment (rating: GOOD/AVERAGE/POOR).
+          2. Legacy schema: 5 named pillars (project_ownership, etc.), overall_assessment (readiness: STRONG/GOOD/etc.).
+        """
+        if not isinstance(hm, dict):
+            errors.append("hiring_manager_evaluation must be a dictionary")
+            return
+
+        # 1. Overall assessment
+        overall = hm.get("overall_assessment")
+        if not isinstance(overall, dict):
+            errors.append("Missing or invalid object 'overall_assessment' in hiring_manager_evaluation")
+        else:
+            readiness = str(
+                overall.get("rating") or overall.get("readiness") or ""
+            ).upper().strip()
+            if readiness not in self.VALID_HM_SCORE_BANDS:
+                errors.append(
+                    f"overall_assessment.readiness '{readiness}' must be one of: {', '.join(sorted(self.VALID_HM_SCORE_BANDS))}"
+                )
+
+        # 2. Check if v2.8 schema (question_evaluations present)
+        if "question_evaluations" in hm:
+            q_evals = hm.get("question_evaluations")
+            if not isinstance(q_evals, list):
+                errors.append("question_evaluations must be a list")
+            else:
+                for idx, q_eval in enumerate(q_evals):
+                    if not isinstance(q_eval, dict):
+                        errors.append(f"question_evaluations[{idx}] must be an object")
+                        continue
+                    q_rating = str(q_eval.get("rating", "")).upper().strip()
+                    if q_rating and q_rating not in self.VALID_HM_SCORE_BANDS:
+                        errors.append(
+                            f"question_evaluations[{idx}].rating '{q_rating}' must be one of: {', '.join(sorted(self.VALID_HM_SCORE_BANDS))}"
+                        )
+
+            p_evals = hm.get("competency_evaluations") or hm.get("pillar_evaluations")
+            if p_evals is not None and not isinstance(p_evals, list):
+                errors.append("competency_evaluations must be a list if provided")
+
+        else:
+            # Legacy schema: Required 5 core competency pillars
+            for pillar_key in self.REQUIRED_HM_PILLARS:
+                pillar = hm.get(pillar_key)
+                if not isinstance(pillar, dict):
+                    errors.append(f"Missing or invalid pillar object '{pillar_key}' in hiring_manager_evaluation")
+                    continue
+
+                status = str(pillar.get("status", "")).upper().strip()
+                if status not in self.VALID_HM_SCORE_BANDS:
+                    errors.append(
+                        f"pillar '{pillar_key}'.status must be one of: {', '.join(sorted(self.VALID_HM_SCORE_BANDS))}"
+                    )
+
+                # Validate evidence is a list of strings if present
+                if "evidence" in pillar and not isinstance(pillar["evidence"], list):
+                    errors.append(f"pillar '{pillar_key}'.evidence must be a list of strings")
+
+            # Top-level summary & coaching lists in legacy
+            for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
+                if list_key not in hm or not isinstance(hm[list_key], list):
+                    errors.append(f"Missing or invalid list '{list_key}' in hiring_manager_evaluation")
+
+        # Final assessment object (optional)
+        if "final_assessment" in hm and not isinstance(hm["final_assessment"], dict):
+            errors.append("'final_assessment' must be an object if provided in hiring_manager_evaluation")
 
     def _validate_audio_payload(
         self, audio: Dict[str, Any], errors: List[str]
