@@ -42,7 +42,7 @@ class TestEvalEngineHiringManagerPrompt(unittest.TestCase):
         assert "TRADE-OFFS & DEADLINES" in res["system_prompt"]
         assert "DELIVERY & EXCELLENCE" in res["system_prompt"]
         assert "Q1: Tell me about a blocker." in res["user_prompt"]
-        assert hiring_manager_prompt.PROMPT_VERSION == "2.8.0"
+        assert hiring_manager_prompt.PROMPT_VERSION == "3.1.0"
 
 
 # =============================================================================
@@ -191,6 +191,83 @@ class TestScoresEngineHiringManagerValidator(unittest.TestCase):
         res = self.validator.validate_and_parse(bad_json)
         assert res["is_valid"] is True
         assert res["parsed_report"] is not None
+
+    def test_valid_v31_hiring_manager_payload_with_star_and_reality_locked_coaching(self):
+        v31_payload = {
+            "hiring_manager_evaluation": {
+                "question_evaluations": [
+                    {
+                        "question_id": 101,
+                        "question_text": "Tell me about a production roadblock and how you resolved it.",
+                        "pillar": "Technical Roadblocks",
+                        "difficulty_level": "HARD",
+                        "response_state": "ANSWERED",
+                        "rating": "STRONG",
+                        "personal_agency": "STRONG",
+                        "star_framework": {
+                            "situation": {"present": True, "detail": "High-traffic checkout API suffering p99 timeouts.", "quote": "Our checkout service began dropping 15% of requests at peak."},
+                            "task": {"present": True, "detail": "Lead the task force to eliminate p99 spikes.", "quote": "I took full responsibility to isolate the bottleneck within 24 hours."},
+                            "action": {"present": True, "detail": "Instrumented distributed tracing and redesigned connection pooling.", "quote": "I rewrote the database connection pool configuration and added Redis read-replicas."},
+                            "result": {"present": True, "detail": "Latency reduced from 2.4s to 45ms.", "quote": "p99 dropped from 2400ms to 45ms, eliminating all dropoffs."}
+                        },
+                        "rubric_points_evaluated": {
+                            "covered_points": [{"id": 1, "description": "Diagnosed bottleneck with telemetry", "core": True}],
+                            "partially_covered_points": [],
+                            "missed_points": []
+                        },
+                        "leadership_signals_demonstrated": ["Extreme Ownership", "Deep Technical Rigor"],
+                        "leadership_signals_missing": [],
+                        "critical_failure_triggered": None,
+                        "evidence": [{"point_id": 1, "quote": "I analyzed the telemetry and saw connection exhaustion."}],
+                        "observation": "Exemplary senior engineering leadership with strong personal agency.",
+                        "top_fix": "Quantify cost savings alongside latency drops.",
+                        "coaching": None,
+                        "reality_locked_coaching": {
+                            "identified_pattern": "STRONG_TECHNICAL_DELIVERY",
+                            "reality_anchor": "Demonstrated full end-to-end agency and metrics-driven resolution.",
+                            "recommended_action": "Carry this level of rigor into executive strategy meetings."
+                        },
+                        "flags": []
+                    }
+                ],
+                "pillar_evaluations": [
+                    {
+                        "pillar": "Technical Roadblocks",
+                        "rating": "STRONG",
+                        "summary": "Demonstrated master-level root-cause problem solving.",
+                        "strengths": ["Decisive under pressure", "Metrics-driven"],
+                        "gaps": [],
+                        "what_to_work_on": "Share post-mortem across teams."
+                    }
+                ],
+                "final_assessment": {
+                    "leadership_readiness": "STRONG",
+                    "technical_depth_and_rigor": "STRONG",
+                    "culture_and_collaboration": "ADEQUATE",
+                    "delivery_execution": "STRONG"
+                },
+                "overall_assessment": {
+                    "rating": "STRONG",
+                    "executive_summary": "Exceptional senior engineering candidate with proven technical ownership and high agency.",
+                    "top_strengths": ["End-to-end accountability", "Root-cause diagnosis"],
+                    "priority_improvements": ["Highlight business ROI metrics"],
+                    "next_practice_focus": "Cross-functional stakeholder alignment"
+                },
+                "behavioral_delivery_analysis": {
+                    "directness": "Direct",
+                    "structured_storytelling": "STAR structured",
+                    "authenticity_and_poise": "Poised",
+                    "conciseness_and_pacing": "Well paced",
+                    "observation": "Clear, direct, and structured communication."
+                }
+            }
+        }
+        res = self.validator.validate_and_parse(json.dumps(v31_payload))
+        assert res["is_valid"] is True
+        assert len(res["validation_errors"]) == 0
+        assert res["parsed_report"] is not None
+        assert res["parsed_report"]["hiring_manager_evaluation"]["question_evaluations"][0]["rating"] == "STRONG"
+        assert res["parsed_report"]["hiring_manager_evaluation"]["final_assessment"]["culture_and_collaboration"] == "ADEQUATE"
 
 
 # =============================================================================
