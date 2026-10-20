@@ -385,11 +385,12 @@ class TestBuildHiringManagerEvalDict(unittest.TestCase):
         self.assertEqual(direct_result["strongest_signal"], "Ownership")
         self.assertEqual(direct_result["biggest_gap"], "Deadlines")
         self.assertIn("hiring_manager_evaluation", direct_result)
+        self.assertIsNone(direct_result["general"])
         self.assertEqual(
-            len(direct_result["general"]["competency_evaluations"]), 1
+            len(direct_result["hiring_manager_evaluation"]["competency_evaluations"]), 1
         )
         self.assertEqual(
-            len(direct_result["general"]["question_evaluations"]), 1
+            len(direct_result["hiring_manager_evaluation"]["question_evaluations"]), 1
         )
 
         # Dispatcher call via build_assessment_eval_dict

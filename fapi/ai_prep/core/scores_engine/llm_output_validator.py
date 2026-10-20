@@ -100,7 +100,7 @@ class ScoresEngine:
         # 2. Parse JSON
         parsed_data = None
         try:
-            parsed_data = json.loads(cleaned_str, strict=False)
+            parsed_data = json.loads(cleaned_str, strict=True)
         except json.JSONDecodeError as exc:
             # Resilient fallback: attempt heuristic repair on stripped text (preserving tail content)
             parsed_data = self._attempt_json_repair(stripped_str) or self._attempt_json_repair(cleaned_str)

@@ -665,13 +665,7 @@ def _build_hiring_manager_eval_dict(
         "audio": audio_inner,
         "language": {},
         "video": video_inner,
-        "general": {
-            "hiring_manager_evaluation": hm_eval,
-            "competency_evaluations": hm_eval.get("competency_evaluations") or hm_eval.get("pillar_evaluations") or [],
-            "question_evaluations": hm_eval.get("question_evaluations") or [],
-            "behavioral_delivery_analysis": hm_eval.get("behavioral_delivery_analysis") or {},
-            "final_assessment": hm_eval.get("final_assessment") or {},
-        },
+        "general": None,
         "hiring_manager_evaluation": hm_eval,
     }
 
