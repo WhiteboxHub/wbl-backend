@@ -704,10 +704,16 @@ def build_assessment_eval_dict(
             "technical_evaluation": tech_eval,
         }
 
-    # ── Intro Assessment path (unchanged) ─────────────────────────────────
-    intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
-    if not intro_eval and isinstance(t_eval, dict) and "overall_assessment" in t_eval:
-        intro_eval = t_eval
+    # ── Intro / Recruiter Assessment path ─────────────────────────────────
+    intro_eval = {}
+    if isinstance(t_eval, dict):
+        intro_eval = (
+            t_eval.get("recruiter_evaluation")
+            or t_eval.get("intro_evaluation")
+            or {}
+        )
+        if not intro_eval and "overall_assessment" in t_eval:
+            intro_eval = t_eval
     if not isinstance(intro_eval, dict):
         intro_eval = {}
 
@@ -744,7 +750,7 @@ def build_assessment_eval_dict(
         "fluency": audio_factors.get("fluency") or {},
         "filler_word_usage": audio_factors.get("filler_word_usage") or {},
         "pace": audio_factors.get("pace") or {},
-        "introduction_quality": intro_eval.get("introduction_quality") or {},
+        "introduction_quality": intro_eval.get("introduction_quality") or intro_eval.get("communication_and_delivery") or {},
     }
 
     # Build general block
@@ -760,7 +766,7 @@ def build_assessment_eval_dict(
         ai_eng_dict["summary"] = ai_eng_dict.get("observation")
 
     general_dict = {
-        "career_story": intro_eval.get("career_story") or {},
+        "career_story": intro_eval.get("career_story") or intro_eval.get("background_and_experience") or {},
         "current_project_clarity": intro_eval.get("current_project") or {},
         "ai_engineering_depth": fa.get("ai_engineering_depth"),
         "software_engineering_depth": fa.get("software_engineering_depth") or fa.get("production_engineering_depth"),
@@ -779,6 +785,12 @@ def build_assessment_eval_dict(
         "strongest_points": intro_eval.get("strongest_points") or [],
         "critical_gaps": intro_eval.get("critical_gaps") or [],
         "priority_improvements": intro_eval.get("priority_improvements") or [],
+        # Recruiter-specific dimensions
+        "background_and_experience": intro_eval.get("background_and_experience") or intro_eval.get("career_story") or {},
+        "role_motivation": intro_eval.get("role_motivation") or {},
+        "communication_and_delivery": intro_eval.get("communication_and_delivery") or {},
+        "logistics_and_expectations": intro_eval.get("logistics_and_expectations") or {},
+        "question_evaluations": intro_eval.get("question_evaluations") or [],
     }
 
     # Pass through any other extra fields from intro_eval
@@ -786,7 +798,7 @@ def build_assessment_eval_dict(
         if k not in ("overall_assessment", "introduction_quality", "final_assessment", "agentic_ai", "current_project") and k not in general_dict:
             general_dict[k] = v
 
-    return {
+    result = {
         "insufficient_content": False, 
         "readiness": readiness,
         "summary": summary,
@@ -797,6 +809,10 @@ def build_assessment_eval_dict(
         "video": video_inner,
         "general": general_dict,
     }
+    if t_eval.get("recruiter_evaluation") or "background_and_experience" in intro_eval:
+        result["recruiter_evaluation"] = intro_eval
+        result["question_evaluations"] = intro_eval.get("question_evaluations") or []
+    return result
 
 
 def candidate_get_assessment_detail_logic(
@@ -899,6 +915,14 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
+    # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
+    if assessment.youtube_url and "UF8uR6Z6KLc" in assessment.youtube_url:
+        assessment.youtube_url = None
+        try:
+            crud.update_assessment_media_url(db, assessment.id, None)
+        except Exception:
+            pass
+
     return CandidateAssessmentUnifiedResponse(
         id=assessment.id,
         assessment_uuid=str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
@@ -910,6 +934,7 @@ def candidate_get_assessment_detail_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        questions=assessment.data_record.questions if assessment.data_record and assessment.data_record.questions else [],
         data=CandidateAssessmentUnifiedData(
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
@@ -1345,9 +1370,12 @@ async def candidate_submit_assessment_logic(
 
                     # 3. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+                    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+                        full_text = payload.transcript_text.strip()
+                        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment_id_int, len(full_text))
                     words = [w for w in full_text.split() if w]
                     word_count = spoken_content.get("word_count")
-                    if word_count is None:
+                    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
                         word_count = len(words)
 
                     raw_segments = spoken_content.get("segments") or []
@@ -1400,10 +1428,25 @@ async def candidate_submit_assessment_logic(
                     with SessionLocal() as worker_db:
                         existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
                         existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+                        
+                        # Prune questions to only those the candidate actually attempted/completed
+                        if payload and payload.attempted_question_ids:
+                            attempted_id_set = {
+                                int(qid) if str(qid).isdigit() else qid
+                                for qid in payload.attempted_question_ids
+                            }
+                            attempted_id_set.update({str(qid) for qid in payload.attempted_question_ids})
+                            persisted_questions = [
+                                q for q in existing_questions
+                                if q.get("id") in attempted_id_set or q.get("question_id") in attempted_id_set
+                            ] or existing_questions
+                        else:
+                            persisted_questions = existing_questions
+
                         crud.save_assessment_data(
                             db=worker_db,
                             assessment_id=assessment_id_int,
-                            questions=existing_questions,
+                            questions=persisted_questions,
                             transcript=plan["transcript_to_persist"],
                             audio_telemetry=plan["audio_telemetry_to_persist"],
                             video_telemetry=plan["video_telemetry_to_persist"],
@@ -1535,9 +1578,12 @@ async def candidate_submit_assessment_logic(
 
     # 3. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+        full_text = payload.transcript_text.strip()
+        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment.id, len(full_text))
     words = [w for w in full_text.split() if w]
     word_count = spoken_content.get("word_count")
-    if word_count is None:
+    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
         word_count = len(words)
 
     raw_segments = spoken_content.get("segments") or []
@@ -2305,16 +2351,12 @@ async def _process_youtube_upload_and_cleanup(
                 media_path,
             )
         except Exception as conv_err:
-            logger.warning("Audio-to-video conversion failed for assessment %s: %s", assessment_id, conv_err)
-            return None
+            logger.warning("Audio-to-video conversion skipped/failed for assessment %s: %s. Using direct audio container for YouTube routing.", assessment_id, conv_err)
+            youtube_upload_file = media_path
 
     # 2. Upload to YouTube
     try:
-        from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
-        if not youtube_client.has_live_credentials() and os.getenv("ENV") != "test":
-            logger.info("No live YouTube credentials configured. Retaining server storage for local media playback for assessment %s", assessment_id)
-            return None
-
+        from fapi.ai_prep.clients.youtube_client import youtube_client
         upload_res = await asyncio.to_thread(
             youtube_client.upload_unlisted_media,
             assessment_id=assessment_id,
@@ -2324,7 +2366,8 @@ async def _process_youtube_upload_and_cleanup(
         youtube_url = upload_res.get("youtube_url")
         logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
     except Exception as yt_err:
-        logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
+        logger.warning("YouTube live upload note for assessment %s: %s", assessment_id, yt_err)
+        youtube_url = None
 
     # 3. Persist youtube_url to DB
     youtube_persisted = False
@@ -2333,7 +2376,7 @@ async def _process_youtube_upload_and_cleanup(
             with SessionLocal() as db:
                 crud.update_assessment_media_url(db, assessment_id, youtube_url)
                 youtube_persisted = True
-                logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
+                logger.info("Updated youtube_url in DB for assessment %s: %s", assessment_id, youtube_url)
         except Exception as db_url_err:
             logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
@@ -2727,10 +2770,7 @@ def get_assessment_audio_logic(
 
     if not target_file or not os.path.exists(target_file):
         if getattr(assessment, "youtube_url", None):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Local audio recording purged following YouTube ingestion. Media stream available at: {assessment.youtube_url}",
-            )
+            return RedirectResponse(url=assessment.youtube_url)
         raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
 
     mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
@@ -2740,6 +2780,7 @@ def get_assessment_audio_logic(
         media_type=mime_type,
         filename=os.path.basename(target_file),
         content_disposition_type="inline",
+        headers={"Accept-Ranges": "bytes"},
     )
 
 

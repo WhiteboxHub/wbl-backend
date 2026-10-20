@@ -103,9 +103,8 @@ class YouTubeClient:
         target_title = title or default_title
         target_desc = description or default_desc
 
-        # 1. Fast Mock / Test Check: Never touch quota in test/mock mode
-        if self._should_use_mock():
-            logger.info("No live YouTube credentials or test mode active. Using generated YouTube URL for assessment %s", assessment_id)
+        # 1. Fast Mock / Test Check: Only mock in test environment
+        if os.getenv("ENV") == "test":
             mock_id = f"aiprep_rec_{assessment_id}"
             mock_url = f"https://youtube.com/watch?v={mock_id}"
             return {
@@ -113,6 +112,10 @@ class YouTubeClient:
                 "youtube_url": mock_url,
                 "status": self.privacy_status,
             }
+
+        if not self.has_live_credentials():
+            logger.warning("No live YouTube credentials configured for assessment %s", assessment_id)
+            raise YouTubeUploadError("No live YouTube credentials configured for video upload.")
 
         # 2. Live API Quota Reservation
         reservation_token = self.quota_mgr.reserve_quota(cost=quota_cost)

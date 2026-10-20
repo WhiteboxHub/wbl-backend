@@ -95,13 +95,12 @@ class AssessmentEngine:
     @classmethod
     def get_question_time_limit(cls, question: Dict[str, Any]) -> int:
         """
-        Resolves question time limit.
-        1. If explicit custom duration is configured (different from the generic 120 default), respect it.
-        2. Otherwise, map strictly through the deterministic (difficulty, scope) matrix.
-        3. Fall back to explicit duration or default.
+        Resolves question time limit directly from the backend question record.
+        Strictly respects the question's explicit `time_limit_seconds` configured in the backend database.
+        Falls back to difficulty mapping only if time_limit_seconds is missing or non-positive.
         """
         explicit = question.get("time_limit_seconds")
-        if explicit and isinstance(explicit, int) and explicit > 0 and explicit != 120:
+        if explicit is not None and isinstance(explicit, int) and explicit > 0:
             return explicit
 
         diff = str(question.get("difficulty_level") or "MEDIUM").upper().strip()
@@ -110,10 +109,12 @@ class AssessmentEngine:
         if (diff, scope) in cls.QUESTION_TIME_LIMIT_MATRIX:
             return cls.QUESTION_TIME_LIMIT_MATRIX[(diff, scope)]
 
-        if explicit and isinstance(explicit, int) and explicit > 0:
-            return explicit
+        if diff == "EASY":
+            return 60
+        if diff == "HARD":
+            return 150
 
-        return 90
+        return 120
 
     def __init__(self) -> None:
         pass
@@ -134,7 +135,11 @@ class AssessmentEngine:
     ) -> List[Dict[str, Any]]:
         """Selects questions for an assessment type using adaptive distribution."""
         normalized_type = assessment_type.upper().strip()
-        excluded_ids = set(previously_asked_ids or [])
+        excluded_ids = {
+            int(qid) if str(qid).isdigit() else qid
+            for qid in (previously_asked_ids or [])
+        }
+        excluded_ids.update({str(qid) for qid in (previously_asked_ids or [])})
 
         # INTRO and JD_INTRO are single-question assessments
         if normalized_type in self.SINGLE_QUESTION_TYPES:
@@ -154,21 +159,40 @@ class AssessmentEngine:
             )
             return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
-        max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
-        matched = [
-            q for q in available_questions
-            if str(q.get("category", "")).upper() == normalized_type
-            and q.get("is_active", True)
-            and q.get("id") not in excluded_ids
-        ] or [
+        # Collect all active matching questions for this category
+        all_category_questions = [
             q for q in available_questions
             if str(q.get("category", "")).upper() == normalized_type
             and q.get("is_active", True)
         ]
 
-        if not matched:
+        if not all_category_questions:
             logger.warning("[AssessmentEngine] No questions found for type '%s'.", normalized_type)
             return []
+
+        # Filter out questions already completed in previous attempts
+        unseen_matched = [
+            q for q in all_category_questions
+            if q.get("id") not in excluded_ids
+        ]
+
+        if unseen_matched:
+            matched = unseen_matched
+        else:
+            # When candidate has completed all questions in the bank, freshly restart from the beginning
+            logger.info(
+                "[AssessmentEngine] Candidate has completed all questions for '%s'. Freshly restarting pool from the beginning.",
+                normalized_type,
+            )
+            matched = all_category_questions
+
+        # Recruiter round is time-budgeted (10-15 minutes overall).
+        # We do not restrict the candidate to an exact 10 questions.
+        # Instead, provide all available matching questions from the bank so candidate controls pacing.
+        if normalized_type == "RECRUITER":
+            max_q = limit if limit is not None else len(matched)
+        else:
+            max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
 
         selected = self._select_adaptive_questions(matched, previous_readiness, max_q)
         for q in selected:
@@ -589,7 +613,7 @@ class AssessmentEngine:
             "subject": question.get("subject"),
             "concept": question.get("concept"),
             "difficulty_level": question.get("difficulty_level"),
-            "time_limit_seconds": question.get("time_limit_seconds") or self.get_question_time_limit(question),
+            "time_limit_seconds": self.get_question_time_limit(question),
         }
 
     # =========================================================================

@@ -106,8 +106,10 @@ class ScoresEngine:
                 "parsed_report": None,
             }
 
-        # 3. Validate Payload (Intro Evaluation, Technical, Audio, Video, or Master Assessment Report)
-        if "intro_evaluation" in parsed_data:
+        # 3. Validate Payload (Recruiter, Intro, Technical, Audio, Video, or Master Assessment Report)
+        if "recruiter_evaluation" in parsed_data:
+            self._validate_recruiter_payload(parsed_data["recruiter_evaluation"], errors)
+        elif "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
         elif "technical_evaluation" in parsed_data:
             self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
@@ -119,7 +121,7 @@ class ScoresEngine:
             self._validate_legacy_report_payload(parsed_data, errors)
         else:
             errors.append(
-                "Missing recognized evaluation root key: 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
+                "Missing recognized evaluation root key: 'recruiter_evaluation', 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
             )
 
         is_valid = len(errors) == 0
@@ -410,6 +412,31 @@ class ScoresEngine:
                             f"video_evaluation.factors.{key}.status must be one of "
                             f"STRONG, ADEQUATE, NEEDS_WORK, INSUFFICIENT_DATA"
                         )
+
+    def _validate_recruiter_payload(
+        self, recruiter: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """
+        Validates the clean Recruiter Screening Evaluation structure against screening evaluation standards.
+        """
+        if not isinstance(recruiter, dict):
+            errors.append("recruiter_evaluation must be a dictionary")
+            return
+
+        if "overall_assessment" in recruiter:
+            overall = recruiter.get("overall_assessment")
+            if not isinstance(overall, dict):
+                errors.append("overall_assessment must be an object")
+            else:
+                readiness = overall.get("readiness")
+                if readiness and readiness not in ("STRONG", "GOOD", "NEEDS_POLISH", "WEAK"):
+                    errors.append(
+                        f"overall_assessment.readiness '{readiness}' must be one of: STRONG, GOOD, NEEDS_POLISH, WEAK"
+                    )
+
+        for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
+            if list_key in recruiter and not isinstance(recruiter[list_key], list):
+                errors.append(f"Invalid list '{list_key}' in recruiter_evaluation")
 
     def _validate_technical_payload(
         self, technical: Dict[str, Any], errors: List[str]

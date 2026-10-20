@@ -167,13 +167,13 @@ class AiPrepSettings(BaseSettings):
         if not self.LOCAL_STORAGE_DIR:
             self.LOCAL_STORAGE_DIR = self.LOCAL_STORAGE_BASE_PATH
         if not self.YOUTUBE_API_KEY:
-            self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+            self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.YOUTUBE_CLIENT_ID:
-            self.YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID")
+            self.YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID") or os.getenv("GOOGLE_CLIENT_ID")
         if not self.YOUTUBE_CLIENT_SECRET:
-            self.YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET")
+            self.YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET") or os.getenv("GOOGLE_CLIENT_SECRET")
         if not self.YOUTUBE_REFRESH_TOKEN:
-            self.YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN")
+            self.YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN") or os.getenv("GOOGLE_REFRESH_TOKEN")
         if not self.YOUTUBE_CREDENTIALS_FILE:
             self.YOUTUBE_CREDENTIALS_FILE = os.getenv("YOUTUBE_CREDENTIALS_FILE")
 
