@@ -705,6 +705,49 @@ def build_assessment_eval_dict(
             "technical_evaluation": tech_eval,
         }
 
+    hm_eval = t_eval.get("hiring_manager_evaluation") if isinstance(t_eval, dict) else None
+    if isinstance(hm_eval, dict):
+        # ── Hiring Manager Assessment path ─────────────────────────────────
+        oa = hm_eval.get("overall_assessment") or {}
+        if not isinstance(oa, dict):
+            oa = {}
+
+        a_eval = audio_eval or {}
+        audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
+        if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
+            audio_inner = a_eval
+        if not isinstance(audio_inner, dict):
+            audio_inner = {}
+
+        v_eval = video_eval or {}
+        video_inner = v_eval.get("video_evaluation") if isinstance(v_eval, dict) else {}
+        if not video_inner and isinstance(v_eval, dict) and ("factors" in v_eval or "summary" in v_eval):
+            video_inner = v_eval
+        if not isinstance(video_inner, dict):
+            video_inner = {}
+
+        top_strengths = oa.get("top_strengths") or []
+        priority_improvements = oa.get("priority_improvements") or []
+
+        return {
+            "insufficient_content": False,
+            "readiness": oa.get("rating") or oa.get("readiness"),
+            "summary": oa.get("executive_summary") or oa.get("summary"),
+            "strongest_signal": oa.get("strongest_signal") or (top_strengths[0] if top_strengths else None),
+            "biggest_gap": oa.get("biggest_gap") or (priority_improvements[0] if priority_improvements else None),
+            "audio": audio_inner,
+            "language": {},
+            "video": video_inner,
+            "general": {
+                "hiring_manager_evaluation": hm_eval,
+                "competency_evaluations": hm_eval.get("competency_evaluations") or hm_eval.get("pillar_evaluations") or [],
+                "question_evaluations": hm_eval.get("question_evaluations") or [],
+                "behavioral_delivery_analysis": hm_eval.get("behavioral_delivery_analysis") or {},
+                "final_assessment": hm_eval.get("final_assessment") or {},
+            },
+            "hiring_manager_evaluation": hm_eval,
+        }
+
     # ── Intro Assessment path (unchanged) ─────────────────────────────────
     intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
     if not intro_eval and isinstance(t_eval, dict) and "overall_assessment" in t_eval:
