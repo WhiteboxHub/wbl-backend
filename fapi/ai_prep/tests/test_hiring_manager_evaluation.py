@@ -337,7 +337,75 @@ class TestAssessmentEngineHiringManagerQuestions(unittest.TestCase):
         assert "HARD" in diffs
 
 
+class TestBuildHiringManagerEvalDict(unittest.TestCase):
+    """Tests for _build_hiring_manager_eval_dict and dispatching in build_assessment_eval_dict."""
+
+    def test_hiring_manager_eval_dict_extraction(self):
+        from fapi.ai_prep.utils.aiprep_utils import (
+            _build_hiring_manager_eval_dict,
+            build_assessment_eval_dict,
+        )
+
+        hm_payload = {
+            "overall_assessment": {
+                "rating": "GOOD",
+                "executive_summary": "Demonstrated solid technical leadership and ownership.",
+                "strongest_signal": "Ownership",
+                "biggest_gap": "Deadlines",
+                "top_strengths": ["Ownership", "Cross-team communication"],
+                "priority_improvements": ["Deadlines under pressure"],
+            },
+            "competency_evaluations": [
+                {
+                    "competency": "Project Ownership",
+                    "rating": "GOOD",
+                    "summary": "Clear accountability.",
+                }
+            ],
+            "question_evaluations": [
+                {
+                    "question_id": "hm-1",
+                    "question_text": "Tell me about a project roadblock.",
+                    "rating": "GOOD",
+                }
+            ],
+            "behavioral_delivery_analysis": {
+                "confidence": "HIGH",
+            },
+        }
+
+        # Direct helper call
+        direct_result = _build_hiring_manager_eval_dict(hm_payload)
+        self.assertFalse(direct_result["insufficient_content"])
+        self.assertEqual(direct_result["readiness"], "GOOD")
+        self.assertEqual(
+            direct_result["summary"],
+            "Demonstrated solid technical leadership and ownership.",
+        )
+        self.assertEqual(direct_result["strongest_signal"], "Ownership")
+        self.assertEqual(direct_result["biggest_gap"], "Deadlines")
+        self.assertIn("hiring_manager_evaluation", direct_result)
+        self.assertEqual(
+            len(direct_result["general"]["competency_evaluations"]), 1
+        )
+        self.assertEqual(
+            len(direct_result["general"]["question_evaluations"]), 1
+        )
+
+        # Dispatcher call via build_assessment_eval_dict
+        dispatch_result = build_assessment_eval_dict(
+            transcript_eval={"hiring_manager_evaluation": hm_payload}
+        )
+        self.assertEqual(dispatch_result["readiness"], "GOOD")
+        self.assertEqual(
+            dispatch_result["summary"],
+            "Demonstrated solid technical leadership and ownership.",
+        )
+        self.assertIn("hiring_manager_evaluation", dispatch_result)
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
