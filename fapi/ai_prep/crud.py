@@ -515,7 +515,7 @@ def get_candidate_technical_question_history(
     """
     Inspects candidate's past completed TECHNICAL assessment reports in a SINGLE query.
     Returns (mastered_ids, weak_ids, concept_ladder):
-    - mastered_ids: scored EXCELLENT or GOOD (exclude from next test)
+    - mastered_ids: scored EXCELLENT (exclude from next test)
     - weak_ids: scored AVERAGE or POOR (prioritize for retry)
     - concept_ladder: target difficulty tier per concept (EASY, MEDIUM, HARD)
     """
@@ -539,7 +539,7 @@ def get_candidate_technical_question_history(
 
         for qe in q_evals:
             qid = qe.get("question_id")
-            score_band = str(qe.get("score_band") or qe.get("mastery_level") or "").upper().strip()
+            score_band = str(qe.get("rating") or qe.get("score_band") or qe.get("mastery_level") or "").upper().strip()
             diff = str(qe.get("difficulty_level", "MEDIUM")).upper().strip()
             concept = qe.get("concept")
 
@@ -548,7 +548,7 @@ def get_candidate_technical_question_history(
                     numeric_qid = int(qid)
                     if numeric_qid not in seen_qids:
                         seen_qids.add(numeric_qid)
-                        if score_band in ("EXCELLENT", "GOOD", "MASTERED", "PROFICIENT"):
+                        if score_band in ("EXCELLENT", "MASTERED"):
                             mastered_ids.add(numeric_qid)
                         elif score_band in ("AVERAGE", "POOR", "DEVELOPING", "NEEDS_REVISION"):
                             weak_ids.add(numeric_qid)

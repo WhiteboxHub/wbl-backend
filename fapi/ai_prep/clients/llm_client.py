@@ -223,7 +223,7 @@ async def call_llm(
     model: Optional[str] = None,
     response_format: str = "json_object",
     temperature: float = 0.2,
-    max_tokens: int = 4000,
+    max_tokens: int = 8192,
     timeout_seconds: float = 60.0,
 ) -> str:
     """
@@ -438,6 +438,9 @@ async def _call_gemini(
         candidates = response_json.get("candidates")
         if not candidates or not isinstance(candidates, list):
             raise LLMResponseFormatError("Gemini response missing 'candidates' array", provider="gemini")
+        finish_reason = candidates[0].get("finishReason")
+        if finish_reason == "MAX_TOKENS":
+            logger.warning("[LLMClient] Gemini generation hit MAX_TOKENS limit (output may be truncated)")
         parts = candidates[0].get("content", {}).get("parts", [])
         if not parts or not isinstance(parts, list):
             raise LLMResponseFormatError("Gemini candidate missing 'parts' list", provider="gemini")
@@ -729,12 +732,18 @@ async def _execute_http_post(
     payload: Dict[str, Any],
     timeout_seconds: float,
     provider: str,
+    max_retries: int = 3,
+    retry_delays: Optional[List[float]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """
     Executes an HTTP POST request asynchronously without blocking the event loop.
+    Includes automatic exponential backoff retries for transient errors (429, 500, 502, 503, 504, Timeout).
     Returns a tuple of (parsed_response_json, lowercase_headers_dict).
     Uses standard library urllib wrapped in asyncio.to_thread for maximum portability.
     """
+    if retry_delays is None:
+        retry_delays = [2.0, 5.0]
+
     def _sync_request() -> Tuple[Dict[str, Any], Dict[str, str]]:
         data_bytes = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
@@ -791,4 +800,24 @@ async def _execute_http_post(
                 provider=provider,
             ) from json_err
 
-    return await asyncio.to_thread(_sync_request)
+    for attempt in range(max_retries):
+        try:
+            return await asyncio.to_thread(_sync_request)
+        except (LLMRateLimitError, LLMTimeoutError, LLMClientError) as err:
+            if isinstance(err, LLMAuthenticationError):
+                raise err
+            if err.status_code is not None and err.status_code not in (429, 500, 502, 503, 504):
+                raise err
+            if attempt >= max_retries - 1:
+                logger.error(
+                    "LLM %s request failed after %d attempts: %s",
+                    provider, max_retries, err,
+                )
+                raise err
+
+            delay = retry_delays[attempt] if attempt < len(retry_delays) else retry_delays[-1]
+            logger.warning(
+                "LLM %s call encountered transient error (%s). Retrying in %.1fs (attempt %d/%d)...",
+                provider, err, delay, attempt + 2, max_retries,
+            )
+            await asyncio.sleep(delay)

@@ -416,7 +416,7 @@ class AssessmentEngine:
         # Step B: Broad Question (1 architectural question per subject)
         for bq in broad_q:
             b_time = self.get_question_time_limit(bq)
-            if bq.get("id") not in selected_ids and (subject_time + b_time) <= (budget + 30):
+            if bq.get("id") not in selected_ids and (subject_time + b_time) <= budget:
                 bq_copy = dict(bq)
                 bq_copy["time_limit_seconds"] = b_time
                 subj_selected.append(bq_copy)
@@ -450,6 +450,47 @@ class AssessmentEngine:
 
         return subj_selected, subject_time
 
+    def _find_exact_fit(
+        self,
+        pool: List[Dict[str, Any]],
+        target_sum: int,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Finds questions in the unused pool whose durations sum to exactly target_sum
+        using a bounded Subset-Sum Dynamic Programming algorithm (O(N * W)).
+        Supports exact fits of ANY number of questions (1, 2, 3, 4+).
+        """
+        if target_sum <= 0:
+            return []
+
+        candidates = [q for q in pool if 0 < self.get_question_time_limit(q) <= target_sum]
+        if not candidates:
+            return None
+
+        # 1. Quick check: Single-question exact match
+        for q in candidates:
+            if self.get_question_time_limit(q) == target_sum:
+                return [q]
+
+        # 2. DP Subset-Sum directly mapping: sum -> List[Question]
+        # Bounded by target_sum <= 900 (at most 901 entries in memory).
+        # Eliminates backtracking pointers entirely, making broken chains or infinite loops impossible.
+        dp: Dict[int, List[Dict[str, Any]]] = {0: []}
+
+        for q in candidates:
+            w = self.get_question_time_limit(q)
+            new_entries: Dict[int, List[Dict[str, Any]]] = {}
+            for s, combo in dp.items():
+                ns = s + w
+                if ns == target_sum:
+                    return combo + [q]
+                if ns < target_sum and ns not in dp and ns not in new_entries:
+                    new_entries[ns] = combo + [q]
+
+            dp.update(new_entries)
+
+        return None
+
     def _top_up_remaining_seconds(
         self,
         tech_pool: List[Dict[str, Any]],
@@ -459,15 +500,28 @@ class AssessmentEngine:
         current_total_time: int,
         target_seconds: int,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Fills remaining slack seconds up to target_seconds using unused, non-mastered questions."""
+        """Fills remaining slack seconds to hit exactly target_seconds (900s)."""
         remaining_seconds = target_seconds - current_total_time
-        if remaining_seconds < 60:
+        if remaining_seconds <= 0:
             return selected, current_total_time
 
         skip_ids = selected_ids | set(excluded or [])
         unused_pool = [q for q in tech_pool if q.get("id") not in skip_ids]
         unused_pool.sort(key=lambda x: 0 if self.normalize_subject(x.get("subject")) == "AI Engineering" else 1)
 
+        # 1. Exact-Fit: Find exact combination to hit spot on 900s
+        exact_match = self._find_exact_fit(unused_pool, remaining_seconds)
+        if exact_match:
+            for q in exact_match:
+                q_copy = dict(q)
+                q_time = self.get_question_time_limit(q)
+                q_copy["time_limit_seconds"] = q_time
+                selected.append(q_copy)
+                selected_ids.add(q.get("id"))
+                current_total_time += q_time
+            return selected, current_total_time
+
+        # 2. Fallback: Standard greedy fill if exact combo is mathematically unavailable in pool
         for uq in unused_pool:
             u_time = self.get_question_time_limit(uq)
             if u_time <= remaining_seconds:
@@ -567,12 +621,40 @@ class AssessmentEngine:
                 q_text = q.get("question_text") or q.get("text") or f"Question {idx}"
                 q_id = q.get("id") or q.get("question_id") or idx
                 difficulty = str(q.get("difficulty_level", "")).upper() or "MEDIUM"
-                concept = q.get("concept") or ""
-                concept_tag = f" [concept={concept}]" if concept else ""
-                ground_truth = q.get("ground_truth") or ""
-                lines.append(f"Q{idx} [question_id={q_id}] [difficulty={difficulty}]{concept_tag}: {q_text}")
-                if ground_truth:
-                    lines.append(f"  Expected Answer: {ground_truth}")
+                subject = q.get("subject") or "Unknown"
+                concept = q.get("concept") or "Unknown"
+                scope = q.get("scope") or "SPECIFIC"
+
+                lines.append(f"Q{idx}")
+                lines.append(f"  question_id: {q_id}")
+                lines.append(f"  subject: {subject}")
+                lines.append(f"  concept: {concept}")
+                lines.append(f"  difficulty_level: {difficulty}")
+                lines.append(f"  scope: {scope}")
+                lines.append(f"  question: {q_text}")
+
+                gt = q.get("ground_truth")
+                if isinstance(gt, dict):
+                    criteria = gt.get("criteria") or gt.get("key_points") or []
+                    keywords = gt.get("technical_keywords") or []
+                    critical = gt.get("critical_failures") or []
+                    lines.append(f"  ground_truth:")
+                    if criteria:
+                        lines.append(f"    criteria:")
+                        for c in criteria:
+                            req = " (required)" if isinstance(c, dict) and c.get("required") else ""
+                            point = c.get("point") if isinstance(c, dict) else str(c)
+                            lines.append(f"      - {point}{req}")
+                    if keywords:
+                        lines.append(f"    technical_keywords: {', '.join(keywords)}")
+                    if critical:
+                        lines.append(f"    critical_failures:")
+                        for cf in critical:
+                            lines.append(f"      - {cf}")
+                elif gt:
+                    lines.append(f"  ground_truth: {gt}")
+
+                lines.append("")
             lines.append("")
 
         full_text = ""

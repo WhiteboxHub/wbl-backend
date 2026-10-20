@@ -307,6 +307,7 @@ class CandidateSubmitAssessmentRequest(BaseModel):
     client_duration_seconds: Optional[float] = Field(None, description="Total duration of recording in seconds from client")
     video_telemetry: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Client-side video telemetry")
     status: Optional[str] = Field(None, description="Status override (e.g. 'cancelled')")
+    transcript: Optional[Union[str, Dict[str, Any]]] = Field(None, description="Optional direct transcript text for testing without audio")
 
 
 class AssessmentMetaResponse(BaseModel):
@@ -626,13 +627,13 @@ class ProcessingStatusResponse(BaseModel):
 
 class QuestionCreateRequest(BaseModel):
     category: AssessmentCategoryEnum = Field(..., description="Target assessment category")
-    subject: Optional[SubjectEnum] = Field(None, description="Technical subject area (TECHNICAL questions only)")
-    concept: Optional[ConceptEnum] = Field(None, description="Specific concept/topic (TECHNICAL questions only)")
+    subject: Optional[SubjectEnum] = Field(None, description="Subject or discipline associated with the question")
+    concept: Optional[ConceptEnum] = Field(None, description="Specific concept or topic associated with the question")
     scope: Optional[ScopeEnum] = Field(default=ScopeEnum.SPECIFIC, description="Answer scope: BROAD or SPECIFIC")
     difficulty_level: DifficultyLevelEnum = Field(default=DifficultyLevelEnum.MEDIUM, description="Difficulty rating")
     time_limit_seconds: int = Field(default=120, description="Allocated time budget for the question in seconds")
     question_text: str = Field(..., description="Question prompt text")
-    ground_truth: Optional[Dict[str, Any]] = Field(None, description="Expected answer concepts and rubric (admin-only)")
+    ground_truth: Optional[Union[Dict[str, Any], str]] = Field(None, description="Expected answer concepts and rubric (admin-only)")
     is_active: bool = Field(default=True, description="Whether question is active")
 
     @model_validator(mode="after")
@@ -644,11 +645,8 @@ class QuestionCreateRequest(BaseModel):
                     "subject is required for TECHNICAL questions and must be one of: "
                     "'AI Engineering', 'Software Engineering', 'DevOps and Cloud'"
                 )
-        else:
-            # For non-technical rounds, keep subject, concept, and scope None for now
-            self.subject = None
-            self.concept = None
-            self.scope = None
+        # Preserve optional subject, concept, and scope for every category.
+        # Only TECHNICAL questions require a subject.
         return self
 
 
@@ -663,7 +661,7 @@ class QuestionUpdateRequest(BaseModel):
     difficulty_level: Optional[DifficultyLevelEnum] = None
     time_limit_seconds: Optional[int] = None
     question_text: Optional[str] = None
-    ground_truth: Optional[Dict[str, Any]] = None
+    ground_truth: Optional[Union[Dict[str, Any], str]] = None
     is_active: Optional[bool] = None
 
 
@@ -679,7 +677,7 @@ class QuestionResponse(BaseModel):
     difficulty_level: Optional[str] = None
     time_limit_seconds: int = 120
     question_text: str
-    ground_truth: Optional[Dict[str, Any]] = None
+    ground_truth: Optional[Union[Dict[str, Any], str]] = None
     is_active: bool
     created_at: Optional[datetime] = None
 

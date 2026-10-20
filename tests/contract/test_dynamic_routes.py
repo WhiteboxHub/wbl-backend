@@ -74,7 +74,7 @@ def test_enforce_permission_gates_across_all_routes(client):
         # which do not exist in the SQLite test schema — skip them in auth tests
         "/api/analytics/ai-prep",
         "/api/analytics/ai-prep-report",
-        # Made public by recent changes
+        # Public course content routes (question-bank routes require staff/admin)
         "/api/course-content",
         "/api/course-contents",
     ]
@@ -90,7 +90,7 @@ def test_enforce_permission_gates_across_all_routes(client):
             continue
             
         # Combine prefix and path, then normalize double slashes
-        full_path = f"{prefix}{path}".replace("//", "/")
+        full_path = f"{prefix}{path}".replace("//", "/")  
             
         # Skip endpoints we know are public
         is_public = False
