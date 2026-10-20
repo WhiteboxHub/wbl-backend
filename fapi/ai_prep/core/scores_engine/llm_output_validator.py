@@ -167,25 +167,7 @@ class ScoresEngine:
         # Strip trailing commas before } or ]
         stripped = re.sub(r',\s*([}\]])', r'\1', stripped)
 
-        # Escape internal unescaped quotes in speech/evidence fields
-        out, in_str, esc = [], False, False
-        for i, c in enumerate(stripped):
-            if esc:
-                esc = False
-            elif c == '\\':
-                esc = True
-            elif c == '"':
-                if in_str:
-                    nxt = stripped[i + 1:].lstrip()[:1]
-                    if nxt in ',}:]\n' or not nxt:
-                        in_str = False
-                    else:
-                        c = '\\"'
-                else:
-                    in_str = True
-            out.append(c)
-
-        return "".join(out)
+        return stripped
 
     def _attempt_json_repair(self, s: str) -> Optional[Dict[str, Any]]:
         """
