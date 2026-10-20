@@ -41,17 +41,12 @@ def get_current_user(
             token = auth_header.split(" ")[1]
         elif request.query_params.get("token"):
             token = request.query_params.get("token")
+        elif request.query_params.get("access_token"):
+            token = request.query_params.get("access_token")
         elif request.cookies.get("access_token"):
             token = request.cookies.get("access_token")
         elif request.cookies.get("token"):
             token = request.cookies.get("token")
-
-        token = (
-            request.cookies.get("token")
-            or request.cookies.get("access_token")
-            or request.query_params.get("token")
-            or request.query_params.get("access_token")
-        )
 
     if not token:
         if request.url.path.endswith("/playback"):
