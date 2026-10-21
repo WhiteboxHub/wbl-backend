@@ -58,6 +58,7 @@ async def _invoke_llm(
     api_key: str,
     provider: Optional[str],
     model: Optional[str],
+    max_tokens: int = 8192,
 ) -> str:
     """
     Fire one LLM request and return the raw response string.
@@ -69,13 +70,14 @@ async def _invoke_llm(
         api_key:       Plain-text decrypted API key.
         provider:      Provider hint (e.g. "openai"). None → auto-detected from key prefix.
         model:         Model override. None → llm_client uses provider default.
+        max_tokens:    Max output tokens (defaults to 8192 for large evaluation reports).
 
     Returns:
         Raw LLM text response string.
     """
     logger.info(
-        "[LLMOrchestrator] Invoking LLM: call=%s provider=%s model=%s",
-        call_label, provider, model,
+        "[LLMOrchestrator] Invoking LLM: call=%s provider=%s model=%s max_tokens=%d",
+        call_label, provider, model, max_tokens,
     )
 
     response_text = await call_llm(
@@ -84,6 +86,7 @@ async def _invoke_llm(
         api_key=api_key,
         provider=provider,
         model=model,
+        max_tokens=max_tokens,
     )
 
     logger.info(

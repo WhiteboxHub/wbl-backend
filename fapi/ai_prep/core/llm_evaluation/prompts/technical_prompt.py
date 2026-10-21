@@ -268,7 +268,8 @@ OUTPUT RULES:
 - Numbers are allowed ONLY for question_id, question_ids, and questions_count. Never output scores, marks, averages, or percentages anywhere else.
 - Use null where the schema allows it. Use an empty array [] where a list has nothing to report. Never use placeholder text such as "N/A".
 - Write every free-text field to the candidate in second person ("You...").
-- Fill the sections in this order: question_evaluations, concept_evaluations, subject_evaluations, overall_assessment, difficulty_analysis. Each section builds only on the ones before it.
+- Keep observations and explanations concise (2 sentences maximum per question/summary) to preserve token efficiency.
+- Fill the sections in this order: overall_assessment, subject_evaluations, difficulty_analysis, concept_evaluations, question_evaluations. This ensures high-level assessment verdicts and rollups are prioritized.
 
 ALLOWED VALUES:
 - rating: EXCELLENT | GOOD | AVERAGE | POOR
@@ -282,6 +283,42 @@ ALLOWED VALUES:
 REQUIRED JSON STRUCTURE:
 {
   "technical_evaluation": {
+    "overall_assessment": {
+      "rating": "EXCELLENT | GOOD | AVERAGE | POOR",
+      "executive_summary": "string",
+      "top_strengths": ["string"],
+      "priority_improvements": ["string"],
+      "data_note": "string or null"
+    },
+    "subject_evaluations": [
+      {
+        "subject": "AI Engineering | Software Engineering | DevOps and Cloud",
+        "rating": "EXCELLENT | GOOD | AVERAGE | POOR | NOT_TESTED",
+        "summary": "string",
+        "terminology_gaps": ["string"],
+        "data_note": "string or null"
+      }
+    ],
+    "difficulty_analysis": {
+      "easy": "string",
+      "medium": "string",
+      "hard": "string",
+      "observation": "string"
+    },
+    "concept_evaluations": [
+      {
+        "concept": "string",
+        "subject": "string",
+        "questions_count": 0,
+        "question_ids": [0],
+        "rating": "EXCELLENT | GOOD | AVERAGE | POOR",
+        "strengths": ["string"],
+        "gaps": ["string"],
+        "terminology_gaps": ["string"],
+        "what_to_work_on": ["string"],
+        "data_note": "string or null"
+      }
+    ],
     "question_evaluations": [
       {
         "question_id": 0,
@@ -305,43 +342,7 @@ REQUIRED JSON STRUCTURE:
         "observation": "string",
         "study_guidance": null or { "what_to_study": ["string"], "how_to_answer": "string" }
       }
-    ],
-    "concept_evaluations": [
-      {
-        "concept": "string",
-        "subject": "string",
-        "questions_count": 0,
-        "question_ids": [0],
-        "rating": "EXCELLENT | GOOD | AVERAGE | POOR",
-        "strengths": ["string"],
-        "gaps": ["string"],
-        "terminology_gaps": ["string"],
-        "what_to_work_on": ["string"],
-        "data_note": "string or null"
-      }
-    ],
-    "subject_evaluations": [
-      {
-        "subject": "AI Engineering | Software Engineering | DevOps and Cloud",
-        "rating": "EXCELLENT | GOOD | AVERAGE | POOR | NOT_TESTED",
-        "summary": "string",
-        "terminology_gaps": ["string"],
-        "data_note": "string or null"
-      }
-    ],
-    "overall_assessment": {
-      "rating": "EXCELLENT | GOOD | AVERAGE | POOR",
-      "executive_summary": "string",
-      "top_strengths": ["string"],
-      "priority_improvements": ["string"],
-      "data_note": "string or null"
-    },
-    "difficulty_analysis": {
-      "easy": "string",
-      "medium": "string",
-      "hard": "string",
-      "observation": "string"
-    }
+    ]
   }
 }
 
