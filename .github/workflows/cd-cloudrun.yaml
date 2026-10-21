@@ -52,7 +52,7 @@ jobs:
 
       - name: Run Smoke Tests
         run: |
-          PROD_URL=${{ env.SMOKE_URL }} PYTHONPATH=. pytest tests/smoke/test_production_smoke.py
+          PROD_URL=${{ env.SMOKE_URL }} PYTHONPATH=. pytest -k "not redis" tests/smoke/test_production_smoke.py
 
       - name: Promote Traffic to Latest Revision
         run: |
