@@ -32,14 +32,11 @@ if not ENCRYPTION_KEY:
     # raise ValueError("ENCRYPTION_KEY environment variable is not set")
     print("WARNING: ENCRYPTION_KEY not set. API keys will NOT be secured properly.")
 
-# Upstash Redis Configuration
+# Upstash Redis Configuration (Optional)
 UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")
 UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
 
-if not UPSTASH_REDIS_REST_URL:
-    raise ValueError("UPSTASH_REDIS_REST_URL not set")
-
-if not UPSTASH_REDIS_REST_TOKEN:
-    raise ValueError("UPSTASH_REDIS_REST_TOKEN not set")
+if not UPSTASH_REDIS_REST_URL or not UPSTASH_REDIS_REST_TOKEN:
+    print("WARNING: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN not set. Running with Redis cache disabled.")
 
 REDIS_TTL_DEFAULT = int(os.getenv("REDIS_TTL_DEFAULT", 300))
