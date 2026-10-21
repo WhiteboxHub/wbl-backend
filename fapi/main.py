@@ -65,8 +65,10 @@ try:
             logger_name = event.get("logger") or ""
             if "workflow_scheduler" in logger_name:
                 return None
-        except Exception:
-            pass
+        except Exception as filter_exc:
+            logging.getLogger("wbl").warning(
+                "sentry_before_send filter encountered an error: %s", filter_exc
+            )
         return event
 
     # Only enable Sentry in production to protect monthly quota (5,000 events)
