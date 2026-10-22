@@ -140,70 +140,6 @@ def merge_word_timestamps(
         return existing + filtered_incoming
 
 
-def is_whisper_prompt_hallucination(transcript: str, prompt_text: str = "") -> bool:
-    """
-    Detects if Whisper hallucinated the initial_prompt / technical_prompt or silent audio artifacts
-    (e.g., 'Thank you for watching!') when audio is silent or contains no human speech.
-    """
-    if not transcript or not transcript.strip():
-        return False
-
-    clean_tx = transcript.strip().lower()
-
-    # Common Whisper video ending / YouTube subtitle artifacts emitted on silence
-    SILENCE_ARTIFACTS = (
-        "thank you for watching",
-        "thanks for watching",
-        "please subscribe",
-        "like and subscribe",
-        "subscribe to my channel",
-        "subtitles by",
-        "translated by",
-        "amara.org",
-        "watching!",
-    )
-
-    # 1. Pure silence artifact (e.g., only "Thank you for watching!")
-    stripped_artifacts = clean_tx
-    for artifact in SILENCE_ARTIFACTS:
-        stripped_artifacts = stripped_artifacts.replace(artifact, "")
-    stripped_artifacts = stripped_artifacts.strip(" .!?,;:-_\"'")
-    if not stripped_artifacts:
-        return True
-
-    # 2. Prompt starter / echo detection
-    PROMPT_STARTERS = (
-        "the candidate is answering technical",
-        "the candidate is answering",
-        "technical vocabulary:",
-    )
-    for starter in PROMPT_STARTERS:
-        if clean_tx.startswith(starter):
-            rem = clean_tx
-            for s in PROMPT_STARTERS:
-                rem = rem.replace(s, "")
-            for artifact in SILENCE_ARTIFACTS:
-                rem = rem.replace(artifact, "")
-            rem_words = [w for w in rem.replace(".", " ").replace(",", " ").split() if len(w) > 2]
-            prompt_words = set(prompt_text.lower().replace(".", " ").replace(",", " ").split()) if prompt_text else set()
-            unknown_words = [w for w in rem_words if w not in prompt_words]
-            # If the remaining non-artifact words are purely from the technical prompt
-            if len(unknown_words) <= 2:
-                return True
-
-    # 3. High word overlap with technical_prompt on short utterances (< 35 words)
-    if prompt_text:
-        tx_words = [w for w in clean_tx.replace(".", " ").replace(",", " ").split() if len(w) > 2]
-        if tx_words and len(tx_words) < 35:
-            prompt_words = set(prompt_text.lower().replace(".", " ").replace(",", " ").split())
-            matching = sum(1 for w in tx_words if w in prompt_words)
-            if matching / len(tx_words) >= 0.8:
-                if any(clean_tx.startswith(s) for s in PROMPT_STARTERS) or any(a in clean_tx for a in SILENCE_ARTIFACTS):
-                    return True
-
-    return False
-
-
 def transcribe_audio_chunk(
     audio_input: Union[str, bytes, np.ndarray],
     chunk_start_time: float = 0.0,
@@ -262,10 +198,6 @@ def transcribe_audio_chunk(
                         })
 
         chunk_transcript = " ".join(full_transcript_parts).strip()
-        if is_whisper_prompt_hallucination(chunk_transcript, technical_prompt):
-            logger.warning("[STT] Detected Whisper prompt hallucination on silent audio: '%s'. Discarding.", chunk_transcript)
-            chunk_transcript = ""
-            global_word_timestamps = []
 
         return {
             "transcript_text": chunk_transcript,
