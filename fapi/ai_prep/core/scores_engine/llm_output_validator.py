@@ -7,8 +7,11 @@
 # =============================================================================
 
 import json
+import logging
 import re
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class ScoresEngine:
@@ -74,17 +77,27 @@ class ScoresEngine:
             }
 
         # 1. Sanitize & extract clean JSON string
+        stripped_str = raw_llm_json_string.strip()
+        if stripped_str.startswith("```"):
+            stripped_str = re.sub(r"^```(?:json)?\s*", "", stripped_str, flags=re.IGNORECASE)
+            stripped_str = re.sub(r"\s*```$", "", stripped_str).strip()
+
         cleaned_str = self._sanitize_raw_text(raw_llm_json_string)
 
         # 2. Parse JSON
+        parsed_data = None
         try:
             parsed_data = json.loads(cleaned_str)
         except json.JSONDecodeError as exc:
-            return {
-                "is_valid": False,
-                "validation_errors": [f"Invalid JSON syntax: {str(exc)}"],
-                "parsed_report": None,
-            }
+            # Resilient fallback: attempt heuristic repair on stripped text (preserving tail content)
+            parsed_data = self._attempt_json_repair(stripped_str) or self._attempt_json_repair(cleaned_str)
+            if parsed_data is None:
+                return {
+                    "is_valid": False,
+                    "validation_errors": [f"Invalid JSON syntax: {str(exc)}"],
+                    "parsed_report": None,
+                }
+            logger.warning("[ScoresEngine] Successfully repaired truncated JSON response.")
 
         if not isinstance(parsed_data, dict):
             return {
@@ -96,6 +109,8 @@ class ScoresEngine:
         # 3. Validate Payload (Intro Evaluation, Technical, Audio, Video, or Master Assessment Report)
         if "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
+        elif "jd_intro_evaluation" in parsed_data:
+            self._validate_jd_intro_payload(parsed_data["jd_intro_evaluation"], errors)
         elif "technical_evaluation" in parsed_data:
             self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
         elif "recruiter_evaluation" in parsed_data:
@@ -139,6 +154,108 @@ class ScoresEngine:
             return stripped[start_idx : end_idx + 1]
 
         return stripped
+
+    def _attempt_json_repair(self, s: str) -> Optional[Dict[str, Any]]:
+        """
+        Attempts robust state-machine repair on truncated JSON (cut off by token limits).
+        Closes unclosed string literals and balances open brackets and braces.
+        Avoids slicing inside string literals.
+        """
+        if not s or not isinstance(s, str):
+            return None
+
+        clean_text = s.strip()
+        first_brace = clean_text.find("{")
+        if first_brace != -1:
+            clean_text = clean_text[first_brace:]
+
+        def repair_and_close(raw: str) -> Optional[Dict[str, Any]]:
+            stack: List[str] = []
+            in_str = False
+            escaped = False
+
+            for char in raw:
+                if escaped:
+                    escaped = False
+                    continue
+                if char == "\\":
+                    escaped = True
+                    continue
+                if char == '"':
+                    in_str = not in_str
+                    continue
+                if not in_str:
+                    if char in ("{", "["):
+                        stack.append(char)
+                    elif char == "}":
+                        if stack and stack[-1] == "{":
+                            stack.pop()
+                    elif char == "]":
+                        if stack and stack[-1] == "[":
+                            stack.pop()
+
+            candidate = raw
+            if in_str:
+                candidate += '"'
+
+            candidate = re.sub(r',\s*$', '', candidate)
+            candidate = re.sub(r':\s*$', ': null', candidate)
+            candidate = re.sub(r',\s*"[^"]*"\s*$', '', candidate)
+            candidate = re.sub(r',\s*$', '', candidate)
+
+            # Re-compute stack to close remaining open containers
+            final_stack: List[str] = []
+            c_in_str = False
+            c_escaped = False
+            for char in candidate:
+                if c_escaped:
+                    c_escaped = False
+                    continue
+                if char == "\\":
+                    c_escaped = True
+                    continue
+                if char == '"':
+                    c_in_str = not c_in_str
+                    continue
+                if not c_in_str:
+                    if char in ("{", "["):
+                        final_stack.append(char)
+                    elif char == "}":
+                        if final_stack and final_stack[-1] == "{":
+                            final_stack.pop()
+                    elif char == "]":
+                        if final_stack and final_stack[-1] == "[":
+                            final_stack.pop()
+
+            for opener in reversed(final_stack):
+                if opener == "{":
+                    candidate += "}"
+                elif opener == "[":
+                    candidate += "]"
+
+            try:
+                res = json.loads(candidate)
+                if isinstance(res, dict):
+                    return res
+            except Exception:
+                pass
+
+            return None
+
+        # 1. Try direct stack closure
+        result = repair_and_close(clean_text)
+        if result is not None:
+            return result
+
+        # 2. Try trimming back to the last balanced object boundary if needed
+        last_obj_close = clean_text.rfind("}")
+        if last_obj_close != -1:
+            fallback_text = clean_text[: last_obj_close + 1]
+            result = repair_and_close(fallback_text)
+            if result is not None:
+                return result
+
+        return None
 
     def _validate_intro_payload(
         self, intro: Dict[str, Any], errors: List[str]
@@ -237,6 +354,84 @@ class ScoresEngine:
         )
         if improvements is not None and not isinstance(improvements, list):
             errors.append("'priority_improvements' must be a list if provided")
+
+
+    def _validate_jd_intro_payload(
+        self, jd_intro: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """
+        Validates the JD Intro Evaluation structure against JD evaluation standards.
+        Ensures adherence to the 10 core dimensions, required enum ratings, and bounded lists.
+        """
+        if not isinstance(jd_intro, dict):
+            errors.append("jd_intro_evaluation must be a dictionary")
+            return
+        # 1. Step 0 Validation: jd_validation
+        jd_val = jd_intro.get("jd_validation")
+        if not isinstance(jd_val, dict):
+            errors.append("Missing or invalid object 'jd_validation' in jd_intro_evaluation")
+        else:
+            val_status = jd_val.get("status")
+            if val_status not in ("VALID", "PARTIAL", "INVALID"):
+                errors.append(
+                    f"jd_validation.status '{val_status}' must be one of: VALID, PARTIAL, INVALID"
+                )
+        # 2. Overall Assessment
+        overall = jd_intro.get("overall_assessment")
+        if not isinstance(overall, dict):
+            errors.append("Missing or invalid object 'overall_assessment' in jd_intro_evaluation")
+        else:
+            readiness = overall.get("readiness")
+            if readiness not in ("STRONG", "GOOD", "NEEDS_POLISH", "WEAK"):
+                errors.append(
+                    f"overall_assessment.readiness '{readiness}' must be one of: STRONG, GOOD, NEEDS_POLISH, WEAK"
+                )
+            alignment = overall.get("jd_alignment")
+            if alignment and alignment not in ("STRONG_FIT", "GOOD_FIT", "PARTIAL_FIT", "WEAK_FIT"):
+                errors.append(
+                    f"overall_assessment.jd_alignment '{alignment}' must be one of: STRONG_FIT, GOOD_FIT, PARTIAL_FIT, WEAK_FIT"
+                )
+        # 3. Required Dictionary Blocks (10 Dimensions)
+        required_objects = [
+            "jd_analysis",
+            "role_alignment",
+            "career_story",
+            "current_role_and_project",
+            "technical_alignment",
+            "value_proposition",
+            "tailoring_quality",
+            "introduction_quality",
+            "suggested_opening",
+            "final_assessment",
+        ]
+        for key in required_objects:
+            if key not in jd_intro or not isinstance(jd_intro[key], dict):
+                errors.append(f"Missing or invalid object '{key}' in jd_intro_evaluation")
+        # 4. Required Lists
+        required_lists = [
+            "requirement_coverage",
+            "strongest_points",
+            "critical_gaps",
+            "priority_improvements",
+        ]
+        for list_key in required_lists:
+            if list_key not in jd_intro or not isinstance(jd_intro[list_key], list):
+                errors.append(f"Missing or invalid list '{list_key}' in jd_intro_evaluation")
+        # 5. Requirement Coverage Item Validation
+        req_coverage = jd_intro.get("requirement_coverage")
+        if isinstance(req_coverage, list):
+            valid_statuses = {"COVERED", "PARTIAL", "NOT_MENTIONED", "NOT_APPLICABLE"}
+            for idx, item in enumerate(req_coverage):
+                if not isinstance(item, dict):
+                    errors.append(f"requirement_coverage[{idx}] must be an object")
+                    continue
+                if not item.get("requirement"):
+                    errors.append(f"requirement_coverage[{idx}] missing 'requirement' name")
+                item_status = item.get("status")
+                if item_status not in valid_statuses:
+                    errors.append(
+                        f"requirement_coverage[{idx}].status '{item_status}' must be one of: {', '.join(sorted(valid_statuses))}"
+                    )
 
     def _validate_audio_payload(
         self, audio: Dict[str, Any], errors: List[str]

@@ -737,19 +737,37 @@ class AssessmentEngine:
                 gt = q.get("ground_truth")
                 if isinstance(gt, dict):
                     criteria = gt.get("criteria") or gt.get("key_points") or []
-                    keywords = gt.get("technical_keywords") or []
-                    critical = gt.get("critical_failures") or []
-                    lines.append(f"  ground_truth:")
-                    if criteria:
-                        lines.append(f"    criteria:")
+                    keywords = list(gt.get("technical_keywords") or [])
+                    # Extract inline technical keywords from acceptable_evidence if top-level list is empty
+                    if not keywords and criteria:
                         for c in criteria:
-                            req = " (required)" if isinstance(c, dict) and c.get("required") else ""
-                            point = c.get("point") if isinstance(c, dict) else str(c)
-                            lines.append(f"      - {point}{req}")
+                            if isinstance(c, dict):
+                                for ev in c.get("acceptable_evidence") or []:
+                                    if "Technical keywords:" in ev:
+                                        kw_part = ev.split("Technical keywords:", 1)[1].strip().rstrip(".")
+                                        for kw in kw_part.split(","):
+                                            cleaned = kw.strip().strip("`")
+                                            if cleaned and cleaned not in keywords:
+                                                keywords.append(cleaned)
+                    critical = gt.get("critical_failures") or []
+                    lines.append("  ground_truth:")
+                    if criteria:
+                        lines.append("    criteria:")
+                        for c in criteria:
+                            if isinstance(c, dict):
+                                kp_id = c.get("id") or ""
+                                desc = c.get("description") or c.get("point") or ""
+                                req = " (required)" if c.get("required") else ""
+                                id_prefix = f"[{kp_id}] " if kp_id else ""
+                                lines.append(f"      - {id_prefix}{desc}{req}")
+                                for ev in c.get("acceptable_evidence") or []:
+                                    lines.append(f"        * evidence: {ev}")
+                            else:
+                                lines.append(f"      - {str(c)}")
                     if keywords:
                         lines.append(f"    technical_keywords: {', '.join(keywords)}")
                     if critical:
-                        lines.append(f"    critical_failures:")
+                        lines.append("    critical_failures:")
                         for cf in critical:
                             lines.append(f"      - {cf}")
                 elif gt:
