@@ -266,6 +266,7 @@ async def run_full_evaluation(
             video_telemetry=video_telemetry,
             resume_json=ctx["resume_json"],
             questions=ctx.get("questions") or [],
+            job_description=ctx.get("job_description"), 
             llm_config=llm_config,
         )
 

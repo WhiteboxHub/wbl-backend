@@ -109,6 +109,8 @@ class ScoresEngine:
         # 3. Validate Payload (Intro Evaluation, Technical, Audio, Video, or Master Assessment Report)
         if "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
+        elif "jd_intro_evaluation" in parsed_data:
+            self._validate_jd_intro_payload(parsed_data["jd_intro_evaluation"], errors)
         elif "technical_evaluation" in parsed_data:
             self._validate_technical_payload(parsed_data["technical_evaluation"], errors)
         elif "audio_evaluation" in parsed_data:
@@ -350,6 +352,84 @@ class ScoresEngine:
         )
         if improvements is not None and not isinstance(improvements, list):
             errors.append("'priority_improvements' must be a list if provided")
+
+
+    def _validate_jd_intro_payload(
+        self, jd_intro: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """
+        Validates the JD Intro Evaluation structure against JD evaluation standards.
+        Ensures adherence to the 10 core dimensions, required enum ratings, and bounded lists.
+        """
+        if not isinstance(jd_intro, dict):
+            errors.append("jd_intro_evaluation must be a dictionary")
+            return
+        # 1. Step 0 Validation: jd_validation
+        jd_val = jd_intro.get("jd_validation")
+        if not isinstance(jd_val, dict):
+            errors.append("Missing or invalid object 'jd_validation' in jd_intro_evaluation")
+        else:
+            val_status = jd_val.get("status")
+            if val_status not in ("VALID", "PARTIAL", "INVALID"):
+                errors.append(
+                    f"jd_validation.status '{val_status}' must be one of: VALID, PARTIAL, INVALID"
+                )
+        # 2. Overall Assessment
+        overall = jd_intro.get("overall_assessment")
+        if not isinstance(overall, dict):
+            errors.append("Missing or invalid object 'overall_assessment' in jd_intro_evaluation")
+        else:
+            readiness = overall.get("readiness")
+            if readiness not in ("STRONG", "GOOD", "NEEDS_POLISH", "WEAK"):
+                errors.append(
+                    f"overall_assessment.readiness '{readiness}' must be one of: STRONG, GOOD, NEEDS_POLISH, WEAK"
+                )
+            alignment = overall.get("jd_alignment")
+            if alignment and alignment not in ("STRONG_FIT", "GOOD_FIT", "PARTIAL_FIT", "WEAK_FIT"):
+                errors.append(
+                    f"overall_assessment.jd_alignment '{alignment}' must be one of: STRONG_FIT, GOOD_FIT, PARTIAL_FIT, WEAK_FIT"
+                )
+        # 3. Required Dictionary Blocks (10 Dimensions)
+        required_objects = [
+            "jd_analysis",
+            "role_alignment",
+            "career_story",
+            "current_role_and_project",
+            "technical_alignment",
+            "value_proposition",
+            "tailoring_quality",
+            "introduction_quality",
+            "suggested_opening",
+            "final_assessment",
+        ]
+        for key in required_objects:
+            if key not in jd_intro or not isinstance(jd_intro[key], dict):
+                errors.append(f"Missing or invalid object '{key}' in jd_intro_evaluation")
+        # 4. Required Lists
+        required_lists = [
+            "requirement_coverage",
+            "strongest_points",
+            "critical_gaps",
+            "priority_improvements",
+        ]
+        for list_key in required_lists:
+            if list_key not in jd_intro or not isinstance(jd_intro[list_key], list):
+                errors.append(f"Missing or invalid list '{list_key}' in jd_intro_evaluation")
+        # 5. Requirement Coverage Item Validation
+        req_coverage = jd_intro.get("requirement_coverage")
+        if isinstance(req_coverage, list):
+            valid_statuses = {"COVERED", "PARTIAL", "NOT_MENTIONED", "NOT_APPLICABLE"}
+            for idx, item in enumerate(req_coverage):
+                if not isinstance(item, dict):
+                    errors.append(f"requirement_coverage[{idx}] must be an object")
+                    continue
+                if not item.get("requirement"):
+                    errors.append(f"requirement_coverage[{idx}] missing 'requirement' name")
+                item_status = item.get("status")
+                if item_status not in valid_statuses:
+                    errors.append(
+                        f"requirement_coverage[{idx}].status '{item_status}' must be one of: {', '.join(sorted(valid_statuses))}"
+                    )
 
     def _validate_audio_payload(
         self, audio: Dict[str, Any], errors: List[str]
