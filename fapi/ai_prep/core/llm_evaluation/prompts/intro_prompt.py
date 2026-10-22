@@ -40,8 +40,12 @@ Evaluate only what the candidate actually communicated in the transcript.
 Do NOT give credit for a technology, architecture, responsibility, or skill simply
 because it appears in the resume.
 
-A concept counts as covered only when it is explicitly stated or clearly conveyed
+A concept counts as covered only when it is explicitly stated or directly discussed
 in the transcript.
+
+Do NOT award abstract parent or category concepts (such as "context_engineering",
+"reasoning_strategy", or "design_patterns") just because an adjacent sub-tool or 
+technique was mentioned. Each concept must be distinctly discussed or explicitly named.
 
 2. RESUME IS CAREER REFERENCE ONLY
 
@@ -65,7 +69,7 @@ AI Engineer introduction.
 
 The candidate does NOT need to mention every technology or concept.
 
-Do not treat this as a keyword-counting exercise.
+Do not treat this as a keyword-counting exercise. This applies to individual tools. It does not excuse the absence of an entire area such as application delivery or deployment.
 
 Evaluate:
 - Relevance
@@ -201,6 +205,11 @@ Capture frameworks when mentioned, including examples such as:
 
 Do NOT require all concepts.
 
+Specific concept boundaries:
+- "context_engineering": Do NOT mark covered just because the candidate mentioned "prompt templates" or "memory". It requires explicit discussion of dynamic context window assembly, compression, pruning, or token budget management.
+- "reasoning_strategy": Do NOT mark covered just because a "router" or intent classification was mentioned. It requires explicit reasoning patterns (e.g., ReAct, Plan-and-Solve, Reflection, Tree of Thoughts).
+- "design_patterns": Do NOT mark covered merely because a specific architecture (e.g. supervisor) is named. Record specific patterns in "patterns_mentioned", but mark "design_patterns" COVERED only if the candidate discusses architectural design pattern principles.
+
 -------------------------------------------------------------------------------
 B. RAG & RETRIEVAL
 -------------------------------------------------------------------------------
@@ -228,7 +237,6 @@ Check independently for:
 - Query optimization
 - Context selection
 - Context compression
-- Caching
 - Retrieval evaluation
 
 Capture specific technologies when mentioned.
@@ -288,6 +296,8 @@ Check for:
 
 Capture technologies actually mentioned.
 
+In the observation, say clearly how the candidate did. If they gave no story about APIs, backend services, or how the AI system is delivered to users, say so and explain why it matters for production AI.
+
 ===============================================================================
 CLOUD & INFRASTRUCTURE EVALUATION
 ===============================================================================
@@ -314,6 +324,8 @@ Check for relevant cloud and production infrastructure experience:
 
 Do NOT require a particular cloud provider.
 
+In the observation, say clearly how the candidate did on cloud and production infrastructure, including what was missing and why it matters.
+
 ===============================================================================
 CI/CD & PRODUCTION DELIVERY
 ===============================================================================
@@ -332,6 +344,8 @@ Check for:
 - Deployment strategies
 - Rollback
 - Versioning
+
+In the observation, say clearly how the candidate did on CI/CD and deployment. If they gave no build, test, or release story, say so even when cloud or AI content was strong.
 
 ===============================================================================
 AI ENGINEERING EVOLUTION
@@ -400,7 +414,23 @@ NOT_MENTIONED
 
 NOT_APPLICABLE
     The concept is not reasonably relevant to the candidate's background or
-    current project.
+    current project. Do not use NOT_APPLICABLE for software engineering, cloud,
+    or CI/CD just because the candidate did not talk about them. Use NOT_MENTIONED.
+
+STATUS CONSISTENCY INVARIANTS (MANDATORY):
+1. If a section has ZERO concepts marked COVERED or PARTIAL and NO relevant technologies mentioned, its overall_status MUST be NOT_MENTIONED. It CANNOT be PARTIAL or COVERED.
+2. If overall_status is PARTIAL or COVERED, at least one concept MUST be marked PARTIAL or COVERED, or relevant technologies must be listed in technologies_mentioned.
+3. SPEECH-TO-TEXT (STT) TOLERANCE: Transcripts often have acoustic artifacts (e.g., "lion's charm" -> LangChain, "pipe cone" -> Pinecone, "fast api" -> FastAPI). Evaluate the true technical intended meaning rather than failing solely due to phonetic transcription flaws.
+4. DO NOT INFER UNMENTIONED ARCHITECTURES: If a candidate mentions "full-stack" or "backend", do NOT infer "microservices" unless the candidate explicitly named microservices.
+5. CROSS-FIELD CONSISTENCY: If a specific technology or framework is recorded in technologies_mentioned or frameworks_mentioned (e.g., LangGraph -> agent_framework, Milvus -> vector_database, Docker -> docker), its corresponding direct technical concept in the "concepts" dict CANNOT be marked NOT_MENTIONED. It MUST be marked at least PARTIAL or COVERED. Note: specific patterns in patterns_mentioned (e.g. supervisor pattern) map directly to orchestration or multi_agent, NOT to design_patterns or reasoning_strategy.
+6. RESUME IS NOT TECHNICAL GROUNDING: If a technology, database, tool, or skill appears in the candidate's RESUME JSON but was NOT spoken by the candidate in the SPOKEN TRANSCRIPT, you MUST mark it NOT_MENTIONED in the concepts dictionary and do NOT include it in technologies_mentioned. Credit ONLY concepts explicitly communicated in the spoken response.
+7. NO HALLUCINATION OF UNMENTIONED ARCHITECTURES: Do not infer unmentioned concepts from general descriptions (e.g., do not infer "caching" simply because a system is interactive or personalizes answers, and do not infer "microservices" simply because a candidate worked on backend). Only mark a concept COVERED or PARTIAL if the candidate specifically named or explained that concept.
+8. NO UMBRELLA INFERENCE FOR AGENTIC CONCEPTS: Do not credit parent categories from sub-techniques:
+   - Mentioning a specific pattern (e.g., "supervisor pattern") belongs in "patterns_mentioned", and marks "orchestration" or "multi_agent" COVERED or PARTIAL, but does NOT mark "design_patterns" or "reasoning_strategy" as COVERED.
+   - Mentioning "prompt templating" belongs to "prompt_engineering", NOT "context_engineering".
+   - Mentioning "memory" belongs to "memory_management", NOT "context_engineering".
+   - Mentioning a "router" or intent classification belongs to "orchestration", NOT "reasoning_strategy".
+   If the parent concept itself was not explicitly stated or explained by the candidate, it MUST be marked NOT_MENTIONED.
 
 IMPORTANT:
 
@@ -448,9 +478,26 @@ Failure to explain:
 - what it does,
 - personal ownership,
 - career transition,
-- or the core AI architecture
+- the core AI architecture,
+- or no software engineering and no deployment story at all
 
 can be a critical gap.
+
+Every "observation" field is shown directly to the candidate on a summary
+card, so it must say how the candidate performed in that area, not just
+describe what they said. Write 2-3 sentences addressed to "You":
+
+- State plainly whether the area was done well, averagely, or poorly.
+- Name what worked, if anything.
+- Name what was weak or missing and why it matters in an AI Engineer
+  introduction. Never write only "not mentioned".
+- When the area was average or weak, end with a short example of what the
+  candidate could say instead.
+
+Judge each area on its own. Strong AI content does not excuse a weak
+software engineering, cloud, or CI/CD observation. Begin each observation
+with its area label (for example "Software engineering:", "Cloud:",
+"CI/CD:", "RAG:") because several observations are combined on one card.
 
 ===============================================================================
 OUTPUT RULE
@@ -513,25 +560,25 @@ REQUIRED JSON STRUCTURE
     },
 
     "agentic_ai": {
-      "overall_status": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+      "overall_status": "COVERED | PARTIAL | NOT_MENTIONED",
 
       "concepts": {
-        "agentic_ai": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "agent_framework": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "orchestration": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "design_patterns": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "agent_to_agent": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "multi_agent": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "mcp": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "tool_calling": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "memory_management": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "context_engineering": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "evaluations": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "guardrails": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "observability": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "governance": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "prompt_engineering": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "reasoning_strategy": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE"
+        "agentic_ai": "COVERED | PARTIAL | NOT_MENTIONED",
+        "agent_framework": "COVERED | PARTIAL | NOT_MENTIONED",
+        "orchestration": "COVERED | PARTIAL | NOT_MENTIONED",
+        "design_patterns": "COVERED | PARTIAL | NOT_MENTIONED",
+        "agent_to_agent": "COVERED | PARTIAL | NOT_MENTIONED",
+        "multi_agent": "COVERED | PARTIAL | NOT_MENTIONED",
+        "mcp": "COVERED | PARTIAL | NOT_MENTIONED",
+        "tool_calling": "COVERED | PARTIAL | NOT_MENTIONED",
+        "memory_management": "COVERED | PARTIAL | NOT_MENTIONED",
+        "context_engineering": "COVERED | PARTIAL | NOT_MENTIONED",
+        "evaluations": "COVERED | PARTIAL | NOT_MENTIONED",
+        "guardrails": "COVERED | PARTIAL | NOT_MENTIONED",
+        "observability": "COVERED | PARTIAL | NOT_MENTIONED",
+        "governance": "COVERED | PARTIAL | NOT_MENTIONED",
+        "prompt_engineering": "COVERED | PARTIAL | NOT_MENTIONED",
+        "reasoning_strategy": "COVERED | PARTIAL | NOT_MENTIONED"
       },
 
       "frameworks_mentioned": [],
@@ -541,24 +588,23 @@ REQUIRED JSON STRUCTURE
     },
 
     "rag_and_retrieval": {
-      "overall_status": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+      "overall_status": "COVERED | PARTIAL | NOT_MENTIONED",
 
       "concepts": {
-        "rag": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "retrieval": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "ingestion": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "cleaning_preprocessing": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "chunking": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "embeddings": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "vector_database": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "hybrid_retrieval": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "reranking": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "metadata_filtering": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "knowledge_graph": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "ontology": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "query_optimization": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "caching": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-        "retrieval_evaluation": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE"
+        "rag": "COVERED | PARTIAL | NOT_MENTIONED",
+        "retrieval": "COVERED | PARTIAL | NOT_MENTIONED",
+        "ingestion": "COVERED | PARTIAL | NOT_MENTIONED",
+        "cleaning_preprocessing": "COVERED | PARTIAL | NOT_MENTIONED",
+        "chunking": "COVERED | PARTIAL | NOT_MENTIONED",
+        "embeddings": "COVERED | PARTIAL | NOT_MENTIONED",
+        "vector_database": "COVERED | PARTIAL | NOT_MENTIONED",
+        "hybrid_retrieval": "COVERED | PARTIAL | NOT_MENTIONED",
+        "reranking": "COVERED | PARTIAL | NOT_MENTIONED",
+        "metadata_filtering": "COVERED | PARTIAL | NOT_MENTIONED",
+        "knowledge_graph": "COVERED | PARTIAL | NOT_MENTIONED",
+        "ontology": "COVERED | PARTIAL | NOT_MENTIONED",
+        "query_optimization": "COVERED | PARTIAL | NOT_MENTIONED",
+        "retrieval_evaluation": "COVERED | PARTIAL | NOT_MENTIONED"
       },
 
       "technologies_mentioned": [],
@@ -599,6 +645,15 @@ REQUIRED JSON STRUCTURE
     "cloud_and_infrastructure": {
       "overall_status": "COVERED | PARTIAL | NOT_MENTIONED",
 
+      "concepts": {
+        "cloud_providers": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "docker": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "kubernetes": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "terraform": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "compute_services": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "storage_services": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE"
+      },
+
       "cloud_providers": [],
       "compute_services": [],
       "container_platforms": [],
@@ -612,11 +667,15 @@ REQUIRED JSON STRUCTURE
 
     "cicd_and_delivery": {
       "overall_status": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-      "cicd": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-      "github_actions": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-      "gitops": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-      "automated_testing": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
-      "deployment_strategy": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+
+      "concepts": {
+        "cicd": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "github_actions": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "gitops": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "automated_testing": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
+        "deployment_strategy": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE"
+      },
+
       "tools_mentioned": [],
       "observation": "",
       "evidence": []
@@ -715,6 +774,15 @@ The strongest introductions should make the listener quickly understand:
 8. The major AI architecture and technologies you work with
 
 Depth and clarity matter more than the number of technologies mentioned.
+
+When deciding "readiness", strong AI engineering and a clear project can
+make the introduction GOOD, but they cannot make it STRONG if the
+candidate gave no software engineering story (APIs, backend services,
+how the AI system is delivered to users) AND no CI/CD or deployment
+story. In that case, readiness must not be STRONG. If only one of the
+two is missing, the readiness can still be STRONG only when the other is
+clearly explained. When a production gap lowers the readiness, name it in
+"summary" or "biggest_gap".
 """
 
 
@@ -734,4 +802,3 @@ SPOKEN TRANSCRIPT:
 
 Return only the required JSON object.
 """
-
