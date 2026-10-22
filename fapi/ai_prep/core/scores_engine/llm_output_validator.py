@@ -260,7 +260,7 @@ class ScoresEngine:
     ) -> None:
         """
         Validates the clean Intro Evaluation structure against AI Engineering evaluation standards.
-        Supports both the new intro.py schema and legacy checkpoint schema.+    
+        Supports both the new intro.py schema and legacy checkpoint schema.
         """
         if not isinstance(intro, dict):
             errors.append("intro_evaluation must be a dictionary")
@@ -285,9 +285,6 @@ class ScoresEngine:
             for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
                 if list_key not in intro or not isinstance(intro[list_key], list):
                     errors.append(f"Missing or invalid list '{list_key}' in intro_evaluation")
-
-            # Enforce section-level status invariants based on concept/tech counts
-            self._enforce_section_status_invariants(intro)
             return
 
         # Fallback: legacy checkpoint-based schema
@@ -356,145 +353,6 @@ class ScoresEngine:
         if improvements is not None and not isinstance(improvements, list):
             errors.append("'priority_improvements' must be a list if provided")
 
-    def _enforce_section_status_invariants(self, intro: Dict[str, Any]) -> None:
-        """
-        Post-validation invariant enforcer for new-schema intro_evaluation sections.
-
-        Iterates each section dict inside intro_evaluation (e.g. career_story,
-        current_role, current_project, agentic_ai, software_engineering, etc.),
-        counts covered vs. uncovered concept values, counts usable tech strings,
-        and rewrites `overall_status` to enforce the agreed rule:
-
-          - STRONG  : covered_count >= uncovered_count  AND  backend overall_status
-                      is in (COVERED, STRONG, EXCELLENT, GOOD)
-          - PARTIAL : has at least one covered concept OR usable tech, but doesn't
-                      meet the STRONG bar
-          - NOT_MENTIONED : zero concepts covered AND no usable techs
-
-        Skips non-dict values and the reserved top-level keys that are not sections.
-        """
-        SKIP_KEYS = {
-            "overall_assessment", "introduction_quality", "final_assessment",
-            "technology_inventory", "strongest_points", "critical_gaps",
-            "priority_improvements", "checklist_verification",
-        }
-
-        # Status values that count positively toward a candidate's knowledge
-        COVERED_STATUSES = {"COVERED", "STRONG", "GOOD", "EXCELLENT"}
-        # Status values that indicate a gap
-        UNCOVERED_STATUSES = {"NOT_MENTIONED", "NOT_COVERED", "MISSING", "WEAK"}
-        # Statuses that make the backend `overall_status` "positive"
-        POSITIVE_STATUSES = {"COVERED", "STRONG", "EXCELLENT", "GOOD"}
-        # Tech strings that should be ignored (noise values)
-        NOISE_TECHS = {"NONE", "N/A", "NOT_MENTIONED", "NONE MENTIONED", ""}
-
-        # BUG 2 FIX: Fields inside flat-style sections (career_story, current_role,
-        # current_project, ai_engineering_evolution) that are NOT status strings
-        # and must be excluded when building the synthetic concepts dict.
-        FLAT_NON_STATUS_KEYS = {
-            "overall_status", "observation", "evidence", "transitions_identified",
-            "transitions_mentioned", "stages_mentioned", "tools_mentioned",
-            "frameworks_mentioned", "patterns_mentioned", "models_mentioned",
-            "model_platforms_mentioned", "technologies_mentioned",
-        }
-
-        # BUG 1 FIX: cloud_and_infrastructure stores techs in MULTIPLE named
-        # arrays rather than a single "technologies" field.  Collect from all.
-        MULTI_ARRAY_TECH_KEYS = (
-            "cloud_providers", "compute_services", "container_platforms",
-            "storage_services", "ai_cloud_services", "infrastructure_tools",
-        )
-
-        # Single tech-list field names used by all other sections (first match wins).
-        SINGLE_TECH_FIELD_KEYS = (
-            "technologies_mentioned", "tools_mentioned", "frameworks_mentioned",
-            "patterns_mentioned", "technologies", "tools", "techs",
-            "frameworks", "platforms",
-        )
-
-        for sec_key, sec_val in intro.items():
-            if sec_key in SKIP_KEYS or not isinstance(sec_val, dict):
-                continue
-
-            # ── 1. Resolve concepts dict ─────────────────────────────────────
-            # Sections with a "concepts" sub-dict (agentic_ai, rag_and_retrieval,
-            # software_engineering, cloud_and_infrastructure, cicd_and_delivery)
-            # store per-concept statuses nested inside it.
-            #
-            # BUG 2 FIX: Flat sections (career_story, current_role, current_project,
-            # ai_engineering_evolution) store statuses as top-level string fields.
-            # When there is no "concepts" sub-dict, build a synthetic one by picking
-            # up every string-valued field whose value is a recognised status token.
-            raw_concepts = sec_val.get("concepts")
-            if isinstance(raw_concepts, dict):
-                concepts: Dict[str, Any] = raw_concepts
-            else:
-                all_statuses = (
-                    COVERED_STATUSES | UNCOVERED_STATUSES | {"PARTIAL", "NOT_APPLICABLE", "N/A"}
-                )
-                concepts = {
-                    k: v
-                    for k, v in sec_val.items()
-                    if k not in FLAT_NON_STATUS_KEYS
-                    and isinstance(v, str)
-                    and v.upper().strip() in all_statuses
-                }
-
-            covered_count = sum(
-                1 for st in concepts.values()
-                if isinstance(st, str) and st.upper().strip() in COVERED_STATUSES
-            )
-            uncovered_count = sum(
-                1 for st in concepts.values()
-                if isinstance(st, str) and st.upper().strip() in UNCOVERED_STATUSES
-            )
-
-            # PARTIAL concepts are light evidence of coverage
-            partial_count = sum(
-                1 for st in concepts.values()
-                if isinstance(st, str) and st.upper().strip() == "PARTIAL"
-            )
-
-            # ── 2. Count usable techs ────────────────────────────────────────
-            # BUG 1 FIX: cloud_and_infrastructure uses multiple named arrays
-            # (cloud_providers, container_platforms, …).  Collect from ALL of them
-            # first, then fall back to single-field style for other sections.
-            raw_techs: List[Any] = []
-            found_multi = False
-            for multi_key in MULTI_ARRAY_TECH_KEYS:
-                candidate = sec_val.get(multi_key)
-                if isinstance(candidate, list) and candidate:
-                    raw_techs.extend(candidate)
-                    found_multi = True
-
-            if not found_multi:
-                for tech_key in SINGLE_TECH_FIELD_KEYS:
-                    candidate = sec_val.get(tech_key)
-                    if isinstance(candidate, list):
-                        raw_techs = candidate
-                        break
-
-            clean_techs = [
-                t for t in raw_techs
-                if isinstance(t, str) and t.strip().upper() not in NOISE_TECHS
-            ]
-            has_techs = len(clean_techs) > 0
-
-            # ── 3. Determine new overall_status ──────────────────────────────
-            current_status = str(sec_val.get("overall_status", "")).upper().strip()
-
-            if covered_count == 0 and partial_count == 0 and not has_techs:
-                # No evidence at all → NOT_MENTIONED
-                new_status = "NOT_MENTIONED"
-            else:
-                # Has some evidence — decide between STRONG and PARTIAL
-                is_backend_positive = current_status in POSITIVE_STATUSES
-                if covered_count >= uncovered_count and is_backend_positive:
-                    new_status = "STRONG"
-                else:
-                    new_status = "PARTIAL"
-
-            sec_val["overall_status"] = new_status
 
     def _validate_jd_intro_payload(
         self, jd_intro: Dict[str, Any], errors: List[str]
