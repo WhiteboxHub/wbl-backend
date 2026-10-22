@@ -57,7 +57,7 @@ class ScoresEngine:
     ]
 
     VALID_HM_SCORE_BANDS = {
-        "STRONG", "GOOD", "NEEDS_POLISH", "WEAK",
+        "EXCELLENT", "STRONG", "GOOD", "NEEDS_POLISH", "WEAK",
         "AVERAGE", "POOR", "NOT_TESTED",
     }
 

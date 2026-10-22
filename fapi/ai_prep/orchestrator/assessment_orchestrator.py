@@ -113,12 +113,18 @@ def _load_assessment_context(
         q_ids = [qid for qid in q_ids if qid is not None]
         if q_ids:
             try:
-                db_qs = db.query(AiPrepQuestionORM).filter(AiPrepQuestionORM.id.in_(q_ids)).all()
-                q_map = {db_q.id: db_q.ground_truth for db_q in db_qs}
+                db_qs = db.query(AiPrepQuestionORM.id, AiPrepQuestionORM.ground_truth).filter(AiPrepQuestionORM.id.in_(q_ids)).all()
+                q_map = {row[0]: row[1] for row in db_qs}
                 for q in questions:
                     qid = q.get("id") or q.get("question_id")
                     if not q.get("ground_truth") and qid in q_map:
-                        q["ground_truth"] = q_map[qid]
+                        gt_val = q_map[qid]
+                        if isinstance(gt_val, str):
+                            try:
+                                gt_val = json.loads(gt_val)
+                            except Exception:
+                                pass
+                        q["ground_truth"] = gt_val
             except Exception as e:
                 logger.warning(
                     "[AssessmentOrchestrator] Could not enrich questions with ground_truth: %s", e

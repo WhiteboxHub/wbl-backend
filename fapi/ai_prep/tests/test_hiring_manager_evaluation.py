@@ -42,7 +42,7 @@ class TestEvalEngineHiringManagerPrompt(unittest.TestCase):
         assert "TRADE-OFFS & DEADLINES" in res["system_prompt"]
         assert "DELIVERY & EXCELLENCE" in res["system_prompt"]
         assert "Q1: Tell me about a blocker." in res["user_prompt"]
-        assert hiring_manager_prompt.PROMPT_VERSION == "3.1.0"
+        assert hiring_manager_prompt.PROMPT_VERSION == "3.4.0"
 
 
 # =============================================================================
@@ -170,6 +170,40 @@ class TestScoresEngineHiringManagerValidator(unittest.TestCase):
         assert res["is_valid"] is True
         assert len(res["validation_errors"]) == 0
         assert res["parsed_report"] is not None
+
+    def test_excellent_rating_passes_validation(self):
+        """Verifies that EXCELLENT rating (aligned with technical prompt) is valid for HM evaluations."""
+        payload = {
+            "hiring_manager_evaluation": {
+                "overall_assessment": {
+                    "rating": "EXCELLENT",
+                    "executive_summary": "Outstanding engineering leader.",
+                },
+                "question_evaluations": [
+                    {
+                        "question_id": 486,
+                        "question_text": "How did your career transition into AI?",
+                        "competency": "Project Ownership",
+                        "difficulty_level": "HARD",
+                        "response_state": "ANSWERED",
+                        "rating": "EXCELLENT",
+                        "personal_agency": "STRONG",
+                    }
+                ],
+                "competency_evaluations": [
+                    {
+                        "competency": "Project Ownership",
+                        "rating": "EXCELLENT",
+                        "summary": "Exemplary ownership.",
+                    }
+                ],
+            }
+        }
+        res = self.validator.validate_and_parse(json.dumps(payload))
+        assert res["is_valid"] is True
+        assert len(res["validation_errors"]) == 0
+        assert res["parsed_report"]["hiring_manager_evaluation"]["overall_assessment"]["rating"] == "EXCELLENT"
+        assert res["parsed_report"]["hiring_manager_evaluation"]["question_evaluations"][0]["rating"] == "EXCELLENT"
 
     def test_handles_unescaped_internal_quotes_gracefully(self):
         payload = self._sample_valid_hm_payload()
@@ -403,6 +437,200 @@ class TestBuildHiringManagerEvalDict(unittest.TestCase):
             "Demonstrated solid technical leadership and ownership.",
         )
         self.assertIn("hiring_manager_evaluation", dispatch_result)
+
+
+
+class TestHiringManagerEndToEndFlow(unittest.TestCase):
+    """End-to-End evaluation test for the complete Hiring Manager lifecycle."""
+
+    def test_end_to_end_hiring_manager_evaluation_pipeline(self):
+        from fapi.ai_prep.core.assessment_engine.engine import AssessmentEngine
+        from fapi.ai_prep.core.llm_evaluation.engine import EvalEngine
+        from fapi.ai_prep.core.scores_engine.llm_output_validator import ScoresEngine
+        from fapi.ai_prep.utils.aiprep_utils import (
+            _build_hiring_manager_eval_dict,
+            build_assessment_eval_dict,
+        )
+
+        # 1. Question from Question Bank with v3.4.0 ground truth
+        question = {
+            "id": 486,
+            "category": "HIRING_MANAGER",
+            "subject": "Architecture & Technical Judgment",
+            "concept": "System Design & Production Readiness",
+            "difficulty_level": "HARD",
+            "scope": "BROAD",
+            "time_limit_seconds": 150,
+            "question_text": "How did your career transition from traditional software engineering into AI and multi-agent system architecture?",
+            "ground_truth": {
+                "key_points": [
+                    {
+                        "id": "KP1",
+                        "required": True,
+                        "description": "Foundational Systems Engineering & Transition Catalyst",
+                        "acceptable_evidence": [
+                            "Technical keywords: backend services, data pipelines, distributed systems.",
+                            "Traditional backend or data engineering architecture experience.",
+                        ],
+                    },
+                    {
+                        "id": "KP2",
+                        "required": True,
+                        "description": "Hands-on Upskilling & Architecture Mastery",
+                        "acceptable_evidence": [
+                            "Technical keywords: LangGraph, LlamaIndex, agent state machines.",
+                        ],
+                    },
+                ],
+                "critical_failures": [
+                    "Claims expertise in AI without citing any hands-on implementation.",
+                ],
+            },
+        }
+        transcript = {
+            "full_text": "I started as a backend engineer building distributed data pipelines in Kafka. To transition into AI, I studied LangGraph source code and built production agent workflows with deterministic fallback guardrails."
+        }
+
+        # 2. Context Building (AssessmentEngine)
+        ae = AssessmentEngine()
+        qa_context = ae.build_qa_context([question], transcript)
+        self.assertIn("=== Interview Questions ===", qa_context)
+        self.assertIn("question_id: 486", qa_context)
+        self.assertIn("- [KP1] Foundational Systems Engineering & Transition Catalyst (required)", qa_context)
+        self.assertIn("* evidence: Technical keywords: backend services, data pipelines, distributed systems.", qa_context)
+        self.assertIn("technical_keywords: backend services, data pipelines, distributed systems", qa_context)
+        self.assertIn("critical_failures:", qa_context)
+
+        # 3. Prompt Assembly (EvalEngine + hiring_manager_prompt)
+        ee = EvalEngine()
+        prompts = ee.build_prompt(
+            assessment_type="HIRING_MANAGER",
+            transcript_text=transcript["full_text"],
+            qa_context=qa_context,
+            resume_json={"title": "Staff Engineer", "skills": ["Python", "Kafka", "LangGraph"]},
+        )
+        self.assertIn("5 CORE LEADERSHIP COMPETENCIES", prompts["system_prompt"])
+        self.assertIn("PROJECT OWNERSHIP", prompts["system_prompt"])
+        self.assertIn("TECHNICAL ROADBLOCKS", prompts["system_prompt"])
+        self.assertIn("KP1", prompts["user_prompt"])
+
+        # 4. LLM Response according to v3.4.0 specification
+        llm_output = {
+            "hiring_manager_evaluation": {
+                "flags": [],
+                "overall_assessment": {
+                    "rating": "EXCELLENT",
+                    "executive_summary": "Demonstrated an exceptional transition from distributed systems to production agent architecture.",
+                    "strongest_signal": "Source code level mastery of LangGraph and pragmatic fallback guardrails.",
+                    "biggest_gap": "Could articulate token cost management in larger scale deployments.",
+                    "top_strengths": ["Deep systems engineering background", "Hands-on framework mastery"],
+                    "priority_improvements": ["Quantify token ROI"],
+                    "next_practice_focus": "Focus on high-concurrency multi-agent throughput trade-offs.",
+                },
+                "competency_evaluations": [
+                    {
+                        "competency": "Project Ownership",
+                        "rating": "EXCELLENT",
+                        "summary": "Took full ownership of the technical transition.",
+                        "checkpoints": {
+                            "problem_identification_and_initiative": "COVERED",
+                            "technical_depth_and_soundness": "COVERED",
+                            "stakeholder_alignment_and_communication": "COVERED",
+                            "personal_accountability": "COVERED",
+                            "measurable_impact": "COVERED",
+                        },
+                        "strengths": ["Proactive self-driven discovery"],
+                        "gaps": [],
+                        "what_to_work_on": "Share learnings across engineering teams.",
+                    }
+                ],
+                "question_evaluations": [
+                    {
+                        "question_id": 486,
+                        "question_text": question["question_text"],
+                        "competency": "Project Ownership",
+                        "difficulty_level": "HARD",
+                        "scope": "BROAD",
+                        "response_state": "ANSWERED",
+                        "rating": "EXCELLENT",
+                        "personal_agency": "STRONG",
+                        "covered_points": [
+                            {"id": "KP1", "description": "Foundational Systems Engineering", "required": True},
+                            {"id": "KP2", "description": "Hands-on Upskilling", "required": True},
+                        ],
+                        "missed_points": [],
+                        "leadership_signals_demonstrated": ["Self-driven upskilling", "Architectural initiative"],
+                        "leadership_signals_missing": [],
+                        "critical_failure_triggered": None,
+                        "evidence": [
+                            {"point_id": "KP1", "quote": "I started as a backend engineer building distributed data pipelines in Kafka."},
+                            {"point_id": "KP2", "quote": "I studied LangGraph source code and built production agent workflows"},
+                        ],
+                        "observation": "Exemplary bridge between traditional systems and AI.",
+                        "top_fix": "Add specific throughput latency numbers.",
+                        "coaching": {
+                            "how_to_answer": "Anchor with latency metrics.",
+                            "stronger_version": "Detail p99 latency reduction.",
+                        },
+                    }
+                ],
+                "behavioral_delivery_analysis": {
+                    "structured_storytelling": "STRONG",
+                    "directness": "STRONG",
+                    "conciseness_and_focus": "STRONG",
+                    "answer_depth": "STRONG",
+                    "observation": "Clear, direct, and structured storytelling.",
+                },
+                "final_assessment": {
+                    "project_ownership_depth": "STRONG",
+                    "problem_solving_clarity": "STRONG",
+                    "collaboration_maturity": "STRONG",
+                    "trade_off_acumen": "STRONG",
+                    "execution_rigor": "STRONG",
+                    "executive_presence": "SENIOR_STAFF",
+                },
+            }
+        }
+
+        # 5. ScoresEngine Validation
+        se = ScoresEngine()
+        validation = se.validate_and_parse(json.dumps(llm_output))
+        self.assertTrue(validation["is_valid"], f"Errors: {validation.get('validation_errors')}")
+        parsed_hm = validation["parsed_report"]["hiring_manager_evaluation"]
+
+        # 6. Extraction into unified assessment_eval (_build_hiring_manager_eval_dict)
+        eval_dict = _build_hiring_manager_eval_dict(parsed_hm)
+        self.assertFalse(eval_dict["insufficient_content"])
+        self.assertEqual(eval_dict["readiness"], "EXCELLENT")
+        self.assertEqual(
+            eval_dict["summary"],
+            "Demonstrated an exceptional transition from distributed systems to production agent architecture.",
+        )
+        self.assertEqual(
+            eval_dict["strongest_signal"],
+            "Source code level mastery of LangGraph and pragmatic fallback guardrails.",
+        )
+        self.assertEqual(
+            eval_dict["biggest_gap"],
+            "Could articulate token cost management in larger scale deployments.",
+        )
+        self.assertIn("hiring_manager_evaluation", eval_dict)
+
+        # 7. Dispatcher serialization (build_assessment_eval_dict)
+        final_report = build_assessment_eval_dict(
+            transcript_eval={"hiring_manager_evaluation": parsed_hm}
+        )
+        self.assertEqual(final_report["readiness"], "EXCELLENT")
+        self.assertEqual(
+            final_report["hiring_manager_evaluation"]["overall_assessment"]["rating"],
+            "EXCELLENT",
+        )
+        self.assertEqual(
+            len(final_report["hiring_manager_evaluation"]["question_evaluations"]), 1
+        )
+        self.assertEqual(
+            len(final_report["hiring_manager_evaluation"]["competency_evaluations"]), 1
+        )
 
 
 if __name__ == "__main__":
