@@ -4,6 +4,7 @@ Follows WBL Backend code architecture standards separating routing and logic.
 import os
 import uuid
 import json
+import re
 import shutil
 import logging
 import asyncio
@@ -625,6 +626,50 @@ def candidate_list_assessments_logic(
     )
 
 
+def _build_hiring_manager_eval_dict(
+    hm_eval: Dict[str, Any],
+    audio_eval: Optional[Dict[str, Any]] = None,
+    video_eval: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Builds the unified assessment_eval dictionary for a hiring manager evaluation.
+    Isolates hiring manager mapping logic from other assessment types.
+    """
+    oa = hm_eval.get("overall_assessment") or {}
+    if not isinstance(oa, dict):
+        oa = {}
+
+    a_eval = audio_eval or {}
+    audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
+    if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
+        audio_inner = a_eval
+    if not isinstance(audio_inner, dict):
+        audio_inner = {}
+
+    v_eval = video_eval or {}
+    video_inner = v_eval.get("video_evaluation") if isinstance(v_eval, dict) else {}
+    if not video_inner and isinstance(v_eval, dict) and ("factors" in v_eval or "summary" in v_eval):
+        video_inner = v_eval
+    if not isinstance(video_inner, dict):
+        video_inner = {}
+
+    top_strengths = oa.get("top_strengths") or []
+    priority_improvements = oa.get("priority_improvements") or []
+
+    return {
+        "insufficient_content": False,
+        "readiness": oa.get("rating") or oa.get("readiness"),
+        "summary": oa.get("executive_summary") or oa.get("summary"),
+        "strongest_signal": oa.get("strongest_signal") or (top_strengths[0] if top_strengths else None),
+        "biggest_gap": oa.get("biggest_gap") or (priority_improvements[0] if priority_improvements else None),
+        "audio": audio_inner,
+        "language": {},
+        "video": video_inner,
+        "general": None,
+        "hiring_manager_evaluation": hm_eval,
+    }
+
+
 def build_assessment_eval_dict(
     transcript_eval: Optional[Dict[str, Any]] = None,
     audio_eval: Optional[Dict[str, Any]] = None,
@@ -704,67 +749,9 @@ def build_assessment_eval_dict(
             "technical_evaluation": tech_eval,
         }
 
-    # ── JD Intro Assessment path ──────────────────────────────────────────
-    jd_intro_eval = t_eval.get("jd_intro_evaluation") if isinstance(t_eval, dict) else None
-    if isinstance(jd_intro_eval, dict):
-        oa = jd_intro_eval.get("overall_assessment") or {}
-        readiness = oa.get("readiness")
-        summary = oa.get("summary")
-        strongest_signal = oa.get("strongest_signal")
-        biggest_gap = oa.get("biggest_gap")
-        # Audio telemetry metrics
-        a_eval = audio_eval or {}
-        audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
-        if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
-            audio_inner = a_eval
-        if not isinstance(audio_inner, dict):
-            audio_inner = {}
-        audio_factors = audio_inner.get("factors") or {}
-        # Video composure metrics
-        v_eval = video_eval or {}
-        video_inner = v_eval.get("video_evaluation") if isinstance(v_eval, dict) else {}
-        if not video_inner and isinstance(v_eval, dict) and ("factors" in v_eval or "summary" in v_eval):
-            video_inner = v_eval
-        if not isinstance(video_inner, dict):
-            video_inner = {}
-        # Language summary block
-        language_dict = {
-            "fluency": audio_factors.get("fluency") or {},
-            "filler_word_usage": audio_factors.get("filler_word_usage") or {},
-            "pace": audio_factors.get("pace") or {},
-            "introduction_quality": jd_intro_eval.get("introduction_quality") or {},
-        }
-        # General / JD-aligned diagnostic feedback block
-        fa = jd_intro_eval.get("final_assessment") or {}
-        general_dict = {
-            "jd_validation": jd_intro_eval.get("jd_validation") or {},
-            "jd_analysis": jd_intro_eval.get("jd_analysis") or {},
-            "requirement_coverage": jd_intro_eval.get("requirement_coverage") or [],
-            "role_alignment": jd_intro_eval.get("role_alignment") or {},
-            "career_story": jd_intro_eval.get("career_story") or {},
-            "current_role_and_project": jd_intro_eval.get("current_role_and_project") or {},
-            "technical_alignment": jd_intro_eval.get("technical_alignment") or {},
-            "value_proposition": jd_intro_eval.get("value_proposition") or {},
-            "tailoring_quality": jd_intro_eval.get("tailoring_quality") or {},
-            "strongest_points": jd_intro_eval.get("strongest_points") or [],
-            "critical_gaps": jd_intro_eval.get("critical_gaps") or [],
-            "priority_improvements": jd_intro_eval.get("priority_improvements") or [],
-            "suggested_opening": jd_intro_eval.get("suggested_opening") or {},
-            "final_assessment": fa,
-            "most_important_improvement": fa.get("most_important_improvement"),
-        }
-        return {
-            "insufficient_content": False,
-            "readiness": readiness,
-            "summary": summary,
-            "strongest_signal": strongest_signal,
-            "biggest_gap": biggest_gap,
-            "audio": audio_inner,
-            "language": language_dict,
-            "video": video_inner,
-            "general": general_dict,
-            "jd_intro_evaluation": jd_intro_eval,
-        }
+    hm_eval = t_eval.get("hiring_manager_evaluation") if isinstance(t_eval, dict) else None
+    if isinstance(hm_eval, dict):
+        return _build_hiring_manager_eval_dict(hm_eval, audio_eval, video_eval)
 
     # ── Intro Assessment path (unchanged) ─────────────────────────────────
     intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
@@ -1892,6 +1879,36 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 else str(assessment.assessment_type)
             )
 
+            # Load and enrich questions with ground_truth strictly for HIRING_MANAGER evaluation
+            questions = None
+            if assessment_type_str == "HIRING_MANAGER":
+                questions = (data_rec.questions if data_rec else []) or []
+                if questions and any(not q.get("ground_truth") for q in questions):
+                    q_ids = [q.get("id") or q.get("question_id") for q in questions]
+                    q_ids = [qid for qid in q_ids if qid is not None]
+                    if q_ids:
+                        try:
+                            db_qs = (
+                                db.query(AiPrepQuestionORM.id, AiPrepQuestionORM.ground_truth)
+                                .filter(AiPrepQuestionORM.id.in_(q_ids))
+                                .all()
+                            )
+                            q_map = {row[0]: row[1] for row in db_qs}
+                            for q in questions:
+                                qid = q.get("id") or q.get("question_id")
+                                if not q.get("ground_truth") and qid in q_map:
+                                    gt_val = q_map[qid]
+                                    if isinstance(gt_val, str):
+                                        try:
+                                            gt_val = json.loads(gt_val)
+                                        except Exception:
+                                            pass
+                                    q["ground_truth"] = gt_val
+                        except Exception as e:
+                            logger.warning(
+                                "[LLMOrchestrator Worker] Could not enrich questions with ground_truth: %s", e
+                            )
+
             eval_result = await llm_orchestrator.run_evaluation(
                 candidate_id=candidate_id,
                 assessment_type=assessment_type_str,
@@ -1899,7 +1916,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 audio_telemetry=audio_telemetry,
                 video_telemetry=video_telemetry,
                 resume_json=resume_json,
-                job_description=assessment.job_description, 
+                questions=questions,
                 llm_config=llm_config,
             )
 

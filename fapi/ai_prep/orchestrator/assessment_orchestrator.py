@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
+from fapi.ai_prep.models import AiPrepQuestionORM
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
 try:
@@ -105,6 +106,29 @@ def _load_assessment_context(
         transcript = data_record.transcript or {}
         audio_telemetry = data_record.audio_telemetry or {}
         video_telemetry = data_record.video_telemetry or {}
+
+    # Enrich questions with ground_truth from question bank if missing (strictly for HIRING_MANAGER)
+    if assessment_type == "HIRING_MANAGER" and questions and any(not q.get("ground_truth") for q in questions):
+        q_ids = [q.get("id") or q.get("question_id") for q in questions]
+        q_ids = [qid for qid in q_ids if qid is not None]
+        if q_ids:
+            try:
+                db_qs = db.query(AiPrepQuestionORM.id, AiPrepQuestionORM.ground_truth).filter(AiPrepQuestionORM.id.in_(q_ids)).all()
+                q_map = {row[0]: row[1] for row in db_qs}
+                for q in questions:
+                    qid = q.get("id") or q.get("question_id")
+                    if not q.get("ground_truth") and qid in q_map:
+                        gt_val = q_map[qid]
+                        if isinstance(gt_val, str):
+                            try:
+                                gt_val = json.loads(gt_val)
+                            except Exception:
+                                pass
+                        q["ground_truth"] = gt_val
+            except Exception as e:
+                logger.warning(
+                    "[AssessmentOrchestrator] Could not enrich questions with ground_truth: %s", e
+                )
 
     # Set is_video_mode flag on video_telemetry for engines
     if "is_video_mode" not in video_telemetry:
@@ -396,7 +420,21 @@ def get_questions_for_assessment(
             eval_body = transcript_eval.get(f"{normalized_type.lower()}_evaluation")
             if isinstance(eval_body, dict):
                 overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body.get("overall_assessment"), dict) else {}
-                previous_readiness = overall.get("readiness") or eval_body.get("readiness")
+                if normalized_type == "HIRING_MANAGER":
+                    previous_readiness = overall.get("rating") or overall.get("readiness") or eval_body.get("readiness")
+                    if not previous_readiness and "overall_score" in overall:
+                        try:
+                            score = float(overall["overall_score"])
+                            if score >= 75:
+                                previous_readiness = "STRONG"
+                            elif score >= 50:
+                                previous_readiness = "AVERAGE"
+                            else:
+                                previous_readiness = "POOR"
+                        except (ValueError, TypeError):
+                            pass
+                else:
+                    previous_readiness = overall.get("readiness") or eval_body.get("readiness")
 
             logger.info(
                 "[AssessmentOrchestrator] Candidate %d previous %s readiness: '%s'",
