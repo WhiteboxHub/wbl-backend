@@ -11,7 +11,17 @@ import time
 import tempfile
 from pathlib import Path
 from datetime import datetime
-import sentry_sdk
+try:
+    import sentry_sdk
+except ImportError:
+    class _DummySentry:
+        @staticmethod
+        def set_tag(*args, **kwargs): pass
+        @staticmethod
+        def capture_exception(*args, **kwargs): pass
+        @staticmethod
+        def capture_message(*args, **kwargs): pass
+    sentry_sdk = _DummySentry()
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
 from fastapi.responses import StreamingResponse, FileResponse
@@ -1114,6 +1124,7 @@ async def _background_evaluation_pipeline(
     in_memory_audio_telemetry: Dict[str, Any],
     in_memory_video_telemetry: Dict[str, Any],
     unconsented_media_to_delete: Optional[str] = None,
+    openai_api_key: Optional[str] = None,
 ):
     """
     Executes asynchronous LLM evaluation in FastAPI BackgroundTasks without blocking HTTP response.
@@ -1126,6 +1137,7 @@ async def _background_evaluation_pipeline(
             in_memory_transcript_text=in_memory_transcript_text,
             in_memory_audio_telemetry=in_memory_audio_telemetry,
             in_memory_video_telemetry=in_memory_video_telemetry,
+            openai_api_key=openai_api_key,
         )
         with SessionLocal() as worker_db:
             crud.update_assessment_status(worker_db, assessment_id, "COMPLETED")
@@ -1188,6 +1200,48 @@ async def candidate_submit_assessment_logic(
     )
     if assessment.candidate_id != resolved_cand_id:
         raise HTTPException(status_code=403, detail="Candidates can only submit their own assessments")
+
+    # Support both multipart/form-data (direct audio file upload + assessment_data JSON) and application/json
+    uploaded_audio_path: Optional[str] = None
+    if payload is None and request is not None:
+        ct = (request.headers.get("content-type") or "").lower()
+        if "multipart/form-data" in ct:
+            form = await request.form()
+            audio_upload = form.get("audio")
+            raw_data = form.get("assessment_data")
+            if raw_data:
+                try:
+                    data_dict = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+                    payload = CandidateSubmitAssessmentRequest(**data_dict)
+                except Exception as exc:
+                    logger.warning("Could not parse assessment_data JSON in multipart submission: %s", exc)
+                    payload = CandidateSubmitAssessmentRequest()
+            else:
+                payload = CandidateSubmitAssessmentRequest()
+
+            # Handle direct audio upload file
+            if audio_upload and hasattr(audio_upload, "filename") and audio_upload.filename:
+                assessment_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment.id))
+                os.makedirs(assessment_dir, exist_ok=True)
+                ext = os.path.splitext(audio_upload.filename)[1] or ".webm"
+                saved_audio = os.path.join(assessment_dir, f"audio{ext}")
+                with open(saved_audio, "wb") as f_out:
+                    if hasattr(audio_upload, "file"):
+                        shutil.copyfileobj(audio_upload.file, f_out)
+                    elif hasattr(audio_upload, "read"):
+                        content = await audio_upload.read() if asyncio.iscoroutinefunction(audio_upload.read) else audio_upload.read()
+                        f_out.write(content)
+                if os.path.exists(saved_audio) and os.path.getsize(saved_audio) > 0:
+                    uploaded_audio_path = saved_audio
+                    logger.info("Successfully received direct multipart audio upload: %s (%d bytes)", saved_audio, os.path.getsize(saved_audio))
+        else:
+            try:
+                body = await request.json()
+                payload = CandidateSubmitAssessmentRequest(**body) if body else CandidateSubmitAssessmentRequest()
+            except Exception:
+                payload = CandidateSubmitAssessmentRequest()
+
+    payload = payload or CandidateSubmitAssessmentRequest()
 
     # If candidate clicked Exit button, change status to CANCELLED and return immediately
     status_override = (
@@ -1256,6 +1310,27 @@ async def candidate_submit_assessment_logic(
         if existing_data and existing_data.video_telemetry:
             total_chunks = existing_data.video_telemetry.get("total_expected_chunks")
 
+    # Resolve candidate OpenAI API key
+    candidate_key: Optional[str] = None
+    try:
+        candidate_llm_cfg = crud.get_candidate_llm_config(db, resolved_cand_id)
+        if candidate_llm_cfg and candidate_llm_cfg.get("is_configured"):
+            candidate_key = candidate_llm_cfg.get("api_key")
+    except Exception as key_err:
+        logger.warning("Could not retrieve candidate LLM config: %s", key_err)
+
+    if not candidate_key and request:
+        candidate_key = request.headers.get("x-openai-key")
+    if not candidate_key and hasattr(payload, "openai_api_key"):
+        candidate_key = getattr(payload, "openai_api_key", None)
+
+    audio_kwargs: Dict[str, Any] = {}
+    if candidate_key:
+        audio_kwargs["provider_name"] = "openai"
+        audio_kwargs["openai_api_key"] = candidate_key
+    elif os.getenv("AI_PREP_AUDIO_PROVIDER"):
+        audio_kwargs["provider_name"] = os.getenv("AI_PREP_AUDIO_PROVIDER")
+
     # ── Live Streaming Submission Branch (Single PUT Connection) ───────────────────
     if is_streaming_submission:
         assessment_id_int = int(assessment.id)
@@ -1288,18 +1363,22 @@ async def candidate_submit_assessment_logic(
                         }
                         target_media = "direct_transcript.webm"
                     else:
-                        # 1. Stitch media chunks
-                        stream_manager.publish_progress(
-                            assessment_id_int,
-                            status="PROCESSING",
-                            progress=15,
-                        )
-                        target_media = await asyncio.to_thread(
-                            _stitch_assessment_chunks,
-                            candidate_id=resolved_cand_id,
-                            assessment_id=assessment_id_int,
-                            total_chunks_uploaded=total_chunks,
-                        )
+                        # 1. Resolve media source: check for direct multipart audio upload first
+                        if uploaded_audio_path and os.path.exists(uploaded_audio_path):
+                            logger.info("Using directly uploaded audio file for assessment %s: %s", assessment_id_int, uploaded_audio_path)
+                            target_media = uploaded_audio_path
+                        else:
+                            stream_manager.publish_progress(
+                                assessment_id_int,
+                                status="PROCESSING",
+                                progress=15,
+                            )
+                            target_media = await asyncio.to_thread(
+                                _stitch_assessment_chunks,
+                                candidate_id=resolved_cand_id,
+                                assessment_id=assessment_id_int,
+                                total_chunks_uploaded=total_chunks,
+                            )
 
                         # 2. Audio Engine
                         stream_manager.publish_progress(
@@ -1308,7 +1387,11 @@ async def candidate_submit_assessment_logic(
                             progress=35,
                         )
                         try:
-                            audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+                            audio_result = await asyncio.to_thread(
+                                AudioMetricsEngine.process_audio_file,
+                                target_media,
+                                **audio_kwargs,
+                            )
                             spoken_content = audio_result.get("spoken_content") or {}
                             raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
                         except Exception as audio_err:
@@ -1360,13 +1443,17 @@ async def candidate_submit_assessment_logic(
                     speaking_duration_sec = float(raw_audio_telemetry.get("speaking_duration_seconds") or raw_audio_telemetry.get("speaking_duration_sec") or 0.0)
                     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
                     silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
+                    total_audio_duration_s = float(raw_audio_telemetry.get("total_audio_duration_seconds") or payload.client_duration_seconds or 0.0)
                     formatted_audio_telemetry = {
                         "speaking_duration_sec": round(speaking_duration_sec, 1),
+                        "total_audio_duration_seconds": round(total_audio_duration_s, 1),
+                        "duration_seconds": round(duration_s, 1),
                         "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
                         "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
                         "silence_percentage": silence_pct,
                     }
-                    formatted_video_telemetry = payload.video_telemetry or {}
+                    formatted_video_telemetry = dict(payload.video_telemetry or {})
+                    formatted_video_telemetry["duration_seconds"] = round(duration_s, 1)
 
                     # 4. Save assessment data to DB with worker SessionLocal
                     plan = resolve_storage_plan(
@@ -1425,6 +1512,7 @@ async def candidate_submit_assessment_logic(
                             in_memory_transcript_text=full_text,
                             in_memory_audio_telemetry=plan["audio_telemetry_to_persist"],
                             in_memory_video_telemetry=plan["video_telemetry_to_persist"] if plan["video_analytics"] else {},
+                            openai_api_key=candidate_key,
                         )
                 except Exception as exc:
                     logger.exception("Streaming submission pipeline failed for assessment %s: %s", assessment_id_int, exc)
@@ -1480,16 +1568,24 @@ async def candidate_submit_assessment_logic(
         }
         target_media = "direct_transcript.webm"
     else:
-        # 1. Stitch media chunks
-        target_media = _stitch_assessment_chunks(
-            candidate_id=resolved_cand_id,
-            assessment_id=assessment.id,
-            total_chunks_uploaded=total_chunks,
-        )
+        # 1. Resolve media source: check for direct multipart audio upload first
+        if uploaded_audio_path and os.path.exists(uploaded_audio_path):
+            logger.info("Using directly uploaded audio file for assessment %s: %s", assessment.id, uploaded_audio_path)
+            target_media = uploaded_audio_path
+        else:
+            target_media = _stitch_assessment_chunks(
+                candidate_id=resolved_cand_id,
+                assessment_id=assessment.id,
+                total_chunks_uploaded=total_chunks,
+            )
 
         # 2. Run Audio Engine (WHISPER_AUDIO)
         try:
-            audio_result = await asyncio.to_thread(AudioMetricsEngine.process_audio_file, target_media)
+            audio_result = await asyncio.to_thread(
+                AudioMetricsEngine.process_audio_file,
+                target_media,
+                **audio_kwargs,
+            )
             spoken_content = audio_result.get("spoken_content") or {}
             raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
         except Exception as audio_err:
@@ -1555,8 +1651,23 @@ async def candidate_submit_assessment_logic(
     filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
     filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else raw_audio_telemetry.get("filler_words", [])
 
+    total_audio_duration = float(
+        raw_audio_telemetry.get("total_audio_duration_seconds")
+        or payload.client_duration_seconds
+        or 0.0
+    )
+
+    # 6. Evaluate Gatekeeper Flag
+    interview_duration = (
+        float(payload.client_duration_seconds)
+        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
+        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
+    )
+
     formatted_audio_telemetry = {
         "speaking_duration_sec": round(speaking_duration_sec, 1),
+        "total_audio_duration_seconds": round(total_audio_duration, 1),
+        "duration_seconds": round(interview_duration, 1),
         "words_per_minute": wpm,
         "filler_word_count": filler_count,
         "silence_percentage": silence_pct,
@@ -1567,14 +1678,8 @@ async def candidate_submit_assessment_logic(
         formatted_audio_telemetry["clarity"] = raw_audio_telemetry["clarity"]
 
     # 5. Format Video Telemetry
-    formatted_video_telemetry = payload.video_telemetry or {}
-
-    # 6. Evaluate Gatekeeper Flag
-    interview_duration = (
-        float(payload.client_duration_seconds)
-        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
-        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
-    )
+    formatted_video_telemetry = dict(payload.video_telemetry or {})
+    formatted_video_telemetry["duration_seconds"] = round(interview_duration, 1)
 
     insufficient_content = evaluate_gatekeeper_flag(
         word_count=word_count,
@@ -1659,6 +1764,7 @@ async def candidate_submit_assessment_logic(
                     in_memory_audio_telemetry=formatted_audio_telemetry,
                     in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
                     unconsented_media_to_delete=unconsented_media_to_delete,
+                    openai_api_key=candidate_key,
                 )
                 # Transfer cleanup responsibility to the background task
                 unconsented_media_to_delete = None
@@ -1672,6 +1778,7 @@ async def candidate_submit_assessment_logic(
                         in_memory_transcript_text=full_text,
                         in_memory_audio_telemetry=formatted_audio_telemetry,
                         in_memory_video_telemetry=formatted_video_telemetry if video_analytics else {},
+                        openai_api_key=candidate_key,
                     )
                     llm_report = eval_result.get("report") or {}
                     crud.update_assessment_status(db, assessment.id, "COMPLETED")
@@ -2993,19 +3100,37 @@ def create_new_assessment_type_logic(type_in: AssessmentTypeCreate) -> Assessmen
 def list_questions_from_bank_logic(
     db: Session,
     category: Optional[str] = None,
+    subject: Optional[str] = None,
+    concept: Optional[str] = None,
     difficulty_level: Optional[str] = None,
+    scope: Optional[str] = None,
     is_active: Optional[bool] = None,
+    search: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> QuestionListResponse:
-    """Fetches questions dynamically from ai_prep_questions DB table."""
+    """Fetches questions dynamically from ai_prep_questions DB table with full taxonomy filtering."""
     query = db.query(AiPrepQuestionORM)
     if category:
         query = query.filter(AiPrepQuestionORM.category == category)
+    if subject:
+        query = query.filter(AiPrepQuestionORM.subject == subject)
+    if concept:
+        query = query.filter(AiPrepQuestionORM.concept == concept)
     if difficulty_level:
         query = query.filter(AiPrepQuestionORM.difficulty_level == difficulty_level)
+    if scope:
+        query = query.filter(AiPrepQuestionORM.scope == scope)
     if is_active is not None:
         query = query.filter(AiPrepQuestionORM.is_active == is_active)
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                AiPrepQuestionORM.question_text.ilike(s),
+                AiPrepQuestionORM.concept.ilike(s),
+            )
+        )
 
     total = query.count()
     items = query.order_by(desc(AiPrepQuestionORM.id)).offset(offset).limit(limit).all()
@@ -3056,11 +3181,8 @@ def update_question_in_bank_logic(
         if hasattr(q_row, k):
             setattr(q_row, k, v.value if hasattr(v, "value") else v)
 
-    cat = q_row.category.value if hasattr(q_row.category, "value") else str(q_row.category)
-    if cat != "TECHNICAL":
-        q_row.subject = None
-        q_row.concept = None
-        q_row.scope = None
+    # Do not clear subject/concept/scope based on category: the Question Bank UI
+    # supports these fields for non-technical categories as well.
 
     q_row.updated_at = datetime.utcnow()
     db.commit()

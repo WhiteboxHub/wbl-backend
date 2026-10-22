@@ -223,7 +223,7 @@ async def call_llm(
     model: Optional[str] = None,
     response_format: str = "json_object",
     temperature: float = 0.2,
-    max_tokens: int = 4000,
+    max_tokens: int = 8192,
     timeout_seconds: float = 60.0,
 ) -> str:
     """
@@ -438,6 +438,9 @@ async def _call_gemini(
         candidates = response_json.get("candidates")
         if not candidates or not isinstance(candidates, list):
             raise LLMResponseFormatError("Gemini response missing 'candidates' array", provider="gemini")
+        finish_reason = candidates[0].get("finishReason")
+        if finish_reason == "MAX_TOKENS":
+            logger.warning("[LLMClient] Gemini generation hit MAX_TOKENS limit (output may be truncated)")
         parts = candidates[0].get("content", {}).get("parts", [])
         if not parts or not isinstance(parts, list):
             raise LLMResponseFormatError("Gemini candidate missing 'parts' list", provider="gemini")

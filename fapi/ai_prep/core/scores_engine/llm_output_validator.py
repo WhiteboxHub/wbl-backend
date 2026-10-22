@@ -7,8 +7,11 @@
 # =============================================================================
 
 import json
+import logging
 import re
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class ScoresEngine:
@@ -74,17 +77,27 @@ class ScoresEngine:
             }
 
         # 1. Sanitize & extract clean JSON string
+        stripped_str = raw_llm_json_string.strip()
+        if stripped_str.startswith("```"):
+            stripped_str = re.sub(r"^```(?:json)?\s*", "", stripped_str, flags=re.IGNORECASE)
+            stripped_str = re.sub(r"\s*```$", "", stripped_str).strip()
+
         cleaned_str = self._sanitize_raw_text(raw_llm_json_string)
 
         # 2. Parse JSON
+        parsed_data = None
         try:
             parsed_data = json.loads(cleaned_str)
         except json.JSONDecodeError as exc:
-            return {
-                "is_valid": False,
-                "validation_errors": [f"Invalid JSON syntax: {str(exc)}"],
-                "parsed_report": None,
-            }
+            # Resilient fallback: attempt heuristic repair on stripped text (preserving tail content)
+            parsed_data = self._attempt_json_repair(stripped_str) or self._attempt_json_repair(cleaned_str)
+            if parsed_data is None:
+                return {
+                    "is_valid": False,
+                    "validation_errors": [f"Invalid JSON syntax: {str(exc)}"],
+                    "parsed_report": None,
+                }
+            logger.warning("[ScoresEngine] Successfully repaired truncated JSON response.")
 
         if not isinstance(parsed_data, dict):
             return {
@@ -139,6 +152,108 @@ class ScoresEngine:
             return stripped[start_idx : end_idx + 1]
 
         return stripped
+
+    def _attempt_json_repair(self, s: str) -> Optional[Dict[str, Any]]:
+        """
+        Attempts robust state-machine repair on truncated JSON (cut off by token limits).
+        Closes unclosed string literals and balances open brackets and braces.
+        Avoids slicing inside string literals.
+        """
+        if not s or not isinstance(s, str):
+            return None
+
+        clean_text = s.strip()
+        first_brace = clean_text.find("{")
+        if first_brace != -1:
+            clean_text = clean_text[first_brace:]
+
+        def repair_and_close(raw: str) -> Optional[Dict[str, Any]]:
+            stack: List[str] = []
+            in_str = False
+            escaped = False
+
+            for char in raw:
+                if escaped:
+                    escaped = False
+                    continue
+                if char == "\\":
+                    escaped = True
+                    continue
+                if char == '"':
+                    in_str = not in_str
+                    continue
+                if not in_str:
+                    if char in ("{", "["):
+                        stack.append(char)
+                    elif char == "}":
+                        if stack and stack[-1] == "{":
+                            stack.pop()
+                    elif char == "]":
+                        if stack and stack[-1] == "[":
+                            stack.pop()
+
+            candidate = raw
+            if in_str:
+                candidate += '"'
+
+            candidate = re.sub(r',\s*$', '', candidate)
+            candidate = re.sub(r':\s*$', ': null', candidate)
+            candidate = re.sub(r',\s*"[^"]*"\s*$', '', candidate)
+            candidate = re.sub(r',\s*$', '', candidate)
+
+            # Re-compute stack to close remaining open containers
+            final_stack: List[str] = []
+            c_in_str = False
+            c_escaped = False
+            for char in candidate:
+                if c_escaped:
+                    c_escaped = False
+                    continue
+                if char == "\\":
+                    c_escaped = True
+                    continue
+                if char == '"':
+                    c_in_str = not c_in_str
+                    continue
+                if not c_in_str:
+                    if char in ("{", "["):
+                        final_stack.append(char)
+                    elif char == "}":
+                        if final_stack and final_stack[-1] == "{":
+                            final_stack.pop()
+                    elif char == "]":
+                        if final_stack and final_stack[-1] == "[":
+                            final_stack.pop()
+
+            for opener in reversed(final_stack):
+                if opener == "{":
+                    candidate += "}"
+                elif opener == "[":
+                    candidate += "]"
+
+            try:
+                res = json.loads(candidate)
+                if isinstance(res, dict):
+                    return res
+            except Exception:
+                pass
+
+            return None
+
+        # 1. Try direct stack closure
+        result = repair_and_close(clean_text)
+        if result is not None:
+            return result
+
+        # 2. Try trimming back to the last balanced object boundary if needed
+        last_obj_close = clean_text.rfind("}")
+        if last_obj_close != -1:
+            fallback_text = clean_text[: last_obj_close + 1]
+            result = repair_and_close(fallback_text)
+            if result is not None:
+                return result
+
+        return None
 
     def _validate_intro_payload(
         self, intro: Dict[str, Any], errors: List[str]

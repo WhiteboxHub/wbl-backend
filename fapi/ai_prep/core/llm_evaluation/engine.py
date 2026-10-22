@@ -272,7 +272,7 @@ class EvalEngine:
             "audio_evaluation": {
                 "summary": {
                     "overall_readiness": "INSUFFICIENT_DATA",
-                    "confidence_in_reading": "LOW",
+                    "confidence_in_reading": "INSUFFICIENT_DATA",
                     "confidence_rationale": confidence_rationale,
                     "executive_summary": executive_summary,
                     "primary_vocal_strength": None,

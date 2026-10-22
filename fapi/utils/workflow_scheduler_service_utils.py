@@ -46,6 +46,12 @@ _scheduler_started = False
 try:
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(_run_scheduler_job, IntervalTrigger(minutes=5))
+    try:
+        from fapi.ai_prep.services.youtube_queue_worker import run_scheduled_youtube_queue_job
+        _scheduler.add_job(run_scheduled_youtube_queue_job, IntervalTrigger(minutes=15))
+        logger.info("Registered YouTube upload queue worker (polling every 15 minutes)")
+    except Exception as yt_err:
+        logger.warning("Could not register YouTube queue worker with scheduler: %s", yt_err)
     _scheduler.start()
     _scheduler_started = True
     logger.info("Automation Workflow Scheduler started (polling every 5 minutes)")
