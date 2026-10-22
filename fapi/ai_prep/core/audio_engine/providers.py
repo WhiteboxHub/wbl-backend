@@ -10,7 +10,7 @@ import os
 import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, ClassVar
-from .stt import transcribe_audio
+from .stt import transcribe_audio, is_whisper_prompt_hallucination
 
 logger = logging.getLogger("wbl.ai_prep.audio_engine.providers")
 
@@ -215,6 +215,14 @@ class OpenAIWhisperProvider(BaseTranscriptionProvider):
 
             full_text = getattr(response, "text", "") or ""
             duration = getattr(response, "duration", 0.0) or 0.0
+
+            if is_whisper_prompt_hallucination(full_text, technical_prompt):
+                logger.warning(
+                    "[OpenAIWhisperProvider] Detected Whisper silence hallucination / prompt echo: '%s'. Discarding transcript.",
+                    full_text,
+                )
+                full_text = ""
+
             logger.info(
                 "[OpenAIWhisperProvider] Successfully transcribed %d words (duration: %.1fs) via OpenAI Whisper-1 cloud model",
                 len(full_text.split()),
@@ -222,16 +230,17 @@ class OpenAIWhisperProvider(BaseTranscriptionProvider):
             )
 
             word_timestamps: List[Dict[str, Any]] = []
-            raw_words = getattr(response, "words", None)
-            if raw_words:
-                for w in raw_words:
-                    word_str = getattr(w, "word", "") or ""
-                    if word_str.strip():
-                        word_timestamps.append({
-                            "word": word_str.strip(),
-                            "start": round(float(getattr(w, "start", 0.0)), 2),
-                            "end": round(float(getattr(w, "end", 0.0)), 2),
-                        })
+            if full_text:
+                raw_words = getattr(response, "words", None)
+                if raw_words:
+                    for w in raw_words:
+                        word_str = getattr(w, "word", "") or ""
+                        if word_str.strip():
+                            word_timestamps.append({
+                                "word": word_str.strip(),
+                                "start": round(float(getattr(w, "start", 0.0)), 2),
+                                "end": round(float(getattr(w, "end", 0.0)), 2),
+                            })
 
             return {
                 "transcript_text": full_text,

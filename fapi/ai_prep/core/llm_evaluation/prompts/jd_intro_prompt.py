@@ -16,10 +16,6 @@ positions them for THIS specific role.
 
 ===============================================================================
 INPUT ROLES
-===============================================================================
-
-1. THE JD IS THE EVALUATION LENS
-
 The JD defines what a strong introduction for this role should communicate:
 required skills, responsibilities, seniority, domain, and tech stack.
 
@@ -101,51 +97,6 @@ Do NOT list every keyword.
 Group related technologies into one requirement where sensible.
 Rank requirements within MUST_HAVE by their centrality to the role.
 
-===============================================================================
-STEP 2: BUILD THE REQUIREMENT EVIDENCE MAP
-===============================================================================
-
-Before writing any evaluation output, build an internal evidence map for each
-JD requirement.
-
-For each important requirement:
-
-1. Identify the exact capability, responsibility, or experience the JD requires.
-2. Search the transcript for explicit evidence of that requirement.
-3. Record the shortest sufficient transcript excerpt as evidence.
-4. Distinguish an exact match from a functionally equivalent capability.
-5. Do NOT infer implementation, production use, ownership, scale, or outcomes
-   from a technology name alone.
-6. A single transcript statement may support multiple requirements ONLY when it
-   provides independent evidence for each one.
-
-This map is the single source of truth for all coverage decisions.
-All summaries, gaps, improvements, and the final fit classification must be
-derived from this map. Do not re-evaluate the same evidence differently in
-different sections.
-
-===============================================================================
-STEP 3: ENFORCE EVIDENCE PROVENANCE
-===============================================================================
-
-Every assessment of spoken coverage must cite transcript evidence.
-
-Three separate evidence categories exist:
-
-TRANSCRIPT
-    What the candidate actually said.
-    This is the ONLY valid source for determining whether a spoken requirement
-    is COVERED, PARTIAL, or NOT_MENTIONED.
-
-RESUME_CONTEXT
-    Career facts used only to interpret the coherence of the spoken career
-    narrative: timeline, job titles, companies, and transitions.
-    NEVER use resume-only information to upgrade a spoken requirement from
-    NOT_MENTIONED to PARTIAL or COVERED.
-
-JD_REQUIREMENT
-    What the target role requires.
-    JD text is never evidence that the candidate demonstrated anything.
 
 ===============================================================================
 CORE EVALUATION RULES
@@ -327,48 +278,6 @@ Distinguish between:
 All NOT_MENTIONED findings mean the skill was not demonstrated in this
 introduction, not that the candidate does not possess it.
 
-===============================================================================
-FINAL FIT CLASSIFICATION RULES
-===============================================================================
-
-Determine jd_alignment from the requirement evidence map using this policy.
-Do NOT use keyword counts or arbitrary percentages.
-
-STRONG_FIT
-    The transcript demonstrates clear, specific, explained evidence for the
-    majority of the JD's MUST_HAVE requirements.
-    No critical MUST_HAVE requirement is left entirely NOT_MENTIONED.
-    Overall depth, ownership, and seniority signals match the role.
-
-GOOD_FIT
-    The transcript demonstrates evidence for most MUST_HAVE requirements, with
-    at most one or two PARTIAL coverages and no strong contradictions.
-    Some NICE_TO_HAVE items may be missing.
-
-PARTIAL_FIT
-    The transcript demonstrates evidence for some but not most MUST_HAVE
-    requirements.
-    One or more MUST_HAVE requirements are PARTIAL or NOT_MENTIONED.
-    OR the introduction is predominantly generic without clear JD alignment.
-
-WEAK_FIT
-    The transcript demonstrates little or no relevant evidence for the JD's
-    MUST_HAVE requirements.
-    OR the introduction covers mostly unrelated experience.
-    OR critical seniority, domain, or technical requirements are absent.
-
-CONSTRAINT RULE
-
-A critical MUST_HAVE requirement that is entirely NOT_MENTIONED constrains the
-fit classification.
-
-A candidate demonstrating strong secondary alignment cannot be classified as
-STRONG_FIT or GOOD_FIT when a role-central MUST_HAVE is NOT_MENTIONED,
-unless the JD context makes that omission clearly acceptable in an introduction.
-
-When the evidence does not support a confident distinction between two adjacent
-fit categories, prefer the lower classification and explain the uncertainty in
-overall_assessment.summary.
 
 ===============================================================================
 STATUS DEFINITIONS
@@ -416,35 +325,6 @@ EVIDENCE RULES
 - State transcript-quality limitations explicitly rather than letting them
   silently produce negative evaluations.
 
-===============================================================================
-CONSISTENCY RULES
-===============================================================================
-
-1. SOURCE OF TRUTH
-
-The requirement_coverage array is the single source of truth for all coverage
-findings.
-
-overall_assessment, critical_gaps, priority_improvements, and final_assessment
-must be derived from requirement_coverage and the section-level findings.
-
-Do NOT contradict a requirement's status in a different section of the output.
-
-2. GAPS MUST CORRESPOND TO REQUIREMENTS
-
-Every critical gap must correspond to an identifiable JD requirement
-OR a clearly justified communication issue (such as failure to explain the
-current project, personal ownership, or career narrative).
-
-3. IMPROVEMENTS MUST ADDRESS DOCUMENTED GAPS
-
-Every priority improvement must address a gap that is documented somewhere
-in the output. Do NOT add improvements for gaps that have not been identified.
-
-4. DO NOT REPEAT THE SAME GAP
-
-If a gap is listed in critical_gaps, do not re-state it as a separate item in
-priority_improvements without adding new guidance.
 
 ===============================================================================
 FEEDBACK RULES

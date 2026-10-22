@@ -260,7 +260,7 @@ class ScoresEngine:
     ) -> None:
         """
         Validates the clean Intro Evaluation structure against AI Engineering evaluation standards.
-        Supports both the new intro.py schema and legacy checkpoint schema.
+        Supports both the new intro.py schema and legacy checkpoint schema.+    
         """
         if not isinstance(intro, dict):
             errors.append("intro_evaluation must be a dictionary")
@@ -285,6 +285,9 @@ class ScoresEngine:
             for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
                 if list_key not in intro or not isinstance(intro[list_key], list):
                     errors.append(f"Missing or invalid list '{list_key}' in intro_evaluation")
+
+            # Enforce section-level status invariants based on concept/tech counts
+            self._enforce_section_status_invariants(intro)
             return
 
         # Fallback: legacy checkpoint-based schema
