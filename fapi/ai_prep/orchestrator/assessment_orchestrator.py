@@ -41,6 +41,7 @@ except ImportError:
         def capture_message(*args, **kwargs): pass
     sentry_sdk = _DummySentry()
 from fapi.ai_prep.utils.stream_manager import stream_manager
+from fapi.ai_prep.core.audio_engine.stt import is_whisper_prompt_hallucination
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,7 @@ async def run_full_evaluation(
             video_telemetry=video_telemetry,
             resume_json=ctx["resume_json"],
             questions=ctx.get("questions") or [],
+            job_description=ctx.get("job_description"), 
             llm_config=llm_config,
         )
 
@@ -515,14 +517,23 @@ def check_candidate_eligibility(
 def _extract_transcript_text(transcript: Dict[str, Any]) -> str:
     """
     Safely extracts full transcript text from a transcript dict.
-    Handles multiple known field name variants.
+    Handles multiple known field name variants and filters Whisper prompt hallucinations.
     """
     if not transcript or not isinstance(transcript, dict):
         return ""
 
-    return (
+    raw = (
         transcript.get("full_text")
         or transcript.get("text")
         or transcript.get("transcript_text")
         or ""
     ).strip()
+
+    if is_whisper_prompt_hallucination(raw):
+        logger.warning(
+            "[_extract_transcript_text] Detected Whisper prompt hallucination on silent audio: '%s'. Returning empty transcript.",
+            raw,
+        )
+        return ""
+
+    return raw
