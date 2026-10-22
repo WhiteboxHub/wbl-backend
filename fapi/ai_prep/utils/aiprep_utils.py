@@ -1430,13 +1430,17 @@ async def candidate_submit_assessment_logic(
                     speaking_duration_sec = float(raw_audio_telemetry.get("speaking_duration_seconds") or raw_audio_telemetry.get("speaking_duration_sec") or 0.0)
                     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
                     silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
+                    total_audio_duration_s = float(raw_audio_telemetry.get("total_audio_duration_seconds") or payload.client_duration_seconds or 0.0)
                     formatted_audio_telemetry = {
                         "speaking_duration_sec": round(speaking_duration_sec, 1),
+                        "total_audio_duration_seconds": round(total_audio_duration_s, 1),
+                        "duration_seconds": round(duration_s, 1),
                         "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
                         "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
                         "silence_percentage": silence_pct,
                     }
-                    formatted_video_telemetry = payload.video_telemetry or {}
+                    formatted_video_telemetry = dict(payload.video_telemetry or {})
+                    formatted_video_telemetry["duration_seconds"] = round(duration_s, 1)
 
                     # 4. Save assessment data to DB with worker SessionLocal
                     plan = resolve_storage_plan(
@@ -1634,8 +1638,23 @@ async def candidate_submit_assessment_logic(
     filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
     filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else raw_audio_telemetry.get("filler_words", [])
 
+    total_audio_duration = float(
+        raw_audio_telemetry.get("total_audio_duration_seconds")
+        or payload.client_duration_seconds
+        or 0.0
+    )
+
+    # 6. Evaluate Gatekeeper Flag
+    interview_duration = (
+        float(payload.client_duration_seconds)
+        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
+        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
+    )
+
     formatted_audio_telemetry = {
         "speaking_duration_sec": round(speaking_duration_sec, 1),
+        "total_audio_duration_seconds": round(total_audio_duration, 1),
+        "duration_seconds": round(interview_duration, 1),
         "words_per_minute": wpm,
         "filler_word_count": filler_count,
         "silence_percentage": silence_pct,
@@ -1646,14 +1665,8 @@ async def candidate_submit_assessment_logic(
         formatted_audio_telemetry["clarity"] = raw_audio_telemetry["clarity"]
 
     # 5. Format Video Telemetry
-    formatted_video_telemetry = payload.video_telemetry or {}
-
-    # 6. Evaluate Gatekeeper Flag
-    interview_duration = (
-        float(payload.client_duration_seconds)
-        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
-        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
-    )
+    formatted_video_telemetry = dict(payload.video_telemetry or {})
+    formatted_video_telemetry["duration_seconds"] = round(interview_duration, 1)
 
     insufficient_content = evaluate_gatekeeper_flag(
         word_count=word_count,

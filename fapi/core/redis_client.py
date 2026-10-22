@@ -12,8 +12,7 @@ class RedisClient:
 
     @classmethod
     def get_client(cls):
-        if Redis is None:
-            logger.warning("upstash_redis package is not installed; Redis cache is disabled")
+        if Redis is None or not config.UPSTASH_REDIS_REST_URL or not config.UPSTASH_REDIS_REST_TOKEN:
             return None
         if cls._client is None:
             try:
@@ -23,7 +22,7 @@ class RedisClient:
                 )
                 logger.info("Upstash Redis connected")
             except Exception as e:
-                logger.error(f"Upstash Redis connection failed: {e}")
+                logger.warning(f"Upstash Redis unavailable, continuing without cache: {e}")
                 cls._client = None
         return cls._client
 
