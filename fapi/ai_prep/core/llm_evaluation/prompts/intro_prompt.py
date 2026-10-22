@@ -210,6 +210,17 @@ Specific concept boundaries:
 - "reasoning_strategy": Do NOT mark covered just because a "router" or intent classification was mentioned. It requires explicit reasoning patterns (e.g., ReAct, Plan-and-Solve, Reflection, Tree of Thoughts).
 - "design_patterns": Do NOT mark covered merely because a specific architecture (e.g. supervisor) is named. Record specific patterns in "patterns_mentioned", but mark "design_patterns" COVERED only if the candidate discusses architectural design pattern principles.
 
+WORKED CLASSIFICATION EXAMPLE:
+Candidate Transcript: "...an orchestrator agent following the supervisor pattern, a router for intent detection, and prompt templating..."
+Ground-Truth Concept Mapping:
+- "agentic_ai": "COVERED"
+- "orchestration": "COVERED" (explained orchestrator & intent router)
+- "prompt_engineering": "COVERED" (named prompt templating)
+- "patterns_mentioned": ["supervisor pattern"]
+- "design_patterns": "NOT_MENTIONED" (naming a supervisor pattern is an architecture instance, NOT an explanation of design pattern principles. Do NOT mark design_patterns COVERED)
+- "context_engineering": "NOT_MENTIONED" (prompt templating is prompt_engineering, not context_engineering)
+- "reasoning_strategy": "NOT_MENTIONED" (intent routing is orchestration, not a structured multi-step reasoning strategy like ReAct or CoT)
+
 -------------------------------------------------------------------------------
 B. RAG & RETRIEVAL
 -------------------------------------------------------------------------------
@@ -513,15 +524,12 @@ Do not return explanatory text outside the JSON.
 REQUIRED JSON STRUCTURE
 ===============================================================================
 
+Generate the JSON fields strictly in the bottom-up order defined below.
+Evaluate all technical sections, concepts, gaps, and improvements FIRST.
+Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts and gaps established in the preceding sections.
+
 {
   "intro_evaluation": {
-
-    "overall_assessment": {
-      "readiness": "STRONG | GOOD | NEEDS_POLISH | WEAK",
-      "summary": "",
-      "strongest_signal": "",
-      "biggest_gap": ""
-    },
 
     "career_story": {
       "overall_status": "COVERED | PARTIAL | NOT_MENTIONED",
@@ -748,6 +756,13 @@ REQUIRED JSON STRUCTURE
       "production_engineering_depth": "",
       "transition_quality": "",
       "most_important_improvement": ""
+    },
+
+    "overall_assessment": {
+      "readiness": "STRONG | GOOD | NEEDS_POLISH | WEAK",
+      "summary": "",
+      "strongest_signal": "",
+      "biggest_gap": ""
     }
   }
 }
@@ -794,11 +809,11 @@ USER_PROMPT_TEMPLATE = """
 Evaluate this spoken AI Engineer interview introduction using the evaluation
 framework defined in the system prompt.
 
-RESUME REFERENCE:
-{resume_json}
-
-SPOKEN TRANSCRIPT:
+SPOKEN TRANSCRIPT (PRIMARY EVALUATION SOURCE - EVALUATE ONLY WHAT WAS SPOKEN HERE):
 {transcript_text}
+
+CAREER TIMELINE REFERENCE (CAREER CONTEXT ONLY - DO NOT USE AS TECHNICAL GROUNDING):
+{resume_json}
 
 Return only the required JSON object.
 """

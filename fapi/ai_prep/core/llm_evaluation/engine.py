@@ -78,7 +78,7 @@ class EvalEngine:
 
         template_module_name = self.SUPPORTED_TYPES[normalized_type]
 
-        # 1. Format Candidate Timeline / Background (Ground Truth)
+        # 1. Format Candidate Timeline / Background
         timeline_source = timeline_json or resume_json
         if timeline_source is None and ground_truth:
             timeline_source = (
@@ -87,7 +87,9 @@ class EvalEngine:
                 or ground_truth.get("resume")
             )
 
-        if isinstance(timeline_source, dict):
+        if template_module_name == "intro":
+            timeline_formatted = self._reduce_to_career_skeleton(timeline_source)
+        elif isinstance(timeline_source, dict):
             timeline_formatted = json.dumps(timeline_source, indent=2)
         elif isinstance(timeline_source, str):
             try:
@@ -430,6 +432,75 @@ class EvalEngine:
             "distraction_level_pct": round(float(raw_video.get("distraction_level_pct", 0.0)), 1),
             "stress_level": stress_val,
         }
+
+
+    @staticmethod
+    def _reduce_to_career_skeleton(timeline_source: Any) -> str:
+        """
+        Extracts strictly the career skeleton (company, title, dates, current role)
+        from a candidate's resume/timeline data, discarding all skill lists,
+        project descriptions, achievements, and technical bullet points to prevent
+        LLM attention leakage and prompt token bloat.
+        """
+        if not timeline_source:
+            return "No candidate timeline/resume background provided."
+
+        data = timeline_source
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception:
+                return data.strip() or "No candidate timeline/resume background provided."
+
+        if not isinstance(data, (dict, list)):
+            return "No candidate timeline/resume background provided."
+
+        roles_raw = []
+        if isinstance(data, list):
+            roles_raw = data
+        elif isinstance(data, dict):
+            for key in ("experience", "work_experience", "workexperience", "career_timeline", "positions", "employment"):
+                if key in data and isinstance(data[key], list):
+                    roles_raw = data[key]
+                    break
+            if not roles_raw and "roles" in data and isinstance(data["roles"], list):
+                roles_raw = data["roles"]
+
+        if not roles_raw:
+            if isinstance(data, dict) and any(k in data for k in ("company", "title", "role")):
+                roles_raw = [data]
+            else:
+                safe_data = {
+                    k: v for k, v in data.items()
+                    if k not in ("skills", "projects", "achievements", "certifications", "raw_text", "bullet_points", "tools")
+                }
+                return json.dumps(safe_data, indent=2)
+
+        skeleton_roles = []
+        for item in roles_raw:
+            if not isinstance(item, dict):
+                continue
+            company = item.get("company") or item.get("company_name") or item.get("employer") or "Company"
+            title = item.get("title") or item.get("role") or item.get("position") or "Role"
+            start_date = item.get("start_date") or item.get("startDate") or item.get("from") or ""
+            end_date = item.get("end_date") or item.get("endDate") or item.get("to") or "Present"
+            is_current = bool(
+                item.get("current")
+                or item.get("is_current")
+                or str(end_date).strip().lower() in ("present", "current", "now", "")
+            )
+            skeleton_roles.append({
+                "company": str(company).strip(),
+                "title": str(title).strip(),
+                "start_date": str(start_date).strip(),
+                "end_date": "Present" if is_current else str(end_date).strip(),
+                "is_current_role": is_current,
+            })
+
+        if not skeleton_roles:
+            return "No candidate timeline/resume background provided."
+
+        return json.dumps({"career_timeline": skeleton_roles}, indent=2)
 
 
 # Alias for compatibility with contracts
