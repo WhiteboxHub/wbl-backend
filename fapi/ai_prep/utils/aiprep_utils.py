@@ -875,7 +875,42 @@ def candidate_get_assessment_detail_logic(
                 "segments": [],
             }
         raw_audio_tel = assessment.data_record.audio_telemetry
-        audio_telemetry = raw_audio_tel if isinstance(raw_audio_tel, dict) else {}
+        audio_telemetry = dict(raw_audio_tel) if isinstance(raw_audio_tel, dict) else {}
+
+        # Ensure duration, pace, and fillers are populated if missing in older assessment records
+        if not audio_telemetry.get("speaking_duration_sec") and not audio_telemetry.get("speaking_duration_seconds"):
+            dur = None
+            if assessment.completed_at and assessment.started_at:
+                dur = (assessment.completed_at - assessment.started_at).total_seconds()
+            elif transcript_data.get("segments"):
+                segs = transcript_data["segments"]
+                if segs and isinstance(segs[-1], dict) and segs[-1].get("end"):
+                    dur = float(segs[-1]["end"])
+            if dur and dur > 0:
+                audio_telemetry["speaking_duration_sec"] = round(dur, 1)
+                audio_telemetry["speaking_duration_seconds"] = round(dur, 1)
+
+        dur_sec = float(audio_telemetry.get("speaking_duration_sec") or audio_telemetry.get("speaking_duration_seconds") or 0.0)
+        word_count = transcript_data.get("word_count", 0)
+        if not audio_telemetry.get("words_per_minute") and not audio_telemetry.get("wpm"):
+            if dur_sec > 0 and word_count > 0:
+                audio_telemetry["words_per_minute"] = int(round((word_count / dur_sec) * 60.0))
+
+        if audio_telemetry.get("filler_word_count") is None and audio_telemetry.get("filler_count") is None:
+            full_txt = transcript_data.get("full_text", "")
+            if full_txt:
+                import re
+                fillers = ["um", "uh", "like", "you know", "actually", "basically", "sort of", "kind of", "i mean"]
+                detected_fillers = 0
+                for f in fillers:
+                    matches = re.findall(r"\b" + re.escape(f) + r"\b", full_txt.lower())
+                    if matches:
+                        if f in ["like", "actually", "basically"]:
+                            if len(matches) > 2:
+                                detected_fillers += len(matches) - 2
+                        else:
+                            detected_fillers += len(matches)
+                audio_telemetry["filler_word_count"] = detected_fillers
         raw_video_tel = assessment.data_record.video_telemetry
         video_telemetry = raw_video_tel if isinstance(raw_video_tel, dict) else {}
     else:
@@ -1407,12 +1442,37 @@ async def candidate_submit_assessment_logic(
                         "segments": segments,
                     }
                     speaking_duration_sec = float(raw_audio_telemetry.get("speaking_duration_seconds") or raw_audio_telemetry.get("speaking_duration_sec") or 0.0)
+                    if speaking_duration_sec <= 0.0 and duration_s > 0.0:
+                        speaking_duration_sec = duration_s
+
                     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
                     silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
+
+                    wpm_val = int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0)
+                    if wpm_val <= 0 and word_count > 0 and speaking_duration_sec > 0.0:
+                        wpm_val = int(round((word_count / speaking_duration_sec) * 60.0))
+
+                    filler_count_val = int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0)
+                    if filler_count_val <= 0 and full_text:
+                        import re
+                        fillers = ["um", "uh", "like", "you know", "actually", "basically", "sort of", "kind of", "i mean"]
+                        detected_fillers = 0
+                        for f in fillers:
+                            matches = re.findall(r"\b" + re.escape(f) + r"\b", full_text.lower())
+                            if matches:
+                                if f in ["like", "actually", "basically"]:
+                                    if len(matches) > 2:
+                                        detected_fillers += len(matches) - 2
+                                else:
+                                    detected_fillers += len(matches)
+                        filler_count_val = detected_fillers
+
                     formatted_audio_telemetry = {
                         "speaking_duration_sec": round(speaking_duration_sec, 1),
-                        "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
-                        "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
+                        "speaking_duration_seconds": round(speaking_duration_sec, 1),
+                        "total_audio_duration_seconds": round(duration_s, 1),
+                        "words_per_minute": wpm_val,
+                        "filler_word_count": filler_count_val,
                         "silence_percentage": silence_pct,
                     }
                     formatted_video_telemetry = payload.video_telemetry or {}
@@ -1846,6 +1906,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
 
             audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
             video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
+            questions = (data_rec.questions if data_rec else []) or []
             resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
             llm_config = crud.get_candidate_llm_config(db, candidate_id)
@@ -1870,6 +1931,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 audio_telemetry=audio_telemetry,
                 video_telemetry=video_telemetry,
                 resume_json=resume_json,
+                questions=questions,
                 llm_config=llm_config,
             )
 

@@ -186,17 +186,26 @@ class AssessmentEngine:
             )
             matched = all_category_questions
 
-        # Recruiter round is time-budgeted (10-15 minutes overall).
-        # We do not restrict the candidate to an exact 10 questions.
-        # Instead, provide all available matching questions from the bank so candidate controls pacing.
+        # Recruiter round is a focused 10-15 minute screen (typically 6-8 questions).
         if normalized_type == "RECRUITER":
-            max_q = limit if limit is not None else len(matched)
+            max_q = limit if limit is not None else min(8, len(matched))
         else:
             max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
 
         selected = self._select_adaptive_questions(matched, previous_readiness, max_q)
         for q in selected:
             q["time_limit_seconds"] = self.get_question_time_limit(q)
+
+        # For Recruiter screens, ensure high-level overview questions lead the interview
+        if normalized_type == "RECRUITER" and selected:
+            def _is_introductory(item: Dict[str, Any]) -> bool:
+                txt = (item.get("question_text") or "").lower()
+                return "high-level overview" in txt or "overview of your background" in txt
+            opening_qs = [q for q in selected if _is_introductory(q)]
+            rest_qs = [q for q in selected if not _is_introductory(q)]
+            if opening_qs:
+                selected = opening_qs + rest_qs
+
         return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
     def _select_single_intro_question(
@@ -665,10 +674,19 @@ class AssessmentEngine:
                     lines.append(f"  ground_truth:")
                     if criteria:
                         lines.append(f"    criteria:")
-                        for c in criteria:
-                            req = " (required)" if isinstance(c, dict) and c.get("required") else ""
-                            point = c.get("point") if isinstance(c, dict) else str(c)
-                            lines.append(f"      - {point}{req}")
+                        for idx_c, c in enumerate(criteria, start=1):
+                            if isinstance(c, dict):
+                                kp_id = c.get("id")
+                                point = c.get("description") or c.get("point") or ""
+                                req = " (required)" if c.get("required") else ""
+                                id_prefix = f"[{kp_id}] " if kp_id else ""
+                                lines.append(f"      - {id_prefix}{point}{req}")
+                                evidence = c.get("acceptable_evidence")
+                                if evidence:
+                                    ev_text = "; ".join(evidence) if isinstance(evidence, list) else str(evidence)
+                                    lines.append(f"        acceptable_evidence: {ev_text}")
+                            else:
+                                lines.append(f"      - {c}")
                     if keywords:
                         lines.append(f"    technical_keywords: {', '.join(keywords)}")
                     if critical:
