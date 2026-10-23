@@ -12,6 +12,7 @@ import time
 import tempfile
 from pathlib import Path
 from datetime import datetime
+import copy
 try:
     import sentry_sdk
 except ImportError:
@@ -1091,6 +1092,20 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
+    # Extract questions list from assessment data record
+    questions_list = []
+    ALLOWED_QUESTION_FIELDS = {
+        "id", "question_id", "question_text", "category", "difficulty",
+        "order", "processing_status", "transcript", "audio_telemetry", "word_count"
+    }
+    if assessment.data_record and assessment.data_record.questions:
+        for q in assessment.data_record.questions:
+            if isinstance(q, dict):
+                clean_q = {k: v for k, v in q.items() if k in ALLOWED_QUESTION_FIELDS}
+                # Ensure clean question_id is exposed
+                clean_q["question_id"] = clean_q.get("question_id") or clean_q.get("id")
+                questions_list.append(clean_q)
+
     return CandidateAssessmentUnifiedResponse(
         id=assessment.id,
         assessment_uuid=str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
@@ -1104,6 +1119,7 @@ def candidate_get_assessment_detail_logic(
         consent=assessment.consent,
         job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
+            questions=questions_list, 
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
             video_telemetry=video_telemetry,
@@ -1294,6 +1310,124 @@ async def _background_evaluation_pipeline(
             except Exception as cleanup_err:
                 logger.warning("Could not delete unconsented media file %s: %s", unconsented_media_to_delete, cleanup_err)
 
+async def _process_multi_question_audio_batch(
+    db: Session,
+    assessment_id: int,
+    resolved_cand_id: int,
+    audio_kwargs: Dict[str, Any],
+    consent: Optional[Dict[str, Any]] = None,
+) -> Optional[Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]]:
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment or (assessment.assessment_type or "").upper() != "TECHNICAL":
+        return None
+    """
+    Checks if this assessment has per-question audio files on disk (Technical Assessment).
+    If present, processes each question's audio.webm with OpenAI Whisper API + Audio DSP
+    and consolidates Q&A blocks for LLM evaluation.
+    """
+    existing_data = crud.get_assessment_data_by_assessment_id(db, assessment_id)
+    all_questions = list(existing_data.questions or []) if (existing_data and existing_data.questions) else []
+    base_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id))
+    
+    has_multi_questions = False
+    for q in all_questions:
+        if isinstance(q, dict) and q.get("id"):
+            q_file = os.path.join(base_dir, "questions", str(q["id"]), "audio.webm")
+            if os.path.exists(q_file):
+                has_multi_questions = True
+                break
+
+    if not has_multi_questions:
+        return None
+
+    logger.info("[FinalSubmit] Multi-question technical assessment detected for %s. Running Audio Engine per question...", assessment_id)
+
+    for q in all_questions:
+        if not isinstance(q, dict):
+            continue
+        qid = q.get("id")
+        q_audio_file = os.path.join(base_dir, "questions", str(qid), "audio.webm")
+
+        if os.path.exists(q_audio_file):
+            try:
+                q_audio_res = await asyncio.to_thread(
+                    AudioMetricsEngine.process_audio_file,
+                    q_audio_file,
+                    **audio_kwargs,
+                )
+                spk = q_audio_res.get("spoken_content") or {}
+                tele = q_audio_res.get("audio_telemetry") or {}
+
+                raw_transcript = spk.get("full_text") or spk.get("transcript_text") or ""
+                q["transcript"] = raw_transcript
+                q["word_count"] = spk.get("word_count") or len(raw_transcript.split())
+                q["audio_telemetry"] = tele
+                q["processing_status"] = "COMPLETED"
+            except Exception as proc_err:
+                logger.warning("Audio analysis failed for question %s: %s", qid, proc_err)
+                q["transcript"] = ""
+                q["word_count"] = 0
+                q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
+                q["processing_status"] = "FAILED"
+                q["error"] = str(proc_err)
+        else:
+            # Candidate skipped this question
+            q["transcript"] = ""
+            q["word_count"] = 0
+            q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
+            q["processing_status"] = "COMPLETED"
+
+    # Consolidate structured Q&A blocks for LLM Context
+    qa_blocks = []
+    for idx, q in enumerate(all_questions, start=1):
+        q_txt = q.get("question_text", f"Question {idx}")
+        if q.get("processing_status") == "FAILED":
+            ans_txt = "[Audio processing failed for this question]"
+        else:
+            ans_txt = q.get("transcript") or "[No response or skipped by candidate]"
+        qa_blocks.append(f"[Question {idx}: {q_txt}]\nCandidate Answer: {ans_txt}")
+
+    combined_text = "\n\n".join(qa_blocks)
+    total_words = sum(q.get("word_count", 0) for q in all_questions if isinstance(q, dict))
+    telemetries = [q.get("audio_telemetry", {}) for q in all_questions if isinstance(q, dict) and q.get("audio_telemetry")]
+    total_speaking_duration = round(sum((t.get("speaking_duration_seconds") or 0.0) for t in telemetries), 1)
+    active_tele = [t for t in telemetries if (t.get("speaking_duration_seconds") or 0) > 0]
+    avg_wpm = int(sum(t.get("wpm", 0) for t in active_tele) / len(active_tele)) if active_tele else 0
+    total_fillers = sum(t.get("filler_count", 0) for t in telemetries)
+    avg_silence = round(sum(t.get("silence_ratio", 0.0) for t in active_tele) / len(active_tele), 2) if active_tele else 0.0
+
+    spoken_content = {"full_text": combined_text, "word_count": total_words, "segments": []}
+    raw_audio_telemetry = {
+        "speaking_duration_seconds": total_speaking_duration,
+        "wpm": avg_wpm,
+        "filler_count": total_fillers,
+        "silence_ratio": avg_silence,
+        "total_audio_duration_seconds": total_speaking_duration,
+    }
+
+    # Redact question data BEFORE saving to DB if candidate opted out of consents
+    save_transcript = bool(consent.get("save_transcript", True)) if consent else True
+    save_recording = bool(consent.get("save_recording", True)) if consent else True
+
+    persisted_questions = copy.deepcopy(all_questions)
+    for q in persisted_questions:
+        if isinstance(q, dict):
+            if not save_transcript:
+                q["transcript"] = ""
+            if not save_recording:
+                q["audio_telemetry"] = {}
+
+    # Persist updated question metrics to DB
+    crud.save_assessment_data(
+        db=db,
+        assessment_id=assessment_id,
+        questions=persisted_questions,
+        transcript=existing_data.transcript or {},
+        audio_telemetry=existing_data.audio_telemetry or {},
+        video_telemetry=existing_data.video_telemetry or {},
+    )
+
+    return spoken_content, raw_audio_telemetry, all_questions
 
 async def candidate_submit_assessment_logic(
     db: Session,
@@ -1494,47 +1628,61 @@ async def candidate_submit_assessment_logic(
                         }
                         target_media = "direct_transcript.webm"
                     else:
-                        # 1. Resolve media source: check for direct multipart audio upload first
-                        if uploaded_audio_path and os.path.exists(uploaded_audio_path):
-                            logger.info("Using directly uploaded audio file for assessment %s: %s", assessment_id_int, uploaded_audio_path)
-                            target_media = uploaded_audio_path
+                        resolved_consent = (getattr(payload, "consent", None) or assessment.consent or {})
+                        with SessionLocal() as worker_db:
+                            multi_q_res = await _process_multi_question_audio_batch(
+                                db=worker_db,
+                                assessment_id=assessment_id_int,
+                                resolved_cand_id=resolved_cand_id,
+                                audio_kwargs=audio_kwargs,
+                                consent=resolved_consent,
+                            )
+                        multi_q_questions: Optional[List[Dict[str, Any]]] = None
+                        if multi_q_res:
+                            spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
+                            target_media = ""
                         else:
+                            # 1. Resolve media source: check for direct multipart audio upload first
+                            if uploaded_audio_path and os.path.exists(uploaded_audio_path):
+                                logger.info("Using directly uploaded audio file for assessment %s: %s", assessment_id_int, uploaded_audio_path)
+                                target_media = uploaded_audio_path
+                            else:
+                                stream_manager.publish_progress(
+                                    assessment_id_int,
+                                    status="PROCESSING",
+                                    progress=15,
+                                )
+                                target_media = await asyncio.to_thread(
+                                    _stitch_assessment_chunks,
+                                    candidate_id=resolved_cand_id,
+                                    assessment_id=assessment_id_int,
+                                    total_chunks_uploaded=total_chunks,
+                                )
+
+                            # 2. Audio Engine
                             stream_manager.publish_progress(
                                 assessment_id_int,
                                 status="PROCESSING",
-                                progress=15,
+                                progress=35,
                             )
-                            target_media = await asyncio.to_thread(
-                                _stitch_assessment_chunks,
-                                candidate_id=resolved_cand_id,
-                                assessment_id=assessment_id_int,
-                                total_chunks_uploaded=total_chunks,
-                            )
-
-                        # 2. Audio Engine
-                        stream_manager.publish_progress(
-                            assessment_id_int,
-                            status="PROCESSING",
-                            progress=35,
-                        )
-                        try:
-                            audio_result = await asyncio.to_thread(
-                                AudioMetricsEngine.process_audio_file,
-                                target_media,
-                                **audio_kwargs,
-                            )
-                            spoken_content = audio_result.get("spoken_content") or {}
-                            raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
-                        except Exception as audio_err:
-                            logger.warning("Audio Engine execution error for assessment %s: %s", assessment_id_int, audio_err)
-                            spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
-                            raw_audio_telemetry = {
-                                "speaking_duration_seconds": 0.0,
-                                "wpm": 0,
-                                "filler_count": 0,
-                                "silence_ratio": 1.0,
-                                "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
-                            }
+                            try:
+                                audio_result = await asyncio.to_thread(
+                                    AudioMetricsEngine.process_audio_file,
+                                    target_media,
+                                    **audio_kwargs,
+                                )
+                                spoken_content = audio_result.get("spoken_content") or {}
+                                raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+                            except Exception as audio_err:
+                                logger.warning("Audio Engine execution error for assessment %s: %s", assessment_id_int, audio_err)
+                                spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+                                raw_audio_telemetry = {
+                                    "speaking_duration_seconds": 0.0,
+                                    "wpm": 0,
+                                    "filler_count": 0,
+                                    "silence_ratio": 1.0,
+                                    "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+                                }
 
                     # 3. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
@@ -1596,11 +1744,24 @@ async def candidate_submit_assessment_logic(
                     )
                     with SessionLocal() as worker_db:
                         existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
-                        existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+                        existing_questions = (multi_q_questions if (multi_q_res and multi_q_questions) else (existing_data.questions if (existing_data and existing_data.questions) else []))
+
+                        persisted_questions = existing_questions
+                        if (not plan["save_transcript"] or not plan["save_recording"]) and existing_questions:
+                            persisted_questions = copy.deepcopy(existing_questions)
+                            for q in persisted_questions:
+                                if isinstance(q, dict):
+                                    if not plan["save_transcript"]:
+                                        q["transcript"] = ""
+                                    if not plan["save_recording"]:
+                                        q["audio_telemetry"] = {}
+
+
+
                         crud.save_assessment_data(
                             db=worker_db,
                             assessment_id=assessment_id_int,
-                            questions=existing_questions,
+                            questions=persisted_questions,
                             transcript=plan["transcript_to_persist"],
                             audio_telemetry=plan["audio_telemetry_to_persist"],
                             video_telemetry=plan["video_telemetry_to_persist"],
@@ -1617,6 +1778,10 @@ async def candidate_submit_assessment_logic(
                                     )
                                 )
                             )
+                        # Purge temporary per-question media chunks from disk
+                        q_storage_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id_int), "questions")
+                        if os.path.exists(q_storage_dir):
+                            shutil.rmtree(q_storage_dir, ignore_errors=True)
 
                         if insufficient_content:
                             crud.update_assessment_status(worker_db, assessment_id_int, "COMPLETED")
@@ -1699,36 +1864,52 @@ async def candidate_submit_assessment_logic(
         }
         target_media = "direct_transcript.webm"
     else:
-        # 1. Resolve media source: check for direct multipart audio upload first
-        if uploaded_audio_path and os.path.exists(uploaded_audio_path):
-            logger.info("Using directly uploaded audio file for assessment %s: %s", assessment.id, uploaded_audio_path)
-            target_media = uploaded_audio_path
+        submitted_consent = getattr(payload, "consent", None)
+        if submitted_consent and isinstance(submitted_consent, dict):
+            assessment.consent = submitted_consent
+        resolved_consent = (submitted_consent or assessment.consent or {})
+        multi_q_res = await _process_multi_question_audio_batch(
+            db=db,
+            assessment_id=assessment.id,
+            resolved_cand_id=resolved_cand_id,
+            audio_kwargs=audio_kwargs,
+            consent=resolved_consent,
+        )
+        multi_q_questions: Optional[List[Dict[str, Any]]] = None
+        if multi_q_res:
+            spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
+            target_media = ""
         else:
-            target_media = _stitch_assessment_chunks(
-                candidate_id=resolved_cand_id,
-                assessment_id=assessment.id,
-                total_chunks_uploaded=total_chunks,
-            )
+            # 1. Resolve media source: check for direct multipart audio upload first
+            if uploaded_audio_path and os.path.exists(uploaded_audio_path):
+                logger.info("Using directly uploaded audio file for assessment %s: %s", assessment.id, uploaded_audio_path)
+                target_media = uploaded_audio_path
+            else:
+                target_media = _stitch_assessment_chunks(
+                    candidate_id=resolved_cand_id,
+                    assessment_id=assessment.id,
+                    total_chunks_uploaded=total_chunks,
+                )
 
-        # 2. Run Audio Engine (WHISPER_AUDIO)
-        try:
-            audio_result = await asyncio.to_thread(
-                AudioMetricsEngine.process_audio_file,
-                target_media,
-                **audio_kwargs,
-            )
-            spoken_content = audio_result.get("spoken_content") or {}
-            raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
-        except Exception as audio_err:
-            logger.warning("Audio Engine execution error for assessment %s: %s", assessment.id, audio_err)
-            spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
-            raw_audio_telemetry = {
-                "speaking_duration_seconds": 0.0,
-                "wpm": 0,
-                "filler_count": 0,
-                "silence_ratio": 1.0,
-                "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
-            }
+            # 2. Run Audio Engine (WHISPER_AUDIO)
+            try:
+                audio_result = await asyncio.to_thread(
+                    AudioMetricsEngine.process_audio_file,
+                    target_media,
+                    **audio_kwargs,
+                )
+                spoken_content = audio_result.get("spoken_content") or {}
+                raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
+            except Exception as audio_err:
+                logger.warning("Audio Engine execution error for assessment %s: %s", assessment.id, audio_err)
+                spoken_content = {"transcript_text": "", "full_text": "", "segments": []}
+                raw_audio_telemetry = {
+                    "speaking_duration_seconds": 0.0,
+                    "wpm": 0,
+                    "filler_count": 0,
+                    "silence_ratio": 1.0,
+                    "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
+                }
 
     # 3. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
@@ -1830,12 +2011,24 @@ async def candidate_submit_assessment_logic(
     video_analytics = plan["video_analytics"]
 
     existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
-    existing_questions = existing_data.questions if (existing_data and existing_data.questions) else []
+    existing_questions = (multi_q_questions if (multi_q_res and multi_q_questions) else (existing_data.questions if (existing_data and existing_data.questions) else []))
+
+    # Redact question transcripts and telemetry from DB if candidate opted out of consents
+    persisted_questions = existing_questions
+    if (not save_transcript or not save_recording) and existing_questions:
+        persisted_questions = copy.deepcopy(existing_questions)
+        for q in persisted_questions:
+            if isinstance(q, dict):
+                if not save_transcript:
+                    q["transcript"] = ""
+                if not save_recording:
+                    q["audio_telemetry"] = {}
+
 
     crud.save_assessment_data(
         db=db,
         assessment_id=assessment.id,
-        questions=existing_questions,
+        questions=persisted_questions,
         transcript=plan["transcript_to_persist"],
         audio_telemetry=plan["audio_telemetry_to_persist"],
         video_telemetry=plan["video_telemetry_to_persist"],
@@ -1856,6 +2049,11 @@ async def candidate_submit_assessment_logic(
         # Candidate opted out of recording: clear youtube_url and schedule media for safe post-eval cleanup
         assessment.youtube_url = None
         unconsented_media_to_delete = target_media
+    
+    # Clean up per-question temporary files from server disk (both consented and unconsented)
+    q_storage_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment.id), "questions")
+    if os.path.exists(q_storage_dir):
+        shutil.rmtree(q_storage_dir, ignore_errors=True)
 
     try:
         # 9. Handle Case 1 vs Case 2
@@ -2226,6 +2424,7 @@ async def upload_candidate_assessment_chunk_logic(
     file_content: Union[UploadFile, bytes],
     assessment_uuid: Optional[str] = None,
     is_final: bool = False,
+    question_id: Optional[int] = None,
 ) -> MediaChunkUploadResponse:
     """
     Handles chunk upload for an ongoing candidate assessment.
@@ -2280,16 +2479,55 @@ async def upload_candidate_assessment_chunk_logic(
             raise HTTPException(status_code=403, detail="Candidates can only upload chunks to their own assessments")
 
     # 3. Setup chunk storage directory and file path
-    chunk_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id or resolved_candidate_id), str(assessment.id), "chunks")
-    chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_index}.webm")
-    legacy_chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_index:04d}.webm")
+    base_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id or resolved_candidate_id), str(assessment.id))
+    if question_id is not None:
+        # Validate question_id belongs to this assessment
+        existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+        valid_qids = {
+            q.get("id") for q in (existing_data.questions if existing_data and existing_data.questions else [])
+            if isinstance(q, dict) and q.get("id") is not None
+        }
+        if valid_qids and int(question_id) not in valid_qids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Question ID {question_id} does not belong to assessment {assessment.id}",
+            )
+
+        # Save directly into dedicated question directory for Technical Assessments
+        chunk_dir = os.path.join(base_dir, "questions", str(question_id))
+        chunk_path = os.path.join(chunk_dir, "audio.webm")
+        last_index_file = os.path.join(chunk_dir, ".last_chunk_index")
+
+        # Retry guard: return 200 without appending if this chunk was already written
+        if os.path.exists(last_index_file):
+            try:
+                with open(last_index_file, "r") as idx_f:
+                    last_idx = int(idx_f.read().strip())
+                if chunk_index <= last_idx:
+                    logger.info("Ignoring duplicate chunk %s for question %s", chunk_index, question_id)
+                    return MediaChunkUploadResponse(
+                        status="success",
+                        data=MediaChunkUploadData(
+                            assessment_uuid=str(assessment.assessment_uuid or assessment_uuid or ""),
+                            chunk_index=chunk_index,
+                            bytes_received=0,
+                            saved=True,
+                        ),
+                    )
+            except Exception:
+                pass
+        file_mode = "ab" if chunk_index > 0 and os.path.exists(chunk_path) else "wb"
+    else:
+        chunk_dir = os.path.join(base_dir, "chunks")
+        chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_index}.webm")
+        file_mode = "wb"
 
     max_chunk_size_bytes = int(getattr(settings, "MAX_CHUNK_SIZE_MB", 50)) * 1024 * 1024
     total_written = 0
 
     try:
         os.makedirs(chunk_dir, exist_ok=True)
-        with open(chunk_path, "wb") as f:
+        with open(chunk_path, file_mode) as f:
             if isinstance(file_content, bytes):
                 total_written = len(file_content)
                 if total_written > max_chunk_size_bytes:
@@ -2324,6 +2562,13 @@ async def upload_candidate_assessment_chunk_logic(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to write media chunk to server storage",
         )
+
+    if question_id is not None:
+        try:
+            with open(os.path.join(chunk_dir, ".last_chunk_index"), "w") as idx_f:
+                idx_f.write(str(chunk_index))
+        except Exception:
+            pass
 
     # Record final chunk accounting into assessment_data if is_final=True
     if is_final:
