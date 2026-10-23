@@ -2443,16 +2443,18 @@ async def upload_candidate_assessment_chunk_logic(
         # Save directly into dedicated question directory for Technical Assessments
         chunk_dir = os.path.join(base_dir, "questions", str(question_id))
         chunk_path = os.path.join(chunk_dir, "audio.webm")
+        file_mode = "ab" if chunk_index > 0 and os.path.exists(chunk_path) else "wb"
     else:
         chunk_dir = os.path.join(base_dir, "chunks")
         chunk_path = os.path.join(chunk_dir, f"chunk_{chunk_index}.webm")
+        file_mode = "wb"
 
     max_chunk_size_bytes = int(getattr(settings, "MAX_CHUNK_SIZE_MB", 50)) * 1024 * 1024
     total_written = 0
 
     try:
         os.makedirs(chunk_dir, exist_ok=True)
-        with open(chunk_path, "wb") as f:
+        with open(chunk_path, file_mode) as f:
             if isinstance(file_content, bytes):
                 total_written = len(file_content)
                 if total_written > max_chunk_size_bytes:
