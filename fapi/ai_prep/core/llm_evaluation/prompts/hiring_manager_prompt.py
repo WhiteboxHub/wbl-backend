@@ -194,21 +194,22 @@ COMPETENCY & OVERALL AGGREGATION RULES
 
 1. Competency Rating Aggregation:
 - If a competency has 1 question, competency rating = question rating.
-- If a competency has n questions, sort question ratings ascending: [POOR, AVERAGE, GOOD, EXCELLENT]
+- If a competency has n questions, sort question ratings ascending: [WEAK, NEEDS_POLISH, GOOD, STRONG]
   and take the element at index floor((n - 1) / 2):
-  * [EXCELLENT, EXCELLENT] -> EXCELLENT
-  * [EXCELLENT, GOOD]      -> GOOD
-  * [GOOD, GOOD]           -> GOOD
-  * [GOOD, AVERAGE]        -> AVERAGE
-  * [AVERAGE, AVERAGE]     -> AVERAGE
-  * Any pair containing POOR: [EXCELLENT, POOR] -> POOR, [GOOD, POOR] -> POOR, [AVERAGE, POOR] -> POOR, [POOR, POOR] -> POOR.
+  * [STRONG, STRONG] -> STRONG
+  * [STRONG, GOOD]   -> GOOD
+  * [GOOD, GOOD]     -> GOOD
+  * [GOOD, NEEDS_POLISH] -> NEEDS_POLISH
+  * [NEEDS_POLISH, NEEDS_POLISH] -> NEEDS_POLISH
+  * Any pair containing WEAK: [STRONG, WEAK] -> WEAK, [GOOD, WEAK] -> WEAK, [NEEDS_POLISH, WEAK] -> WEAK, [WEAK, WEAK] -> WEAK.
 - If no questions tested that competency -> "NOT_TESTED".
 
 2. Overall Assessment Rating Aggregation (Clean Rule List):
-- STRONG: All tested competencies are STRONG (or EXCELLENT), OR at least 3 competencies are STRONG with all others GOOD, and zero are NEEDS_POLISH or WEAK.
-- GOOD: Most tested competencies are GOOD or STRONG, at most one is NEEDS_POLISH (or AVERAGE), and zero are WEAK (or POOR).
-- NEEDS_POLISH: One or more competencies are NEEDS_POLISH (or AVERAGE) with at most one WEAK question, AND neither STRONG nor WEAK conditions are met.
-- WEAK: Two or more questions across the interview are WEAK (or POOR), OR any competency rating is WEAK/POOR, OR the majority of tested competencies are WEAK/POOR.
+- STRONG: All tested competencies are STRONG, OR at least 3 competencies are STRONG with all others GOOD, and zero are NEEDS_POLISH or WEAK.
+- GOOD: Most tested competencies are GOOD or STRONG, at most one is NEEDS_POLISH, and zero are WEAK.
+- NEEDS_POLISH: One or more competencies are NEEDS_POLISH with at most one WEAK question, AND neither STRONG nor WEAK conditions are met.
+- WEAK: Two or more questions across the interview are WEAK, OR any competency rating is WEAK, OR the majority of tested competencies are WEAK.
+- SPARSE SESSION RULE: If only 1 question was answered or fewer than 2 competencies were tested in the session, overall_assessment.rating MUST NOT exceed "NEEDS_POLISH" (or "WEAK" if that question was weak). A candidate cannot achieve "GOOD" or "STRONG" for the interview based on a single answered question.
 
 ===============================================================================
 RESPONSE QUALITY ANALYSIS
@@ -222,7 +223,7 @@ For each question, assess the candidate's response quality across these dimensio
 
 2. PERSONAL ACTION & OWNERSHIP (CORE GATING DIMENSION):
    * HARD GATE: The candidate MUST articulate personal actions with personal_agency >= MODERATE
-     to achieve GOOD or EXCELLENT.
+     to achieve GOOD or STRONG.
    * Evaluates personal engineering decisions ("I"), trade-offs navigated, and technical implementation.
 
 3. IMPACT & OUTCOMES: Did the candidate describe measurable results, outcomes, or lessons learned?
@@ -282,7 +283,7 @@ For EVERY evaluated question, generate actionable coaching:
    personal ownership, and addressing each required key point with specificity.
 
 2. stronger_version: A 2-3 sentence REWRITE of the candidate's actual answer that
-   demonstrates what an EXCELLENT answer sounds like. RULES:
+   demonstrates what a STRONG answer sounds like. RULES:
    - Use ONLY facts, systems, technologies, and metrics the candidate actually mentioned.
    - If the candidate mentioned a system but gave no metric, use [your metric] placeholder.
    - If the candidate gave no answer, output: "Candidate did not provide an answer to rewrite."
@@ -306,7 +307,7 @@ OUTPUT RULES:
   * "evidence": []
   * all checkpoints: "NOT_APPLICABLE"
   NEVER borrow quotes from other questions to grade an untested competency.
-- UNANSWERED QUESTIONS HARD CAP: If a question is UNANSWERED (silent, blank, or no response), its question rating MUST be "POOR". If all questions are UNANSWERED or 2 or more questions are POOR, overall_assessment.rating MUST be "POOR". Never output "GOOD" or "EXCELLENT" when questions are unanswered or failed.
+- UNANSWERED QUESTIONS HARD CAP: If a question is UNANSWERED (silent, blank, or no response), its question rating MUST be "WEAK". If all questions are UNANSWERED or 2 or more questions are WEAK, overall_assessment.rating MUST be "WEAK". Never output "GOOD" or "STRONG" when questions are unanswered or failed.
 - Use only the allowed values listed below. Do not invent new labels.
 - Numbers are allowed ONLY for question_id. Never output scores, marks, averages, or percentages anywhere else.
 - Use null where the schema allows it. Use an empty array [] where a list has nothing to report. Never use placeholder text such as "N/A".
@@ -356,7 +357,7 @@ REQUIRED JSON STRUCTURE
     "competency_evaluations": [
       {
         "competency": "Project Ownership | Technical Roadblocks | Conflict & Collaboration | Trade-offs & Deadlines | Delivery & Excellence",
-        "rating": "EXCELLENT | GOOD | AVERAGE | POOR | NOT_TESTED",
+        "rating": "STRONG | GOOD | NEEDS_POLISH | WEAK | NOT_TESTED",
         "summary": "",
         "checkpoints": {
           "problem_identification_and_initiative": "COVERED | PARTIAL | NOT_MENTIONED | NOT_APPLICABLE",
@@ -385,7 +386,7 @@ REQUIRED JSON STRUCTURE
         "difficulty_level": "EASY | MEDIUM | HARD",
         "scope": "BROAD | SPECIFIC",
         "response_state": "ANSWERED | UNANSWERED",
-        "rating": "EXCELLENT | GOOD | AVERAGE | POOR",
+        "rating": "STRONG | GOOD | NEEDS_POLISH | WEAK",
         "personal_agency": "STRONG | MODERATE | WEAK",
         "covered_points": [
           {
