@@ -22,6 +22,7 @@ os.environ["ENV"] = "test"
 from fapi.main import app
 from fapi.db.database import get_db
 from fapi.utils.auth_dependencies import get_current_user, staff_or_admin_required
+from fapi.utils.permission_gate import enforce_access, get_optional_current_user
 from fapi.db.models import Base, AuthUserORM, CandidateORM
 from fapi.ai_prep.models import (
     AiPrepAssessmentORM,
@@ -152,6 +153,8 @@ def get_client_for_user(db_session, user: AuthUserORM):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[staff_or_admin_required] = override_staff_required
+    app.dependency_overrides[get_optional_current_user] = lambda: user
+    app.dependency_overrides[enforce_access] = lambda: user
     return TestClient(app)
 
 
@@ -236,6 +239,61 @@ def test_employee_can_access_any_candidate_assessments(db_session, seed_candidat
     assert res2.status_code == 200
     assert res2.json()["total"] == 1
     assert res2.json()["items"][0]["candidate_id"] == 1002
+
+
+def test_employee_can_access_candidate_assessment_detail_even_with_mismatched_id(
+    db_session, seed_candidates_and_assessments
+):
+    """Staff / Admin user can retrieve any candidate's assessment detail / report,
+    even if the path candidate_id is 'me' or matches another candidate (e.g. stale client localStorage).
+    Regular candidates cannot access other candidates' assessment detail.
+    """
+    assessment_1002 = (
+        db_session.query(AiPrepAssessmentORM)
+        .filter(AiPrepAssessmentORM.candidate_id == 1002)
+        .first()
+    )
+    assert assessment_1002 is not None
+
+    admin_user = AuthUserORM(
+        id=99,
+        uname="admin@wbl.com",
+        fullname="Admin User",
+        role="admin",
+    )
+    setattr(admin_user, "is_employee", True)
+    client_admin = get_client_for_user(db_session, admin_user)
+
+    # 1. Admin accesses Candidate 1002's assessment using Candidate 1001 in path (stale localStorage scenario) -> 200 OK
+    res_mismatch = client_admin.get(
+        f"/api/aiprep/candidates/1001/assessments/{assessment_1002.id}"
+    )
+    assert res_mismatch.status_code == 200
+    assert res_mismatch.json()["id"] == assessment_1002.id
+    assert res_mismatch.json()["candidate_id"] == 1002
+
+    # 2. Admin accesses Candidate 1002's assessment using 'me' in path -> 200 OK
+    res_me = client_admin.get(
+        f"/api/aiprep/candidates/me/assessments/{assessment_1002.id}"
+    )
+    assert res_me.status_code == 200
+    assert res_me.json()["id"] == assessment_1002.id
+
+    # 3. Regular Candidate 1001 attempts to access Candidate 1002's assessment -> 403 Forbidden
+    user_a = AuthUserORM(
+        id=1001,
+        uname="alpha@example.com",
+        fullname="Candidate Alpha",
+        role="candidate",
+    )
+    setattr(user_a, "is_employee", False)
+    client_a = get_client_for_user(db_session, user_a)
+
+    res_forbidden = client_a.get(
+        f"/api/aiprep/candidates/1001/assessments/{assessment_1002.id}"
+    )
+    assert res_forbidden.status_code == 403
+    assert "You do not have permission" in res_forbidden.json()["detail"]
 
 
 def test_candidate_accessing_nonexistent_id_forbidden(db_session, seed_candidates_and_assessments):
