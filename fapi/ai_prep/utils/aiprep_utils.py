@@ -4,6 +4,7 @@ Follows WBL Backend code architecture standards separating routing and logic.
 import os
 import uuid
 import json
+import re
 import shutil
 import logging
 import asyncio
@@ -188,6 +189,16 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Dynamic DB & Authorization Helpers
 # ---------------------------------------------------------------------------
+
+def is_staff_or_admin(user: AuthUserORM) -> bool:
+    """Helper to check if authenticated user possesses staff or admin privileges."""
+    try:
+        from fapi.utils.auth_dependencies import staff_or_admin_required
+        staff_or_admin_required(current_user=user)
+        return True
+    except HTTPException:
+        return False
+
 
 def _resolve_candidate_id(
     db: Session,
@@ -625,6 +636,116 @@ def candidate_list_assessments_logic(
     )
 
 
+def _build_hiring_manager_eval_dict(
+    hm_eval: Dict[str, Any],
+    audio_eval: Optional[Dict[str, Any]] = None,
+    video_eval: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Builds the unified assessment_eval dictionary for a hiring manager evaluation.
+    Isolates hiring manager mapping logic from other assessment types.
+    Enforces deterministic safety rules:
+      1. Any competency with zero questions tested in question_evaluations MUST have rating 'NOT_TESTED'.
+      2. If all questions are UNANSWERED or 2+ questions are POOR, overall rating is capped at POOR.
+      3. If 1 question is POOR, overall rating cannot exceed AVERAGE.
+    """
+    oa = hm_eval.get("overall_assessment") or {}
+    if not isinstance(oa, dict):
+        oa = {}
+
+    q_evals = hm_eval.get("question_evaluations") or []
+    comp_evals = hm_eval.get("competency_evaluations") or hm_eval.get("pillar_evaluations") or []
+
+    # 1. Sanitize competency evaluations against tested questions
+    if isinstance(q_evals, list) and isinstance(comp_evals, list):
+        tested_competencies = set()
+        for q in q_evals:
+            if isinstance(q, dict):
+                c = q.get("competency") or q.get("pillar")
+                if c:
+                    tested_competencies.add(str(c).strip().lower())
+
+        for comp in comp_evals:
+            if isinstance(comp, dict):
+                c_name = str(comp.get("competency") or comp.get("pillar") or "").strip().lower()
+                if c_name and c_name not in tested_competencies:
+                    comp["rating"] = "NOT_TESTED"
+                    comp["summary"] = "Not evaluated in this interview session."
+                    comp["strengths"] = []
+                    comp["gaps"] = []
+                    comp["what_to_work_on"] = "No questions were assigned to this competency in this session."
+                    comp["evidence"] = []
+                    if "checkpoints" in comp and isinstance(comp["checkpoints"], dict):
+                        for cp_k in comp["checkpoints"]:
+                            comp["checkpoints"][cp_k] = "NOT_APPLICABLE"
+
+    # 2. Enforce deterministic overall rating caps based on question evaluations
+    if isinstance(q_evals, list) and q_evals:
+        poor_count = 0
+        answered_count = 0
+        for q in q_evals:
+            if isinstance(q, dict):
+                state = str(q.get("response_state") or "").upper().strip()
+                q_rating = str(q.get("rating") or "").upper().strip()
+                is_unanswered = (state == "UNANSWERED")
+                if is_unanswered or q_rating == "POOR":
+                    poor_count += 1
+                if not is_unanswered and q_rating != "POOR" and (state == "ANSWERED" or q_rating or q.get("covered_points") or q.get("evidence")):
+                    answered_count += 1
+
+        current_rating = str(oa.get("readiness") or oa.get("rating") or "").upper().strip()
+        is_canonical = current_rating in ("STRONG", "NEEDS_POLISH", "WEAK") or "readiness" in oa
+        target_weak = "WEAK" if is_canonical else "POOR"
+        target_avg = "NEEDS_POLISH" if is_canonical else "AVERAGE"
+
+        if answered_count == 0:
+            oa["rating"] = target_weak
+            if "readiness" in oa:
+                oa["readiness"] = target_weak
+            if not oa.get("executive_summary"):
+                oa["executive_summary"] = "Candidate did not provide substantive spoken answers to the interview questions."
+        elif poor_count >= 2:
+            if current_rating in ("GOOD", "EXCELLENT", "STRONG", "AVERAGE", "NEEDS_POLISH"):
+                oa["rating"] = target_weak
+                if "readiness" in oa:
+                    oa["readiness"] = target_weak
+        elif poor_count == 1:
+            if current_rating in ("GOOD", "EXCELLENT", "STRONG"):
+                oa["rating"] = target_avg
+                if "readiness" in oa:
+                    oa["readiness"] = target_avg
+
+    a_eval = audio_eval or {}
+    audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
+    if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
+        audio_inner = a_eval
+    if not isinstance(audio_inner, dict):
+        audio_inner = {}
+
+    v_eval = video_eval or {}
+    video_inner = v_eval.get("video_evaluation") if isinstance(v_eval, dict) else {}
+    if not video_inner and isinstance(v_eval, dict) and ("factors" in v_eval or "summary" in v_eval):
+        video_inner = v_eval
+    if not isinstance(video_inner, dict):
+        video_inner = {}
+
+    top_strengths = oa.get("top_strengths") or []
+    priority_improvements = oa.get("priority_improvements") or []
+
+    return {
+        "insufficient_content": False,
+        "readiness": oa.get("rating") or oa.get("readiness"),
+        "summary": oa.get("executive_summary") or oa.get("summary"),
+        "strongest_signal": oa.get("strongest_signal") or (top_strengths[0] if top_strengths else None),
+        "biggest_gap": oa.get("biggest_gap") or (priority_improvements[0] if priority_improvements else None),
+        "audio": audio_inner,
+        "language": {},
+        "video": video_inner,
+        "general": None,
+        "hiring_manager_evaluation": hm_eval,
+    }
+
+
 def build_assessment_eval_dict(
     transcript_eval: Optional[Dict[str, Any]] = None,
     audio_eval: Optional[Dict[str, Any]] = None,
@@ -703,6 +824,10 @@ def build_assessment_eval_dict(
             "general": None,
             "technical_evaluation": tech_eval,
         }
+
+    hm_eval = t_eval.get("hiring_manager_evaluation") if isinstance(t_eval, dict) else None
+    if isinstance(hm_eval, dict):
+        return _build_hiring_manager_eval_dict(hm_eval, audio_eval, video_eval)
 
     # ── JD Intro Assessment path ──────────────────────────────────────────
     jd_intro_eval = t_eval.get("jd_intro_evaluation") if isinstance(t_eval, dict) else None
@@ -877,26 +1002,31 @@ def candidate_get_assessment_detail_logic(
         2. An ownership check confirms the fetched assessment belongs to the resolved candidate.
     - Staff / admin users may access any candidate's assessment via the same endpoint.
     """
-    # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
-    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    # --- Fetch assessment (by integer PK or UUID string) ---
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    is_staff = is_staff_or_admin(current_user)
+
+    # --- Ownership check: Candidates can only access their own assessment ---
+    # Staff / admin users are authorized to inspect any candidate's assessment.
+    if not is_staff:
+        resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+        if assessment.candidate_id != resolved_candidate_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to access this assessment.",
+            )
+    else:
+        resolved_candidate_id = assessment.candidate_id
+
     try:
         sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
         sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
         sentry_sdk.set_tag("assessment_id", str(assessment_id))
     except Exception:
         pass
-
-    # --- Fetch assessment (by integer PK or UUID string) ---
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    # --- Layer 2: Ownership check — assessment must belong to the resolved candidate ---
-    if assessment.candidate_id != resolved_candidate_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have permission to access this assessment.",
-        )
 
     # --- Build `telemetry` block (transcript + telemetry) ---
     if assessment.data_record:
@@ -972,6 +1102,7 @@ def candidate_get_assessment_detail_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
@@ -1826,6 +1957,7 @@ async def candidate_submit_assessment_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
             transcript=plan["transcript_to_persist"],
             audio_telemetry=plan["audio_telemetry_to_persist"],
@@ -1892,6 +2024,12 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 else str(assessment.assessment_type)
             )
 
+            # Load and enrich questions with ground_truth strictly for HIRING_MANAGER evaluation
+            questions = None
+            if assessment_type_str == "HIRING_MANAGER":
+                raw_qs = (data_rec.questions if data_rec else []) or []
+                questions = assessment_orchestrator.enrich_questions_with_ground_truth(db, raw_qs)
+
             eval_result = await llm_orchestrator.run_evaluation(
                 candidate_id=candidate_id,
                 assessment_type=assessment_type_str,
@@ -1899,7 +2037,8 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 audio_telemetry=audio_telemetry,
                 video_telemetry=video_telemetry,
                 resume_json=resume_json,
-                job_description=assessment.job_description, 
+                questions=questions,
+                job_description=assessment.job_description,
                 llm_config=llm_config,
             )
 
