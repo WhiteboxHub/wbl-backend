@@ -510,10 +510,11 @@ async def upload_candidate_assessment_chunk(
     assessment_uuid: Optional[str] = Form(None),
     is_final: bool = Form(False),
     media_file: UploadFile = File(..., description="WebM media chunk file to upload"),
+    question_id: Optional[int] = Query(None, description="Question ID for per-question chunks"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Uploads sequential WebM media chunk for candidate assessment."""
+
     return await aiprep_utils.upload_candidate_assessment_chunk_logic(
         db=db,
         current_user=current_user,
@@ -523,6 +524,7 @@ async def upload_candidate_assessment_chunk(
         file_content=media_file,
         assessment_uuid=assessment_uuid,
         is_final=is_final,
+        question_id=question_id,
     )
 
 
@@ -702,7 +704,7 @@ def get_assessment_video(
 )
 async def process_audio_engine_endpoint(
     background_tasks: BackgroundTasks,
-    file: Optional[UploadFile] = File(None),
+    file: UploadFile = File(default=None),
     audio_path: Optional[str] = Form(None),
     provider: Optional[str] = Form(None),
     model_size: str = Form("base"),

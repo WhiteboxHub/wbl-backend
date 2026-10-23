@@ -322,7 +322,7 @@ class AssessmentMetaResponse(BaseModel):
     youtube_url: Optional[str] = None
     consent: Optional[Dict[str, Any]] = None
     job_description: Optional[str] = None
-
+    questions: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     class Config:
         from_attributes = True
 
@@ -363,6 +363,7 @@ class AssessmentEvalData(BaseModel):
 
 class CandidateAssessmentUnifiedData(BaseModel):
     model_config = ConfigDict(extra="allow", from_attributes=True)
+    questions: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     transcript: Dict[str, Any] = Field(default_factory=dict)
     audio_telemetry: Dict[str, Any] = Field(default_factory=dict)
     video_telemetry: Dict[str, Any] = Field(default_factory=dict)

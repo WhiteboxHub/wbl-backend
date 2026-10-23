@@ -292,11 +292,16 @@ def save_assessment_data(
 
     existing = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == numeric_id).first()
     if existing:
-        existing.questions = questions
-        existing.transcript = transcript
-        existing.audio_telemetry = audio_telemetry
-        existing.video_telemetry = video_telemetry
+        from sqlalchemy.orm.attributes import flag_modified
+        existing.questions = [dict(q) for q in questions] if questions else []
+        existing.transcript = dict(transcript) if transcript else {}
+        existing.audio_telemetry = dict(audio_telemetry) if audio_telemetry else {}
+        existing.video_telemetry = dict(video_telemetry) if video_telemetry else {}
         existing.updated_at = datetime.utcnow()
+        flag_modified(existing, "questions")
+        flag_modified(existing, "transcript")
+        flag_modified(existing, "audio_telemetry")
+        flag_modified(existing, "video_telemetry")
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentDataORM(
