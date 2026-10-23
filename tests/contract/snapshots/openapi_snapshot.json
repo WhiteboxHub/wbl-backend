@@ -32296,8 +32296,15 @@
       "Body_process_audio_engine_endpoint_aiprep_audio_engine_process_post": {
         "properties": {
           "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "File"
           },
           "audio_path": {
@@ -32339,8 +32346,15 @@
       "Body_process_audio_engine_endpoint_api_aiprep_audio_engine_process_post": {
         "properties": {
           "file": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "File"
           },
           "audio_path": {

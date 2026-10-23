@@ -706,7 +706,7 @@ def get_assessment_video(
 )
 async def process_audio_engine_endpoint(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(default=None),
+    file: Optional[UploadFile] = File(None),
     audio_path: Optional[str] = Form(None),
     provider: Optional[str] = Form(None),
     model_size: str = Form("base"),

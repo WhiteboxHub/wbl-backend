@@ -1094,10 +1094,14 @@ def candidate_get_assessment_detail_logic(
 
     # Extract questions list from assessment data record
     questions_list = []
+    ALLOWED_QUESTION_FIELDS = {
+        "id", "question_id", "question_text", "category", "difficulty",
+        "order", "processing_status", "transcript", "audio_telemetry", "word_count"
+    }
     if assessment.data_record and assessment.data_record.questions:
         for q in assessment.data_record.questions:
             if isinstance(q, dict):
-                clean_q = dict(q)
+                clean_q = {k: v for k, v in q.items() if k in ALLOWED_QUESTION_FIELDS}
                 # Ensure clean question_id is exposed
                 clean_q["question_id"] = clean_q.get("question_id") or clean_q.get("id")
                 questions_list.append(clean_q)
@@ -1311,7 +1315,11 @@ async def _process_multi_question_audio_batch(
     assessment_id: int,
     resolved_cand_id: int,
     audio_kwargs: Dict[str, Any],
+    consent: Optional[Dict[str, Any]] = None,
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]]:
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment or (assessment.assessment_type or "").upper() != "TECHNICAL":
+        return None
     """
     Checks if this assessment has per-question audio files on disk (Technical Assessment).
     If present, processes each question's audio.webm with OpenAI Whisper API + Audio DSP
@@ -1360,7 +1368,8 @@ async def _process_multi_question_audio_batch(
                 q["transcript"] = ""
                 q["word_count"] = 0
                 q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
-                q["processing_status"] = "COMPLETED"
+                q["processing_status"] = "FAILED"
+                q["error"] = str(proc_err)
         else:
             # Candidate skipped this question
             q["transcript"] = ""
@@ -1372,7 +1381,10 @@ async def _process_multi_question_audio_batch(
     qa_blocks = []
     for idx, q in enumerate(all_questions, start=1):
         q_txt = q.get("question_text", f"Question {idx}")
-        ans_txt = q.get("transcript") or "[No response or skipped by candidate]"
+        if q.get("processing_status") == "FAILED":
+            ans_txt = "[Audio processing failed for this question]"
+        else:
+            ans_txt = q.get("transcript") or "[No response or skipped by candidate]"
         qa_blocks.append(f"[Question {idx}: {q_txt}]\nCandidate Answer: {ans_txt}")
 
     combined_text = "\n\n".join(qa_blocks)
@@ -1393,11 +1405,23 @@ async def _process_multi_question_audio_batch(
         "total_audio_duration_seconds": total_speaking_duration,
     }
 
+    # Redact question data BEFORE saving to DB if candidate opted out of consents
+    save_transcript = bool(consent.get("save_transcript", True)) if consent else True
+    save_recording = bool(consent.get("save_recording", True)) if consent else True
+
+    persisted_questions = copy.deepcopy(all_questions)
+    for q in persisted_questions:
+        if isinstance(q, dict):
+            if not save_transcript:
+                q["transcript"] = ""
+            if not save_recording:
+                q["audio_telemetry"] = {}
+
     # Persist updated question metrics to DB
     crud.save_assessment_data(
         db=db,
         assessment_id=assessment_id,
-        questions=all_questions,
+        questions=persisted_questions,
         transcript=existing_data.transcript or {},
         audio_telemetry=existing_data.audio_telemetry or {},
         video_telemetry=existing_data.video_telemetry or {},
@@ -1604,12 +1628,14 @@ async def candidate_submit_assessment_logic(
                         }
                         target_media = "direct_transcript.webm"
                     else:
+                        resolved_consent = (getattr(payload, "consent", None) or assessment.consent or {})
                         with SessionLocal() as worker_db:
                             multi_q_res = await _process_multi_question_audio_batch(
                                 db=worker_db,
                                 assessment_id=assessment_id_int,
                                 resolved_cand_id=resolved_cand_id,
                                 audio_kwargs=audio_kwargs,
+                                consent=resolved_consent,
                             )
                         multi_q_questions: Optional[List[Dict[str, Any]]] = None
                         if multi_q_res:
@@ -1752,6 +1778,10 @@ async def candidate_submit_assessment_logic(
                                     )
                                 )
                             )
+                        # Purge temporary per-question media chunks from disk
+                        q_storage_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id_int), "questions")
+                        if os.path.exists(q_storage_dir):
+                            shutil.rmtree(q_storage_dir, ignore_errors=True)
 
                         if insufficient_content:
                             crud.update_assessment_status(worker_db, assessment_id_int, "COMPLETED")
@@ -1834,11 +1864,16 @@ async def candidate_submit_assessment_logic(
         }
         target_media = "direct_transcript.webm"
     else:
+        submitted_consent = getattr(payload, "consent", None)
+        if submitted_consent and isinstance(submitted_consent, dict):
+            assessment.consent = submitted_consent
+        resolved_consent = (submitted_consent or assessment.consent or {})
         multi_q_res = await _process_multi_question_audio_batch(
             db=db,
             assessment_id=assessment.id,
             resolved_cand_id=resolved_cand_id,
             audio_kwargs=audio_kwargs,
+            consent=resolved_consent,
         )
         multi_q_questions: Optional[List[Dict[str, Any]]] = None
         if multi_q_res:
@@ -2014,6 +2049,11 @@ async def candidate_submit_assessment_logic(
         # Candidate opted out of recording: clear youtube_url and schedule media for safe post-eval cleanup
         assessment.youtube_url = None
         unconsented_media_to_delete = target_media
+    
+    # Clean up per-question temporary files from server disk (both consented and unconsented)
+    q_storage_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment.id), "questions")
+    if os.path.exists(q_storage_dir):
+        shutil.rmtree(q_storage_dir, ignore_errors=True)
 
     try:
         # 9. Handle Case 1 vs Case 2
@@ -2441,9 +2481,41 @@ async def upload_candidate_assessment_chunk_logic(
     # 3. Setup chunk storage directory and file path
     base_dir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id or resolved_candidate_id), str(assessment.id))
     if question_id is not None:
+        # Validate question_id belongs to this assessment
+        existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
+        valid_qids = {
+            q.get("id") for q in (existing_data.questions if existing_data and existing_data.questions else [])
+            if isinstance(q, dict) and q.get("id") is not None
+        }
+        if valid_qids and int(question_id) not in valid_qids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Question ID {question_id} does not belong to assessment {assessment.id}",
+            )
+
         # Save directly into dedicated question directory for Technical Assessments
         chunk_dir = os.path.join(base_dir, "questions", str(question_id))
         chunk_path = os.path.join(chunk_dir, "audio.webm")
+        last_index_file = os.path.join(chunk_dir, ".last_chunk_index")
+
+        # Retry guard: return 200 without appending if this chunk was already written
+        if os.path.exists(last_index_file):
+            try:
+                with open(last_index_file, "r") as idx_f:
+                    last_idx = int(idx_f.read().strip())
+                if chunk_index <= last_idx:
+                    logger.info("Ignoring duplicate chunk %s for question %s", chunk_index, question_id)
+                    return MediaChunkUploadResponse(
+                        status="success",
+                        data=MediaChunkUploadData(
+                            assessment_uuid=str(assessment.assessment_uuid or assessment_uuid or ""),
+                            chunk_index=chunk_index,
+                            bytes_received=0,
+                            saved=True,
+                        ),
+                    )
+            except Exception:
+                pass
         file_mode = "ab" if chunk_index > 0 and os.path.exists(chunk_path) else "wb"
     else:
         chunk_dir = os.path.join(base_dir, "chunks")
@@ -2490,6 +2562,13 @@ async def upload_candidate_assessment_chunk_logic(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to write media chunk to server storage",
         )
+
+    if question_id is not None:
+        try:
+            with open(os.path.join(chunk_dir, ".last_chunk_index"), "w") as idx_f:
+                idx_f.write(str(chunk_index))
+        except Exception:
+            pass
 
     # Record final chunk accounting into assessment_data if is_final=True
     if is_final:

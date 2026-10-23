@@ -308,7 +308,7 @@ class CandidateSubmitAssessmentRequest(BaseModel):
     video_telemetry: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Client-side video telemetry")
     status: Optional[str] = Field(None, description="Status override (e.g. 'cancelled')")
     transcript: Optional[Union[str, Dict[str, Any]]] = Field(None, description="Optional direct transcript text for testing without audio")
-
+    consent: Optional[Dict[str, Any]] = Field(default=None, description="Optional consent settings override")
 
 class AssessmentMetaResponse(BaseModel):
     id: int
