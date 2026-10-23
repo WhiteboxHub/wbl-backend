@@ -1604,12 +1604,13 @@ async def candidate_submit_assessment_logic(
                         }
                         target_media = "direct_transcript.webm"
                     else:
-                        multi_q_res = await _process_multi_question_audio_batch(
-                            db=db,
-                            assessment_id=assessment_id_int,
-                            resolved_cand_id=resolved_cand_id,
-                            audio_kwargs=audio_kwargs,
-                        )
+                        with SessionLocal() as worker_db:
+                            multi_q_res = await _process_multi_question_audio_batch(
+                                db=worker_db,
+                                assessment_id=assessment_id_int,
+                                resolved_cand_id=resolved_cand_id,
+                                audio_kwargs=audio_kwargs,
+                            )
                         multi_q_questions: Optional[List[Dict[str, Any]]] = None
                         if multi_q_res:
                             spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
