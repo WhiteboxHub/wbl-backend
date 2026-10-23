@@ -444,6 +444,10 @@ STATUS CONSISTENCY INVARIANTS (MANDATORY):
      If the parent concept itself was not explicitly stated or explained by the candidate, it MUST be marked NOT_MENTIONED.
    - Cross-Field Consistency: If a specific technology or framework is recorded in technologies_mentioned or frameworks_mentioned, its corresponding direct technical concept in the "concepts" dict cannot be NOT_MENTIONED (it must be PARTIAL or COVERED). But no unmentioned parent concepts may be credited.
 7. NO HALLUCINATION OF UNMENTIONED ARCHITECTURES: Do not infer unmentioned concepts from general descriptions (e.g., do not infer "caching" simply because a system is interactive or personalizes answers, and do not infer "microservices" simply because a candidate worked on backend). Only mark a concept COVERED or PARTIAL if the candidate specifically named or explained that concept.
+8. MANDATORY NON-EMPTY OBSERVATION (ALL SECTIONS): The "observation" field MUST NEVER be left as an empty string (""), null, or a one-word placeholder for ANY section.
+   - For COVERED / PARTIAL sections: Address the candidate with "You". Name what was done well, name what was missing or shallow, and end with a concrete 1-sentence example of what they could say next time to strengthen the area.
+   - For NOT_MENTIONED sections: Address the candidate with "You". Clearly state the domain was not covered in the introduction and briefly explain why omitting it weakens an AI Engineer profile. Do NOT simply write "not mentioned" — explain the impact and what they should add.
+   - Every observation must be 2-4 sentences minimum. Begin with its area label (e.g. "Software engineering:", "Cloud:", "CI/CD:", "RAG:", "Agentic AI:") so observations stay identifiable when combined on one card.
 
 IMPORTANT:
 
@@ -496,21 +500,27 @@ Failure to explain:
 
 can be a critical gap.
 
-Every "observation" field is shown directly to the candidate on a summary
-card, so it must say how the candidate performed in that area, not just
-describe what they said. Write 2-3 sentences addressed to "You":
+TWO DISTINCT FIELDS PER TECHNICAL SECTION — READ CAREFULLY:
 
-- State plainly whether the area was done well, averagely, or poorly.
-- Name what worked, if anything.
-- Name what was weak or missing and why it matters in an AI Engineer
-  introduction. Never write only "not mentioned".
-- When the area was average or weak, end with a short example of what the
-  candidate could say instead.
+"observation" (string) — Evaluative summary paragraph shown as the card description.
+  - 2-3 sentences addressed to "You".
+  - State plainly whether the area was strong, average, or weak.
+  - Name what worked and what was missing, with why it matters.
+  - When average or weak, end with a 1-sentence example of what they could say next time.
+  - Begin with the area label (e.g. "Software engineering:", "Cloud:", "CI/CD:", "RAG:", "Agentic AI:").
+
+"key_observations" (array of strings) — Distinct actionable bullet points shown BELOW the description.
+  - 2-3 short bullets, each on a different specific point NOT already said in "observation".
+  - No repetition of the observation paragraph — each bullet must add new information.
+  - Each bullet must be concrete and actionable: name a specific concept, gap, or strength
+    with enough context that the candidate knows exactly what to improve or continue.
+  - Examples of good bullets:
+      "You explained the supervisor pattern clearly, but did not name LangGraph or CrewAI — mention the framework by name next time."
+      "Your RAG pipeline lacked chunking and reranking details — interviewers expect you to explain how you tuned retrieval quality."
+      "CI/CD was not mentioned at all — even one sentence on GitHub Actions or automated tests would significantly strengthen your profile."
 
 Judge each area on its own. Strong AI content does not excuse a weak
-software engineering, cloud, or CI/CD observation. Begin each observation
-with its area label (for example "Software engineering:", "Cloud:",
-"CI/CD:", "RAG:") because several observations are combined on one card.
+software engineering, cloud, or CI/CD observation.
 
 ===============================================================================
 OUTPUT RULE
@@ -594,6 +604,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
       "frameworks_mentioned": [],
       "patterns_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -619,6 +630,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
 
       "technologies_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -649,6 +661,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
 
       "technologies_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -672,6 +685,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
       "infrastructure_tools": [],
 
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -688,6 +702,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
 
       "tools_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
