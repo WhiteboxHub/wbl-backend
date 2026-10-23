@@ -190,6 +190,16 @@ def get_default_assessment_types() -> List[Dict[str, Any]]:
 # Dynamic DB & Authorization Helpers
 # ---------------------------------------------------------------------------
 
+def is_staff_or_admin(user: AuthUserORM) -> bool:
+    """Helper to check if authenticated user possesses staff or admin privileges."""
+    try:
+        from fapi.utils.auth_dependencies import staff_or_admin_required
+        staff_or_admin_required(current_user=user)
+        return True
+    except HTTPException:
+        return False
+
+
 def _resolve_candidate_id(
     db: Session,
     current_user: AuthUserORM,
@@ -926,26 +936,31 @@ def candidate_get_assessment_detail_logic(
         2. An ownership check confirms the fetched assessment belongs to the resolved candidate.
     - Staff / admin users may access any candidate's assessment via the same endpoint.
     """
-    # --- Layer 1: Resolve & authorize the candidate_id path parameter ---
-    resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+    # --- Fetch assessment (by integer PK or UUID string) ---
+    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    is_staff = is_staff_or_admin(current_user)
+
+    # --- Ownership check: Candidates can only access their own assessment ---
+    # Staff / admin users are authorized to inspect any candidate's assessment.
+    if not is_staff:
+        resolved_candidate_id = _resolve_candidate_id(db, current_user, requested_id=candidate_id)
+        if assessment.candidate_id != resolved_candidate_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have permission to access this assessment.",
+            )
+    else:
+        resolved_candidate_id = assessment.candidate_id
+
     try:
         sentry_sdk.set_tag("endpoint", "candidate_get_assessment_detail")
         sentry_sdk.set_tag("candidate_id", str(resolved_candidate_id))
         sentry_sdk.set_tag("assessment_id", str(assessment_id))
     except Exception:
         pass
-
-    # --- Fetch assessment (by integer PK or UUID string) ---
-    assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment:
-        raise HTTPException(status_code=404, detail="Assessment not found")
-
-    # --- Layer 2: Ownership check — assessment must belong to the resolved candidate ---
-    if assessment.candidate_id != resolved_candidate_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You do not have permission to access this assessment.",
-        )
 
     # --- Build `telemetry` block (transcript + telemetry) ---
     if assessment.data_record:
@@ -1021,6 +1036,7 @@ def candidate_get_assessment_detail_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
@@ -1875,6 +1891,7 @@ async def candidate_submit_assessment_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
             transcript=plan["transcript_to_persist"],
             audio_telemetry=plan["audio_telemetry_to_persist"],

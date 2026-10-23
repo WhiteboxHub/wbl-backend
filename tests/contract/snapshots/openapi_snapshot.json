@@ -33105,6 +33105,17 @@
             ],
             "title": "Consent"
           },
+          "job_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description"
+          },
           "data": {
             "$ref": "#/components/schemas/CandidateAssessmentUnifiedData"
           }
