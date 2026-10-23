@@ -143,8 +143,7 @@ STEP 1: Check Failure Conditions
 
 STEP 2: Check Missed Points Thresholds
 - If MORE THAN HALF of required points are NOT_MENTIONED -> POOR.
-- If ANY required point marked core: true is NOT_MENTIONED -> POOR.
-- If half or more required points are addressed, but ANY required point is NOT_MENTIONED -> CAPPED AT AVERAGE.
+- If half or more required points are addressed, but ANY required point (marked required) is NOT_MENTIONED -> CAPPED AT AVERAGE.
 
 STEP 3: Check Agency & Partial Coverage Caps (HARD CAPS)
 - If personal_agency is WEAK -> CAPPED AT AVERAGE.
@@ -206,10 +205,10 @@ COMPETENCY & OVERALL AGGREGATION RULES
 - If no questions tested that competency -> "NOT_TESTED".
 
 2. Overall Assessment Rating Aggregation (Clean Rule List):
-- EXCELLENT: All tested competencies are EXCELLENT, OR at least 3 competencies are EXCELLENT with all others GOOD.
-- GOOD: Most tested competencies are GOOD or EXCELLENT, at most one is AVERAGE, and zero are POOR.
-- AVERAGE: Two or more competencies are AVERAGE, OR exactly one question across the interview was POOR.
-- POOR: Two or more questions across the interview are POOR, OR the majority of tested competencies are POOR.
+- STRONG: All tested competencies are STRONG (or EXCELLENT), OR at least 3 competencies are STRONG with all others GOOD, and zero are NEEDS_POLISH or WEAK.
+- GOOD: Most tested competencies are GOOD or STRONG, at most one is NEEDS_POLISH (or AVERAGE), and zero are WEAK (or POOR).
+- NEEDS_POLISH: One or more competencies are NEEDS_POLISH (or AVERAGE) with at most one WEAK question, AND neither STRONG nor WEAK conditions are met.
+- WEAK: Two or more questions across the interview are WEAK (or POOR), OR any competency rating is WEAK/POOR, OR the majority of tested competencies are WEAK/POOR.
 
 ===============================================================================
 RESPONSE QUALITY ANALYSIS
@@ -297,7 +296,17 @@ OUTPUT RULES & REQUIRED JSON SCHEMA
 OUTPUT RULES:
 - Return ONLY valid JSON. No markdown fences, no greetings, no text before or after the JSON object.
 - Every question in the input MUST have exactly one entry in "question_evaluations".
-- "competency_evaluations" MUST contain all five canonical competencies: Project Ownership, Technical Roadblocks, Conflict & Collaboration, Trade-offs & Deadlines, Delivery & Excellence. Use NOT_TESTED for any competency with no questions.
+- "competency_evaluations" MUST contain all five canonical competencies: Project Ownership, Technical Roadblocks, Conflict & Collaboration, Trade-offs & Deadlines, Delivery & Excellence.
+- ZERO-QUESTION COMPETENCY RULE (STRICT): For any competency that has ZERO questions evaluated in "question_evaluations", you MUST set:
+  * "rating": "NOT_TESTED"
+  * "summary": "Not tested in this interview session."
+  * "strengths": []
+  * "gaps": []
+  * "what_to_work_on": "No questions were assigned to this competency in this session."
+  * "evidence": []
+  * all checkpoints: "NOT_APPLICABLE"
+  NEVER borrow quotes from other questions to grade an untested competency.
+- UNANSWERED QUESTIONS HARD CAP: If a question is UNANSWERED (silent, blank, or no response), its question rating MUST be "POOR". If all questions are UNANSWERED or 2 or more questions are POOR, overall_assessment.rating MUST be "POOR". Never output "GOOD" or "EXCELLENT" when questions are unanswered or failed.
 - Use only the allowed values listed below. Do not invent new labels.
 - Numbers are allowed ONLY for question_id. Never output scores, marks, averages, or percentages anywhere else.
 - Use null where the schema allows it. Use an empty array [] where a list has nothing to report. Never use placeholder text such as "N/A".
@@ -310,8 +319,8 @@ OUTPUT RULES:
 - POINT IDS: Use the exact key point IDs from the rubric (e.g. "KP1", "KP2"), not generic "P1", "P2".
 
 ALLOWED VALUES:
-- rating: EXCELLENT | GOOD | AVERAGE | POOR
-- competency rating: EXCELLENT | GOOD | AVERAGE | POOR | NOT_TESTED
+- rating / readiness: STRONG | GOOD | NEEDS_POLISH | WEAK
+- competency rating: STRONG | GOOD | NEEDS_POLISH | WEAK | NOT_TESTED
 - response_state: ANSWERED | UNANSWERED
 - personal_agency: STRONG | MODERATE | WEAK
 - key point status: COVERED | PARTIAL | NOT_MENTIONED
@@ -334,7 +343,8 @@ REQUIRED JSON STRUCTURE
     "flags": [],
 
     "overall_assessment": {
-      "rating": "EXCELLENT | GOOD | AVERAGE | POOR",
+      "rating": "STRONG | GOOD | NEEDS_POLISH | WEAK",
+      "readiness": "STRONG | GOOD | NEEDS_POLISH | WEAK",
       "executive_summary": "",
       "strongest_signal": "",
       "biggest_gap": "",

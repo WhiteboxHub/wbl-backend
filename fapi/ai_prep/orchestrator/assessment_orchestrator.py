@@ -18,6 +18,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from contextlib import contextmanager
@@ -43,6 +44,51 @@ except ImportError:
 from fapi.ai_prep.utils.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
+
+
+
+def enrich_questions_with_ground_truth(
+    db: Session, questions: Optional[List[Dict[str, Any]]]
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Enriches questions with ground_truth from question bank if missing.
+    Coerces IDs to integer for robust dictionary mapping and parses JSON strings.
+    """
+    if not questions or not any(not q.get("ground_truth") for q in questions):
+        return questions
+
+    id_map: Dict[int, Dict[str, Any]] = {}
+    for q in questions:
+        raw_id = q.get("id") or q.get("question_id")
+        if raw_id is not None:
+            try:
+                int_id = int(raw_id)
+                id_map[int_id] = q
+            except (ValueError, TypeError):
+                pass
+
+    if not id_map:
+        return questions
+
+    try:
+        db_qs = (
+            db.query(AiPrepQuestionORM.id, AiPrepQuestionORM.ground_truth)
+            .filter(AiPrepQuestionORM.id.in_(list(id_map.keys())))
+            .all()
+        )
+        for q_id, gt_val in db_qs:
+            q = id_map.get(q_id)
+            if q and not q.get("ground_truth"):
+                if isinstance(gt_val, str):
+                    try:
+                        gt_val = json.loads(gt_val)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                q["ground_truth"] = gt_val
+    except Exception as e:
+        logger.warning("[enrich_questions_with_ground_truth] Could not enrich questions: %s", e)
+
+    return questions
 
 
 @contextmanager
@@ -108,27 +154,8 @@ def _load_assessment_context(
         video_telemetry = data_record.video_telemetry or {}
 
     # Enrich questions with ground_truth from question bank if missing (strictly for HIRING_MANAGER)
-    if assessment_type == "HIRING_MANAGER" and questions and any(not q.get("ground_truth") for q in questions):
-        q_ids = [q.get("id") or q.get("question_id") for q in questions]
-        q_ids = [qid for qid in q_ids if qid is not None]
-        if q_ids:
-            try:
-                db_qs = db.query(AiPrepQuestionORM.id, AiPrepQuestionORM.ground_truth).filter(AiPrepQuestionORM.id.in_(q_ids)).all()
-                q_map = {row[0]: row[1] for row in db_qs}
-                for q in questions:
-                    qid = q.get("id") or q.get("question_id")
-                    if not q.get("ground_truth") and qid in q_map:
-                        gt_val = q_map[qid]
-                        if isinstance(gt_val, str):
-                            try:
-                                gt_val = json.loads(gt_val)
-                            except Exception:
-                                pass
-                        q["ground_truth"] = gt_val
-            except Exception as e:
-                logger.warning(
-                    "[AssessmentOrchestrator] Could not enrich questions with ground_truth: %s", e
-                )
+    if assessment_type == "HIRING_MANAGER" and questions:
+        questions = enrich_questions_with_ground_truth(db, questions)
 
     # Set is_video_mode flag on video_telemetry for engines
     if "is_video_mode" not in video_telemetry:
@@ -420,21 +447,7 @@ def get_questions_for_assessment(
             eval_body = transcript_eval.get(f"{normalized_type.lower()}_evaluation")
             if isinstance(eval_body, dict):
                 overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body.get("overall_assessment"), dict) else {}
-                if normalized_type == "HIRING_MANAGER":
-                    previous_readiness = overall.get("rating") or overall.get("readiness") or eval_body.get("readiness")
-                    if not previous_readiness and "overall_score" in overall:
-                        try:
-                            score = float(overall["overall_score"])
-                            if score >= 75:
-                                previous_readiness = "STRONG"
-                            elif score >= 50:
-                                previous_readiness = "AVERAGE"
-                            else:
-                                previous_readiness = "POOR"
-                        except (ValueError, TypeError):
-                            pass
-                else:
-                    previous_readiness = overall.get("readiness") or eval_body.get("readiness")
+                previous_readiness = overall.get("readiness") or overall.get("rating") or eval_body.get("readiness")
 
             logger.info(
                 "[AssessmentOrchestrator] Candidate %d previous %s readiness: '%s'",
