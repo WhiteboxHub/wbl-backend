@@ -959,6 +959,7 @@ def candidate_get_assessment_detail_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
             transcript=transcript_data,
             audio_telemetry=audio_telemetry,
@@ -1813,6 +1814,7 @@ async def candidate_submit_assessment_logic(
         completed_at=assessment.completed_at,
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
+        job_description=assessment.job_description,
         data=CandidateAssessmentUnifiedData(
             transcript=plan["transcript_to_persist"],
             audio_telemetry=plan["audio_telemetry_to_persist"],
