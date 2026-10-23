@@ -642,19 +642,6 @@ async def upload_assessment_audio(
     )
 
 
-@router.get(
-    "/assessments/{assessment_id}/playback",
-    tags=["AI Prep - Media & Streaming"],
-    summary="Assessment Media Playback Stream",
-)
-@router.head("/assessments/{assessment_id}/playback", include_in_schema=False)
-def get_assessment_playback(
-    assessment_id: int,
-    db: Session = Depends(get_db),
-):
-    """Streams the recorded audio/video media file for an assessment."""
-    return aiprep_utils.get_assessment_playback_logic(db=db, assessment_id=assessment_id)
-
 
 @router.get(
     "/candidate/assessments/{assessment_id}/audio",

@@ -49,14 +49,6 @@ def get_current_user(
             token = request.cookies.get("token")
 
     if not token:
-        if request.url.path.endswith("/playback"):
-            class MediaPlaybackUser:
-                id = 0
-                uname = "media_player"
-                role = "candidate"
-                is_admin = False
-                is_employee = False
-            return MediaPlaybackUser()
         internal_secret = request.headers.get("X-Internal-Secret")
         configured_secret = os.getenv("INTERNAL_WORKFLOW_SECRET")
         if (
