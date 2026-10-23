@@ -679,6 +679,9 @@
         "security": [
           {
             "HTTPBearer": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -25206,6 +25209,22 @@
               "title": "Question Id"
             },
             "description": "Question ID for per-question chunks"
+          },
+          {
+            "name": "X-Question-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Question-Id"
+            }
           }
         ],
         "requestBody": {
@@ -27720,6 +27739,22 @@
               "title": "Question Id"
             },
             "description": "Question ID for per-question chunks"
+          },
+          {
+            "name": "X-Question-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Question-Id"
+            }
           }
         ],
         "requestBody": {
@@ -32208,7 +32243,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^password$"
+                "pattern": "password"
               },
               {
                 "type": "null"
@@ -32222,7 +32257,6 @@
           },
           "password": {
             "type": "string",
-            "format": "password",
             "title": "Password"
           },
           "scope": {
@@ -32250,7 +32284,6 @@
                 "type": "null"
               }
             ],
-            "format": "password",
             "title": "Client Secret"
           }
         },
@@ -32265,7 +32298,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "audio_path": {
@@ -32308,7 +32341,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "audio_path": {
@@ -32351,7 +32384,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "mime_type": {
@@ -32376,7 +32409,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "mime_type": {
@@ -32401,7 +32434,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "mime_type": {
@@ -32426,7 +32459,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "mime_type": {
@@ -32472,7 +32505,7 @@
           },
           "media_file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Media File",
             "description": "WebM media chunk file to upload"
           }
@@ -32509,7 +32542,7 @@
           },
           "media_file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Media File",
             "description": "WebM media chunk file to upload"
           }
@@ -32525,7 +32558,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -32539,14 +32572,14 @@
         "properties": {
           "govId": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "Govid"
           },
           "resume": {
             "anyOf": [
               {
                 "type": "string",
-                "contentMediaType": "application/octet-stream"
+                "format": "binary"
               },
               {
                 "type": "null"
@@ -32581,7 +32614,7 @@
           },
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -32612,7 +32645,7 @@
           },
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           }
         },
@@ -32627,7 +32660,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "format": "binary",
             "title": "File"
           },
           "resume_json": {
@@ -54477,13 +54510,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",

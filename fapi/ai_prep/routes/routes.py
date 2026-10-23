@@ -7,6 +7,7 @@ from fastapi import (
     APIRouter,
     Depends,
     Query,
+    Header,
     UploadFile,
     File,
     Form,
@@ -511,10 +512,11 @@ async def upload_candidate_assessment_chunk(
     is_final: bool = Form(False),
     media_file: UploadFile = File(..., description="WebM media chunk file to upload"),
     question_id: Optional[int] = Query(None, description="Question ID for per-question chunks"),
+    x_question_id: Optional[int] = Header(None, alias="X-Question-Id"),
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-
+    resolved_qid = question_id if question_id is not None else x_question_id
     return await aiprep_utils.upload_candidate_assessment_chunk_logic(
         db=db,
         current_user=current_user,
@@ -524,7 +526,7 @@ async def upload_candidate_assessment_chunk(
         file_content=media_file,
         assessment_uuid=assessment_uuid,
         is_final=is_final,
-        question_id=question_id,
+        question_id=resolved_qid,
     )
 
 
