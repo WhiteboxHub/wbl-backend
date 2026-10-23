@@ -234,7 +234,7 @@ def test_multi_question_chunks_via_header(mock_candidate_client, db_session, tmp
     )
     assert resp_chunk.status_code == 200, resp_chunk.text
 
-    expected_path = tmp_path / "7701" / str(assessment.id) / "questions" / "3" / "chunks" / "chunk_0.webm"
+    expected_path = tmp_path / "7701" / str(assessment.id) / "questions" / "3" / "audio.webm"
     assert expected_path.exists()
 
 
