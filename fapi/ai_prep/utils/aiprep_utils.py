@@ -999,9 +999,24 @@ def build_assessment_eval_dict(
         "video": video_inner,
         "general": general_dict,
     }
-    if t_eval.get("recruiter_evaluation") or "background_and_experience" in intro_eval:
-        result["recruiter_evaluation"] = intro_eval
-        result["question_evaluations"] = intro_eval.get("question_evaluations") or []
+    is_recruiter = bool(
+        t_eval.get("recruiter_evaluation")
+        or "background_and_experience" in intro_eval
+        or "section_evaluations" in intro_eval
+        or "section_evaluations" in t_eval
+        or "question_evaluations" in intro_eval
+        or "question_evaluations" in t_eval
+        or (isinstance(intro_eval.get("overall_assessment"), dict) and ("rating" in intro_eval["overall_assessment"] or "executive_summary" in intro_eval["overall_assessment"]))
+    )
+    if is_recruiter:
+        recruiter_data = t_eval.get("recruiter_evaluation") or intro_eval
+        result["recruiter_evaluation"] = recruiter_data
+        result["question_evaluations"] = (
+            recruiter_data.get("question_evaluations")
+            or intro_eval.get("question_evaluations")
+            or t_eval.get("question_evaluations")
+            or []
+        )
     return result
 
 
@@ -1105,6 +1120,18 @@ def candidate_get_assessment_detail_logic(
                 ]
                 full_txt = " ".join([t for t in q_texts if t])
 
+            if not full_txt and assessment.report_record and assessment.report_record.transcript_evaluation:
+                t_eval_rep = assessment.report_record.transcript_evaluation
+                evidences = []
+                r_eval = t_eval_rep.get("recruiter_evaluation") if isinstance(t_eval_rep, dict) else None
+                q_evals = (r_eval or t_eval_rep).get("question_evaluations") or []
+                if isinstance(q_evals, list):
+                    for qe in q_evals:
+                        if isinstance(qe, dict) and isinstance(qe.get("evidence"), list):
+                            evidences.extend([str(ev) for ev in qe["evidence"] if ev])
+                if evidences:
+                    full_txt = " ".join(evidences)
+
             if full_txt:
                 import re
                 filler_patterns = {
@@ -1179,8 +1206,8 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
-    # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
-    if assessment.youtube_url and "UF8uR6Z6KLc" in assessment.youtube_url:
+    # Sanitize any accidental hardcoded demo or mock YouTube URLs previously stored in DB
+    if assessment.youtube_url and ("UF8uR6Z6KLc" in assessment.youtube_url or "aiprep_rec_" in assessment.youtube_url or "mock" in assessment.youtube_url.lower()):
         assessment.youtube_url = None
         try:
             crud.update_assessment_media_url(db, assessment.id, None)
