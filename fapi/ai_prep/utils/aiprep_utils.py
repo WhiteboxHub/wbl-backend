@@ -2378,7 +2378,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
 
             audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
             video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
-            questions = (data_rec.questions if data_rec else []) or []
+            raw_questions = (data_rec.questions if data_rec else []) or []
             resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
             llm_config = crud.get_candidate_llm_config(db, candidate_id)
@@ -2396,11 +2396,10 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 else str(assessment.assessment_type)
             )
 
-            # Load and enrich questions with ground_truth strictly for HIRING_MANAGER evaluation
-            questions = None
-            if assessment_type_str == "HIRING_MANAGER":
-                raw_qs = (data_rec.questions if data_rec else []) or []
-                questions = assessment_orchestrator.enrich_questions_with_ground_truth(db, raw_qs)
+            # Enrich questions with ground_truth from the question bank for ALL assessment types.
+            # Previously this was limited to HIRING_MANAGER only, which stripped ground truth
+            # context from RECRUITER, TECHNICAL, and INTRO evaluations, causing empty LLM prompts.
+            questions = assessment_orchestrator.enrich_questions_with_ground_truth(db, raw_questions)
 
             eval_result = await llm_orchestrator.run_evaluation(
                 candidate_id=candidate_id,
