@@ -1089,21 +1089,55 @@ def candidate_get_assessment_detail_logic(
             if dur_sec > 0 and word_count > 0:
                 audio_telemetry["words_per_minute"] = int(round((word_count / dur_sec) * 60.0))
 
-        if audio_telemetry.get("filler_word_count") is None and audio_telemetry.get("filler_count") is None:
+        filler_val = audio_telemetry.get("filler_word_count")
+        if filler_val is None:
+            filler_val = audio_telemetry.get("filler_count")
+        
+        if filler_val is None or int(filler_val or 0) <= 0:
             full_txt = transcript_data.get("full_text", "")
+            if not full_txt and assessment.data_record and assessment.data_record.questions:
+                q_texts = [
+                    str(q.get("transcript") or q.get("transcript_text") or "")
+                    for q in assessment.data_record.questions
+                    if isinstance(q, dict)
+                ]
+                full_txt = " ".join([t for t in q_texts if t])
+
             if full_txt:
                 import re
-                fillers = ["um", "uh", "like", "you know", "actually", "basically", "sort of", "kind of", "i mean"]
+                filler_patterns = {
+                    "um": r"\bum+\b",
+                    "uh": r"\buh+\b",
+                    "er": r"\ber+\b",
+                    "ah": r"\bah+\b",
+                    "like": r"\blike\b",
+                    "you know": r"\byou know\b",
+                    "actually": r"\bactually\b",
+                    "basically": r"\bbasically\b",
+                    "sort of": r"\bsort of\b",
+                    "kind of": r"\bkind of\b",
+                    "i mean": r"\bi mean\b",
+                    "right": r"\bright\b",
+                }
                 detected_fillers = 0
-                for f in fillers:
-                    matches = re.findall(r"\b" + re.escape(f) + r"\b", full_txt.lower())
+                detected_breakdown = {}
+                for f, pattern in filler_patterns.items():
+                    matches = re.findall(pattern, full_txt.lower())
                     if matches:
-                        if f in ["like", "actually", "basically"]:
-                            if len(matches) > 2:
-                                detected_fillers += len(matches) - 2
+                        count = len(matches)
+                        if f in ["like", "actually", "basically", "right"]:
+                            if count > 1:
+                                excess = count - 1
+                                detected_fillers += excess
+                                detected_breakdown[f] = excess
                         else:
-                            detected_fillers += len(matches)
-                audio_telemetry["filler_word_count"] = detected_fillers
+                            detected_fillers += count
+                            detected_breakdown[f] = count
+                if detected_fillers > 0:
+                    audio_telemetry["filler_word_count"] = detected_fillers
+                    audio_telemetry["filler_count"] = detected_fillers
+                    audio_telemetry["filler_words"] = list(detected_breakdown.keys())
+                    audio_telemetry["filler_breakdown"] = detected_breakdown
         raw_video_tel = assessment.data_record.video_telemetry
         video_telemetry = raw_video_tel if isinstance(raw_video_tel, dict) else {}
     else:
@@ -2055,14 +2089,52 @@ async def candidate_submit_assessment_logic(
         or raw_audio_telemetry.get("filler_word_count")
         or 0
     )
+    filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
+    filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else list(raw_audio_telemetry.get("filler_words", []))
+
+    if filler_count <= 0 and full_text:
+        import re
+        filler_patterns = {
+            "um": r"\bum+\b",
+            "uh": r"\buh+\b",
+            "er": r"\ber+\b",
+            "ah": r"\bah+\b",
+            "like": r"\blike\b",
+            "you know": r"\byou know\b",
+            "actually": r"\bactually\b",
+            "basically": r"\bbasically\b",
+            "sort of": r"\bsort of\b",
+            "kind of": r"\bkind of\b",
+            "i mean": r"\bi mean\b",
+            "right": r"\bright\b",
+        }
+        detected_fillers = 0
+        detected_breakdown = {}
+        for f, pattern in filler_patterns.items():
+            matches = re.findall(pattern, full_text.lower())
+            if matches:
+                count = len(matches)
+                if f in ["like", "actually", "basically", "right"]:
+                    if count > 1:
+                        excess = count - 1
+                        detected_fillers += excess
+                        detected_breakdown[f] = excess
+                else:
+                    detected_fillers += count
+                    detected_breakdown[f] = count
+        if detected_fillers > 0:
+            filler_count = detected_fillers
+            if not filler_words:
+                filler_words = list(detected_breakdown.keys())
+            if not filler_breakdown:
+                filler_breakdown = detected_breakdown
+
     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
     silence_pct = (
         float(raw_audio_telemetry["silence_percentage"])
         if "silence_percentage" in raw_audio_telemetry
         else round(silence_ratio * 100, 1)
     )
-    filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
-    filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else raw_audio_telemetry.get("filler_words", [])
 
     total_audio_duration = float(
         raw_audio_telemetry.get("total_audio_duration_seconds")
