@@ -683,7 +683,7 @@ def _build_hiring_manager_eval_dict(
                 state = str(q.get("response_state") or "").upper().strip()
                 q_rating = str(q.get("rating") or "").upper().strip()
                 is_unanswered = (state == "UNANSWERED")
-                if not is_unanswered and q_rating != "POOR" and (state == "ANSWERED" or q_rating or q.get("covered_points") or q.get("evidence")):
+                if not is_unanswered and q_rating not in ("POOR", "WEAK") and (state == "ANSWERED" or q_rating or q.get("covered_points") or q.get("evidence")):
                     answered_count += 1
 
         current_rating = str(oa.get("readiness") or oa.get("rating") or "").upper().strip()
