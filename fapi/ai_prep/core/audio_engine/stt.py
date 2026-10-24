@@ -13,7 +13,18 @@ import time
 from typing import Dict, Any, List, Optional, Tuple, Union
 import numpy as np
 try:
-    from faster_whisper import WhisperModel
+    import av  # pyrefly: ignore[missing-import] # type: ignore
+    # Compatibility fix for PyAV >= 14/19 where metadata_errors was removed from av.open
+    _orig_av_open = av.open
+    def _safe_av_open(*args, **kwargs):
+        kwargs.pop("metadata_errors", None)
+        return _orig_av_open(*args, **kwargs)
+    av.open = _safe_av_open
+except Exception:
+    pass
+
+try:
+    from faster_whisper import WhisperModel  # pyrefly: ignore[missing-import] # type: ignore
 except ImportError:
     WhisperModel = None
 

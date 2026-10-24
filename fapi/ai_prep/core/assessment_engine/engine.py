@@ -95,13 +95,12 @@ class AssessmentEngine:
     @classmethod
     def get_question_time_limit(cls, question: Dict[str, Any]) -> int:
         """
-        Resolves question time limit.
-        1. If explicit custom duration is configured (different from the generic 120 default), respect it.
-        2. Otherwise, map strictly through the deterministic (difficulty, scope) matrix.
-        3. Fall back to explicit duration or default.
+        Resolves question time limit directly from the backend question record.
+        Strictly respects the question's explicit `time_limit_seconds` configured in the backend database.
+        Falls back to difficulty mapping only if time_limit_seconds is missing or non-positive.
         """
         explicit = question.get("time_limit_seconds")
-        if explicit and isinstance(explicit, int) and explicit > 0 and explicit != 120:
+        if explicit is not None and isinstance(explicit, int) and explicit > 0:
             return explicit
 
         diff = str(question.get("difficulty_level") or "MEDIUM").upper().strip()
@@ -110,10 +109,12 @@ class AssessmentEngine:
         if (diff, scope) in cls.QUESTION_TIME_LIMIT_MATRIX:
             return cls.QUESTION_TIME_LIMIT_MATRIX[(diff, scope)]
 
-        if explicit and isinstance(explicit, int) and explicit > 0:
-            return explicit
+        if diff == "EASY":
+            return 60
+        if diff == "HARD":
+            return 150
 
-        return 90
+        return 120
 
     def __init__(self) -> None:
         pass
@@ -134,7 +135,11 @@ class AssessmentEngine:
     ) -> List[Dict[str, Any]]:
         """Selects questions for an assessment type using adaptive distribution."""
         normalized_type = assessment_type.upper().strip()
-        excluded_ids = set(previously_asked_ids or [])
+        excluded_ids = {
+            int(qid) if str(qid).isdigit() else qid
+            for qid in (previously_asked_ids or [])
+        }
+        excluded_ids.update({str(qid) for qid in (previously_asked_ids or [])})
 
         # INTRO and JD_INTRO are single-question assessments
         if normalized_type in self.SINGLE_QUESTION_TYPES:
@@ -154,25 +159,53 @@ class AssessmentEngine:
             )
             return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
-        max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
-        matched = [
-            q for q in available_questions
-            if str(q.get("category", "")).upper() == normalized_type
-            and q.get("is_active", True)
-            and q.get("id") not in excluded_ids
-        ] or [
+        # Collect all active matching questions for this category
+        all_category_questions = [
             q for q in available_questions
             if str(q.get("category", "")).upper() == normalized_type
             and q.get("is_active", True)
         ]
 
-        if not matched:
+        if not all_category_questions:
             logger.warning("[AssessmentEngine] No questions found for type '%s'.", normalized_type)
             return []
+
+        # Filter out questions already completed in previous attempts
+        unseen_matched = [
+            q for q in all_category_questions
+            if q.get("id") not in excluded_ids
+        ]
+
+        if unseen_matched:
+            matched = unseen_matched
+        else:
+            # When candidate has completed all questions in the bank, freshly restart from the beginning
+            logger.info(
+                "[AssessmentEngine] Candidate has completed all questions for '%s'. Freshly restarting pool from the beginning.",
+                normalized_type,
+            )
+            matched = all_category_questions
+
+        # Recruiter round is a focused 10-15 minute screen (typically 6-8 questions).
+        if normalized_type == "RECRUITER":
+            max_q = limit if limit is not None else min(8, len(matched))
+        else:
+            max_q = limit if limit is not None else self.MULTI_QUESTION_LIMIT
 
         selected = self._select_adaptive_questions(matched, previous_readiness, max_q)
         for q in selected:
             q["time_limit_seconds"] = self.get_question_time_limit(q)
+
+        # For Recruiter screens, ensure high-level overview questions lead the interview
+        if normalized_type == "RECRUITER" and selected:
+            def _is_introductory(item: Dict[str, Any]) -> bool:
+                txt = (item.get("question_text") or "").lower()
+                return "high-level overview" in txt or "overview of your background" in txt
+            opening_qs = [q for q in selected if _is_introductory(q)]
+            rest_qs = [q for q in selected if not _is_introductory(q)]
+            if opening_qs:
+                selected = opening_qs + rest_qs
+
         return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
     def _select_single_intro_question(
@@ -589,7 +622,7 @@ class AssessmentEngine:
             "subject": question.get("subject"),
             "concept": question.get("concept"),
             "difficulty_level": question.get("difficulty_level"),
-            "time_limit_seconds": question.get("time_limit_seconds") or self.get_question_time_limit(question),
+            "time_limit_seconds": self.get_question_time_limit(question),
         }
 
     # =========================================================================
@@ -641,7 +674,10 @@ class AssessmentEngine:
                     if not keywords and criteria:
                         for c in criteria:
                             if isinstance(c, dict):
-                                for ev in c.get("acceptable_evidence") or []:
+                                ev_candidates = c.get("acceptable_evidence") or []
+                                if isinstance(ev_candidates, str):
+                                    ev_candidates = [ev_candidates]
+                                for ev in ev_candidates:
                                     if "Technical keywords:" in ev:
                                         kw_part = ev.split("Technical keywords:", 1)[1].strip().rstrip(".")
                                         for kw in kw_part.split(","):
@@ -659,7 +695,10 @@ class AssessmentEngine:
                                 req = " (required)" if c.get("required") else ""
                                 id_prefix = f"[{kp_id}] " if kp_id else ""
                                 lines.append(f"      - {id_prefix}{desc}{req}")
-                                for ev in c.get("acceptable_evidence") or []:
+                                ev_candidates = c.get("acceptable_evidence") or []
+                                if isinstance(ev_candidates, str):
+                                    ev_candidates = [ev_candidates]
+                                for ev in ev_candidates:
                                     lines.append(f"        * evidence: {ev}")
                             else:
                                 lines.append(f"      - {str(c)}")
