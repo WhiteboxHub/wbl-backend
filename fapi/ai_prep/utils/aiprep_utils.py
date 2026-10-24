@@ -645,10 +645,6 @@ def _build_hiring_manager_eval_dict(
     """
     Builds the unified assessment_eval dictionary for a hiring manager evaluation.
     Isolates hiring manager mapping logic from other assessment types.
-    Enforces deterministic safety rules:
-      1. Any competency with zero questions tested in question_evaluations MUST have rating 'NOT_TESTED'.
-      2. If all questions are UNANSWERED or 2+ questions are POOR, overall rating is capped at POOR.
-      3. If 1 question is POOR, overall rating cannot exceed AVERAGE.
     """
     oa = hm_eval.get("overall_assessment") or {}
     if not isinstance(oa, dict):
@@ -682,22 +678,18 @@ def _build_hiring_manager_eval_dict(
 
     # 2. Enforce deterministic overall rating caps based on question evaluations
     if isinstance(q_evals, list) and q_evals:
-        poor_count = 0
         answered_count = 0
         for q in q_evals:
             if isinstance(q, dict):
                 state = str(q.get("response_state") or "").upper().strip()
                 q_rating = str(q.get("rating") or "").upper().strip()
                 is_unanswered = (state == "UNANSWERED")
-                if is_unanswered or q_rating == "POOR":
-                    poor_count += 1
-                if not is_unanswered and q_rating != "POOR" and (state == "ANSWERED" or q_rating or q.get("covered_points") or q.get("evidence")):
+                if not is_unanswered and q_rating not in ("POOR", "WEAK") and (state == "ANSWERED" or q_rating or q.get("covered_points") or q.get("evidence")):
                     answered_count += 1
 
         current_rating = str(oa.get("readiness") or oa.get("rating") or "").upper().strip()
         is_canonical = current_rating in ("STRONG", "NEEDS_POLISH", "WEAK") or "readiness" in oa
         target_weak = "WEAK" if is_canonical else "POOR"
-        target_avg = "NEEDS_POLISH" if is_canonical else "AVERAGE"
 
         if answered_count == 0:
             oa["rating"] = target_weak
@@ -705,16 +697,6 @@ def _build_hiring_manager_eval_dict(
                 oa["readiness"] = target_weak
             if not oa.get("executive_summary"):
                 oa["executive_summary"] = "Candidate did not provide substantive spoken answers to the interview questions."
-        elif poor_count >= 2:
-            if current_rating in ("GOOD", "EXCELLENT", "STRONG", "AVERAGE", "NEEDS_POLISH"):
-                oa["rating"] = target_weak
-                if "readiness" in oa:
-                    oa["readiness"] = target_weak
-        elif poor_count == 1:
-            if current_rating in ("GOOD", "EXCELLENT", "STRONG"):
-                oa["rating"] = target_avg
-                if "readiness" in oa:
-                    oa["readiness"] = target_avg
 
     a_eval = audio_eval or {}
     audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
