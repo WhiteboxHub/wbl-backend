@@ -308,6 +308,8 @@ class CandidateSubmitAssessmentRequest(BaseModel):
     video_telemetry: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Client-side video telemetry")
     status: Optional[str] = Field(None, description="Status override (e.g. 'cancelled')")
     transcript: Optional[Union[str, Dict[str, Any]]] = Field(None, description="Optional direct transcript text for testing without audio")
+    transcript_text: Optional[str] = Field(None, description="Client-side captured transcript text fallback")
+    attempted_question_ids: Optional[List[int]] = Field(default=None, description="List of question IDs attempted by candidate")
     consent: Optional[Dict[str, Any]] = Field(default=None, description="Optional consent settings override")
 
 class AssessmentMetaResponse(BaseModel):
@@ -375,6 +377,7 @@ AssessmentTelemetryContainer = CandidateAssessmentUnifiedData
 
 class CandidateAssessmentUnifiedResponse(AssessmentMetaResponse):
     model_config = ConfigDict(extra="allow", from_attributes=True)
+    questions: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     data: CandidateAssessmentUnifiedData
 
 
