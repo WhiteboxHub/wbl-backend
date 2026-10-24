@@ -646,7 +646,6 @@ async def upload_assessment_audio(
     )
 
 
-
 @router.get(
     "/candidate/assessments/{assessment_id}/audio",
     tags=["AI Prep - Media & Streaming"],
