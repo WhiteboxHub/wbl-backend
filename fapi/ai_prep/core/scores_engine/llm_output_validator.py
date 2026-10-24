@@ -319,6 +319,46 @@ class ScoresEngine:
             for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
                 if list_key not in intro or not isinstance(intro[list_key], list):
                     errors.append(f"Missing or invalid list '{list_key}' in intro_evaluation")
+
+            # Ensure every technical section has a non-empty, actionable observation.
+            # If the LLM returned an empty string, auto-repair using the section's own
+            # status and technologies so the content stays dynamic (never hardcoded).
+            _TECH_SECTION_KEYS = [
+                "agentic_ai",
+                "rag_and_retrieval",
+                "software_engineering",
+                "cloud_and_infrastructure",
+                "cicd_and_delivery",
+            ]
+            for sec_key in _TECH_SECTION_KEYS:
+                sec = intro.get(sec_key)
+                if isinstance(sec, dict):
+                    obs = str(sec.get("observation") or "").strip()
+                    if not obs:
+                        status_val = str(sec.get("overall_status") or "PARTIAL").capitalize()
+                        techs = [t for t in (sec.get("technologies_mentioned") or []) if t]
+                        tech_str = f", mentioning {', '.join(techs)}" if techs else ""
+                        label = sec_key.replace("_", " ").title()
+                        sec["observation"] = (
+                            f"{label}: Your performance was evaluated as {status_val}{tech_str}. "
+                            "Expand on your production architecture, the operational tradeoffs you "
+                            "navigated, and your specific ownership of implementation decisions."
+                        )
+
+                    # Ensure key_observations is a non-empty list of actionable bullets.
+                    # If the LLM omitted it or returned an empty list, generate a minimal
+                    # dynamic fallback so the bullet section is never blank.
+                    key_obs = sec.get("key_observations")
+                    if not isinstance(key_obs, list) or not any(str(b).strip() for b in key_obs):
+                        status_val = str(sec.get("overall_status") or "PARTIAL").capitalize()
+                        techs = [t for t in (sec.get("technologies_mentioned") or []) if t]
+                        label = sec_key.replace("_", " ").title()
+                        bullet_tech = f" You mentioned: {', '.join(techs)}." if techs else ""
+                        sec["key_observations"] = [
+                            f"{label} was assessed as {status_val}.{bullet_tech}",
+                            "Provide specific details on your production architecture, system design decisions, and operational ownership in this area.",
+                        ]
+
             return
 
         # Fallback: legacy checkpoint-based schema
