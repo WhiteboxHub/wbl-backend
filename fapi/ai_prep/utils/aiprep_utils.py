@@ -3359,30 +3359,42 @@ def get_assessment_audio_logic(
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    candidate_files = [
-        os.path.join(assessment_dir, "audio.wav"),
-        os.path.join(assessment_dir, "audio.webm"),
-        os.path.join(assessment_dir, "recording.webm"),
-        os.path.join(assessment_dir, "audio.mp3"),
-        os.path.join(assessment_dir, "audio.ogg"),
-        os.path.join(assessment_dir, "assembled.webm"),
-    ]
+    dirs_to_check = []
+    if candidate_id is not None:
+        dirs_to_check.append(os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id)))
+    if assessment.candidate_id is not None and str(assessment.candidate_id) != str(candidate_id):
+        dirs_to_check.append(os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id)))
+
     target_file = None
-    for cf in candidate_files:
-        if os.path.exists(cf) and os.path.getsize(cf) > 0:
-            target_file = cf
+    for assessment_dir in dirs_to_check:
+        if not os.path.exists(assessment_dir):
+            continue
+        candidate_files = [
+            os.path.join(assessment_dir, "audio.wav"),
+            os.path.join(assessment_dir, "audio.webm"),
+            os.path.join(assessment_dir, "recording.webm"),
+            os.path.join(assessment_dir, "audio.mp3"),
+            os.path.join(assessment_dir, "audio.ogg"),
+            os.path.join(assessment_dir, "assembled.webm"),
+        ]
+        for cf in candidate_files:
+            if os.path.exists(cf) and os.path.getsize(cf) > 0:
+                target_file = cf
+                break
+        if target_file:
             break
 
-    if not target_file and os.path.exists(assessment_dir):
         for fname in os.listdir(assessment_dir):
             fpath = os.path.join(assessment_dir, fname)
             if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(s) for s in (".wav", ".webm", ".mp3", ".ogg")):
                 target_file = fpath
                 break
+        if target_file:
+            break
 
-    if not target_file and os.path.exists(assessment_dir):
         target_file = _auto_assemble_chunks_if_present(assessment_dir)
+        if target_file:
+            break
 
     if not target_file or not os.path.exists(target_file):
         if getattr(assessment, "youtube_url", None):
