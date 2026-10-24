@@ -80,6 +80,49 @@ class AssessmentEngine:
         "DevOps and Cloud": 180,       # 20% of 900s
     }
 
+    # Hiring Manager canonical leadership competency budgets (equal 180s split across 5 competencies = 900s total)
+    HIRING_MANAGER_COMPETENCY_BUDGETS: Dict[str, int] = {
+        "Project Ownership": 180,
+        "Technical Roadblocks": 180,
+        "Conflict & Collaboration": 180,
+        "Trade-offs & Deadlines": 180,
+        "Delivery & Excellence": 180,
+    }
+    HIRING_MANAGER_SUBJECT_BUDGETS: Dict[str, int] = HIRING_MANAGER_COMPETENCY_BUDGETS
+
+    @classmethod
+    def normalize_hiring_manager_competency(cls, question: Dict[str, Any]) -> str:
+        """
+        Normalizes a hiring manager question to one of the 5 canonical leadership competencies:
+        'Project Ownership', 'Technical Roadblocks', 'Conflict & Collaboration',
+        'Trade-offs & Deadlines', or 'Delivery & Excellence'.
+        """
+        comp = question.get("competency") or question.get("subject") or question.get("concept") or ""
+        text = str(comp).strip()
+        lower_comp = text.lower()
+        if "project ownership" in lower_comp:
+            return "Project Ownership"
+        if "technical roadblock" in lower_comp or "roadblock" in lower_comp:
+            return "Technical Roadblocks"
+        if "conflict" in lower_comp or "collaboration" in lower_comp:
+            return "Conflict & Collaboration"
+        if "trade-off" in lower_comp or "tradeoff" in lower_comp or "deadline" in lower_comp:
+            return "Trade-offs & Deadlines"
+        if "delivery" in lower_comp or "excellence" in lower_comp:
+            return "Delivery & Excellence"
+
+        combined = (text + " " + str(question.get("question_text") or "")).lower()
+        if any(k in combined for k in ("conflict", "collaborat", "stakeholder", "disagree", "cross-functional", "cross functional", "team", "interpersonal", "peer")):
+            return "Conflict & Collaboration"
+        if any(k in combined for k in ("trade-off", "tradeoff", "deadline", "priorit", "scope", "compromise", "urgent", "timeline")):
+            return "Trade-offs & Deadlines"
+        if any(k in combined for k in ("roadblock", "challenge", "failure", "incident", "outage", "bottleneck", "bug", "complex", "obstacle", "problem")):
+            return "Technical Roadblocks"
+        if any(k in combined for k in ("deliver", "excellence", "scale", "impact", "metric", "result", "quality", "execution", "performance")):
+            return "Delivery & Excellence"
+        return "Project Ownership"
+
+
     @classmethod
     def normalize_subject(cls, subject_str: Optional[str]) -> str:
         """
@@ -451,30 +494,45 @@ class AssessmentEngine:
                 q["time_limit_seconds"] = self.get_question_time_limit(q)
             return selected[:limit]
 
-        subject_pools: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        competency_pools: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         for q in hm_pool:
-            subj = self.normalize_subject(q.get("subject"))
-            subject_pools[subj].append(q)
+            comp = self.normalize_hiring_manager_competency(q)
+            competency_pools[comp].append(q)
 
         selected: List[Dict[str, Any]] = []
         selected_ids: Set[int] = set()
         current_total_time: int = 0
 
-        for subject, budget in self.TECHNICAL_SUBJECT_BUDGETS.items():
-            pool = subject_pools.get(subject, [])
+        for competency, budget in self.HIRING_MANAGER_COMPETENCY_BUDGETS.items():
+            pool = competency_pools.get(competency, [])
             if not pool:
                 continue
 
-            subj_questions, subj_time = self._select_subject_block(
-                pool=pool,
-                budget=budget,
-                excluded=excluded,
-                weak_ids=weak_ids,
-                selected_ids=selected_ids,
-                concept_ladder=ladder,
-            )
-            selected.extend(subj_questions)
-            current_total_time += subj_time
+            fresh = [q for q in pool if q.get("id") not in excluded]
+            candidates = fresh if fresh else pool
+
+            # Prioritize weak questions for retry, then fresh unasked questions
+            weak_candidates = [q for q in candidates if q.get("id") in weak_ids]
+            normal_candidates = [q for q in candidates if q.get("id") not in weak_ids]
+            random.shuffle(weak_candidates)
+            random.shuffle(normal_candidates)
+            ordered_candidates = weak_candidates + normal_candidates
+
+            comp_time = 0
+            for q in ordered_candidates:
+                qid = q.get("id")
+                if qid in selected_ids:
+                    continue
+                q_time = self.get_question_time_limit(q)
+                if (comp_time + q_time) <= budget:
+                    qc = dict(q)
+                    qc["time_limit_seconds"] = q_time
+                    qc["competency"] = competency
+                    selected.append(qc)
+                    selected_ids.add(qid)
+                    comp_time += q_time
+
+            current_total_time += comp_time
 
         selected, current_total_time = self._top_up_remaining_seconds(
             tech_pool=hm_pool,
@@ -484,6 +542,10 @@ class AssessmentEngine:
             current_total_time=current_total_time,
             target_seconds=target_seconds,
         )
+
+        for q in selected:
+            if not q.get("competency"):
+                q["competency"] = self.normalize_hiring_manager_competency(q)
 
         current_total_time = sum(q.get("time_limit_seconds") or self.get_question_time_limit(q) for q in selected)
         while current_total_time > target_seconds and selected:
