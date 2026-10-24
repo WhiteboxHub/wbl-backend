@@ -1342,6 +1342,9 @@ async def _process_multi_question_audio_batch(
 
     logger.info("[FinalSubmit] Multi-question technical assessment detected for %s. Running Audio Engine per question...", assessment_id)
 
+    # Bound concurrency to max 5 simultaneous audio jobs to prevent CPU/provider saturation
+    sem = asyncio.Semaphore(int(os.getenv("AIPREP_MAX_CONCURRENT_AUDIO_JOBS", "5")))
+
     async def _analyze_single_question(q: Dict[str, Any]) -> None:
         if not isinstance(q, dict):
             return
@@ -1350,11 +1353,12 @@ async def _process_multi_question_audio_batch(
 
         if os.path.exists(q_audio_file):
             try:
-                q_audio_res = await asyncio.to_thread(
-                    AudioMetricsEngine.process_audio_file,
-                    q_audio_file,
-                    **audio_kwargs,
-                )
+                async with sem:
+                    q_audio_res = await asyncio.to_thread(
+                        AudioMetricsEngine.process_audio_file,
+                        q_audio_file,
+                        **audio_kwargs,
+                    )
                 spk = q_audio_res.get("spoken_content") or {}
                 tele = q_audio_res.get("audio_telemetry") or {}
 
