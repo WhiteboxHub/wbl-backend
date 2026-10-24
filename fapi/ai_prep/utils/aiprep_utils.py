@@ -1443,19 +1443,23 @@ async def _process_multi_question_audio_batch(
 
     logger.info("[FinalSubmit] Multi-question technical assessment detected for %s. Running Audio Engine per question...", assessment_id)
 
-    for q in all_questions:
+    # Bound concurrency to max 5 simultaneous audio jobs to prevent CPU/provider saturation
+    sem = asyncio.Semaphore(int(os.getenv("AIPREP_MAX_CONCURRENT_AUDIO_JOBS", "5")))
+
+    async def _analyze_single_question(q: Dict[str, Any]) -> None:
         if not isinstance(q, dict):
-            continue
+            return
         qid = q.get("id")
         q_audio_file = os.path.join(base_dir, "questions", str(qid), "audio.webm")
 
         if os.path.exists(q_audio_file):
             try:
-                q_audio_res = await asyncio.to_thread(
-                    AudioMetricsEngine.process_audio_file,
-                    q_audio_file,
-                    **audio_kwargs,
-                )
+                async with sem:
+                    q_audio_res = await asyncio.to_thread(
+                        AudioMetricsEngine.process_audio_file,
+                        q_audio_file,
+                        **audio_kwargs,
+                    )
                 spk = q_audio_res.get("spoken_content") or {}
                 tele = q_audio_res.get("audio_telemetry") or {}
 
@@ -1478,6 +1482,9 @@ async def _process_multi_question_audio_batch(
             q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
             q["processing_status"] = "COMPLETED"
 
+    # Analyze all questions concurrently in parallel
+    await asyncio.gather(*[_analyze_single_question(q) for q in all_questions if isinstance(q, dict)])
+    
     # Consolidate structured Q&A blocks for LLM Context
     qa_blocks = []
     for idx, q in enumerate(all_questions, start=1):
