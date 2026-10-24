@@ -269,6 +269,164 @@ class TestJDIntroOutputValidation(unittest.TestCase):
             f"Expected error for jd_validation.status, got: {res['validation_errors']}"
         )
 
+    def test_zero_requirements_covered_calibrates_to_weak(self):
+        """Rule 5: When 0 requirements are covered, readiness must auto-calibrate to WEAK and alignment to WEAK_FIT."""
+        payload = get_sample_valid_jd_payload()
+        # Set all requirements to NOT_MENTIONED
+        for req in payload["jd_intro_evaluation"]["requirement_coverage"]:
+            req["status"] = "NOT_MENTIONED"
+        payload["jd_intro_evaluation"]["overall_assessment"]["readiness"] = "NEEDS_POLISH"
+        payload["jd_intro_evaluation"]["overall_assessment"]["jd_alignment"] = "PARTIAL_FIT"
+
+        res = self.validator.validate_and_parse(json.dumps(payload))
+        self.assertTrue(res["is_valid"])
+        oa = res["parsed_report"]["jd_intro_evaluation"]["overall_assessment"]
+        self.assertEqual(oa["readiness"], "WEAK")
+        self.assertEqual(oa["jd_alignment"], "WEAK_FIT")
+
+    def test_70_30_weighting_and_banding_calibration(self):
+        """Rule 6: 70% must-have + 30% nice-to-have weighting strictly calibrates readiness across brackets:
+        >80% -> STRONG, 50-80% -> GOOD, 35-50% -> NEEDS_POLISH, <35% -> WEAK."""
+        payload = get_sample_valid_jd_payload()
+
+        # Create 10 must-haves: 6 COVERED, 4 NOT_MENTIONED -> 60% must-have
+        # Create 2 nice-to-haves: 1 COVERED, 1 NOT_MENTIONED -> 50% nice-to-have
+        # Total weighted = (60 * 0.70) + (50 * 0.30) = 42 + 15 = 57% -> GOOD band
+        reqs = []
+        for i in range(6):
+            reqs.append({
+                "requirement": f"Must Req {i}",
+                "importance": "MUST_HAVE",
+                "status": "COVERED",
+                "in_resume": True,
+            })
+        for i in range(4):
+            reqs.append({
+                "requirement": f"Missing Must Req {i}",
+                "importance": "MUST_HAVE",
+                "status": "NOT_MENTIONED",
+                "in_resume": True,
+            })
+        reqs.append({
+            "requirement": "Nice Req 1",
+            "importance": "NICE_TO_HAVE",
+            "status": "COVERED",
+            "in_resume": True,
+        })
+        reqs.append({
+            "requirement": "Nice Req 2",
+            "importance": "NICE_TO_HAVE",
+            "status": "NOT_MENTIONED",
+            "in_resume": True,
+        })
+        payload["jd_intro_evaluation"]["requirement_coverage"] = reqs
+        payload["jd_intro_evaluation"]["overall_assessment"]["readiness"] = "STRONG"  # Over-inflated
+        payload["jd_intro_evaluation"]["overall_assessment"]["jd_alignment"] = "STRONG_FIT"
+
+        res = self.validator.validate_and_parse(json.dumps(payload))
+        self.assertTrue(res["is_valid"])
+        oa = res["parsed_report"]["jd_intro_evaluation"]["overall_assessment"]
+        self.assertEqual(oa["readiness"], "GOOD")
+        self.assertEqual(oa["jd_alignment"], "GOOD_FIT")
+        self.assertIn("skill_breakdown", oa)
+        self.assertEqual(oa["skill_breakdown"]["must_have_coverage_pct"], 60.0)
+        self.assertEqual(oa["skill_breakdown"]["total_weighted_pct"], 57.0)
+
+    def test_resume_verification_unverified_claims_handling(self):
+        """Rule 7: Spoken requirements not present in resume (in_resume: false) are flagged and discounted."""
+        payload = get_sample_valid_jd_payload()
+        # Candidate speaks about 2 must-haves, but neither is on their resume!
+        payload["jd_intro_evaluation"]["requirement_coverage"] = [
+            {
+                "requirement": "Kubernetes Orchestration",
+                "importance": "MUST_HAVE",
+                "status": "COVERED",
+                "in_resume": False,
+            },
+            {
+                "requirement": "Microservices in Go",
+                "importance": "MUST_HAVE",
+                "status": "COVERED",
+                "in_resume": False,
+            },
+        ]
+        # With in_resume=False, each gets 0.5 points -> 50% must-have -> GOOD (cannot be STRONG)
+        payload["jd_intro_evaluation"]["overall_assessment"]["readiness"] = "STRONG"
+
+        res = self.validator.validate_and_parse(json.dumps(payload))
+        self.assertTrue(res["is_valid"])
+        oa = res["parsed_report"]["jd_intro_evaluation"]["overall_assessment"]
+        self.assertEqual(oa["readiness"], "GOOD")
+        sb = oa.get("skill_breakdown", {})
+        self.assertEqual(len(sb.get("unverified_spoken_claims", [])), 2)
+        self.assertIn("Kubernetes Orchestration", sb["unverified_spoken_claims"])
+
+    def test_resume_only_skills_earn_zero_credit_unless_spoken(self):
+        """Rule 8: Skills present on resume (in_resume: True) award ZERO credit unless verbally spoken in transcript."""
+        payload = get_sample_valid_jd_payload()
+        # Candidate has 5 requirements on their resume (in_resume: True), but only speaks 1 in their introduction!
+        payload["jd_intro_evaluation"]["requirement_coverage"] = [
+            {
+                "requirement": "Python FastAPI",
+                "importance": "MUST_HAVE",
+                "status": "COVERED",
+                "in_resume": True,
+                "evidence": "I build APIs in FastAPI daily.",
+            },
+            {
+                "requirement": "Distributed Kafka",
+                "importance": "MUST_HAVE",
+                "status": "NOT_MENTIONED",
+                "in_resume": True,
+                "evidence": None,
+            },
+            {
+                "requirement": "PostgreSQL Optimization",
+                "importance": "MUST_HAVE",
+                "status": "NOT_MENTIONED",
+                "in_resume": True,
+                "evidence": None,
+            },
+            {
+                "requirement": "Docker & K8s",
+                "importance": "MUST_HAVE",
+                "status": "NOT_MENTIONED",
+                "in_resume": True,
+                "evidence": None,
+            },
+            {
+                "requirement": "AWS Cloud Deployments",
+                "importance": "MUST_HAVE",
+                "status": "NOT_MENTIONED",
+                "in_resume": True,
+                "evidence": None,
+            },
+        ]
+        # Only 1 out of 5 covered -> 20% coverage -> MUST calibrate to WEAK / WEAK_FIT
+        payload["jd_intro_evaluation"]["overall_assessment"]["readiness"] = "STRONG"
+        payload["jd_intro_evaluation"]["overall_assessment"]["jd_alignment"] = "STRONG_FIT"
+
+        res = self.validator.validate_and_parse(json.dumps(payload))
+        self.assertTrue(res["is_valid"])
+        oa = res["parsed_report"]["jd_intro_evaluation"]["overall_assessment"]
+        self.assertEqual(oa["readiness"], "WEAK")
+        self.assertEqual(oa["jd_alignment"], "WEAK_FIT")
+        self.assertEqual(oa["skill_breakdown"]["must_have_coverage_pct"], 20.0)
+
+        # Also test guard against false positive where LLM hallucinated COVERED with evidence stating not spoken
+        payload["jd_intro_evaluation"]["requirement_coverage"][1] = {
+            "requirement": "Distributed Kafka",
+            "importance": "MUST_HAVE",
+            "status": "COVERED",
+            "in_resume": True,
+            "evidence": "Not mentioned in transcript, but candidate has 3 years on resume.",
+        }
+        res2 = self.validator.validate_and_parse(json.dumps(payload))
+        self.assertTrue(res2["is_valid"])
+        cov_item = res2["parsed_report"]["jd_intro_evaluation"]["requirement_coverage"][1]
+        self.assertEqual(cov_item["status"], "NOT_MENTIONED")
+        self.assertEqual(cov_item["verification_status"], "NOT_MENTIONED")
+
 
 class TestJDIntroReportSerialization(unittest.TestCase):
     """Verifies build_assessment_eval_dict response serialization."""
