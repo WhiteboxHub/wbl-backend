@@ -669,28 +669,43 @@ class AssessmentEngine:
                 gt = q.get("ground_truth")
                 if isinstance(gt, dict):
                     criteria = gt.get("criteria") or gt.get("key_points") or []
-                    keywords = gt.get("technical_keywords") or []
-                    critical = gt.get("critical_failures") or []
-                    lines.append(f"  ground_truth:")
-                    if criteria:
-                        lines.append(f"    criteria:")
-                        for idx_c, c in enumerate(criteria, start=1):
+                    keywords = list(gt.get("technical_keywords") or [])
+                    # Extract inline technical keywords from acceptable_evidence if top-level list is empty
+                    if not keywords and criteria:
+                        for c in criteria:
                             if isinstance(c, dict):
-                                kp_id = c.get("id")
-                                point = c.get("description") or c.get("point") or ""
+                                ev_candidates = c.get("acceptable_evidence") or []
+                                if isinstance(ev_candidates, str):
+                                    ev_candidates = [ev_candidates]
+                                for ev in ev_candidates:
+                                    if "Technical keywords:" in ev:
+                                        kw_part = ev.split("Technical keywords:", 1)[1].strip().rstrip(".")
+                                        for kw in kw_part.split(","):
+                                            cleaned = kw.strip().strip("`")
+                                            if cleaned and cleaned not in keywords:
+                                                keywords.append(cleaned)
+                    critical = gt.get("critical_failures") or []
+                    lines.append("  ground_truth:")
+                    if criteria:
+                        lines.append("    criteria:")
+                        for c in criteria:
+                            if isinstance(c, dict):
+                                kp_id = c.get("id") or ""
+                                desc = c.get("description") or c.get("point") or ""
                                 req = " (required)" if c.get("required") else ""
                                 id_prefix = f"[{kp_id}] " if kp_id else ""
-                                lines.append(f"      - {id_prefix}{point}{req}")
-                                evidence = c.get("acceptable_evidence")
-                                if evidence:
-                                    ev_text = "; ".join(evidence) if isinstance(evidence, list) else str(evidence)
-                                    lines.append(f"        acceptable_evidence: {ev_text}")
+                                lines.append(f"      - {id_prefix}{desc}{req}")
+                                ev_candidates = c.get("acceptable_evidence") or []
+                                if isinstance(ev_candidates, str):
+                                    ev_candidates = [ev_candidates]
+                                for ev in ev_candidates:
+                                    lines.append(f"        * evidence: {ev}")
                             else:
-                                lines.append(f"      - {c}")
+                                lines.append(f"      - {str(c)}")
                     if keywords:
                         lines.append(f"    technical_keywords: {', '.join(keywords)}")
                     if critical:
-                        lines.append(f"    critical_failures:")
+                        lines.append("    critical_failures:")
                         for cf in critical:
                             lines.append(f"      - {cf}")
                 elif gt:

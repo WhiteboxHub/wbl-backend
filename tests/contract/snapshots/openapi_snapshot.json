@@ -25150,7 +25150,6 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Upload Assessment Chunk",
-        "description": "Uploads sequential WebM media chunk for candidate assessment.",
         "operationId": "upload_candidate_assessment_chunk_api_aiprep_candidates__candidate_id__assessments__assessment_id__media_chunk_post",
         "security": [
           {
@@ -25188,6 +25187,40 @@
                 }
               ],
               "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Question ID for per-question chunks",
+              "title": "Question Id"
+            },
+            "description": "Question ID for per-question chunks"
+          },
+          {
+            "name": "X-Question-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Question-Id"
             }
           }
         ],
@@ -27647,7 +27680,6 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Media: Upload Assessment Chunk",
-        "description": "Uploads sequential WebM media chunk for candidate assessment.",
         "operationId": "upload_candidate_assessment_chunk_aiprep_candidates__candidate_id__assessments__assessment_id__media_chunk_post",
         "security": [
           {
@@ -27685,6 +27717,40 @@
                 }
               ],
               "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Question ID for per-question chunks",
+              "title": "Question Id"
+            },
+            "description": "Question ID for per-question chunks"
+          },
+          {
+            "name": "X-Question-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Question-Id"
             }
           }
         ],
@@ -32999,6 +33065,21 @@
       },
       "CandidateAssessmentUnifiedData": {
         "properties": {
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
           "transcript": {
             "additionalProperties": true,
             "type": "object",
@@ -33104,6 +33185,32 @@
               }
             ],
             "title": "Consent"
+          },
+          "job_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Description"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
           },
           "data": {
             "$ref": "#/components/schemas/CandidateAssessmentUnifiedData"

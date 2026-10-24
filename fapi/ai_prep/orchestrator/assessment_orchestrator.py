@@ -18,6 +18,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from contextlib import contextmanager
@@ -26,6 +27,7 @@ from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from sqlalchemy.orm import Session
 from fapi.db.database import SessionLocal
 from fapi.ai_prep import crud
+from fapi.ai_prep.models import AiPrepQuestionORM
 from fapi.ai_prep.core.assessment_engine import AssessmentEngine
 from fapi.ai_prep.orchestrator import llm_orchestrator
 try:
@@ -42,6 +44,51 @@ except ImportError:
 from fapi.ai_prep.utils.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
+
+
+
+def enrich_questions_with_ground_truth(
+    db: Session, questions: Optional[List[Dict[str, Any]]]
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Enriches questions with ground_truth from question bank if missing.
+    Coerces IDs to integer for robust dictionary mapping and parses JSON strings.
+    """
+    if not questions or not any(not q.get("ground_truth") for q in questions):
+        return questions
+
+    id_map: Dict[int, Dict[str, Any]] = {}
+    for q in questions:
+        raw_id = q.get("id") or q.get("question_id")
+        if raw_id is not None:
+            try:
+                int_id = int(raw_id)
+                id_map[int_id] = q
+            except (ValueError, TypeError):
+                pass
+
+    if not id_map:
+        return questions
+
+    try:
+        db_qs = (
+            db.query(AiPrepQuestionORM.id, AiPrepQuestionORM.ground_truth)
+            .filter(AiPrepQuestionORM.id.in_(list(id_map.keys())))
+            .all()
+        )
+        for q_id, gt_val in db_qs:
+            q = id_map.get(q_id)
+            if q and not q.get("ground_truth"):
+                if isinstance(gt_val, str):
+                    try:
+                        gt_val = json.loads(gt_val)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                q["ground_truth"] = gt_val
+    except Exception as e:
+        logger.warning("[enrich_questions_with_ground_truth] Could not enrich questions: %s", e)
+
+    return questions
 
 
 @contextmanager
@@ -105,6 +152,10 @@ def _load_assessment_context(
         transcript = data_record.transcript or {}
         audio_telemetry = data_record.audio_telemetry or {}
         video_telemetry = data_record.video_telemetry or {}
+
+    # Enrich questions with ground_truth from question bank if missing (strictly for HIRING_MANAGER)
+    if assessment_type == "HIRING_MANAGER" and questions:
+        questions = enrich_questions_with_ground_truth(db, questions)
 
     # Set is_video_mode flag on video_telemetry for engines
     if "is_video_mode" not in video_telemetry:
@@ -266,6 +317,7 @@ async def run_full_evaluation(
             video_telemetry=video_telemetry,
             resume_json=ctx["resume_json"],
             questions=ctx.get("questions") or [],
+            job_description=ctx.get("job_description"), 
             llm_config=llm_config,
         )
 
@@ -395,7 +447,7 @@ def get_questions_for_assessment(
             eval_body = transcript_eval.get(f"{normalized_type.lower()}_evaluation")
             if isinstance(eval_body, dict):
                 overall = eval_body.get("overall_assessment", {}) if isinstance(eval_body.get("overall_assessment"), dict) else {}
-                previous_readiness = overall.get("readiness") or eval_body.get("readiness")
+                previous_readiness = overall.get("readiness") or overall.get("rating") or eval_body.get("readiness")
 
             logger.info(
                 "[AssessmentOrchestrator] Candidate %d previous %s readiness: '%s'",

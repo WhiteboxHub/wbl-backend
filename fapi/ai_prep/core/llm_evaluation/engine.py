@@ -43,6 +43,7 @@ class EvalEngine:
         resume_json: Optional[Any] = None,
         timeline_json: Optional[Any] = None,
         qa_context: Optional[str] = None,
+        jd_text: Optional[str] = None,
     ) -> Dict[str, str]:
         """
         Builds and formats the system and user prompts for the specified assessment.
@@ -101,6 +102,21 @@ class EvalEngine:
         else:
             timeline_formatted = "No candidate timeline/resume background provided."
 
+        # Resolve Job Description for JD-targeted assessments
+        resolved_jd = jd_text
+        if resolved_jd is None and ground_truth:
+            resolved_jd = (
+                ground_truth.get("job_description")
+                or ground_truth.get("jd_text")
+                or ground_truth.get("jd")
+            )
+        clean_jd = (
+            resolved_jd.strip()
+            if isinstance(resolved_jd, str) and resolved_jd.strip()
+            else "[No Job Description provided by candidate]"
+        )
+
+
         # 2. Dispatch to assessment-specific prompt module.
         # Module naming convention: {template_module_name}_prompt.py (e.g. intro_prompt.py).
         # Falls back to intro_prompt when a type-specific module has not been built yet.
@@ -122,12 +138,21 @@ class EvalEngine:
             _system_prompt = intro_prompt.SYSTEM_PROMPT
             _user_prompt_template = intro_prompt.USER_PROMPT_TEMPLATE
             using_fallback = True
-
-        user_prompt = _user_prompt_template.format(
-            resume_json=timeline_formatted,
-            transcript_text=transcript_text.strip() or "[No spoken transcript captured]",
-            qa_context=qa_context or transcript_text.strip() or "[No Q&A context available]",
-        )
+        format_kwargs = {
+            "resume_json": timeline_formatted,
+            "transcript_text": transcript_text.strip() or "[No spoken transcript captured]",
+            "qa_context": qa_context or transcript_text.strip() or "[No Q&A context available]",
+            "jd_text": clean_jd,
+        }
+        try:
+            user_prompt = _user_prompt_template.format(**format_kwargs)
+        except KeyError:
+            # Safe fallback if another template does not have all placeholder keys
+            user_prompt = _user_prompt_template.format(
+                resume_json=timeline_formatted,
+                transcript_text=transcript_text.strip() or "[No spoken transcript captured]",
+                qa_context=qa_context or transcript_text.strip() or "[No Q&A context available]",
+            )
 
         # Prepend a role-specific header for non-intro types (including fallback cases)
         # so the LLM evaluates the correct interview context.
@@ -247,7 +272,7 @@ class EvalEngine:
             "audio_evaluation": {
                 "summary": {
                     "overall_readiness": "INSUFFICIENT_DATA",
-                    "confidence_in_reading": "LOW",
+                    "confidence_in_reading": "INSUFFICIENT_DATA",
                     "confidence_rationale": confidence_rationale,
                     "executive_summary": executive_summary,
                     "primary_vocal_strength": None,
