@@ -70,6 +70,9 @@ class AssessmentEngine:
     # Total technical interview budget (15 minutes in seconds)
     TECHNICAL_TOTAL_TIME_BUDGET: int = 900
 
+    # Total hiring manager interview budget (15 minutes in seconds)
+    HIRING_MANAGER_TOTAL_TIME_BUDGET: int = 900
+
     # Subject quota allocation (60% AI, 20% SE, 20% DevOps)
     TECHNICAL_SUBJECT_BUDGETS: Dict[str, int] = {
         "AI Engineering": 540,         # 60% of 900s
@@ -151,6 +154,19 @@ class AssessmentEngine:
                 previously_asked_ids=excluded_ids,
                 weak_question_ids=set(kwargs.get("weak_question_ids") or []),
                 concept_ladder=dict(kwargs.get("concept_ladder") or {}),
+            )
+            return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
+
+        # HIRING_MANAGER: 15-minute time-budgeted algorithm
+        if normalized_type == "HIRING_MANAGER":
+            selected = self.select_hiring_manager_timed_questions(
+                available_questions=available_questions,
+                target_seconds=self.HIRING_MANAGER_TOTAL_TIME_BUDGET,
+                limit=limit,
+                previously_asked_ids=excluded_ids,
+                weak_question_ids=set(kwargs.get("weak_question_ids") or []),
+                concept_ladder=dict(kwargs.get("concept_ladder") or {}),
+                previous_readiness=previous_readiness,
             )
             return [self._sanitize_question_for_candidate(q) for q in selected] if sanitize else selected
 
@@ -355,6 +371,94 @@ class AssessmentEngine:
 
         logger.info(
             "[AssessmentEngine] Technical timed selection complete: %d questions, %d seconds (budget: %d)",
+            len(selected), current_total_time, target_seconds,
+        )
+        return self.sequence_fatigue_aware_order(selected)
+
+    def select_hiring_manager_timed_questions(
+        self,
+        available_questions: List[Dict[str, Any]],
+        target_seconds: int = 900,
+        limit: Optional[int] = None,
+        previously_asked_ids: Optional[Set[int]] = None,
+        weak_question_ids: Optional[Set[int]] = None,
+        concept_ladder: Optional[Dict[str, str]] = None,
+        previous_readiness: Optional[str] = None,
+        **kwargs: Any,
+    ) -> List[Dict[str, Any]]:
+        """
+        15-Minute Hiring Manager Question Selection Algorithm (mirrors Technical):
+        - Rotates across subjects/competencies adhering to quotas.
+        - Prioritizes adaptive difficulty when explicit limit is passed.
+        - Fills slack time up to target_seconds (900s).
+        - Enforces global target_seconds cap.
+        - Returns fatigue-aware cognitive pacing order.
+        """
+        import random
+        from collections import defaultdict
+
+        excluded = set(previously_asked_ids or [])
+        weak_ids = set(weak_question_ids or [])
+        ladder = dict(concept_ladder or {})
+
+        hm_pool = [
+            q for q in available_questions
+            if str(q.get("category", "")).upper() == "HIRING_MANAGER"
+            and q.get("is_active", True)
+        ]
+        if not hm_pool:
+            logger.warning("[AssessmentEngine] No active HIRING_MANAGER questions found.")
+            return []
+
+        # If explicit limit is passed (e.g. In unit tests), honor adaptive difficulty directly
+        if limit is not None and limit > 0:
+            matched = [q for q in hm_pool if q.get("id") not in excluded] or hm_pool
+            selected = self._select_adaptive_questions(matched, previous_readiness, limit)
+            for q in selected:
+                q["time_limit_seconds"] = self.get_question_time_limit(q)
+            return selected[:limit]
+
+        subject_pools: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for q in hm_pool:
+            subj = self.normalize_subject(q.get("subject"))
+            subject_pools[subj].append(q)
+
+        selected: List[Dict[str, Any]] = []
+        selected_ids: Set[int] = set()
+        current_total_time: int = 0
+
+        for subject, budget in self.TECHNICAL_SUBJECT_BUDGETS.items():
+            pool = subject_pools.get(subject, [])
+            if not pool:
+                continue
+
+            subj_questions, subj_time = self._select_subject_block(
+                pool=pool,
+                budget=budget,
+                excluded=excluded,
+                weak_ids=weak_ids,
+                selected_ids=selected_ids,
+                concept_ladder=ladder,
+            )
+            selected.extend(subj_questions)
+            current_total_time += subj_time
+
+        selected, current_total_time = self._top_up_remaining_seconds(
+            tech_pool=hm_pool,
+            selected=selected,
+            selected_ids=selected_ids,
+            excluded=excluded,
+            current_total_time=current_total_time,
+            target_seconds=target_seconds,
+        )
+
+        current_total_time = sum(q.get("time_limit_seconds") or self.get_question_time_limit(q) for q in selected)
+        while current_total_time > target_seconds and selected:
+            removed = selected.pop()
+            current_total_time -= (removed.get("time_limit_seconds") or self.get_question_time_limit(removed))
+
+        logger.info(
+            "[AssessmentEngine] Hiring Manager timed selection complete: %d questions, %d seconds (budget: %d)",
             len(selected), current_total_time, target_seconds,
         )
         return self.sequence_fatigue_aware_order(selected)
