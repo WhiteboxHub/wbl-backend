@@ -908,10 +908,12 @@ def build_assessment_eval_dict(
     oa = intro_eval.get("overall_assessment") or {}
     if not isinstance(oa, dict):
         oa = {}
-    readiness = oa.get("readiness")
-    summary = oa.get("summary")
-    strongest_signal = oa.get("strongest_signal")
-    biggest_gap = oa.get("biggest_gap")
+    top_strengths = oa.get("top_strengths") or []
+    priority_improvements = oa.get("priority_improvements") or []
+    readiness = oa.get("readiness") or oa.get("rating")
+    summary = oa.get("summary") or oa.get("executive_summary")
+    strongest_signal = oa.get("strongest_signal") or (top_strengths[0] if top_strengths else None)
+    biggest_gap = oa.get("biggest_gap") or (priority_improvements[0] if priority_improvements else None)
 
     # Extract audio_eval
     a_eval = audio_eval or {}
