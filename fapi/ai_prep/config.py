@@ -6,7 +6,7 @@ Zero hardcoded values. All configuration values are loaded via environment varia
 import os
 from typing import Optional, Any
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class AiPrepSettings(BaseSettings):
@@ -98,10 +98,34 @@ class AiPrepSettings(BaseSettings):
         default_factory=lambda: os.getenv("AIPREP_YOUTUBE_CATEGORY_ID", os.getenv("YOUTUBE_CATEGORY_ID", "27")),
         description="YouTube video category ID (default: 27 for Education)",
     )
-    AIPREP_YOUTUBE_DEFAULT_TAGS: list = Field(
-        default_factory=lambda: [t.strip() for t in os.getenv("AIPREP_YOUTUBE_DEFAULT_TAGS", "AIPrep,WhiteboxLearning,PracticeAssessment").split(",") if t.strip()],
+    YOUTUBE_DEFAULT_TAGS: Any = Field(
+        default_factory=lambda: [t.strip() for t in os.getenv("AIPREP_YOUTUBE_DEFAULT_TAGS", os.getenv("YOUTUBE_DEFAULT_TAGS", "AIPrep,WhiteboxLearning,PracticeAssessment")).split(",") if t.strip()],
         description="Default metadata tags for uploaded assessment videos",
     )
+
+    @field_validator("YOUTUBE_DEFAULT_TAGS", mode="before")
+    @classmethod
+    def parse_youtube_default_tags(cls, v: Any) -> list:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return ["AIPrep", "WhiteboxLearning", "PracticeAssessment"]
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(t).strip() for t in parsed if str(t).strip()]
+                except Exception:
+                    pass
+            return [t.strip() for t in v.split(",") if t.strip()]
+        if isinstance(v, (list, tuple, set)):
+            return [str(t).strip() for t in v if str(t).strip()]
+        return ["AIPrep", "WhiteboxLearning", "PracticeAssessment"]
+
+    @property
+    def AIPREP_YOUTUBE_DEFAULT_TAGS(self) -> list:
+        return self.YOUTUBE_DEFAULT_TAGS
     YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES: int = Field(
         default_factory=lambda: int(os.getenv("AIPREP_YOUTUBE_UPLOAD_CHUNK_SIZE_BYTES", str(5 * 1024 * 1024))),
         description="Chunk size in bytes for resumable YouTube media upload",
@@ -143,13 +167,13 @@ class AiPrepSettings(BaseSettings):
         if not self.LOCAL_STORAGE_DIR:
             self.LOCAL_STORAGE_DIR = self.LOCAL_STORAGE_BASE_PATH
         if not self.YOUTUBE_API_KEY:
-            self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+            self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not self.YOUTUBE_CLIENT_ID:
-            self.YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID")
+            self.YOUTUBE_CLIENT_ID = os.getenv("YOUTUBE_CLIENT_ID") or os.getenv("GOOGLE_CLIENT_ID")
         if not self.YOUTUBE_CLIENT_SECRET:
-            self.YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET")
+            self.YOUTUBE_CLIENT_SECRET = os.getenv("YOUTUBE_CLIENT_SECRET") or os.getenv("GOOGLE_CLIENT_SECRET")
         if not self.YOUTUBE_REFRESH_TOKEN:
-            self.YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN")
+            self.YOUTUBE_REFRESH_TOKEN = os.getenv("YOUTUBE_REFRESH_TOKEN") or os.getenv("GOOGLE_REFRESH_TOKEN")
         if not self.YOUTUBE_CREDENTIALS_FILE:
             self.YOUTUBE_CREDENTIALS_FILE = os.getenv("YOUTUBE_CREDENTIALS_FILE")
 

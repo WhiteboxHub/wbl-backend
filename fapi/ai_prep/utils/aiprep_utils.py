@@ -26,7 +26,7 @@ except ImportError:
     sentry_sdk = _DummySentry()
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from fastapi import HTTPException, status, BackgroundTasks, UploadFile, Request
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func, or_
 
@@ -897,20 +897,28 @@ def build_assessment_eval_dict(
             "jd_intro_evaluation": jd_intro_eval,
         }
 
-    # ── Intro Assessment path (unchanged) ─────────────────────────────────
-    intro_eval = t_eval.get("intro_evaluation") if isinstance(t_eval, dict) else {}
-    if not intro_eval and isinstance(t_eval, dict) and "overall_assessment" in t_eval:
-        intro_eval = t_eval
+    # ── Intro / Recruiter Assessment path ─────────────────────────────────
+    intro_eval = {}
+    if isinstance(t_eval, dict):
+        intro_eval = (
+            t_eval.get("recruiter_evaluation")
+            or t_eval.get("intro_evaluation")
+            or {}
+        )
+        if not intro_eval and "overall_assessment" in t_eval:
+            intro_eval = t_eval
     if not isinstance(intro_eval, dict):
         intro_eval = {}
 
     oa = intro_eval.get("overall_assessment") or {}
     if not isinstance(oa, dict):
         oa = {}
-    readiness = oa.get("readiness")
-    summary = oa.get("summary")
-    strongest_signal = oa.get("strongest_signal")
-    biggest_gap = oa.get("biggest_gap")
+    top_strengths = oa.get("top_strengths") or []
+    priority_improvements = oa.get("priority_improvements") or []
+    readiness = oa.get("readiness") or oa.get("rating")
+    summary = oa.get("summary") or oa.get("executive_summary")
+    strongest_signal = oa.get("strongest_signal") or (top_strengths[0] if top_strengths else None)
+    biggest_gap = oa.get("biggest_gap") or (priority_improvements[0] if priority_improvements else None)
 
     # Extract audio_eval
     a_eval = audio_eval or {}
@@ -937,7 +945,7 @@ def build_assessment_eval_dict(
         "fluency": audio_factors.get("fluency") or {},
         "filler_word_usage": audio_factors.get("filler_word_usage") or {},
         "pace": audio_factors.get("pace") or {},
-        "introduction_quality": intro_eval.get("introduction_quality") or {},
+        "introduction_quality": intro_eval.get("introduction_quality") or intro_eval.get("communication_and_delivery") or {},
     }
 
     # Build general block
@@ -953,7 +961,7 @@ def build_assessment_eval_dict(
         ai_eng_dict["summary"] = ai_eng_dict.get("observation")
 
     general_dict = {
-        "career_story": intro_eval.get("career_story") or {},
+        "career_story": intro_eval.get("career_story") or intro_eval.get("background_and_experience") or {},
         "current_project_clarity": intro_eval.get("current_project") or {},
         "ai_engineering_depth": fa.get("ai_engineering_depth"),
         "software_engineering_depth": fa.get("software_engineering_depth") or fa.get("production_engineering_depth"),
@@ -972,6 +980,12 @@ def build_assessment_eval_dict(
         "strongest_points": intro_eval.get("strongest_points") or [],
         "critical_gaps": intro_eval.get("critical_gaps") or [],
         "priority_improvements": intro_eval.get("priority_improvements") or [],
+        # Recruiter-specific dimensions
+        "background_and_experience": intro_eval.get("background_and_experience") or intro_eval.get("career_story") or {},
+        "role_motivation": intro_eval.get("role_motivation") or {},
+        "communication_and_delivery": intro_eval.get("communication_and_delivery") or {},
+        "logistics_and_expectations": intro_eval.get("logistics_and_expectations") or {},
+        "question_evaluations": intro_eval.get("question_evaluations") or [],
     }
 
     # Pass through any other extra fields from intro_eval
@@ -979,7 +993,7 @@ def build_assessment_eval_dict(
         if k not in ("overall_assessment", "introduction_quality", "final_assessment", "agentic_ai", "current_project") and k not in general_dict:
             general_dict[k] = v
 
-    return {
+    result = {
         "insufficient_content": False, 
         "readiness": readiness,
         "summary": summary,
@@ -990,6 +1004,10 @@ def build_assessment_eval_dict(
         "video": video_inner,
         "general": general_dict,
     }
+    if t_eval.get("recruiter_evaluation") or "background_and_experience" in intro_eval:
+        result["recruiter_evaluation"] = intro_eval
+        result["question_evaluations"] = intro_eval.get("question_evaluations") or []
+    return result
 
 
 def candidate_get_assessment_detail_logic(
@@ -1057,7 +1075,76 @@ def candidate_get_assessment_detail_logic(
                 "segments": [],
             }
         raw_audio_tel = assessment.data_record.audio_telemetry
-        audio_telemetry = raw_audio_tel if isinstance(raw_audio_tel, dict) else {}
+        audio_telemetry = dict(raw_audio_tel) if isinstance(raw_audio_tel, dict) else {}
+
+        # Ensure duration, pace, and fillers are populated if missing in older assessment records
+        if not audio_telemetry.get("speaking_duration_sec") and not audio_telemetry.get("speaking_duration_seconds"):
+            dur = None
+            if assessment.completed_at and assessment.started_at:
+                dur = (assessment.completed_at - assessment.started_at).total_seconds()
+            elif transcript_data.get("segments"):
+                segs = transcript_data["segments"]
+                if segs and isinstance(segs[-1], dict) and segs[-1].get("end"):
+                    dur = float(segs[-1]["end"])
+            if dur and dur > 0:
+                audio_telemetry["speaking_duration_sec"] = round(dur, 1)
+                audio_telemetry["speaking_duration_seconds"] = round(dur, 1)
+
+        dur_sec = float(audio_telemetry.get("speaking_duration_sec") or audio_telemetry.get("speaking_duration_seconds") or 0.0)
+        word_count = transcript_data.get("word_count", 0)
+        if not audio_telemetry.get("words_per_minute") and not audio_telemetry.get("wpm"):
+            if dur_sec > 0 and word_count > 0:
+                audio_telemetry["words_per_minute"] = int(round((word_count / dur_sec) * 60.0))
+
+        filler_val = audio_telemetry.get("filler_word_count")
+        if filler_val is None:
+            filler_val = audio_telemetry.get("filler_count")
+        
+        if filler_val is None or int(filler_val or 0) <= 0:
+            full_txt = transcript_data.get("full_text", "")
+            if not full_txt and assessment.data_record and assessment.data_record.questions:
+                q_texts = [
+                    str(q.get("transcript") or q.get("transcript_text") or "")
+                    for q in assessment.data_record.questions
+                    if isinstance(q, dict)
+                ]
+                full_txt = " ".join([t for t in q_texts if t])
+
+            if full_txt:
+                import re
+                filler_patterns = {
+                    "um": r"\bum+\b",
+                    "uh": r"\buh+\b",
+                    "er": r"\ber+\b",
+                    "ah": r"\bah+\b",
+                    "like": r"\blike\b",
+                    "you know": r"\byou know\b",
+                    "actually": r"\bactually\b",
+                    "basically": r"\bbasically\b",
+                    "sort of": r"\bsort of\b",
+                    "kind of": r"\bkind of\b",
+                    "i mean": r"\bi mean\b",
+                    "right": r"\bright\b",
+                }
+                detected_fillers = 0
+                detected_breakdown = {}
+                for f, pattern in filler_patterns.items():
+                    matches = re.findall(pattern, full_txt.lower())
+                    if matches:
+                        count = len(matches)
+                        if f in ["like", "actually", "basically", "right"]:
+                            if count > 1:
+                                excess = count - 1
+                                detected_fillers += excess
+                                detected_breakdown[f] = excess
+                        else:
+                            detected_fillers += count
+                            detected_breakdown[f] = count
+                if detected_fillers > 0:
+                    audio_telemetry["filler_word_count"] = detected_fillers
+                    audio_telemetry["filler_count"] = detected_fillers
+                    audio_telemetry["filler_words"] = list(detected_breakdown.keys())
+                    audio_telemetry["filler_breakdown"] = detected_breakdown
         raw_video_tel = assessment.data_record.video_telemetry
         video_telemetry = raw_video_tel if isinstance(raw_video_tel, dict) else {}
     else:
@@ -1097,6 +1184,14 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
+    # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
+    if assessment.youtube_url and "UF8uR6Z6KLc" in assessment.youtube_url:
+        assessment.youtube_url = None
+        try:
+            crud.update_assessment_media_url(db, assessment.id, None)
+        except Exception:
+            pass
+
     # Extract questions list from assessment data record
     questions_list = []
     ALLOWED_QUESTION_FIELDS = {
@@ -1123,6 +1218,7 @@ def candidate_get_assessment_detail_logic(
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
         job_description=assessment.job_description,
+        questions=assessment.data_record.questions if assessment.data_record and assessment.data_record.questions else [],
         data=CandidateAssessmentUnifiedData(
             questions=questions_list, 
             transcript=transcript_data,
@@ -1691,9 +1787,12 @@ async def candidate_submit_assessment_logic(
 
                     # 3. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+                    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+                        full_text = payload.transcript_text.strip()
+                        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment_id_int, len(full_text))
                     words = [w for w in full_text.split() if w]
                     word_count = spoken_content.get("word_count")
-                    if word_count is None:
+                    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
                         word_count = len(words)
 
                     raw_segments = spoken_content.get("segments") or []
@@ -1725,15 +1824,39 @@ async def candidate_submit_assessment_logic(
                         "segments": segments,
                     }
                     speaking_duration_sec = float(raw_audio_telemetry.get("speaking_duration_seconds") or raw_audio_telemetry.get("speaking_duration_sec") or 0.0)
+                    if speaking_duration_sec <= 0.0 and duration_s > 0.0:
+                        speaking_duration_sec = duration_s
+
                     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
                     silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
-                    total_audio_duration_s = float(raw_audio_telemetry.get("total_audio_duration_seconds") or payload.client_duration_seconds or 0.0)
+                    total_audio_duration_s = float(raw_audio_telemetry.get("total_audio_duration_seconds") or payload.client_duration_seconds or duration_s or 0.0)
+
+                    wpm_val = int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0)
+                    if wpm_val <= 0 and word_count > 0 and speaking_duration_sec > 0.0:
+                        wpm_val = int(round((word_count / speaking_duration_sec) * 60.0))
+
+                    filler_count_val = int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0)
+                    if filler_count_val <= 0 and full_text:
+                        import re
+                        fillers = ["um", "uh", "like", "you know", "actually", "basically", "sort of", "kind of", "i mean"]
+                        detected_fillers = 0
+                        for f in fillers:
+                            matches = re.findall(r"\b" + re.escape(f) + r"\b", full_text.lower())
+                            if matches:
+                                if f in ["like", "actually", "basically"]:
+                                    if len(matches) > 2:
+                                        detected_fillers += len(matches) - 2
+                                else:
+                                    detected_fillers += len(matches)
+                        filler_count_val = detected_fillers
+
                     formatted_audio_telemetry = {
                         "speaking_duration_sec": round(speaking_duration_sec, 1),
+                        "speaking_duration_seconds": round(speaking_duration_sec, 1),
                         "total_audio_duration_seconds": round(total_audio_duration_s, 1),
                         "duration_seconds": round(duration_s, 1),
-                        "words_per_minute": int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0),
-                        "filler_word_count": int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0),
+                        "words_per_minute": wpm_val,
+                        "filler_word_count": filler_count_val,
                         "silence_percentage": silence_pct,
                     }
                     formatted_video_telemetry = dict(payload.video_telemetry or {})
@@ -1750,18 +1873,29 @@ async def candidate_submit_assessment_logic(
                     with SessionLocal() as worker_db:
                         existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
                         existing_questions = (multi_q_questions if (multi_q_res and multi_q_questions) else (existing_data.questions if (existing_data and existing_data.questions) else []))
+                        
+                        # Prune questions to only those the candidate actually attempted/completed
+                        if payload and payload.attempted_question_ids:
+                            attempted_id_set = {
+                                int(qid) if str(qid).isdigit() else qid
+                                for qid in payload.attempted_question_ids
+                            }
+                            attempted_id_set.update({str(qid) for qid in payload.attempted_question_ids})
+                            persisted_questions = [
+                                q for q in existing_questions
+                                if q.get("id") in attempted_id_set or q.get("question_id") in attempted_id_set
+                            ] or existing_questions
+                        else:
+                            persisted_questions = existing_questions
 
-                        persisted_questions = existing_questions
-                        if (not plan["save_transcript"] or not plan["save_recording"]) and existing_questions:
-                            persisted_questions = copy.deepcopy(existing_questions)
+                        if (not plan["save_transcript"] or not plan["save_recording"]) and persisted_questions:
+                            persisted_questions = copy.deepcopy(persisted_questions)
                             for q in persisted_questions:
                                 if isinstance(q, dict):
                                     if not plan["save_transcript"]:
                                         q["transcript"] = ""
                                     if not plan["save_recording"]:
                                         q["audio_telemetry"] = {}
-
-
 
                         crud.save_assessment_data(
                             db=worker_db,
@@ -1918,9 +2052,12 @@ async def candidate_submit_assessment_logic(
 
     # 3. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
+    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+        full_text = payload.transcript_text.strip()
+        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment.id, len(full_text))
     words = [w for w in full_text.split() if w]
     word_count = spoken_content.get("word_count")
-    if word_count is None:
+    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
         word_count = len(words)
 
     raw_segments = spoken_content.get("segments") or []
@@ -1959,14 +2096,52 @@ async def candidate_submit_assessment_logic(
         or raw_audio_telemetry.get("filler_word_count")
         or 0
     )
+    filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
+    filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else list(raw_audio_telemetry.get("filler_words", []))
+
+    if filler_count <= 0 and full_text:
+        import re
+        filler_patterns = {
+            "um": r"\bum+\b",
+            "uh": r"\buh+\b",
+            "er": r"\ber+\b",
+            "ah": r"\bah+\b",
+            "like": r"\blike\b",
+            "you know": r"\byou know\b",
+            "actually": r"\bactually\b",
+            "basically": r"\bbasically\b",
+            "sort of": r"\bsort of\b",
+            "kind of": r"\bkind of\b",
+            "i mean": r"\bi mean\b",
+            "right": r"\bright\b",
+        }
+        detected_fillers = 0
+        detected_breakdown = {}
+        for f, pattern in filler_patterns.items():
+            matches = re.findall(pattern, full_text.lower())
+            if matches:
+                count = len(matches)
+                if f in ["like", "actually", "basically", "right"]:
+                    if count > 1:
+                        excess = count - 1
+                        detected_fillers += excess
+                        detected_breakdown[f] = excess
+                else:
+                    detected_fillers += count
+                    detected_breakdown[f] = count
+        if detected_fillers > 0:
+            filler_count = detected_fillers
+            if not filler_words:
+                filler_words = list(detected_breakdown.keys())
+            if not filler_breakdown:
+                filler_breakdown = detected_breakdown
+
     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
     silence_pct = (
         float(raw_audio_telemetry["silence_percentage"])
         if "silence_percentage" in raw_audio_telemetry
         else round(silence_ratio * 100, 1)
     )
-    filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
-    filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else raw_audio_telemetry.get("filler_words", [])
 
     total_audio_duration = float(
         raw_audio_telemetry.get("total_audio_duration_seconds")
@@ -2210,6 +2385,7 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
 
             audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
             video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
+            raw_questions = (data_rec.questions if data_rec else []) or []
             resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
             llm_config = crud.get_candidate_llm_config(db, candidate_id)
@@ -2227,11 +2403,10 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
                 else str(assessment.assessment_type)
             )
 
-            # Load and enrich questions with ground_truth strictly for HIRING_MANAGER evaluation
-            questions = None
-            if assessment_type_str == "HIRING_MANAGER":
-                raw_qs = (data_rec.questions if data_rec else []) or []
-                questions = assessment_orchestrator.enrich_questions_with_ground_truth(db, raw_qs)
+            # Enrich questions with ground_truth from the question bank for ALL assessment types.
+            # Previously this was limited to HIRING_MANAGER only, which stripped ground truth
+            # context from RECRUITER, TECHNICAL, and INTRO evaluations, causing empty LLM prompts.
+            questions = assessment_orchestrator.enrich_questions_with_ground_truth(db, raw_questions)
 
             eval_result = await llm_orchestrator.run_evaluation(
                 candidate_id=candidate_id,
@@ -2770,16 +2945,12 @@ async def _process_youtube_upload_and_cleanup(
                 media_path,
             )
         except Exception as conv_err:
-            logger.warning("Audio-to-video conversion failed for assessment %s: %s", assessment_id, conv_err)
-            return None
+            logger.warning("Audio-to-video conversion skipped/failed for assessment %s: %s. Using direct audio container for YouTube routing.", assessment_id, conv_err)
+            youtube_upload_file = media_path
 
     # 2. Upload to YouTube
     try:
-        from fapi.ai_prep.clients.youtube_client import youtube_client, YouTubeQuotaExceededError
-        if not youtube_client.has_live_credentials() and os.getenv("ENV") != "test":
-            logger.info("No live YouTube credentials configured. Retaining server storage for local media playback for assessment %s", assessment_id)
-            return None
-
+        from fapi.ai_prep.clients.youtube_client import youtube_client
         upload_res = await asyncio.to_thread(
             youtube_client.upload_unlisted_media,
             assessment_id=assessment_id,
@@ -2789,7 +2960,8 @@ async def _process_youtube_upload_and_cleanup(
         youtube_url = upload_res.get("youtube_url")
         logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
     except Exception as yt_err:
-        logger.warning("YouTube upload error for assessment %s: %s", assessment_id, yt_err)
+        logger.warning("YouTube live upload note for assessment %s: %s", assessment_id, yt_err)
+        youtube_url = None
 
     # 3. Persist youtube_url to DB
     youtube_persisted = False
@@ -2798,7 +2970,7 @@ async def _process_youtube_upload_and_cleanup(
             with SessionLocal() as db:
                 crud.update_assessment_media_url(db, assessment_id, youtube_url)
                 youtube_persisted = True
-                logger.info("Updated youtube_url in DB for assessment %s", assessment_id)
+                logger.info("Updated youtube_url in DB for assessment %s: %s", assessment_id, youtube_url)
         except Exception as db_url_err:
             logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
@@ -3192,10 +3364,7 @@ def get_assessment_audio_logic(
 
     if not target_file or not os.path.exists(target_file):
         if getattr(assessment, "youtube_url", None):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Local audio recording purged following YouTube ingestion. Media stream available at: {assessment.youtube_url}",
-            )
+            return RedirectResponse(url=assessment.youtube_url)
         raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
 
     mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
@@ -3205,6 +3374,7 @@ def get_assessment_audio_logic(
         media_type=mime_type,
         filename=os.path.basename(target_file),
         content_disposition_type="inline",
+        headers={"Accept-Ranges": "bytes"},
     )
 
 
@@ -3596,6 +3766,79 @@ def delete_question_from_bank_logic(db: Session, question_id: int) -> Dict[str, 
     q_row.updated_at = datetime.utcnow()
     db.commit()
     return {"message": "Question deactivated successfully", "id": question_id}
+
+def get_assessment_playback_logic(db: Session, assessment_id: int):
+    """Streams the recorded audio/video media file for an assessment."""
+    assessment = db.query(AiPrepAssessmentORM).filter(AiPrepAssessmentORM.id == assessment_id).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    if assessment.youtube_url and assessment.youtube_url.strip():
+        return RedirectResponse(url=assessment.youtube_url)
+
+    candidate_id = assessment.candidate_id
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    
+    # Fallback search if directory not in candidate_id path
+    if not os.path.exists(assessment_dir) and os.path.exists(STORAGE_BASE_DIR):
+        for entry in os.listdir(STORAGE_BASE_DIR):
+            cand_path = os.path.join(STORAGE_BASE_DIR, entry)
+            if os.path.isdir(cand_path):
+                potential_dir = os.path.join(cand_path, str(assessment_id))
+                if os.path.exists(potential_dir):
+                    assessment_dir = potential_dir
+                    break
+
+    is_audio = getattr(assessment, "media_type", "VIDEO") == "AUDIO"
+    media_mime = "audio/webm" if is_audio else "video/webm"
+    range_headers = {"Accept-Ranges": "bytes"}
+
+    # 1. Assembled media
+    assembled = os.path.join(assessment_dir, "assembled.webm")
+    if os.path.exists(assembled) and os.path.getsize(assembled) > 0:
+        return FileResponse(assembled, media_type=media_mime, headers=range_headers)
+
+    # 2. Extracted audio wav
+    audio_wav = os.path.join(assessment_dir, "audio.wav")
+    if os.path.exists(audio_wav) and os.path.getsize(audio_wav) > 0:
+        return FileResponse(audio_wav, media_type="audio/wav", headers=range_headers)
+
+    # 3. Recorded chunks
+    chunk_dir = os.path.join(assessment_dir, "chunks")
+    if os.path.exists(chunk_dir):
+        chunks = sorted([f for f in os.listdir(chunk_dir) if f.startswith("chunk_") and f.endswith(".webm")])
+        if len(chunks) == 1:
+            chunk_file = os.path.join(chunk_dir, chunks[0])
+            if os.path.exists(chunk_file) and os.path.getsize(chunk_file) > 0:
+                return FileResponse(chunk_file, media_type=media_mime, headers=range_headers)
+        elif len(chunks) > 1:
+            # Concatenate chunks into assembled.webm if not already done
+            if not os.path.exists(assembled) or os.path.getsize(assembled) == 0:
+                try:
+                    with open(assembled, "wb") as out_f:
+                        for c in chunks:
+                            c_path = os.path.join(chunk_dir, c)
+                            with open(c_path, "rb") as in_f:
+                                out_f.write(in_f.read())
+                except Exception as e:
+                    logger.warning(f"Failed to concatenate chunks for assessment {assessment_id}: {e}")
+            if os.path.exists(assembled) and os.path.getsize(assembled) > 0:
+                return FileResponse(assembled, media_type=media_mime, headers=range_headers)
+            # Fallback to first chunk
+            chunk_file = os.path.join(chunk_dir, chunks[0])
+            if os.path.exists(chunk_file) and os.path.getsize(chunk_file) > 0:
+                return FileResponse(chunk_file, media_type=media_mime, headers=range_headers)
+
+    # 4. Raw media
+    if os.path.exists(assessment_dir):
+        raw_files = [f for f in os.listdir(assessment_dir) if f.startswith("raw_") or f.endswith(".webm") or f.endswith(".mp3")]
+        if raw_files:
+            raw_path = os.path.join(assessment_dir, raw_files[0])
+            if os.path.exists(raw_path) and os.path.getsize(raw_path) > 0:
+                return FileResponse(raw_path, media_type=media_mime, headers=range_headers)
+
+    raise HTTPException(status_code=404, detail="No recorded media available for this assessment")
+
 
 async def run_audio_engine_benchmark(
     audio_path: str,
