@@ -151,6 +151,7 @@ class AiPrepAssessmentReportORM(Base):
             if val is None:
                 inner = (
                     self.transcript_evaluation.get("scores_breakdown_json")
+                    or self.transcript_evaluation.get("recruiter_evaluation")
                     or self.transcript_evaluation.get("intro_evaluation")
                 )
                 if isinstance(inner, dict):

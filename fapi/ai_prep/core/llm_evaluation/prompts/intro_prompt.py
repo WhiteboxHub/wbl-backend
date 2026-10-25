@@ -24,43 +24,36 @@ The RESUME is ONLY a reference for understanding:
 - General career context
 
 IMPORTANT:
-The resume is NOT grounding for technical evaluation.
-Do NOT perform resume claim verification.
-Do NOT classify spoken technical statements as verified, unverified, exaggerated,
-or unsupported merely because they do not appear in the resume.
+The candidate's RESUME JSON serves two specific functions:
+1. Career timeline reference: Understanding roles, companies, progression, and transitions.
+2. Technology cross-check list: Cross-referencing technical skills listed on the resume
+   against what the candidate actually communicated in the transcript.
 
 ===============================================================================
 CORE EVALUATION RULES
 ===============================================================================
 
-1. TRANSCRIPT IS THE EVALUATION SOURCE
+1. TRANSCRIPT IS THE PRIMARY EVALUATION SOURCE WITH RESUME CROSS-CHECK
 
-Evaluate only what the candidate actually communicated in the transcript.
+Evaluate what the candidate actually communicated in the transcript against the resume:
+- A technology mentioned in BOTH the transcript and the resume is COVERED and recorded
+  in technologies_mentioned.
+- A technology listed in the resume but NOT spoken in the transcript is NOT_MENTIONED,
+  and must be kept out of every covered list.
+- If a candidate speaks a technology not listed on their resume, evaluate it fairly based
+  on what was spoken in the transcript without penalizing them merely because it was omitted
+  from the resume document.
+- The match must be on the spoken term or a clear speech-to-text correction.
+- No parent or child concept credit: No unspoken terms or inferred parent category concepts
+  can be added to covered fields. Each concept must be distinctly discussed or explicitly named.
 
-Do NOT give credit for a technology, architecture, responsibility, or skill simply
-because it appears in the resume.
+2. RESUME AS CAREER REFERENCE AND TECHNOLOGY CROSS-CHECK LIST
 
-A concept counts as covered only when it is explicitly stated or directly discussed
-in the transcript.
-
-Do NOT award abstract parent or category concepts (such as "context_engineering",
-"reasoning_strategy", or "design_patterns") just because an adjacent sub-tool or 
-technique was mentioned. Each concept must be distinctly discussed or explicitly named.
-
-2. RESUME IS CAREER REFERENCE ONLY
-
-Use the resume to understand the candidate's:
-- Timeline
-- Roles
-- Companies
-- Career progression
-- Major domain changes
-- Career transitions
-- Current or most recent position
-
-Use it primarily to determine whether the spoken career narrative makes sense.
-
-Do NOT use the resume as technical claim grounding.
+Use the resume for:
+- Timeline, roles, companies, career progression, major transitions, and current position.
+- Cross-checking technologies mentioned in the transcript versus the candidate's background.
+- Do NOT give credit for a technology, architecture, database, or skill simply because it
+  appears in the resume if it was NOT spoken in the transcript.
 
 3. DO NOT EXPECT EVERY TECHNOLOGY
 
@@ -211,15 +204,19 @@ Specific concept boundaries:
 - "design_patterns": Do NOT mark covered merely because a specific architecture (e.g. supervisor) is named. Record specific patterns in "patterns_mentioned", but mark "design_patterns" COVERED only if the candidate discusses architectural design pattern principles.
 
 WORKED CLASSIFICATION EXAMPLE:
-Candidate Transcript: "...an orchestrator agent following the supervisor pattern, a router for intent detection, and prompt templating..."
-Ground-Truth Concept Mapping:
-- "agentic_ai": "COVERED"
-- "orchestration": "COVERED" (explained orchestrator & intent router)
-- "prompt_engineering": "COVERED" (named prompt templating)
+Candidate Spoken Transcript: "...built an orchestrator following the supervisor pattern with an intent router in LangGraph, and wrote prompt templates..."
+Candidate Resume Technologies: ["LangGraph", "Docker", "PostgreSQL", "Redis", "Kubernetes"]
+
+Ground-Truth Concept & Technology Mapping:
+- "LangGraph": spoken in transcript AND on resume -> COVERED in "technologies_mentioned" & "frameworks_mentioned"; "agent_framework": "COVERED"
+- "orchestration": spoken and directly explained -> "COVERED"
 - "patterns_mentioned": ["supervisor pattern"]
-- "design_patterns": "NOT_MENTIONED" (naming a supervisor pattern is an architecture instance, NOT an explanation of design pattern principles. Do NOT mark design_patterns COVERED)
-- "context_engineering": "NOT_MENTIONED" (prompt templating is prompt_engineering, not context_engineering)
-- "reasoning_strategy": "NOT_MENTIONED" (intent routing is orchestration, not a structured multi-step reasoning strategy like ReAct or CoT)
+- "prompt_engineering": candidate said "prompt templates", did not explain prompt engineering principles -> "PARTIAL"
+- "agentic_ai": candidate did NOT explicitly say "agentic AI" -> "NOT_MENTIONED" (no unspoken umbrella credit)
+- "design_patterns": candidate did NOT explicitly discuss design pattern principles -> "NOT_MENTIONED" (naming supervisor pattern is an architecture pattern, NOT design pattern principles)
+- "context_engineering": candidate did NOT discuss context engineering -> "NOT_MENTIONED" (prompt templating is prompt_engineering, not context_engineering)
+- "reasoning_strategy": candidate did NOT discuss reasoning strategy -> "NOT_MENTIONED" (intent routing is orchestration, not structured reasoning like ReAct or CoT)
+- "Docker", "PostgreSQL", "Redis", "Kubernetes": on resume but NOT spoken in transcript -> "NOT_MENTIONED", excluded from all covered lists!
 
 -------------------------------------------------------------------------------
 B. RAG & RETRIEVAL
@@ -433,15 +430,24 @@ STATUS CONSISTENCY INVARIANTS (MANDATORY):
 2. If overall_status is PARTIAL or COVERED, at least one concept MUST be marked PARTIAL or COVERED, or relevant technologies must be listed in technologies_mentioned.
 3. SPEECH-TO-TEXT (STT) TOLERANCE: Transcripts often have acoustic artifacts (e.g., "lion's charm" -> LangChain, "pipe cone" -> Pinecone, "fast api" -> FastAPI). Evaluate the true technical intended meaning rather than failing solely due to phonetic transcription flaws.
 4. DO NOT INFER UNMENTIONED ARCHITECTURES: If a candidate mentions "full-stack" or "backend", do NOT infer "microservices" unless the candidate explicitly named microservices.
-5. CROSS-FIELD CONSISTENCY: If a specific technology or framework is recorded in technologies_mentioned or frameworks_mentioned (e.g., LangGraph -> agent_framework, Milvus -> vector_database, Docker -> docker), its corresponding direct technical concept in the "concepts" dict CANNOT be marked NOT_MENTIONED. It MUST be marked at least PARTIAL or COVERED. Note: specific patterns in patterns_mentioned (e.g. supervisor pattern) map directly to orchestration or multi_agent, NOT to design_patterns or reasoning_strategy.
-6. RESUME IS NOT TECHNICAL GROUNDING: If a technology, database, tool, or skill appears in the candidate's RESUME JSON but was NOT spoken by the candidate in the SPOKEN TRANSCRIPT, you MUST mark it NOT_MENTIONED in the concepts dictionary and do NOT include it in technologies_mentioned. Credit ONLY concepts explicitly communicated in the spoken response.
+5. RESUME-TO-TRANSCRIPT TECHNOLOGY MATCHING (MANDATORY):
+   - Tech in transcript AND resume -> COVERED, and listed in technologies_mentioned.
+   - Tech in resume but NOT in transcript -> NOT_MENTIONED, and kept out of every list.
+   - Tech in transcript but NOT in resume -> Evaluate fairly based on spoken evidence (COVERED if explained, PARTIAL if only named). Do not penalize merely because a spoken technology was omitted from the resume.
+   - The match must be on the spoken term or a clear speech-to-text correction. No unspoken terms or inferred technologies may be added to covered fields.
+6. NO PARENT/CHILD OR UMBRELLA INFERENCE (MANDATORY):
+   - Never credit parent or category concepts from sub-techniques without explicit discussion of the parent concept itself:
+     * Mentioning a specific pattern (e.g., "supervisor pattern") belongs in "patterns_mentioned", and marks "orchestration" or "multi_agent" COVERED or PARTIAL, but does NOT mark "design_patterns" or "reasoning_strategy" as COVERED.
+     * Mentioning "prompt templating" belongs to "prompt_engineering", NOT "context_engineering".
+     * Mentioning "memory" belongs to "memory_management", NOT "context_engineering".
+     * Mentioning a "router" or intent classification belongs to "orchestration", NOT "reasoning_strategy".
+     If the parent concept itself was not explicitly stated or explained by the candidate, it MUST be marked NOT_MENTIONED.
+   - Cross-Field Consistency: If a specific technology or framework is recorded in technologies_mentioned or frameworks_mentioned, its corresponding direct technical concept in the "concepts" dict cannot be NOT_MENTIONED (it must be PARTIAL or COVERED). But no unmentioned parent concepts may be credited.
 7. NO HALLUCINATION OF UNMENTIONED ARCHITECTURES: Do not infer unmentioned concepts from general descriptions (e.g., do not infer "caching" simply because a system is interactive or personalizes answers, and do not infer "microservices" simply because a candidate worked on backend). Only mark a concept COVERED or PARTIAL if the candidate specifically named or explained that concept.
-8. NO UMBRELLA INFERENCE FOR AGENTIC CONCEPTS: Do not credit parent categories from sub-techniques:
-   - Mentioning a specific pattern (e.g., "supervisor pattern") belongs in "patterns_mentioned", and marks "orchestration" or "multi_agent" COVERED or PARTIAL, but does NOT mark "design_patterns" or "reasoning_strategy" as COVERED.
-   - Mentioning "prompt templating" belongs to "prompt_engineering", NOT "context_engineering".
-   - Mentioning "memory" belongs to "memory_management", NOT "context_engineering".
-   - Mentioning a "router" or intent classification belongs to "orchestration", NOT "reasoning_strategy".
-   If the parent concept itself was not explicitly stated or explained by the candidate, it MUST be marked NOT_MENTIONED.
+8. MANDATORY NON-EMPTY OBSERVATION (ALL SECTIONS): The "observation" field MUST NEVER be left as an empty string (""), null, or a one-word placeholder for ANY section.
+   - For COVERED / PARTIAL sections: Address the candidate with "You". Name what was done well, name what was missing or shallow, and end with a concrete 1-sentence example of what they could say next time to strengthen the area.
+   - For NOT_MENTIONED sections: Address the candidate with "You". Clearly state the domain was not covered in the introduction and briefly explain why omitting it weakens an AI Engineer profile. Do NOT simply write "not mentioned" — explain the impact and what they should add.
+   - Every observation must be 2-4 sentences minimum. Begin with its area label (e.g. "Software engineering:", "Cloud:", "CI/CD:", "RAG:", "Agentic AI:") so observations stay identifiable when combined on one card.
 
 IMPORTANT:
 
@@ -494,21 +500,27 @@ Failure to explain:
 
 can be a critical gap.
 
-Every "observation" field is shown directly to the candidate on a summary
-card, so it must say how the candidate performed in that area, not just
-describe what they said. Write 2-3 sentences addressed to "You":
+TWO DISTINCT FIELDS PER TECHNICAL SECTION — READ CAREFULLY:
 
-- State plainly whether the area was done well, averagely, or poorly.
-- Name what worked, if anything.
-- Name what was weak or missing and why it matters in an AI Engineer
-  introduction. Never write only "not mentioned".
-- When the area was average or weak, end with a short example of what the
-  candidate could say instead.
+"observation" (string) — Evaluative summary paragraph shown as the card description.
+  - 2-3 sentences addressed to "You".
+  - State plainly whether the area was strong, average, or weak.
+  - Name what worked and what was missing, with why it matters.
+  - When average or weak, end with a 1-sentence example of what they could say next time.
+  - Begin with the area label (e.g. "Software engineering:", "Cloud:", "CI/CD:", "RAG:", "Agentic AI:").
+
+"key_observations" (array of strings) — Distinct actionable bullet points shown BELOW the description.
+  - 2-3 short bullets, each on a different specific point NOT already said in "observation".
+  - No repetition of the observation paragraph — each bullet must add new information.
+  - Each bullet must be concrete and actionable: name a specific concept, gap, or strength
+    with enough context that the candidate knows exactly what to improve or continue.
+  - Examples of good bullets:
+      "You explained the supervisor pattern clearly, but did not name LangGraph or CrewAI — mention the framework by name next time."
+      "Your RAG pipeline lacked chunking and reranking details — interviewers expect you to explain how you tuned retrieval quality."
+      "CI/CD was not mentioned at all — even one sentence on GitHub Actions or automated tests would significantly strengthen your profile."
 
 Judge each area on its own. Strong AI content does not excuse a weak
-software engineering, cloud, or CI/CD observation. Begin each observation
-with its area label (for example "Software engineering:", "Cloud:",
-"CI/CD:", "RAG:") because several observations are combined on one card.
+software engineering, cloud, or CI/CD observation.
 
 ===============================================================================
 OUTPUT RULE
@@ -592,6 +604,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
       "frameworks_mentioned": [],
       "patterns_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -617,6 +630,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
 
       "technologies_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -647,6 +661,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
 
       "technologies_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -670,6 +685,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
       "infrastructure_tools": [],
 
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -686,6 +702,7 @@ Generate "overall_assessment" LAST, deriving "readiness" from the concrete facts
 
       "tools_mentioned": [],
       "observation": "",
+      "key_observations": [],
       "evidence": []
     },
 
@@ -798,6 +815,15 @@ story. In that case, readiness must not be STRONG. If only one of the
 two is missing, the readiness can still be STRONG only when the other is
 clearly explained. When a production gap lowers the readiness, name it in
 "summary" or "biggest_gap".
+
+REMINDER ON TECHNOLOGY MATCHING & GROUNDING:
+- Compare transcript directly with resume:
+  * Tech in transcript AND resume -> COVERED in technologies_mentioned.
+  * Tech in resume but NOT in transcript -> NOT_MENTIONED, and excluded from covered lists.
+  * Tech in transcript but NOT in resume -> Evaluate fairly based on spoken explanation.
+- No parent or child concept credit: Never infer unmentioned parent concepts (such as
+  "context_engineering", "reasoning_strategy", or "design_patterns") without direct discussion.
+- No unspoken or inferred terms in covered fields.
 """
 
 
@@ -809,10 +835,10 @@ USER_PROMPT_TEMPLATE = """
 Evaluate this spoken AI Engineer interview introduction using the evaluation
 framework defined in the system prompt.
 
-SPOKEN TRANSCRIPT (PRIMARY EVALUATION SOURCE - EVALUATE ONLY WHAT WAS SPOKEN HERE):
+SPOKEN TRANSCRIPT (PRIMARY EVALUATION SOURCE - EVALUATE WHAT WAS SPOKEN HERE):
 {transcript_text}
 
-CAREER TIMELINE REFERENCE (CAREER CONTEXT ONLY - DO NOT USE AS TECHNICAL GROUNDING):
+CANDIDATE RESUME REFERENCE (CAREER TIMELINE & TECHNOLOGY CROSS-CHECK LIST):
 {resume_json}
 
 Return only the required JSON object.
