@@ -15,6 +15,55 @@ class AudioMetricsEngine:
     """Central orchestration engine for audio telemetry and speech analytics."""
 
     @classmethod
+    def compute_telemetry_only(
+        cls,
+        audio_path: str,
+        transcript_text: str,
+        word_timestamps: Optional[List[Dict[str, Any]]] = None,
+        stt_provider_name: str = "openai",
+        total_duration: Optional[float] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        # 1. Acoustic waveform analysis on pure audio file
+        acoustic_metrics = calculate_audio_metrics(audio_path)
+        actual_total_duration = acoustic_metrics.get("total_audio_duration_seconds", total_duration) or (total_duration or 0.0)
+
+        # 2. Transcript speech & timing metrics using provided transcript
+        transcript_metrics = calculate_transcript_metrics(
+            transcript_text=transcript_text,
+            word_timestamps=word_timestamps or [],
+            total_recording_duration=actual_total_duration,
+        )
+
+        # 3. Consolidate Audio Telemetry (All 9 metrics)
+        audio_telemetry = {
+            "avg_volume_db": acoustic_metrics["avg_volume_db"],
+            "mean_pitch_hz": acoustic_metrics["mean_pitch_hz"],
+            "silence_ratio": acoustic_metrics["silence_ratio"],
+            "background_noise_level": acoustic_metrics["background_noise_level"],
+            "clipping_detected": acoustic_metrics["clipping_detected"],
+            "filler_rate_per_min": transcript_metrics["filler_rate_per_min"],
+            "filler_count": transcript_metrics["filler_count"],
+            "filler_breakdown": transcript_metrics["filler_breakdown"],
+            "pause_count": transcript_metrics["pause_count"],
+            "wpm": transcript_metrics["wpm"],
+            "speaking_duration_seconds": transcript_metrics["speaking_duration_seconds"],
+            "total_audio_duration_seconds": actual_total_duration,
+            "stt_provider": stt_provider_name,
+        }
+
+        return {
+            "spoken_content": {
+                "transcript_text": transcript_text,
+                "stt_provider": stt_provider_name,
+            },
+            "audio_telemetry": audio_telemetry,
+        }
+
+    @classmethod
     def process_audio_file(
         cls,
         audio_path: str,
