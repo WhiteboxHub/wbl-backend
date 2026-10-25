@@ -841,7 +841,59 @@ def build_assessment_eval_dict(
     jd_intro_eval = t_eval.get("jd_intro_evaluation") if isinstance(t_eval, dict) else None
     if isinstance(jd_intro_eval, dict):
         oa = jd_intro_eval.get("overall_assessment") or {}
+        req_coverage = jd_intro_eval.get("requirement_coverage") or []
         readiness = oa.get("readiness")
+        # Enforce consistency based on 70/30 weighting and coverage
+        if isinstance(req_coverage, list) and req_coverage:
+            must_haves = [
+                r for r in req_coverage
+                if isinstance(r, dict) and str(r.get("importance", "")).upper() == "MUST_HAVE"
+            ]
+            nice_to_haves = [
+                r for r in req_coverage
+                if isinstance(r, dict) and str(r.get("importance", "")).upper() == "NICE_TO_HAVE"
+            ]
+
+            def calc_cov(items):
+                if not items:
+                    return 0.0
+                pts = 0.0
+                for it in items:
+                    s = it.get("status")
+                    ir = it.get("in_resume")
+                    # Resume alone earns ZERO credit; candidate MUST speak the skill to earn weight
+                    if s == "COVERED":
+                        pts += 1.0 if ir is not False else 0.5
+                    elif s == "PARTIAL":
+                        pts += 0.5
+                    # NOT_MENTIONED earns 0.0 points, regardless of in_resume being True
+                return (pts / len(items)) * 100.0
+
+            m_pct = calc_cov(must_haves) if must_haves else 0.0
+            n_pct = calc_cov(nice_to_haves) if nice_to_haves else 0.0
+            if must_haves and nice_to_haves:
+                tot_pct = (m_pct * 0.70) + (n_pct * 0.30)
+            elif must_haves:
+                tot_pct = m_pct
+            else:
+                tot_pct = calc_cov(req_coverage)
+
+            if tot_pct < 35.0:
+                target_readiness = "WEAK"
+                target_alignment = "WEAK_FIT"
+            elif tot_pct < 50.0:
+                target_readiness = "NEEDS_POLISH"
+                target_alignment = "PARTIAL_FIT"
+            elif tot_pct <= 80.0:
+                target_readiness = "GOOD"
+                target_alignment = "GOOD_FIT"
+            else:
+                target_readiness = "STRONG"
+                target_alignment = "STRONG_FIT"
+
+            readiness = target_readiness
+            oa["readiness"] = target_readiness
+            oa["jd_alignment"] = target_alignment
         summary = oa.get("summary")
         strongest_signal = oa.get("strongest_signal")
         biggest_gap = oa.get("biggest_gap")
@@ -885,6 +937,7 @@ def build_assessment_eval_dict(
             "suggested_opening": jd_intro_eval.get("suggested_opening") or {},
             "final_assessment": fa,
             "most_important_improvement": fa.get("most_important_improvement"),
+            "skill_breakdown": oa.get("skill_breakdown") or {},
         }
         return {
             "insufficient_content": False,
@@ -1186,6 +1239,19 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
+    # Check if a recorded media file exists in storage for direct playback
+    has_recording = False
+    recording_url = None
+    if assessment.candidate_id and assessment.id:
+        adir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id))
+        if os.path.exists(adir):
+            for fname in os.listdir(adir):
+                fpath = os.path.join(adir, fname)
+                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
+                    has_recording = True
+                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
+                    recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
+                    break
     # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
     if assessment.youtube_url and "UF8uR6Z6KLc" in assessment.youtube_url:
         assessment.youtube_url = None
@@ -1220,6 +1286,8 @@ def candidate_get_assessment_detail_logic(
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
         job_description=assessment.job_description,
+        has_recording=has_recording,
+        recording_url=recording_url,
         questions=assessment.data_record.questions if assessment.data_record and assessment.data_record.questions else [],
         data=CandidateAssessmentUnifiedData(
             questions=questions_list, 
@@ -2454,6 +2522,20 @@ async def candidate_submit_assessment_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
+    # Check if a recorded media file exists in storage for direct playback
+    has_recording = False
+    recording_url = None
+    if assessment.candidate_id and assessment.id:
+        adir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id))
+        if os.path.exists(adir):
+            for fname in os.listdir(adir):
+                fpath = os.path.join(adir, fname)
+                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
+                    has_recording = True
+                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
+                    recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
+                    break
+
     return CandidateAssessmentUnifiedResponse(
         id=assessment.id,
         assessment_uuid=str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
@@ -2466,6 +2548,8 @@ async def candidate_submit_assessment_logic(
         youtube_url=assessment.youtube_url,
         consent=assessment.consent,
         job_description=assessment.job_description,
+        has_recording=has_recording,
+        recording_url=recording_url,
         data=CandidateAssessmentUnifiedData(
             transcript=plan["transcript_to_persist"],
             audio_telemetry=plan["audio_telemetry_to_persist"],
