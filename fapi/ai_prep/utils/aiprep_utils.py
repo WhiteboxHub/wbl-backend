@@ -1419,7 +1419,7 @@ async def _process_multi_question_audio_batch(
     consent: Optional[Dict[str, Any]] = None,
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]]:
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment or (assessment.assessment_type or "").upper() != "TECHNICAL":
+    if not assessment or (assessment.assessment_type or "").upper() not in ("TECHNICAL", "HIRING_MANAGER"):
         return None
     """
     Checks if this assessment has per-question audio files on disk (Technical Assessment).
@@ -1470,8 +1470,9 @@ async def _process_multi_question_audio_batch(
                 q["processing_status"] = "COMPLETED"
             except Exception as proc_err:
                 logger.warning("Audio analysis failed for question %s: %s", qid, proc_err)
-                q["transcript"] = ""
-                q["word_count"] = 0
+                existing_q_transcript = q.get("transcript") or ""
+                q["transcript"] = existing_q_transcript
+                q["word_count"] = len(existing_q_transcript.split()) if existing_q_transcript else 0
                 q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
                 q["processing_status"] = "FAILED"
                 q["error"] = str(proc_err)
@@ -1490,7 +1491,7 @@ async def _process_multi_question_audio_batch(
     for idx, q in enumerate(all_questions, start=1):
         q_txt = q.get("question_text", f"Question {idx}")
         if q.get("processing_status") == "FAILED":
-            ans_txt = "[Audio processing failed for this question]"
+            ans_txt = q.get("transcript") or "[Audio processing failed for this question]"
         else:
             ans_txt = q.get("transcript") or "[No response or skipped by candidate]"
         qa_blocks.append(f"[Question {idx}: {q_txt}]\nCandidate Answer: {ans_txt}")
@@ -1794,12 +1795,17 @@ async def candidate_submit_assessment_logic(
 
                     # 3. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
-                    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+                    cand_words_only = spoken_content.get("word_count", 0) or 0
+                    if (
+                        not full_text
+                        or cand_words_only < 5
+                        or "[Audio processing failed for this question]" in full_text
+                    ) and payload and payload.transcript_text and len(payload.transcript_text.split()) >= 5:
                         full_text = payload.transcript_text.strip()
-                        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment_id_int, len(full_text))
+                        logger.info("Using richer client-provided transcript fallback for assessment %s (length=%d, words=%d)", assessment_id_int, len(full_text), len(full_text.split()))
                     words = [w for w in full_text.split() if w]
                     word_count = spoken_content.get("word_count")
-                    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
+                    if word_count is None or word_count < len(words) or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")) or "[Audio processing failed for this question]" in (spoken_content.get("full_text") or ""):
                         word_count = len(words)
 
                     raw_segments = spoken_content.get("segments") or []
@@ -1820,6 +1826,8 @@ async def candidate_submit_assessment_logic(
                         }]
 
                     duration_s = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds", 0.0) or 0.0)
+                    if duration_s < 20.0 and len(words) >= 10:
+                        duration_s = max(duration_s, float(payload.client_duration_seconds or 0.0), round(len(words) / 2.0, 1))
                     insufficient_content = evaluate_gatekeeper_flag(
                         word_count=word_count,
                         duration_seconds=duration_s,
@@ -2059,12 +2067,17 @@ async def candidate_submit_assessment_logic(
 
     # 3. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
-    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+    cand_words_only = spoken_content.get("word_count", 0) or 0
+    if (
+        not full_text
+        or cand_words_only < 5
+        or "[Audio processing failed for this question]" in full_text
+    ) and payload and payload.transcript_text and len(payload.transcript_text.split()) >= 5:
         full_text = payload.transcript_text.strip()
-        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment.id, len(full_text))
+        logger.info("Using richer client-provided transcript fallback for assessment %s (length=%d, words=%d)", assessment.id, len(full_text), len(full_text.split()))
     words = [w for w in full_text.split() if w]
     word_count = spoken_content.get("word_count")
-    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
+    if word_count is None or word_count < len(words) or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")) or "[Audio processing failed for this question]" in (spoken_content.get("full_text") or ""):
         word_count = len(words)
 
     raw_segments = spoken_content.get("segments") or []
