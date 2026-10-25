@@ -1397,6 +1397,56 @@ def _stitch_assessment_chunks(
     raise HTTPException(status_code=400, detail="No media chunks or recordings found to assemble for this assessment")
 
 
+def _stitch_question_chunks(
+    candidate_id: int,
+    assessment_id: int,
+    all_questions: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    """Stitches individual per-question audio.webm files into assembled.webm for YouTube upload and persistent playback."""
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    video_path = os.path.join(assessment_dir, "assembled.webm")
+    questions_dir = os.path.join(assessment_dir, "questions")
+
+    if not os.path.exists(questions_dir):
+        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            return video_path
+        return ""
+
+    chunk_files = []
+    if all_questions:
+        for q in all_questions:
+            if isinstance(q, dict) and q.get("id"):
+                q_file = os.path.join(questions_dir, str(q["id"]), "audio.webm")
+                if os.path.exists(q_file) and os.path.getsize(q_file) > 0:
+                    chunk_files.append(q_file)
+
+    if not chunk_files and os.path.exists(questions_dir):
+        try:
+            for qid_dir in sorted(os.listdir(questions_dir)):
+                q_file = os.path.join(questions_dir, qid_dir, "audio.webm")
+                if os.path.isfile(q_file) and os.path.getsize(q_file) > 0:
+                    chunk_files.append(q_file)
+        except Exception as scan_err:
+            logger.warning("Error scanning questions directory %s: %s", questions_dir, scan_err)
+
+    if not chunk_files:
+        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            return video_path
+        return ""
+
+    try:
+        os.makedirs(assessment_dir, exist_ok=True)
+        with open(video_path, "wb") as outfile:
+            for cf in chunk_files:
+                with open(cf, "rb") as infile:
+                    shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+        logger.info("[Stitch] Successfully assembled %d question chunks for assessment %s: %s (%d bytes)", len(chunk_files), assessment_id, video_path, os.path.getsize(video_path))
+        return video_path
+    except Exception as asm_err:
+        logger.error("Question chunk assembly failed for assessment %s: %s", assessment_id, asm_err)
+        return ""
+
+
 def resolve_storage_plan(
     consent: Optional[Dict[str, Any]],
     media_type: Optional[str],
@@ -1816,7 +1866,14 @@ async def candidate_submit_assessment_logic(
                         multi_q_questions: Optional[List[Dict[str, Any]]] = None
                         if multi_q_res:
                             spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
-                            target_media = ""
+                            target_media = await asyncio.to_thread(
+                                _stitch_question_chunks,
+                                candidate_id=resolved_cand_id,
+                                assessment_id=assessment_id_int,
+                                all_questions=multi_q_questions or [],
+                            )
+                            if target_media and os.path.exists(target_media):
+                                assessment_media_type = "AUDIO"
                         else:
                             # 1. Resolve media source: check for direct multipart audio upload first
                             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
@@ -2092,7 +2149,13 @@ async def candidate_submit_assessment_logic(
         multi_q_questions: Optional[List[Dict[str, Any]]] = None
         if multi_q_res:
             spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
-            target_media = ""
+            target_media = _stitch_question_chunks(
+                candidate_id=resolved_cand_id,
+                assessment_id=assessment.id,
+                all_questions=multi_q_questions or [],
+            )
+            if target_media and os.path.exists(target_media):
+                assessment.media_type = "AUDIO"
         else:
             # 1. Resolve media source: check for direct multipart audio upload first
             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
