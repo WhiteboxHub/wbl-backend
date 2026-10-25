@@ -292,11 +292,16 @@ def save_assessment_data(
 
     existing = db.query(AiPrepAssessmentDataORM).filter(AiPrepAssessmentDataORM.assessment_id == numeric_id).first()
     if existing:
-        existing.questions = questions
-        existing.transcript = transcript
-        existing.audio_telemetry = audio_telemetry
-        existing.video_telemetry = video_telemetry
+        from sqlalchemy.orm.attributes import flag_modified
+        existing.questions = [dict(q) for q in questions if isinstance(q,dict)] if questions else []
+        existing.transcript = dict(transcript) if transcript else {}
+        existing.audio_telemetry = dict(audio_telemetry) if audio_telemetry else {}
+        existing.video_telemetry = dict(video_telemetry) if video_telemetry else {}
         existing.updated_at = datetime.utcnow()
+        flag_modified(existing, "questions")
+        flag_modified(existing, "transcript")
+        flag_modified(existing, "audio_telemetry")
+        flag_modified(existing, "video_telemetry")
         db_obj = existing
     else:
         db_obj = AiPrepAssessmentDataORM(
@@ -389,6 +394,7 @@ def save_assessment_report(
         # Extract from nested evaluation objects if present (scores_breakdown_json, intro_evaluation, or top-level)
         inner_eval = (
             transcript_eval.get("scores_breakdown_json")
+            or transcript_eval.get("recruiter_evaluation")
             or transcript_eval.get("intro_evaluation")
             or transcript_eval
         )
@@ -474,10 +480,44 @@ def get_candidate_previously_asked_question_ids(
     assessment_type: str,
 ) -> List[int]:
     """
-    Fetches all question IDs previously asked to a candidate for completed assessments
-    of a specific round type in a single DB query, avoiding N+1 overhead.
+    Fetches all question IDs previously asked or attempted by a candidate for completed assessments
+    of a specific round type, checking evaluated reports and persisted question data.
     """
-    records = (
+    seen_ids: Set[Union[int, str]] = set()
+
+    # 1. Inspect evaluated reports (most direct record of questions actually evaluated/answered)
+    report_records = (
+        db.query(AiPrepAssessmentReportORM.transcript_evaluation)
+        .join(
+            AiPrepAssessmentORM,
+            AiPrepAssessmentReportORM.assessment_id == AiPrepAssessmentORM.id,
+        )
+        .filter(
+            AiPrepAssessmentORM.candidate_id == candidate_id,
+            AiPrepAssessmentORM.assessment_type == assessment_type.upper(),
+            AiPrepAssessmentORM.status == "COMPLETED",
+            AiPrepAssessmentReportORM.transcript_evaluation.isnot(None),
+        )
+        .all()
+    )
+
+    for (eval_dict,) in report_records:
+        if isinstance(eval_dict, dict):
+            q_evals = (
+                eval_dict.get("question_evaluations")
+                or (eval_dict.get("technical_evaluation") or {}).get("question_evaluations")
+                or (eval_dict.get("recruiter_evaluation") or {}).get("question_evaluations")
+                or []
+            )
+            if isinstance(q_evals, list):
+                for qe in q_evals:
+                    if isinstance(qe, dict):
+                        qid = qe.get("question_id") or qe.get("id")
+                        if qid is not None:
+                            seen_ids.add(int(qid) if str(qid).isdigit() else qid)
+
+    # 2. Inspect persisted assessment data questions (pruned to attempted questions)
+    data_records = (
         db.query(AiPrepAssessmentDataORM.questions)
         .join(
             AiPrepAssessmentORM,
@@ -492,20 +532,15 @@ def get_candidate_previously_asked_question_ids(
         .all()
     )
 
-    question_ids: List = []
-    for (q_list,) in records:
+    for (q_list,) in data_records:
         if isinstance(q_list, list):
             for q in q_list:
                 if isinstance(q, dict):
                     qid = q.get("question_id") or q.get("id")
                     if qid is not None:
-                        # Prefer int representation for DB IDs; fall back to
-                        # raw value (str/UUID) so non-numeric IDs are never
-                        # silently dropped from the exclusion set.
-                        question_ids.append(
-                            int(qid) if str(qid).isdigit() else qid
-                        )
-    return question_ids
+                        seen_ids.add(int(qid) if str(qid).isdigit() else qid)
+
+    return list(seen_ids)
 
 
 def get_candidate_technical_question_history(
