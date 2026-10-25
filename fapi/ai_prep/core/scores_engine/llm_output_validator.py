@@ -598,6 +598,139 @@ class ScoresEngine:
                         f"requirement_coverage[{idx}].status '{item_status}' must be one of: {', '.join(sorted(valid_statuses))}"
                     )
 
+            # 70% Must-Have + 30% Nice-To-Have Calculation & Calibration Guardrails
+            if req_coverage and isinstance(overall, dict):
+                must_haves: List[Dict[str, Any]] = []
+                nice_to_haves: List[Dict[str, Any]] = []
+                unverified_claims: List[str] = []
+
+                for item in req_coverage:
+                    if not isinstance(item, dict):
+                        continue
+                    imp = str(item.get("importance", "")).upper()
+                    if imp == "MUST_HAVE":
+                        must_haves.append(item)
+                    elif imp == "NICE_TO_HAVE":
+                        nice_to_haves.append(item)
+                    else:
+                        must_haves.append(item)
+
+                    # Check for skills spoken but not in resume
+                    st = item.get("status")
+                    ev_text = str(item.get("evidence") or "").strip().lower()
+
+                    # Guard against false positives: if marked COVERED/PARTIAL but evidence says not spoken / only in resume
+                    if st in ("COVERED", "PARTIAL") and ev_text:
+                        if (
+                            "not mentioned in transcript" in ev_text
+                            or "not mentioned in the transcript" in ev_text
+                            or "not spoken" in ev_text
+                            or "only in resume" in ev_text
+                            or "only present in resume" in ev_text
+                        ):
+                            item["status"] = "NOT_MENTIONED"
+                            item["verification_status"] = "NOT_MENTIONED"
+                            st = "NOT_MENTIONED"
+
+                    in_res = item.get("in_resume")
+                    req_name = item.get("requirement", "Unknown Requirement")
+                    if st in ("COVERED", "PARTIAL") and in_res is False:
+                        unverified_claims.append(req_name)
+                        if not item.get("verification_status"):
+                            item["verification_status"] = "UNVERIFIED_CLAIM"
+                    elif st in ("COVERED", "PARTIAL") and in_res is True:
+                        if not item.get("verification_status"):
+                            item["verification_status"] = "VERIFIED"
+                    elif st == "NOT_MENTIONED":
+                        if not item.get("verification_status"):
+                            item["verification_status"] = "NOT_MENTIONED"
+
+                def calc_coverage(items: List[Dict[str, Any]]) -> float:
+                    if not items:
+                        return 0.0
+                    points = 0.0
+                    for item in items:
+                        st = item.get("status")
+                        in_res = item.get("in_resume")
+                        # Resume alone earns ZERO credit; candidate MUST speak the skill to earn weight
+                        if st == "COVERED":
+                            # Full credit (1.0) if verified in resume; partial (0.5) if unverified in resume
+                            points += 1.0 if in_res is not False else 0.5
+                        elif st == "PARTIAL":
+                            points += 0.5
+                        # NOT_MENTIONED earns 0.0 points, regardless of in_resume being True
+                    return (points / len(items)) * 100.0
+
+                def get_band(pct: float) -> str:
+                    if pct > 80.0:
+                        return "STRONG"
+                    if pct >= 50.0:
+                        return "GOOD"
+                    if pct >= 35.0:
+                        return "NEEDS_POLISH"
+                    return "WEAK"
+
+                must_pct = calc_coverage(must_haves) if must_haves else 0.0
+                nice_pct = calc_coverage(nice_to_haves) if nice_to_haves else 0.0
+                must_band = get_band(must_pct)
+                nice_band = get_band(nice_pct)
+
+                if must_haves and nice_to_haves:
+                    total_weighted_pct = (must_pct * 0.70) + (nice_pct * 0.30)
+                elif must_haves:
+                    total_weighted_pct = must_pct
+                else:
+                    total_weighted_pct = calc_coverage(req_coverage)
+
+                # Store diagnostic skill breakdown in overall_assessment
+                overall["skill_breakdown"] = {
+                    "must_have_coverage_pct": round(must_pct, 1),
+                    "must_have_band": must_band,
+                    "nice_to_have_coverage_pct": round(nice_pct, 1),
+                    "nice_to_have_band": nice_band,
+                    "total_weighted_pct": round(total_weighted_pct, 1),
+                    "unverified_spoken_claims": unverified_claims,
+                }
+
+                current_readiness = overall.get("readiness")
+                current_alignment = overall.get("jd_alignment")
+
+                # Strict mathematical auto-calibration boundaries:
+                # >80% -> STRONG / STRONG_FIT
+                # 50-80% -> GOOD / GOOD_FIT
+                # 35-50% -> NEEDS_POLISH / PARTIAL_FIT
+                # <35% -> WEAK / WEAK_FIT
+                if total_weighted_pct < 35.0:
+                    target_readiness = "WEAK"
+                    target_alignment = "WEAK_FIT"
+                elif total_weighted_pct < 50.0:
+                    target_readiness = "NEEDS_POLISH"
+                    target_alignment = "PARTIAL_FIT"
+                elif total_weighted_pct <= 80.0:
+                    target_readiness = "GOOD"
+                    target_alignment = "GOOD_FIT"
+                else:
+                    target_readiness = "STRONG"
+                    target_alignment = "STRONG_FIT"
+
+                if current_readiness != target_readiness:
+                    logger.warning(
+                        "[ScoresEngine] Auto-calibrating readiness from %s to %s (total weighted %.1f%%)",
+                        current_readiness,
+                        target_readiness,
+                        total_weighted_pct,
+                    )
+                    overall["readiness"] = target_readiness
+
+                if current_alignment != target_alignment:
+                    logger.warning(
+                        "[ScoresEngine] Auto-calibrating jd_alignment from %s to %s (total weighted %.1f%%)",
+                        current_alignment,
+                        target_alignment,
+                        total_weighted_pct,
+                    )
+                    overall["jd_alignment"] = target_alignment
+
     def _validate_audio_payload(
         self, audio: Dict[str, Any], errors: List[str]
     ) -> None:
