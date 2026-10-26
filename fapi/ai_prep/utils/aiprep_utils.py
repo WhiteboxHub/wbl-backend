@@ -1883,6 +1883,7 @@ async def candidate_submit_assessment_logic(
 
             async def run_pipeline():
                 try:
+                    nonlocal assessment_media_type
                     if payload.transcript:
                         direct_text = payload.transcript if isinstance(payload.transcript, str) else str(payload.transcript.get("full_text") or "")
                         spoken_content = {"full_text": direct_text, "word_count": len(direct_text.split()), "segments": []}
