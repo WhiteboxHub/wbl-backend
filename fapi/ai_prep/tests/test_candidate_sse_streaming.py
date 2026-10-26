@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from fapi.utils.permission_gate import enforce_access
 
 os.environ["ENV"] = "test"
 
@@ -82,6 +83,7 @@ def test_client(mock_candidate_user):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[enforce_access] = lambda: mock_candidate_user
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()

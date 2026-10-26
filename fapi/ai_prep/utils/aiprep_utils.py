@@ -2,6 +2,7 @@
 Follows WBL Backend code architecture standards separating routing and logic.
 """
 import os
+import re
 import uuid
 import json
 import re
@@ -46,7 +47,8 @@ def SessionLocal():
 from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
-from fapi.ai_prep.core.audio_engine import AudioMetricsEngine, InvalidProviderConfigError
+from fapi.ai_prep.core.audio_engine import AudioMetricsEngine, get_transcription_provider, InvalidProviderConfigError
+from fapi.ai_prep.core.video_processor_engine import VideoProcessorEngine
 from fapi.ai_prep.utils.stream_manager import stream_manager
 from fapi.db.models import (
     AuthUserORM,
@@ -1604,11 +1606,26 @@ async def _process_multi_question_audio_batch(
         q_audio_file = os.path.join(base_dir, "questions", str(qid), "audio.webm")
 
         if os.path.exists(q_audio_file):
+            # Extract audio from video if question was recorded in VIDEO mode
+            target_q_audio = q_audio_file
+            is_video = str(getattr(assessment, "media_type", None) or "VIDEO").upper() == "VIDEO"
+            if is_video and q_audio_file.endswith((".webm", ".mp4", ".mkv")):
+                q_wav = os.path.join(base_dir, "questions", str(qid), "audio.wav")
+                try:
+                    await asyncio.to_thread(
+                        VideoProcessorEngine.extract_audio,
+                        video_path=q_audio_file,
+                        output_audio_path=q_wav,
+                    )
+                    target_q_audio = q_wav
+                except Exception as ext_err:
+                    logger.warning("Per-question audio extraction failed (%s), using %s directly", ext_err, q_audio_file)
+                    target_q_audio = q_audio_file
             try:
                 async with sem:
                     q_audio_res = await asyncio.to_thread(
                         AudioMetricsEngine.process_audio_file,
-                        q_audio_file,
+                        target_q_audio,
                         **audio_kwargs,
                     )
                 spk = q_audio_res.get("spoken_content") or {}
@@ -1726,6 +1743,7 @@ async def candidate_submit_assessment_logic(
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
+    assessment_id_int = int(assessment.id) 
 
     resolved_cand_id = _resolve_candidate_id(
         db, current_user, requested_id=int(candidate_id) if str(candidate_id).isdigit() else None
@@ -1896,7 +1914,7 @@ async def candidate_submit_assessment_logic(
                         }
                         target_media = "direct_transcript.webm"
                     else:
-                        resolved_consent = (getattr(payload, "consent", None) or assessment.consent or {})
+                        resolved_consent = (getattr(payload, "consent", None) or assessment_consent or {})
                         with SessionLocal() as worker_db:
                             multi_q_res = await _process_multi_question_audio_batch(
                                 db=worker_db,
@@ -1921,6 +1939,7 @@ async def candidate_submit_assessment_logic(
                             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
                                 logger.info("Using directly uploaded audio file for assessment %s: %s", assessment_id_int, uploaded_audio_path)
                                 target_media = uploaded_audio_path
+                                target_audio = uploaded_audio_path 
                             else:
                                 stream_manager.publish_progress(
                                     assessment_id_int,
@@ -1934,7 +1953,47 @@ async def candidate_submit_assessment_logic(
                                     total_chunks_uploaded=total_chunks,
                                 )
 
-                            # 2. Audio Engine
+                                 # EXTRACT AUDIO IF VIDEO
+                                is_video_assessment = (assessment_media_type or "").upper() == "VIDEO"
+                                if is_video_assessment and target_media.endswith((".webm", ".mp4", ".mkv")):
+                                    assessment_dir = os.path.dirname(target_media)
+                                    target_audio = os.path.join(assessment_dir, "audio.wav")
+                                    try:
+                                        await asyncio.to_thread(
+                                            VideoProcessorEngine.extract_audio,
+                                            video_path=target_media,
+                                            output_audio_path=target_audio,
+                                        )
+                                    except Exception as ext_err:
+                                        logger.warning("Audio extraction failed (%s), using target_media directly", ext_err)
+                                        target_audio = target_media
+                                else:
+                                    target_audio = target_media
+                            # 2. Async OpenAI Whisper Transcription
+                            stream_manager.publish_progress(
+                                assessment_id_int,
+                                status="PROCESSING",
+                                progress=25,
+                            )
+                            stt_provider_name = audio_kwargs.get("provider_name") or ("openai" if candidate_key else "whisper")
+                            provider = get_transcription_provider(stt_provider_name)
+                            try:
+                                whisper_result = await asyncio.to_thread(
+                                    provider.transcribe,
+                                    audio_path=target_audio,
+                                    **audio_kwargs,
+                                )
+                                transcript_text = whisper_result.get("transcript_text", "")
+                                word_timestamps = whisper_result.get("word_timestamps", [])
+                                total_duration = whisper_result.get("duration", 0.0)
+                            except Exception as stt_err:
+                                logger.error("STT Transcription failed for assessment %s: %s", assessment_id_int, stt_err)
+                                transcript_text = ""
+                                word_timestamps = []
+                                total_duration = payload.client_duration_seconds or 0.0
+
+
+                            # 3. Audio Engine
                             stream_manager.publish_progress(
                                 assessment_id_int,
                                 status="PROCESSING",
@@ -1942,9 +2001,12 @@ async def candidate_submit_assessment_logic(
                             )
                             try:
                                 audio_result = await asyncio.to_thread(
-                                    AudioMetricsEngine.process_audio_file,
-                                    target_media,
-                                    **audio_kwargs,
+                                    AudioMetricsEngine.compute_telemetry_only,
+                                    audio_path=target_audio,
+                                    transcript_text=transcript_text,
+                                    word_timestamps=word_timestamps,
+                                    stt_provider_name=provider.provider_name,
+                                    total_duration=total_duration,
                                 )
                                 spoken_content = audio_result.get("spoken_content") or {}
                                 raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
@@ -1959,7 +2021,7 @@ async def candidate_submit_assessment_logic(
                                     "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
                                 }
 
-                    # 3. Format Transcript
+                    # 4. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
                     if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
                         full_text = payload.transcript_text.strip()
@@ -2032,11 +2094,16 @@ async def candidate_submit_assessment_logic(
                         "words_per_minute": wpm_val,
                         "filler_word_count": filler_count_val,
                         "silence_percentage": silence_pct,
+                        "silence_ratio": float(raw_audio_telemetry.get("silence_ratio") or 0.0),
+                        "avg_volume_db": float(raw_audio_telemetry.get("avg_volume_db") or -20.0),
+                        "mean_pitch_hz": float(raw_audio_telemetry.get("mean_pitch_hz") or 150.0),
+                        "background_noise_level": str(raw_audio_telemetry.get("background_noise_level") or "LOW"),
+                        "clipping_detected": bool(raw_audio_telemetry.get("clipping_detected") or False),
                     }
                     formatted_video_telemetry = dict(payload.video_telemetry or {})
                     formatted_video_telemetry["duration_seconds"] = round(duration_s, 1)
 
-                    # 4. Save assessment data to DB with worker SessionLocal
+                    # 5. Save assessment data to DB with worker SessionLocal
                     plan = resolve_storage_plan(
                         consent=assessment_consent,
                         media_type=assessment_media_type,
@@ -2176,6 +2243,7 @@ async def candidate_submit_assessment_logic(
             "total_audio_duration_seconds": 60.0,
         }
         target_media = "direct_transcript.webm"
+
     else:
         submitted_consent = getattr(payload, "consent", None)
         if submitted_consent and isinstance(submitted_consent, dict):
@@ -2203,6 +2271,7 @@ async def candidate_submit_assessment_logic(
             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
                 logger.info("Using directly uploaded audio file for assessment %s: %s", assessment.id, uploaded_audio_path)
                 target_media = uploaded_audio_path
+                target_audio = uploaded_audio_path
             else:
                 target_media = _stitch_assessment_chunks(
                     candidate_id=resolved_cand_id,
@@ -2210,12 +2279,60 @@ async def candidate_submit_assessment_logic(
                     total_chunks_uploaded=total_chunks,
                 )
 
-            # 2. Run Audio Engine (WHISPER_AUDIO)
+                # EXTRACT AUDIO IF VIDEO
+                is_video_assessment = str(getattr(assessment, "media_type", None) or "VIDEO").upper() == "VIDEO"
+                if is_video_assessment and target_media.endswith((".webm", ".mp4", ".mkv")):
+                    assessment_dir = os.path.dirname(target_media)
+                    target_audio = os.path.join(assessment_dir, "audio.wav")
+                    try:
+                        await asyncio.to_thread(
+                            VideoProcessorEngine.extract_audio,
+                            video_path=target_media,
+                            output_audio_path=target_audio,
+                        )
+                    except Exception as ext_err:
+                        logger.warning("Audio extraction failed (%s), using target_media directly", ext_err)
+                        target_audio = target_media
+                else:
+                    target_audio = target_media
+
+            # 2. Async OpenAI Whisper Transcription
+            stream_manager.publish_progress(
+                assessment_id_int,
+                status="PROCESSING",
+                progress=25,
+            )
+            stt_provider_name = audio_kwargs.get("provider_name") or ("openai" if candidate_key else "whisper")
+            provider = get_transcription_provider(stt_provider_name)
+            try:
+                whisper_result = await asyncio.to_thread(
+                    provider.transcribe,
+                    audio_path=target_audio,
+                    **audio_kwargs,
+                )
+                transcript_text = whisper_result.get("transcript_text", "")
+                word_timestamps = whisper_result.get("word_timestamps", [])
+                total_duration = whisper_result.get("duration", 0.0)
+            except Exception as stt_err:
+                logger.error("STT Transcription failed for assessment %s: %s", assessment.id, stt_err)
+                transcript_text = ""
+                word_timestamps = []
+                total_duration = payload.client_duration_seconds or 0.0
+
+            # 3. Run Audio Engine (WHISPER_AUDIO)
+            stream_manager.publish_progress(
+                assessment_id_int,
+                status="PROCESSING",
+                progress=35,
+            )
             try:
                 audio_result = await asyncio.to_thread(
-                    AudioMetricsEngine.process_audio_file,
-                    target_media,
-                    **audio_kwargs,
+                    AudioMetricsEngine.compute_telemetry_only,
+                    audio_path=target_audio,
+                    transcript_text=transcript_text,
+                    word_timestamps=word_timestamps,
+                    stt_provider_name=provider.provider_name,
+                    total_duration=total_duration,
                 )
                 spoken_content = audio_result.get("spoken_content") or {}
                 raw_audio_telemetry = audio_result.get("audio_telemetry") or {}
@@ -2230,7 +2347,7 @@ async def candidate_submit_assessment_logic(
                     "total_audio_duration_seconds": payload.client_duration_seconds or 0.0,
                 }
 
-    # 3. Format Transcript
+    # 4. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
     if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
         full_text = payload.transcript_text.strip()
@@ -2260,7 +2377,7 @@ async def candidate_submit_assessment_logic(
         "segments": segments,
     }
 
-    # 4. Format Audio Telemetry
+    # 5. Format Audio Telemetry
     speaking_duration_sec = float(
         raw_audio_telemetry.get("speaking_duration_seconds")
         or raw_audio_telemetry.get("speaking_duration_sec")
@@ -2342,7 +2459,14 @@ async def candidate_submit_assessment_logic(
         "duration_seconds": round(interview_duration, 1),
         "words_per_minute": wpm,
         "filler_word_count": filler_count,
+        "filler_rate_per_min": float(raw_audio_telemetry.get("filler_rate_per_min") or 0.0),
+        "pause_count": int(raw_audio_telemetry.get("pause_count") or 0),
         "silence_percentage": silence_pct,
+        "silence_ratio": float(raw_audio_telemetry.get("silence_ratio") or 0.0),
+        "avg_volume_db": float(raw_audio_telemetry.get("avg_volume_db") or -20.0),
+        "mean_pitch_hz": float(raw_audio_telemetry.get("mean_pitch_hz") or 150.0),
+        "background_noise_level": str(raw_audio_telemetry.get("background_noise_level") or "LOW"),
+        "clipping_detected": bool(raw_audio_telemetry.get("clipping_detected") or False),
     }
     if filler_words:
         formatted_audio_telemetry["filler_words"] = filler_words
