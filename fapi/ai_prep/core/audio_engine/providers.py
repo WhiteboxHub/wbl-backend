@@ -225,12 +225,14 @@ class OpenAIWhisperProvider(BaseTranscriptionProvider):
             raw_words = getattr(response, "words", None)
             if raw_words:
                 for w in raw_words:
-                    word_str = getattr(w, "word", "") or ""
-                    if word_str.strip():
+                    word_str = w.get("word") if isinstance(w, dict) else getattr(w, "word", "")
+                    start_val = w.get("start", 0.0) if isinstance(w, dict) else getattr(w, "start", 0.0)
+                    end_val = w.get("end", 0.0) if isinstance(w, dict) else getattr(w, "end", 0.0)
+                    if word_str and str(word_str).strip():
                         word_timestamps.append({
-                            "word": word_str.strip(),
-                            "start": round(float(getattr(w, "start", 0.0)), 2),
-                            "end": round(float(getattr(w, "end", 0.0)), 2),
+                            "word": str(word_str).strip(),
+                            "start": round(float(start_val), 2),
+                            "end": round(float(end_val), 2),
                         })
 
             return {

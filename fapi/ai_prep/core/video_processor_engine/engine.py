@@ -26,6 +26,9 @@ from fapi.ai_prep.core.video_processor_engine.preflight_checker import (
 from fapi.ai_prep.core.video_processor_engine.audio_to_video import (
     convert_audio_to_youtube_video,
 )
+from fapi.ai_prep.core.video_processor_engine.video_to_audio import (
+    extract_audio_from_video,
+)
 from fapi.ai_prep.core.video_processor_engine.config import (
     VIDEO_ENGINE_CONFIG,
     MIN_CHUNK_SIZE_BYTES,
@@ -78,6 +81,17 @@ class VideoProcessorEngine:
     ) -> Dict[str, Any]:
         """Verifies extracted audio file header integrity and file size."""
         return verify_audio_file(audio_path=audio_path, min_size_bytes=min_size_bytes)
+
+    @staticmethod
+    def extract_audio(
+        video_path: str,
+        output_audio_path: Optional[str] = None,
+    ) -> str:
+        """Extracts 16kHz mono audio (.wav) from a video recording."""
+        return extract_audio_from_video(
+            video_path=video_path,
+            output_audio_path=output_audio_path,
+        )
 
     @staticmethod
     def convert_audio_for_youtube(
