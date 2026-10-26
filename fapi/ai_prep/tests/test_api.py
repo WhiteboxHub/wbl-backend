@@ -8,8 +8,8 @@ os.environ["DB_PASSWORD"] = secrets.token_urlsafe(16)
 os.environ["DB_HOST"] = "localhost"
 os.environ["DB_NAME"] = "wbl_test"
 os.environ["ENV"] = "test"
-os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
-os.environ["UPSTASH_REDIS_REST_TOKEN"] = secrets.token_urlsafe(32)
+os.environ["REDIS_HOST"] = "localhost"          # mock — never connects in unit tests
+os.environ["REDIS_PORT"] = "6379"
 
 import datetime
 from unittest.mock import patch

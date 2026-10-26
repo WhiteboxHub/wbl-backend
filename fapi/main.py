@@ -27,7 +27,7 @@ import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow s
 import asyncio
 from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import traceback
@@ -200,7 +200,8 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    pass  # Upstash Redis is HTTP-based; no persistent connection to close
+    from fapi.core.redis_client import RedisClient
+    RedisClient.close()  # Close Redis connection pool gracefully on shutdown
 
 @app.get("/api/redis-health", tags=["Health"])
 async def redis_health():
@@ -242,10 +243,20 @@ def get_db():
 
 @app.get("/redis-test")
 def redis_test():
-    from fapi.core.redis_client import redis_client
+    from fapi.core import config
+    if config.APP_ENV == "production":
+        raise HTTPException(
+            status_code=403,
+            detail="Write test is disabled in production. Use /api/redis-health for connection status."
+        )
     client = redis_client.get_client()
-    client.set("ping", "pong", ex=60)
-    return {"value": client.get("ping")}
+    if not client:
+        raise HTTPException(status_code=503, detail="Redis client is not connected")
+    try:
+        client.set("ping", "pong", ex=60)
+        return {"status": "success", "value": client.get("ping")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Redis test failed: {e}")
 
 # Base Routes
 app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])

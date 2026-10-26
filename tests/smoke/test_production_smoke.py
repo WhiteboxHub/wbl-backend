@@ -37,7 +37,6 @@ def test_production_fastapi_docs_reachable(client):
     )
 
 
-@pytest.mark.skip(reason="Redis/Upstash temporarily disabled due to bandwidth limit")
 @pytest.mark.smoke
 def test_production_redis_health_active(client):
     """Verify that the backend's Redis health check endpoint is healthy and returning 200."""

@@ -43,7 +43,11 @@ jobs:
             --allow-unauthenticated \
             --port 8080 \
             --no-traffic \
-            --tag=smoke
+            --tag=smoke \
+            --vpc-connector wbl-connector \
+            --vpc-egress private-ranges-only \
+            --set-env-vars REDIS_HOST=10.128.0.42,REDIS_PORT=6379 \
+            --set-secrets REDIS_PASSWORD=redis-password:latest
 
       - name: Retrieve Smoke Revision URL
         run: |
@@ -52,7 +56,7 @@ jobs:
 
       - name: Run Smoke Tests
         run: |
-          PROD_URL=${{ env.SMOKE_URL }} PYTHONPATH=. pytest -k "not redis" tests/smoke/test_production_smoke.py
+          PROD_URL=${{ env.SMOKE_URL }} PYTHONPATH=. pytest tests/smoke/test_production_smoke.py
 
       - name: Promote Traffic to Latest Revision
         run: |
