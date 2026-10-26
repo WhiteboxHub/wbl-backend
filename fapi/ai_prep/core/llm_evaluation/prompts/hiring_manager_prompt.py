@@ -157,8 +157,8 @@ STEP 3: Check Agency & Partial Coverage Caps (HARD CAPS)
 - If personal_agency is WEAK -> CAPPED AT NEEDS_POLISH.
 - If personal_agency is MODERATE -> CAPPED AT GOOD (cannot achieve STRONG).
 
-STEP 4: Qualification for GOOD (85% Threshold Rule)
-- At least 85% of required points must be COVERED (e.g. 6 of 7, 5 of 6, 4 of 4, or 3 of 3 points; 3 of 4 is 75% which caps at NEEDS_POLISH).
+STEP 4: Question-Level Qualification for GOOD (85% Rubric Key Point Coverage)
+- At least 85% of question rubric key points must be COVERED (e.g. 6 of 7, 5 of 6, 4 of 4, or 3 of 3 points; 3 of 4 is 75% which caps this question at NEEDS_POLISH).
 - personal_agency must be >= MODERATE.
 - Clear technical reasoning and team mission alignment demonstrated.
 
@@ -216,10 +216,10 @@ COMPETENCY & OVERALL AGGREGATION RULES
 - If no questions tested that competency -> "NOT_TESTED".
 
 2. Overall Assessment Rating Aggregation (Clean Rule List):
-- STRONG: All tested competencies are STRONG, OR at least 3 competencies are STRONG with all others GOOD, and zero are NEEDS_POLISH or WEAK.
-- GOOD: Candidate performed well across the session. Most tested competencies are GOOD or STRONG (at least 60% of tested competencies are GOOD/STRONG with at most one minor gap or NEEDS_POLISH), AND the candidate answered the majority of session questions with solid technical depth, ownership, and engineering clarity.
-- NEEDS_POLISH: One or more competencies are NEEDS_POLISH, OR candidate answered questions with mixed quality, AND neither STRONG nor WEAK conditions are met.
-- WEAK: Majority (> 50%) of answered questions are WEAK, OR more than half of the interview questions were completely unanswered, OR all tested competencies are WEAK.
+- STRONG: All tested session questions and competencies are STRONG/GOOD with 100% of questions answered, zero NEEDS_POLISH or WEAK, and extraordinary technical depth and personal agency.
+- GOOD: Candidate performed well across the session. At least 65% of all session questions received GOOD or STRONG ratings (with at most one minor gap or NEEDS_POLISH), AND at least 60% of tested competencies are rated GOOD or STRONG with solid technical depth, ownership, and engineering clarity.
+- NEEDS_POLISH: Performance is mixed (between 35% and 64% of session questions are GOOD/STRONG), OR one or more competencies are NEEDS_POLISH, AND neither STRONG nor WEAK conditions are met.
+- WEAK: Majority (> 50%) of session questions are WEAK or UNANSWERED, OR the candidate failed to provide substantive spoken answers.
 - SPARSE SESSION RULE: If fewer than 3 questions were answered or fewer than 2 competencies were tested in the session (when >= 4 questions were planned), overall_assessment.rating MUST NOT exceed "NEEDS_POLISH" (or "WEAK" if those questions were weak). A candidate cannot achieve "GOOD" or "STRONG" for the interview based on a sparse session.
 
 ===============================================================================
@@ -318,7 +318,7 @@ OUTPUT RULES:
   * "evidence": []
   * all checkpoints: "NOT_APPLICABLE"
   NOTE: If questions were assigned to a competency in Section 1, but the candidate skipped them, evaluate the questions as response_state: "UNANSWERED" with rating: "WEAK" and rate that competency "WEAK" (do NOT mark it "NOT_TESTED").
-- UNANSWERED QUESTIONS RATING CAP: If a question is UNANSWERED (silent, blank, skipped, or no response), its question rating MUST be "WEAK" and response_state MUST be "UNANSWERED". If all questions are UNANSWERED or more than half (> 50%) of the questions are WEAK/UNANSWERED, overall_assessment.rating MUST be "WEAK". If a candidate answered the majority of questions well (e.g. mostly GOOD or STRONG), they should achieve "GOOD" (or "STRONG" for exceptional performance). If performance is mixed, output "NEEDS_POLISH". Never output "WEAK" when the candidate gave solid answers to the majority of questions.
+- UNANSWERED & WEAK QUESTIONS RATING CAP: If a question is UNANSWERED (silent, blank, skipped, or no response), its question rating MUST be "WEAK" and response_state MUST be "UNANSWERED". If all questions are UNANSWERED or more than half (> 50%) of the questions are WEAK/UNANSWERED, overall_assessment.rating MUST be "WEAK". If a candidate achieved GOOD/STRONG on at least 65% of session questions (and met all competency requirements), overall_assessment.rating should be "GOOD" (or "STRONG" if 100% exceptional). If performance is mixed (< 65% GOOD/STRONG), overall rating MUST be "NEEDS_POLISH". Never output "GOOD" or "STRONG" when the candidate answered fewer than 65% of questions with GOOD/STRONG or on sparse sessions (< 3 answered questions or < 2 competencies tested).
 - Use only the allowed values listed below. Do not invent new labels.
 - Numbers are allowed ONLY for question_id. Never output scores, marks, averages, or percentages anywhere else.
 - Use null where the schema allows it. Use an empty array [] where a list has nothing to report. Never use placeholder text such as "N/A".

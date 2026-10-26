@@ -719,19 +719,20 @@ def _build_hiring_manager_eval_dict(
         # 2. Majority of questions failed or unanswered (> 50%) -> WEAK
         elif weak_count > (total_q / 2):
             _set_overall(target_weak)
-        # 3. Candidate performed well:
-        #    - If current rating is already GOOD or STRONG, preserve it if at least half of answered questions were GOOD/STRONG
-        #    - Or lift to GOOD if candidate answered >= 65% of questions with GOOD/STRONG
-        elif good_strong_count >= max(1, (answered_count + 1) // 2) and weak_count <= max(1, total_q // 3):
+        # 3. Candidate performed well (>= 65% of session questions are GOOD or STRONG):
+        elif (
+            good_strong_count >= (1 if total_q == 1 else 2)
+            and (good_strong_count / total_q) >= 0.65
+            and weak_count <= max(1, total_q // 3)
+        ):
             if current_rating in ("GOOD", "EXCELLENT", "STRONG"):
-                pass  # Candidate performed well, keep GOOD/STRONG!
-            elif good_strong_count >= 2 and (good_strong_count / total_q) >= 0.65:
+                pass  # Candidate performed well, preserve existing GOOD / EXCELLENT / STRONG
+            elif current_rating in ("WEAK", "POOR", "AVERAGE", "NEEDS_POLISH"):
                 _set_overall(target_good)
-            elif current_rating in ("WEAK", "POOR"):
+        # 4. Mixed performance (< 65% GOOD/STRONG, but not majority weak) -> Capped at NEEDS_POLISH (AVERAGE)
+        else:
+            if current_rating in ("GOOD", "EXCELLENT", "STRONG", "WEAK", "POOR"):
                 _set_overall(target_avg)
-        # 4. Mixed performance -> floor at NEEDS_POLISH (AVERAGE), never force to WEAK
-        elif current_rating in ("WEAK", "POOR") and answered_count >= 1:
-            _set_overall(target_avg)
 
         # Sparse session rule: fewer than 3 answered questions or fewer than 2 competencies tested cannot achieve GOOD or STRONG
         if total_q >= 4 and (answered_count < 3 or len(tested_competencies) < 2):
@@ -1504,21 +1505,36 @@ async def _process_multi_question_audio_batch(
     consent: Optional[Dict[str, Any]] = None,
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]]:
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment or (assessment.assessment_type or "").upper() not in ("TECHNICAL", "HIRING_MANAGER"):
+    if not assessment:
+        return None
+    assessment_type = (assessment.assessment_type or "").upper()
+    if assessment_type not in ("TECHNICAL", "HIRING_MANAGER"):
         return None
     """
-    Checks if this assessment has per-question audio files on disk (Technical Assessment).
+    Checks if this assessment has per-question audio files on disk (Technical or Hiring Manager Assessment).
     If present, processes each question's audio.webm with OpenAI Whisper API + Audio DSP
     and consolidates Q&A blocks for LLM evaluation.
     """
     existing_data = crud.get_assessment_data_by_assessment_id(db, assessment_id)
     all_questions = list(existing_data.questions or []) if (existing_data and existing_data.questions) else []
+    if not all_questions:
+        return None
+
+    # Guard: Ensure question structures conform to expected format for the assessment type
+    if not all(isinstance(q, dict) and (q.get("id") is not None or q.get("question_id") is not None) for q in all_questions):
+        logger.warning(
+            "Assessment %s (%s) has questions with invalid structures; bypassing multi-question audio batch processing.",
+            assessment_id, assessment_type
+        )
+        return None
+
     base_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id))
     
     has_multi_questions = False
     for q in all_questions:
-        if isinstance(q, dict) and q.get("id"):
-            q_file = os.path.join(base_dir, "questions", str(q["id"]), "audio.webm")
+        qid = q.get("id") or q.get("question_id")
+        if qid is not None:
+            q_file = os.path.join(base_dir, "questions", str(qid), "audio.webm")
             if os.path.exists(q_file):
                 has_multi_questions = True
                 break
@@ -1526,7 +1542,7 @@ async def _process_multi_question_audio_batch(
     if not has_multi_questions:
         return None
 
-    logger.info("[FinalSubmit] Multi-question technical assessment detected for %s. Running Audio Engine per question...", assessment_id)
+    logger.info("[FinalSubmit] Multi-question %s assessment detected for %s. Running Audio Engine per question...", assessment_type, assessment_id)
 
     # Bound concurrency to max 5 simultaneous audio jobs to prevent CPU/provider saturation
     sem = asyncio.Semaphore(int(os.getenv("AIPREP_MAX_CONCURRENT_AUDIO_JOBS", "5")))
@@ -1534,10 +1550,10 @@ async def _process_multi_question_audio_batch(
     async def _analyze_single_question(q: Dict[str, Any]) -> None:
         if not isinstance(q, dict):
             return
-        qid = q.get("id")
-        q_audio_file = os.path.join(base_dir, "questions", str(qid), "audio.webm")
+        qid = q.get("id") or q.get("question_id")
+        q_audio_file = os.path.join(base_dir, "questions", str(qid), "audio.webm") if qid is not None else ""
 
-        if os.path.exists(q_audio_file):
+        if q_audio_file and os.path.exists(q_audio_file):
             try:
                 async with sem:
                     q_audio_res = await asyncio.to_thread(
@@ -1554,18 +1570,25 @@ async def _process_multi_question_audio_batch(
                 q["audio_telemetry"] = tele
                 q["processing_status"] = "COMPLETED"
             except Exception as proc_err:
-                logger.warning("Audio analysis failed for question %s: %s", qid, proc_err)
-                q["transcript"] = ""
-                q["word_count"] = 0
+                logger.warning("Audio analysis failed for question %s in %s assessment: %s", qid, assessment_type, proc_err)
+                existing_trans = q.get("transcript") or q.get("transcript_text") or ""
+                q["transcript"] = existing_trans
+                q["word_count"] = q.get("word_count") or len(existing_trans.split()) if existing_trans else 0
                 q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
                 q["processing_status"] = "FAILED"
                 q["error"] = str(proc_err)
         else:
-            # Candidate skipped this question
-            q["transcript"] = ""
-            q["word_count"] = 0
-            q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
-            q["processing_status"] = "COMPLETED"
+            # Question skipped or no audio file on disk; preserve any pre-existing transcript/metadata
+            existing_trans = q.get("transcript") or q.get("transcript_text") or ""
+            if existing_trans:
+                q["transcript"] = existing_trans
+                q["word_count"] = q.get("word_count") or len(existing_trans.split())
+                q["processing_status"] = "COMPLETED"
+            else:
+                q["transcript"] = ""
+                q["word_count"] = 0
+                q["audio_telemetry"] = {"speaking_duration_seconds": 0.0, "wpm": 0, "filler_count": 0, "silence_ratio": 1.0}
+                q["processing_status"] = "COMPLETED"
 
     # Analyze all questions concurrently in parallel
     await asyncio.gather(*[_analyze_single_question(q) for q in all_questions if isinstance(q, dict)])
@@ -1575,7 +1598,7 @@ async def _process_multi_question_audio_batch(
     for idx, q in enumerate(all_questions, start=1):
         q_txt = q.get("question_text", f"Question {idx}")
         if q.get("processing_status") == "FAILED":
-            ans_txt = "[Audio processing failed for this question]"
+            ans_txt = q.get("transcript") or "[Audio processing failed for this question]"
         else:
             ans_txt = q.get("transcript") or "[No response or skipped by candidate]"
         qa_blocks.append(f"[Question {idx}: {q_txt}]\nCandidate Answer: {ans_txt}")
@@ -1610,14 +1633,15 @@ async def _process_multi_question_audio_batch(
             if not save_recording:
                 q["audio_telemetry"] = {}
 
-    # Persist updated question metrics to DB
+    # Persist updated question metrics to DB while preserving existing metadata
+    latest_data = crud.get_assessment_data_by_assessment_id(db, assessment_id) or existing_data
     crud.save_assessment_data(
         db=db,
         assessment_id=assessment_id,
         questions=persisted_questions,
-        transcript=existing_data.transcript or {},
-        audio_telemetry=existing_data.audio_telemetry or {},
-        video_telemetry=existing_data.video_telemetry or {},
+        transcript=latest_data.transcript or {},
+        audio_telemetry=latest_data.audio_telemetry or {},
+        video_telemetry=latest_data.video_telemetry or {},
     )
 
     return spoken_content, raw_audio_telemetry, all_questions
@@ -1879,13 +1903,32 @@ async def candidate_submit_assessment_logic(
 
                     # 3. Format Transcript
                     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
-                    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+                    
+                    # For multi-question assessments, isolate candidate spoken words from question prompts and system error messages
+                    cand_transcripts = []
+                    candidate_only_words = 0
+                    if multi_q_questions:
+                        cand_transcripts = [
+                            str(q.get("transcript") or "").strip()
+                            for q in multi_q_questions
+                            if isinstance(q, dict) and q.get("transcript") and not str(q.get("transcript") or "").startswith("[Audio processing failed")
+                        ]
+                        candidate_only_words = sum(len(t.split()) for t in cand_transcripts)
+
+                    # Check for client-provided transcript fallback if audio processing produced no candidate words
+                    if (
+                        (not full_text or (multi_q_questions and candidate_only_words < 5))
+                        and payload and payload.transcript_text and len(payload.transcript_text.split()) >= 5
+                    ):
                         full_text = payload.transcript_text.strip()
-                        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment_id_int, len(full_text))
-                    words = [w for w in full_text.split() if w]
-                    word_count = spoken_content.get("word_count")
-                    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
-                        word_count = len(words)
+                        candidate_only_words = len(full_text.split())
+                        logger.info("Using client-provided transcript fallback for assessment %s (length=%d, words=%d)", assessment_id_int, len(full_text), candidate_only_words)
+
+                    if multi_q_questions:
+                        word_count = candidate_only_words
+                    else:
+                        cand_count = spoken_content.get("word_count")
+                        word_count = cand_count if cand_count is not None else len(full_text.split())
 
                     raw_segments = spoken_content.get("segments") or []
                     segments = []
@@ -1928,12 +1971,13 @@ async def candidate_submit_assessment_logic(
                         wpm_val = int(round((word_count / speaking_duration_sec) * 60.0))
 
                     filler_count_val = int(raw_audio_telemetry.get("filler_count") or raw_audio_telemetry.get("filler_word_count") or 0)
-                    if filler_count_val <= 0 and full_text:
+                    target_text_for_fillers = " ".join(cand_transcripts) if multi_q_questions else full_text
+                    if filler_count_val <= 0 and target_text_for_fillers:
                         import re
                         fillers = ["um", "uh", "like", "you know", "actually", "basically", "sort of", "kind of", "i mean"]
                         detected_fillers = 0
                         for f in fillers:
-                            matches = re.findall(r"\b" + re.escape(f) + r"\b", full_text.lower())
+                            matches = re.findall(r"\b" + re.escape(f) + r"\b", target_text_for_fillers.lower())
                             if matches:
                                 if f in ["like", "actually", "basically"]:
                                     if len(matches) > 2:
@@ -2144,13 +2188,30 @@ async def candidate_submit_assessment_logic(
 
     # 3. Format Transcript
     full_text = (spoken_content.get("full_text") or spoken_content.get("transcript_text") or "").strip()
-    if not full_text and payload and payload.transcript_text and payload.transcript_text.strip():
+
+    cand_transcripts = []
+    candidate_only_words = 0
+    if multi_q_questions:
+        cand_transcripts = [
+            str(q.get("transcript") or "").strip()
+            for q in multi_q_questions
+            if isinstance(q, dict) and q.get("transcript") and not str(q.get("transcript") or "").startswith("[Audio processing failed")
+        ]
+        candidate_only_words = sum(len(t.split()) for t in cand_transcripts)
+
+    if (
+        (not full_text or (multi_q_questions and candidate_only_words < 5))
+        and payload and payload.transcript_text and len(payload.transcript_text.split()) >= 5
+    ):
         full_text = payload.transcript_text.strip()
-        logger.info("Using client-provided transcript fallback for assessment %s (length=%d)", assessment.id, len(full_text))
-    words = [w for w in full_text.split() if w]
-    word_count = spoken_content.get("word_count")
-    if word_count is None or (not spoken_content.get("full_text") and not spoken_content.get("transcript_text")):
-        word_count = len(words)
+        candidate_only_words = len(full_text.split())
+        logger.info("Using client-provided transcript fallback for assessment %s (length=%d, words=%d)", assessment.id, len(full_text), candidate_only_words)
+
+    if multi_q_questions:
+        word_count = candidate_only_words
+    else:
+        cand_count = spoken_content.get("word_count")
+        word_count = cand_count if cand_count is not None else len(full_text.split())
 
     raw_segments = spoken_content.get("segments") or []
     segments = []
@@ -2191,7 +2252,8 @@ async def candidate_submit_assessment_logic(
     filler_breakdown = raw_audio_telemetry.get("filler_breakdown")
     filler_words = list(filler_breakdown.keys()) if isinstance(filler_breakdown, dict) else list(raw_audio_telemetry.get("filler_words", []))
 
-    if filler_count <= 0 and full_text:
+    target_text_for_fillers = " ".join(cand_transcripts) if multi_q_questions else full_text
+    if filler_count <= 0 and target_text_for_fillers:
         import re
         filler_patterns = {
             "um": r"\bum+\b",
@@ -2210,7 +2272,7 @@ async def candidate_submit_assessment_logic(
         detected_fillers = 0
         detected_breakdown = {}
         for f, pattern in filler_patterns.items():
-            matches = re.findall(pattern, full_text.lower())
+            matches = re.findall(pattern, target_text_for_fillers.lower())
             if matches:
                 count = len(matches)
                 if f in ["like", "actually", "basically", "right"]:
