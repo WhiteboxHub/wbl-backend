@@ -520,7 +520,16 @@ def candidate_create_assessment_logic(
             detail="The question could not be loaded. Please try again or contact support.",
         )
 
-    # Step 2: Question confirmed — now create the assessment record.
+    # Step 2: Question confirmed — validate prerequisites and create assessment record.
+    if assessment_type_str == "JD_INTRO":
+        jd = (payload.job_description or "").strip()
+        words = [w for w in jd.split() if w]
+        if len(words) < 30 or len(jd) < 50:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="A valid job description (minimum 30 words) is required for JD Walkthrough assessments. Please provide complete job details including role duties and requirements.",
+            )
+
     media_type_str = (
         payload.media_type.value
         if hasattr(payload.media_type, "value")
