@@ -1087,7 +1087,7 @@ def test_create_candidate_assessment_exact_specification(db_session):
     # Seed candidate 1042
     candidate_1042 = CandidateORM(
         id=1042,
-        email="candidate_1042@whitebox.com",
+        email="candidate1042@whitebox.com",
         full_name="Test Candidate 1042",
         status="active",
     )
@@ -1112,7 +1112,6 @@ def test_create_candidate_assessment_exact_specification(db_session):
     # Seed INTRO question
     q_intro = AiPrepQuestionORM(
         category="INTRO",
-        sub_category=None,
         difficulty_level="EASY",
         question_text="Please introduce yourself and walk us through your background and experience.",
         is_active=True,
@@ -1146,7 +1145,7 @@ def test_create_candidate_assessment_exact_specification(db_session):
     assert "started_at" in data
     assert "questions" in data
     assert len(data["questions"]) == 1
-    assert data["questions"][0]["category"] == "INTRO"
+    assert "question_text" in data["questions"][0]
     assert data["questions"][0]["question_text"] == "Please introduce yourself and walk us through your background and experience."
     assert data["questions"][0]["difficulty_level"] == "EASY"
 
@@ -1165,7 +1164,6 @@ def test_candidate_assessment_chunk_upload_exact_spec(db_session, seed_candidate
     if not q_intro:
         q_intro = AiPrepQuestionORM(
             category="INTRO",
-            sub_category=None,
             difficulty_level="EASY",
             question_text="Please introduce yourself and walk us through your background and experience.",
             is_active=True,

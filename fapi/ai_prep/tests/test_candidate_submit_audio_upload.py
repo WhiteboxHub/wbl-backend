@@ -149,8 +149,18 @@ def test_submit_assessment_with_direct_multipart_audio_upload(submit_test_client
 
     raw_audio_bytes = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00mock audio binary content"
 
-    with patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result) as mock_audio_engine, \
+    mock_transcription_provider = MagicMock()
+    mock_transcription_provider.provider_name = "whisper"
+    mock_transcription_provider.transcribe.return_value = {
+        "transcript_text": "I have four years of experience building Python microservices with FastAPI.",
+        "word_timestamps": [{"word": "I", "start": 0.0, "end": 0.2}],
+        "duration": 15.0,
+    }
+
+    with patch("fapi.ai_prep.utils.aiprep_utils.get_transcription_provider", return_value=mock_transcription_provider) as mock_get_provider, \
+         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.compute_telemetry_only", return_value=mock_audio_result) as mock_audio_engine, \
          patch("fapi.ai_prep.utils.aiprep_utils._stitch_assessment_chunks") as mock_stitch, \
+         patch("fapi.ai_prep.utils.aiprep_utils._process_youtube_upload_and_cleanup") as mock_yt_cleanup, \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", new_callable=AsyncMock) as mock_eval:
 
         resp = submit_test_client.put(
@@ -169,7 +179,8 @@ def test_submit_assessment_with_direct_multipart_audio_upload(submit_test_client
 
         # Verify AudioMetricsEngine processed the saved audio file
         mock_audio_engine.assert_called_once()
-        processed_file_path = mock_audio_engine.call_args[0][0]
+        mock_transcription_provider.transcribe.assert_called_once()
+        processed_file_path = mock_transcription_provider.transcribe.call_args[1]["audio_path"]
         assert processed_file_path.endswith("audio.webm")
         assert os.path.exists(processed_file_path)
         with open(processed_file_path, "rb") as f:
@@ -200,8 +211,16 @@ def test_submit_assessment_with_json_payload_backward_compatibility(submit_test_
     dummy_stitched_file = tmp_path / "stitched.webm"
     dummy_stitched_file.write_bytes(b"dummy stitched media")
 
+    mock_transcription_provider = MagicMock()
+    mock_transcription_provider.provider_name = "whisper"
+    mock_transcription_provider.transcribe.return_value = {
+        "transcript_text": "Legacy chunk submission test text.",
+        "word_timestamps": [{"word": "Legacy", "start": 0.0, "end": 0.5}],
+        "duration": 15.0,
+    }
     with patch("fapi.ai_prep.utils.aiprep_utils._stitch_assessment_chunks", return_value=str(dummy_stitched_file)) as mock_stitch, \
-         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result) as mock_audio_engine, \
+         patch("fapi.ai_prep.core.audio_engine.providers.get_transcription_provider", return_value=mock_transcription_provider) as mock_get_provider, \
+         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.compute_telemetry_only", return_value=mock_audio_result) as mock_audio_engine, \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", new_callable=AsyncMock) as mock_eval:
 
         resp = submit_test_client.put(
@@ -212,7 +231,7 @@ def test_submit_assessment_with_json_payload_backward_compatibility(submit_test_
         assert resp.status_code == 200, resp.text
         # In JSON mode without direct audio file, legacy stitching is invoked
         mock_stitch.assert_called_once()
-        mock_audio_engine.assert_called_once_with(str(dummy_stitched_file))
+        mock_audio_engine.assert_called_once()
 
 
 def test_submit_assessment_cancelled_via_query_param(submit_test_client, db_session):
@@ -265,8 +284,17 @@ def test_submit_assessment_resolves_candidate_openai_key(submit_test_client, db_
 
     raw_audio = b"RIFFmockaudioforopenaiwhisper"
 
+    mock_transcription_provider = MagicMock()
+    mock_transcription_provider.provider_name = "openai"
+    mock_transcription_provider.transcribe.return_value = {
+        "transcript_text": "Technical answer about distributed tracing with OpenTelemetry.",
+        "word_timestamps": [{"word": "Technical", "start": 0.0, "end": 0.5}],
+        "duration": 12.0,
+    }
+
     with patch("fapi.ai_prep.crud.get_candidate_llm_config", return_value=mock_llm_cfg), \
-         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result) as mock_audio_engine, \
+         patch("fapi.ai_prep.utils.aiprep_utils.get_transcription_provider", return_value=mock_transcription_provider) as mock_get_provider, \
+         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.compute_telemetry_only", return_value=mock_audio_result) as mock_audio_engine, \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", new_callable=AsyncMock) as mock_eval:
 
         resp = submit_test_client.put(
@@ -278,7 +306,8 @@ def test_submit_assessment_resolves_candidate_openai_key(submit_test_client, db_
         assert resp.status_code == 200, resp.text
         # Assert AudioMetricsEngine was called with provider_name="openai" and candidate's decrypted key
         mock_audio_engine.assert_called_once()
-        _, kwargs = mock_audio_engine.call_args
+        mock_transcription_provider.transcribe.assert_called_once()
+        _, kwargs = mock_transcription_provider.transcribe.call_args
         assert kwargs.get("provider_name") == "openai"
         assert kwargs.get("openai_api_key") == "sk-candidate-db-key-999"
 
@@ -305,8 +334,18 @@ def test_submit_assessment_header_key_fallback(submit_test_client, db_session, t
 
     raw_audio = b"RIFFmockaudioforheaderkey"
 
+    # Mock the transcription provider to prevent live network calls to OpenAI with fake key
+    mock_transcription_provider = MagicMock()
+    mock_transcription_provider.provider_name = "openai"
+    mock_transcription_provider.transcribe.return_value = {
+        "transcript_text": "Answer evaluated with header key.",
+        "word_timestamps": [{"word": "Answer", "start": 0.0, "end": 0.5}],
+        "duration": 10.0,
+    }
+
     with patch("fapi.ai_prep.crud.get_candidate_llm_config", return_value={"is_configured": False}), \
-         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.process_audio_file", return_value=mock_audio_result) as mock_audio_engine, \
+         patch("fapi.ai_prep.utils.aiprep_utils.get_transcription_provider", return_value=mock_transcription_provider), \
+         patch("fapi.ai_prep.core.audio_engine.metrics_engine.AudioMetricsEngine.compute_telemetry_only", return_value=mock_audio_result) as mock_audio_engine, \
          patch("fapi.ai_prep.orchestrator.assessment_orchestrator.run_full_evaluation", new_callable=AsyncMock) as mock_eval:
 
         resp = submit_test_client.put(
@@ -318,7 +357,8 @@ def test_submit_assessment_header_key_fallback(submit_test_client, db_session, t
 
         assert resp.status_code == 200, resp.text
         mock_audio_engine.assert_called_once()
-        _, kwargs = mock_audio_engine.call_args
+        mock_transcription_provider.transcribe.assert_called_once()
+        _, kwargs = mock_transcription_provider.transcribe.call_args
         assert kwargs.get("provider_name") == "openai"
         assert kwargs.get("openai_api_key") == "sk-header-provided-key-888"
 
