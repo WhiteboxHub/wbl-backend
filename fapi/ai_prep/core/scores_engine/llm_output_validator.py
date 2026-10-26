@@ -138,8 +138,10 @@ class ScoresEngine:
                 "parsed_report": None,
             }
 
-        # 3. Validate Payload (Intro Evaluation, Hiring Manager, Technical, Audio, Video, or Master Assessment Report)
-        if "intro_evaluation" in parsed_data:
+        # 3. Validate Payload (Recruiter, Intro, Hiring Manager, JD Intro, Technical, Audio, Video, or Master Assessment Report)
+        if "recruiter_evaluation" in parsed_data:
+            self._validate_recruiter_payload(parsed_data["recruiter_evaluation"], errors)
+        elif "intro_evaluation" in parsed_data:
             self._validate_intro_payload(parsed_data["intro_evaluation"], errors)
         elif "hiring_manager_evaluation" in parsed_data:
             self._validate_hiring_manager_payload(parsed_data["hiring_manager_evaluation"], errors)
@@ -155,7 +157,7 @@ class ScoresEngine:
             self._validate_legacy_report_payload(parsed_data, errors)
         else:
             errors.append(
-                "Missing recognized evaluation root key: 'hiring_manager_evaluation', 'intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
+                "Missing recognized evaluation root key: 'recruiter_evaluation', 'hiring_manager_evaluation', 'intro_evaluation', 'jd_intro_evaluation', 'technical_evaluation', 'audio_evaluation', 'video_evaluation', or 'scores_breakdown_json'"
             )
 
         is_valid = len(errors) == 0
@@ -319,6 +321,46 @@ class ScoresEngine:
             for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
                 if list_key not in intro or not isinstance(intro[list_key], list):
                     errors.append(f"Missing or invalid list '{list_key}' in intro_evaluation")
+
+            # Ensure every technical section has a non-empty, actionable observation.
+            # If the LLM returned an empty string, auto-repair using the section's own
+            # status and technologies so the content stays dynamic (never hardcoded).
+            _TECH_SECTION_KEYS = [
+                "agentic_ai",
+                "rag_and_retrieval",
+                "software_engineering",
+                "cloud_and_infrastructure",
+                "cicd_and_delivery",
+            ]
+            for sec_key in _TECH_SECTION_KEYS:
+                sec = intro.get(sec_key)
+                if isinstance(sec, dict):
+                    obs = str(sec.get("observation") or "").strip()
+                    if not obs:
+                        status_val = str(sec.get("overall_status") or "PARTIAL").capitalize()
+                        techs = [t for t in (sec.get("technologies_mentioned") or []) if t]
+                        tech_str = f", mentioning {', '.join(techs)}" if techs else ""
+                        label = sec_key.replace("_", " ").title()
+                        sec["observation"] = (
+                            f"{label}: Your performance was evaluated as {status_val}{tech_str}. "
+                            "Expand on your production architecture, the operational tradeoffs you "
+                            "navigated, and your specific ownership of implementation decisions."
+                        )
+
+                    # Ensure key_observations is a non-empty list of actionable bullets.
+                    # If the LLM omitted it or returned an empty list, generate a minimal
+                    # dynamic fallback so the bullet section is never blank.
+                    key_obs = sec.get("key_observations")
+                    if not isinstance(key_obs, list) or not any(str(b).strip() for b in key_obs):
+                        status_val = str(sec.get("overall_status") or "PARTIAL").capitalize()
+                        techs = [t for t in (sec.get("technologies_mentioned") or []) if t]
+                        label = sec_key.replace("_", " ").title()
+                        bullet_tech = f" You mentioned: {', '.join(techs)}." if techs else ""
+                        sec["key_observations"] = [
+                            f"{label} was assessed as {status_val}.{bullet_tech}",
+                            "Provide specific details on your production architecture, system design decisions, and operational ownership in this area.",
+                        ]
+
             return
 
         # Fallback: legacy checkpoint-based schema
@@ -556,6 +598,139 @@ class ScoresEngine:
                         f"requirement_coverage[{idx}].status '{item_status}' must be one of: {', '.join(sorted(valid_statuses))}"
                     )
 
+            # 70% Must-Have + 30% Nice-To-Have Calculation & Calibration Guardrails
+            if req_coverage and isinstance(overall, dict):
+                must_haves: List[Dict[str, Any]] = []
+                nice_to_haves: List[Dict[str, Any]] = []
+                unverified_claims: List[str] = []
+
+                for item in req_coverage:
+                    if not isinstance(item, dict):
+                        continue
+                    imp = str(item.get("importance", "")).upper()
+                    if imp == "MUST_HAVE":
+                        must_haves.append(item)
+                    elif imp == "NICE_TO_HAVE":
+                        nice_to_haves.append(item)
+                    else:
+                        must_haves.append(item)
+
+                    # Check for skills spoken but not in resume
+                    st = item.get("status")
+                    ev_text = str(item.get("evidence") or "").strip().lower()
+
+                    # Guard against false positives: if marked COVERED/PARTIAL but evidence says not spoken / only in resume
+                    if st in ("COVERED", "PARTIAL") and ev_text:
+                        if (
+                            "not mentioned in transcript" in ev_text
+                            or "not mentioned in the transcript" in ev_text
+                            or "not spoken" in ev_text
+                            or "only in resume" in ev_text
+                            or "only present in resume" in ev_text
+                        ):
+                            item["status"] = "NOT_MENTIONED"
+                            item["verification_status"] = "NOT_MENTIONED"
+                            st = "NOT_MENTIONED"
+
+                    in_res = item.get("in_resume")
+                    req_name = item.get("requirement", "Unknown Requirement")
+                    if st in ("COVERED", "PARTIAL") and in_res is False:
+                        unverified_claims.append(req_name)
+                        if not item.get("verification_status"):
+                            item["verification_status"] = "UNVERIFIED_CLAIM"
+                    elif st in ("COVERED", "PARTIAL") and in_res is True:
+                        if not item.get("verification_status"):
+                            item["verification_status"] = "VERIFIED"
+                    elif st == "NOT_MENTIONED":
+                        if not item.get("verification_status"):
+                            item["verification_status"] = "NOT_MENTIONED"
+
+                def calc_coverage(items: List[Dict[str, Any]]) -> float:
+                    if not items:
+                        return 0.0
+                    points = 0.0
+                    for item in items:
+                        st = item.get("status")
+                        in_res = item.get("in_resume")
+                        # Resume alone earns ZERO credit; candidate MUST speak the skill to earn weight
+                        if st == "COVERED":
+                            # Full credit (1.0) if verified in resume; partial (0.5) if unverified in resume
+                            points += 1.0 if in_res is not False else 0.5
+                        elif st == "PARTIAL":
+                            points += 0.5
+                        # NOT_MENTIONED earns 0.0 points, regardless of in_resume being True
+                    return (points / len(items)) * 100.0
+
+                def get_band(pct: float) -> str:
+                    if pct > 80.0:
+                        return "STRONG"
+                    if pct >= 50.0:
+                        return "GOOD"
+                    if pct >= 35.0:
+                        return "NEEDS_POLISH"
+                    return "WEAK"
+
+                must_pct = calc_coverage(must_haves) if must_haves else 0.0
+                nice_pct = calc_coverage(nice_to_haves) if nice_to_haves else 0.0
+                must_band = get_band(must_pct)
+                nice_band = get_band(nice_pct)
+
+                if must_haves and nice_to_haves:
+                    total_weighted_pct = (must_pct * 0.70) + (nice_pct * 0.30)
+                elif must_haves:
+                    total_weighted_pct = must_pct
+                else:
+                    total_weighted_pct = calc_coverage(req_coverage)
+
+                # Store diagnostic skill breakdown in overall_assessment
+                overall["skill_breakdown"] = {
+                    "must_have_coverage_pct": round(must_pct, 1),
+                    "must_have_band": must_band,
+                    "nice_to_have_coverage_pct": round(nice_pct, 1),
+                    "nice_to_have_band": nice_band,
+                    "total_weighted_pct": round(total_weighted_pct, 1),
+                    "unverified_spoken_claims": unverified_claims,
+                }
+
+                current_readiness = overall.get("readiness")
+                current_alignment = overall.get("jd_alignment")
+
+                # Strict mathematical auto-calibration boundaries:
+                # >80% -> STRONG / STRONG_FIT
+                # 50-80% -> GOOD / GOOD_FIT
+                # 35-50% -> NEEDS_POLISH / PARTIAL_FIT
+                # <35% -> WEAK / WEAK_FIT
+                if total_weighted_pct < 35.0:
+                    target_readiness = "WEAK"
+                    target_alignment = "WEAK_FIT"
+                elif total_weighted_pct < 50.0:
+                    target_readiness = "NEEDS_POLISH"
+                    target_alignment = "PARTIAL_FIT"
+                elif total_weighted_pct <= 80.0:
+                    target_readiness = "GOOD"
+                    target_alignment = "GOOD_FIT"
+                else:
+                    target_readiness = "STRONG"
+                    target_alignment = "STRONG_FIT"
+
+                if current_readiness != target_readiness:
+                    logger.warning(
+                        "[ScoresEngine] Auto-calibrating readiness from %s to %s (total weighted %.1f%%)",
+                        current_readiness,
+                        target_readiness,
+                        total_weighted_pct,
+                    )
+                    overall["readiness"] = target_readiness
+
+                if current_alignment != target_alignment:
+                    logger.warning(
+                        "[ScoresEngine] Auto-calibrating jd_alignment from %s to %s (total weighted %.1f%%)",
+                        current_alignment,
+                        target_alignment,
+                        total_weighted_pct,
+                    )
+                    overall["jd_alignment"] = target_alignment
+
     def _validate_audio_payload(
         self, audio: Dict[str, Any], errors: List[str]
     ) -> None:
@@ -615,6 +790,31 @@ class ScoresEngine:
                             f"video_evaluation.factors.{key}.status must be one of "
                             f"STRONG, ADEQUATE, NEEDS_WORK, INSUFFICIENT_DATA"
                         )
+
+    def _validate_recruiter_payload(
+        self, recruiter: Dict[str, Any], errors: List[str]
+    ) -> None:
+        """
+        Validates the clean Recruiter Screening Evaluation structure against screening evaluation standards.
+        """
+        if not isinstance(recruiter, dict):
+            errors.append("recruiter_evaluation must be a dictionary")
+            return
+
+        if "overall_assessment" in recruiter:
+            overall = recruiter.get("overall_assessment")
+            if not isinstance(overall, dict):
+                errors.append("overall_assessment must be an object")
+            else:
+                readiness = overall.get("readiness")
+                if readiness and readiness not in ("STRONG", "GOOD", "NEEDS_POLISH", "WEAK"):
+                    errors.append(
+                        f"overall_assessment.readiness '{readiness}' must be one of: STRONG, GOOD, NEEDS_POLISH, WEAK"
+                    )
+
+        for list_key in ["strongest_points", "critical_gaps", "priority_improvements"]:
+            if list_key in recruiter and not isinstance(recruiter[list_key], list):
+                errors.append(f"Invalid list '{list_key}' in recruiter_evaluation")
 
     def _validate_technical_payload(
         self, technical: Dict[str, Any], errors: List[str]

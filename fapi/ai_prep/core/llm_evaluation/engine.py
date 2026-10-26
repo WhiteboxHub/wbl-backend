@@ -157,7 +157,7 @@ class EvalEngine:
         # Prepend a role-specific header for non-intro types (including fallback cases)
         # so the LLM evaluates the correct interview context.
         adapted_system_prompt = _system_prompt
-        if template_module_name not in ("intro", "jd_intro"):
+        if using_fallback:
             role_title = normalized_type.replace("_", " ").title()
             adapted_system_prompt = (
                 f"You are an expert {role_title} interview evaluator assessing "
