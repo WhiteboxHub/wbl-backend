@@ -8,6 +8,10 @@ import math
 import numpy as np
 import librosa
 import soundfile as sf
+try:
+    import av
+except ImportError:
+    av = None
 from typing import Dict, Any, Optional, Union
 from .config import AUDIO_CONFIG
 from .voice_activity_detector import VoiceActivityDetector
@@ -156,18 +160,22 @@ def load_audio_waveform(audio_input: Union[str, np.ndarray], sr: int = AUDIO_CON
 
     # 2. Universal Video & Audio Demuxer via PyAV (supports .mp4, .webm, .mov, .mkv)
     try:
-        import av
+        if not av:
+            raise ImportError("PyAV (av) is not installed")
         container = av.open(audio_input)
-        audio_stream = next((s for s in container.streams if s.type == "audio"), None)
-        if audio_stream is not None:
-            resampler = av.AudioResampler(format="fltp", layout="mono", rate=sr)
-            frames = []
-            for frame in container.decode(audio_stream):
-                for rframe in resampler.resample(frame):
-                    frames.append(rframe.to_ndarray())
-            if frames:
-                flattened = [np.ravel(f) for f in frames]
-                return np.concatenate(flattened, axis=0).astype(np.float32)
+        try:
+            audio_stream = next((s for s in container.streams if s.type == "audio"), None)
+            if audio_stream is not None:
+                resampler = av.AudioResampler(format="fltp", layout="mono", rate=sr)
+                frames = []
+                for frame in container.decode(audio_stream):
+                    for rframe in resampler.resample(frame):
+                        frames.append(rframe.to_ndarray())
+                if frames:
+                    flattened = [np.ravel(f) for f in frames]
+                    return np.concatenate(flattened, axis=0).astype(np.float32)
+        finally:
+            container.close()
 
     except Exception as e:
         logger.warning(f"PyAV demuxing failed: {e}")

@@ -13,6 +13,11 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 import copy
+from fractions import Fraction
+try:
+    import av
+except ImportError:
+    av = None
 try:
     import sentry_sdk
 except ImportError:
@@ -1247,7 +1252,7 @@ def candidate_get_assessment_detail_logic(
                 fpath = os.path.join(adir, fname)
                 if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
                     has_recording = True
-                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
+                    media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
     # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
@@ -1395,6 +1400,84 @@ def _stitch_assessment_chunks(
         return audio_path
 
     raise HTTPException(status_code=400, detail="No media chunks or recordings found to assemble for this assessment")
+
+
+def _stitch_question_chunks(
+    candidate_id: int,
+    assessment_id: int,
+    all_questions: Optional[List[Dict[str, Any]]] = None,
+) -> str:
+    """Stitches individual per-question audio.webm files into assembled.webm for YouTube upload and persistent playback."""
+    if not av:
+        logger.warning("PyAV (av) not available for WebM stitching")
+        return ""
+
+    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    video_path = os.path.join(assessment_dir, "assembled.webm")
+    questions_dir = os.path.join(assessment_dir, "questions")
+
+    if not os.path.exists(questions_dir):
+        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            return video_path
+        return ""
+
+    chunk_files = []
+    if all_questions:
+        for q in all_questions:
+            if isinstance(q, dict) and q.get("id"):
+                q_file = os.path.join(questions_dir, str(q["id"]), "audio.webm")
+                if os.path.exists(q_file) and os.path.getsize(q_file) > 0:
+                    chunk_files.append(q_file)
+
+    if not chunk_files and os.path.exists(questions_dir):
+        try:
+            for qid_dir in sorted(os.listdir(questions_dir)):
+                q_file = os.path.join(questions_dir, qid_dir, "audio.webm")
+                if os.path.isfile(q_file) and os.path.getsize(q_file) > 0:
+                    chunk_files.append(q_file)
+        except Exception as scan_err:
+            logger.warning("Error scanning questions directory %s: %s", questions_dir, scan_err)
+
+    if not chunk_files:
+        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            return video_path
+        return ""
+
+    try:
+        os.makedirs(assessment_dir, exist_ok=True)
+        out_container = av.open(video_path, mode="w", format="webm")
+        out_stream = out_container.add_stream("libopus", rate=48000)
+        out_stream.layout = "mono"
+
+        sample_offset = 0
+        for cf in chunk_files:
+            try:
+                with av.open(cf) as in_container:
+                    in_audio = next((s for s in in_container.streams if s.type == "audio"), None)
+                    if not in_audio:
+                        continue
+                    resampler = av.AudioResampler(format="fltp", layout="mono", rate=48000)
+                    for packet in in_container.demux(in_audio):
+                        for frame in packet.decode():
+                            for rframe in resampler.resample(frame):
+                                rframe.pts = sample_offset
+                                rframe.time_base = Fraction(1, 48000)
+                                for out_pkt in out_stream.encode(rframe):
+                                    out_container.mux(out_pkt)
+                                sample_offset += rframe.samples
+            except Exception as cf_err:
+                logger.warning("Could not decode chunk %s during stitch: %s", cf, cf_err)
+
+        # Flush encoder
+        for out_pkt in out_stream.encode(None):
+            out_container.mux(out_pkt)
+        out_container.close()
+
+        logger.info("[Stitch] Successfully assembled %d question chunks for assessment %s: %s (%d bytes, %.1fs)", len(chunk_files), assessment_id, video_path, os.path.getsize(video_path), sample_offset / 48000 if sample_offset else 0)
+        return video_path
+    except Exception as asm_err:
+        logger.error("Question chunk assembly failed for assessment %s: %s", assessment_id, asm_err)
+        return ""
 
 
 def resolve_storage_plan(
@@ -1553,6 +1636,14 @@ async def _process_multi_question_audio_batch(
     # Analyze all questions concurrently in parallel
     await asyncio.gather(*[_analyze_single_question(q) for q in all_questions if isinstance(q, dict)])
     
+    # Filter attempted questions: if candidate submitted early, evaluate only reached questions
+    attempted_questions = [
+        q for q in all_questions
+        if isinstance(q, dict) and os.path.exists(os.path.join(base_dir, "questions", str(q.get("id")), "audio.webm"))
+    ]
+    if attempted_questions:
+        all_questions = attempted_questions
+
     # Consolidate structured Q&A blocks for LLM Context
     qa_blocks = []
     for idx, q in enumerate(all_questions, start=1):
@@ -1792,6 +1883,7 @@ async def candidate_submit_assessment_logic(
 
             async def run_pipeline():
                 try:
+                    nonlocal assessment_media_type
                     if payload.transcript:
                         direct_text = payload.transcript if isinstance(payload.transcript, str) else str(payload.transcript.get("full_text") or "")
                         spoken_content = {"full_text": direct_text, "word_count": len(direct_text.split()), "segments": []}
@@ -1816,7 +1908,14 @@ async def candidate_submit_assessment_logic(
                         multi_q_questions: Optional[List[Dict[str, Any]]] = None
                         if multi_q_res:
                             spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
-                            target_media = ""
+                            target_media = await asyncio.to_thread(
+                                _stitch_question_chunks,
+                                candidate_id=resolved_cand_id,
+                                assessment_id=assessment_id_int,
+                                all_questions=multi_q_questions or [],
+                            )
+                            if target_media and os.path.exists(target_media):
+                                assessment_media_type = "AUDIO"
                         else:
                             # 1. Resolve media source: check for direct multipart audio upload first
                             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
@@ -2092,7 +2191,13 @@ async def candidate_submit_assessment_logic(
         multi_q_questions: Optional[List[Dict[str, Any]]] = None
         if multi_q_res:
             spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
-            target_media = ""
+            target_media = _stitch_question_chunks(
+                candidate_id=resolved_cand_id,
+                assessment_id=assessment.id,
+                all_questions=multi_q_questions or [],
+            )
+            if target_media and os.path.exists(target_media):
+                assessment.media_type = "AUDIO"
         else:
             # 1. Resolve media source: check for direct multipart audio upload first
             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
@@ -2409,7 +2514,7 @@ async def candidate_submit_assessment_logic(
                 fpath = os.path.join(adir, fname)
                 if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
                     has_recording = True
-                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
+                    media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
 
@@ -3036,8 +3141,10 @@ async def _process_youtube_upload_and_cleanup(
                 media_path,
             )
         except Exception as conv_err:
-            logger.warning("Audio-to-video conversion skipped/failed for assessment %s: %s. Using direct audio container for YouTube routing.", assessment_id, conv_err)
-            youtube_upload_file = media_path
+            logger.info("Audio-to-video conversion skipped/failed for assessment %s: %s. Retaining local assembled audio playback.", assessment_id, conv_err)
+            # YouTube requires a video track; if conversion is unavailable (e.g. ffmpeg missing),
+            # skip YouTube upload so the valid assembled.webm is preserved on disk for native serverUrl streaming.
+            return None
 
     # 2. Upload to YouTube
     try:
@@ -3430,12 +3537,12 @@ def get_assessment_audio_logic(
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
     candidate_files = [
+        os.path.join(assessment_dir, "assembled.webm"),
         os.path.join(assessment_dir, "audio.wav"),
         os.path.join(assessment_dir, "audio.webm"),
         os.path.join(assessment_dir, "recording.webm"),
         os.path.join(assessment_dir, "audio.mp3"),
         os.path.join(assessment_dir, "audio.ogg"),
-        os.path.join(assessment_dir, "assembled.webm"),
     ]
     target_file = None
     for cf in candidate_files:
