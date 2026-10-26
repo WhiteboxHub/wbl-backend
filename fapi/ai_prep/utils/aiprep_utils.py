@@ -1288,20 +1288,6 @@ def candidate_get_assessment_detail_logic(
                 clean_q["question_id"] = clean_q.get("question_id") or clean_q.get("id")
                 questions_list.append(clean_q)
 
-    # Check if a recorded media file exists in storage for direct playback
-    has_recording = False
-    recording_url = None
-    if assessment.candidate_id and assessment.id:
-        adir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id))
-        if os.path.exists(adir):
-            for fname in os.listdir(adir):
-                fpath = os.path.join(adir, fname)
-                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
-                    has_recording = True
-                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
-                    recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
-                    break
-
     return CandidateAssessmentUnifiedResponse(
         id=assessment.id,
         assessment_uuid=str(assessment.assessment_uuid) if assessment.assessment_uuid else None,
