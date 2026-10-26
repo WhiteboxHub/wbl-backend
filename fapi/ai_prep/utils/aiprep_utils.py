@@ -725,7 +725,7 @@ def _build_hiring_manager_eval_dict(
         elif good_strong_count >= max(1, (answered_count + 1) // 2) and weak_count <= max(1, total_q // 3):
             if current_rating in ("GOOD", "EXCELLENT", "STRONG"):
                 pass  # Candidate performed well, keep GOOD/STRONG!
-            elif good_strong_count >= max(2, int(total_q * 0.65)):
+            elif good_strong_count >= 2 and (good_strong_count / total_q) >= 0.65:
                 _set_overall(target_good)
             elif current_rating in ("WEAK", "POOR"):
                 _set_overall(target_avg)
