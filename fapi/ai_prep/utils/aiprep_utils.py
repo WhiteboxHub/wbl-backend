@@ -1636,6 +1636,14 @@ async def _process_multi_question_audio_batch(
     # Analyze all questions concurrently in parallel
     await asyncio.gather(*[_analyze_single_question(q) for q in all_questions if isinstance(q, dict)])
     
+    # Filter attempted questions: if candidate submitted early, evaluate only reached questions
+    attempted_questions = [
+        q for q in all_questions
+        if isinstance(q, dict) and os.path.exists(os.path.join(base_dir, "questions", str(q.get("id")), "audio.webm"))
+    ]
+    if attempted_questions:
+        all_questions = attempted_questions
+
     # Consolidate structured Q&A blocks for LLM Context
     qa_blocks = []
     for idx, q in enumerate(all_questions, start=1):
@@ -3132,8 +3140,10 @@ async def _process_youtube_upload_and_cleanup(
                 media_path,
             )
         except Exception as conv_err:
-            logger.warning("Audio-to-video conversion skipped/failed for assessment %s: %s. Using direct audio container for YouTube routing.", assessment_id, conv_err)
-            youtube_upload_file = media_path
+            logger.info("Audio-to-video conversion skipped/failed for assessment %s: %s. Retaining local assembled audio playback.", assessment_id, conv_err)
+            # YouTube requires a video track; if conversion is unavailable (e.g. ffmpeg missing),
+            # skip YouTube upload so the valid assembled.webm is preserved on disk for native serverUrl streaming.
+            return None
 
     # 2. Upload to YouTube
     try:
