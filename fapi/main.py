@@ -27,7 +27,7 @@ import fapi.utils.workflow_scheduler_service_utils  # auto-starts the workflow s
 import asyncio
 from fapi.core.redis_client import redis_client
 from fapi.db.database import SessionLocal, engine
-from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import traceback
@@ -243,20 +243,10 @@ def get_db():
 
 @app.get("/redis-test")
 def redis_test():
-    from fapi.core import config
-    if config.APP_ENV == "production":
-        raise HTTPException(
-            status_code=403,
-            detail="Write test is disabled in production. Use /api/redis-health for connection status."
-        )
+    from fapi.core.redis_client import redis_client
     client = redis_client.get_client()
-    if not client:
-        raise HTTPException(status_code=503, detail="Redis client is not connected")
-    try:
-        client.set("ping", "pong", ex=60)
-        return {"status": "success", "value": client.get("ping")}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Redis test failed: {e}")
+    client.set("ping", "pong", ex=60)
+    return {"value": client.get("ping")}
 
 # Base Routes
 app.include_router(job_click.router, prefix="/api", tags=["Job Link Click Tracking"], dependencies=[Depends(enforce_access)])
