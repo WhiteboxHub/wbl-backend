@@ -13,6 +13,11 @@ import tempfile
 from pathlib import Path
 from datetime import datetime
 import copy
+from fractions import Fraction
+try:
+    import av
+except ImportError:
+    av = None
 try:
     import sentry_sdk
 except ImportError:
@@ -1403,6 +1408,10 @@ def _stitch_question_chunks(
     all_questions: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """Stitches individual per-question audio.webm files into assembled.webm for YouTube upload and persistent playback."""
+    if not av:
+        logger.warning("PyAV (av) not available for WebM stitching")
+        return ""
+
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
     video_path = os.path.join(assessment_dir, "assembled.webm")
     questions_dir = os.path.join(assessment_dir, "questions")
@@ -1436,11 +1445,35 @@ def _stitch_question_chunks(
 
     try:
         os.makedirs(assessment_dir, exist_ok=True)
-        with open(video_path, "wb") as outfile:
-            for cf in chunk_files:
-                with open(cf, "rb") as infile:
-                    shutil.copyfileobj(infile, outfile, length=1024 * 1024)
-        logger.info("[Stitch] Successfully assembled %d question chunks for assessment %s: %s (%d bytes)", len(chunk_files), assessment_id, video_path, os.path.getsize(video_path))
+        out_container = av.open(video_path, mode="w", format="webm")
+        out_stream = out_container.add_stream("libopus", rate=48000)
+        out_stream.layout = "mono"
+
+        sample_offset = 0
+        for cf in chunk_files:
+            try:
+                with av.open(cf) as in_container:
+                    in_audio = next((s for s in in_container.streams if s.type == "audio"), None)
+                    if not in_audio:
+                        continue
+                    resampler = av.AudioResampler(format="fltp", layout="mono", rate=48000)
+                    for packet in in_container.demux(in_audio):
+                        for frame in packet.decode():
+                            for rframe in resampler.resample(frame):
+                                rframe.pts = sample_offset
+                                rframe.time_base = Fraction(1, 48000)
+                                for out_pkt in out_stream.encode(rframe):
+                                    out_container.mux(out_pkt)
+                                sample_offset += rframe.samples
+            except Exception as cf_err:
+                logger.warning("Could not decode chunk %s during stitch: %s", cf, cf_err)
+
+        # Flush encoder
+        for out_pkt in out_stream.encode(None):
+            out_container.mux(out_pkt)
+        out_container.close()
+
+        logger.info("[Stitch] Successfully assembled %d question chunks for assessment %s: %s (%d bytes, %.1fs)", len(chunk_files), assessment_id, video_path, os.path.getsize(video_path), sample_offset / 48000 if sample_offset else 0)
         return video_path
     except Exception as asm_err:
         logger.error("Question chunk assembly failed for assessment %s: %s", assessment_id, asm_err)

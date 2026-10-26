@@ -257,6 +257,10 @@ async def run_evaluation(
         audio_telemetry, video_telemetry, is_video_mode, can_eval_audio, questions=questions , job_description=job_description,
     )
 
+    eval_max_tokens = 8192
+    if assessment_type == "TECHNICAL" and questions and len(questions) > 5:
+        eval_max_tokens = 16384
+
     call_labels: List[str] = ["transcript_eval"]
     coroutines = [
         _invoke_llm(
@@ -266,6 +270,7 @@ async def run_evaluation(
             api_key=api_key,
             provider=provider,
             model=model,
+            max_tokens=eval_max_tokens,
         )
     ]
 
