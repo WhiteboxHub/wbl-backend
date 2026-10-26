@@ -737,17 +737,18 @@ def _build_hiring_manager_eval_dict(
     for tier in ("easy", "medium", "hard"):
         val = str(da.get(tier) or "").strip()
         if not val or val in ("—", "-", "N/A", "null"):
-            if answered_count > 0:
-                da[tier] = f"Demonstrated consistent responses and technical communication on {tier} difficulty questions."
-            else:
+            tier_qs = [q for q in (q_evals or []) if isinstance(q, dict) and str(q.get("difficulty_level") or "").strip().lower() == tier]
+            if not tier_qs:
                 da[tier] = "No questions at this difficulty were evaluated."
+            else:
+                ans = sum(1 for q in tier_qs if str(q.get("response_state") or "").upper().strip() == "ANSWERED" and str(q.get("rating") or "").upper().strip() not in ("WEAK", "POOR"))
+                unans = len(tier_qs) - ans
+                da[tier] = f"{ans} of {len(tier_qs)} answered adequately; {unans} unanswered." if unans > 0 else f"{ans} of {len(tier_qs)} answered adequately."
 
     obs_val = str(da.get("observation") or "").strip()
     if not obs_val or obs_val in ("—", "-", "N/A", "null"):
-        if answered_count > 0:
-            da["observation"] = "Demonstrated consistent technical depth, personal ownership, and communication clarity across difficulty levels."
-        else:
-            da["observation"] = "Insufficient data across difficulty tiers to compare progression."
+        tested = [t for t in ("easy", "medium", "hard") if any(isinstance(q, dict) and str(q.get("difficulty_level") or "").strip().lower() == t for q in (q_evals or []))]
+        da["observation"] = f"Candidate evaluated across {len(tested)} difficulty tiers." if len(tested) >= 2 else "Insufficient data across difficulty tiers to compare progression."
 
     a_eval = audio_eval or {}
     audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
@@ -1456,7 +1457,8 @@ def _stitch_question_chunks(
 
     if not chunk_files and os.path.exists(questions_dir):
         try:
-            for qid_dir in sorted(os.listdir(questions_dir), key=lambda x: int(x) if x.isdigit() else x):
+            numeric_dirs = [d for d in os.listdir(questions_dir) if d.isdigit()]
+            for qid_dir in sorted(numeric_dirs, key=int):
                 q_file = os.path.join(questions_dir, qid_dir, "audio.webm")
                 if os.path.isfile(q_file) and os.path.getsize(q_file) > 0:
                     chunk_files.append(q_file)

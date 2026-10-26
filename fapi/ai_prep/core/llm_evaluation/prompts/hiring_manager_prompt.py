@@ -326,7 +326,7 @@ OUTPUT RULES:
 - Keep observations and explanations concise (2 sentences maximum per question/summary) to preserve token efficiency.
 - DIFFICULTY ANALYSIS:
   Build this from the candidate's question responses grouped by difficulty_level (EASY, MEDIUM, HARD).
-  For each of EASY, MEDIUM, and HARD, write 1-2 concise sentences in second person ("You...") summarizing how the candidate handled questions at that difficulty tier (highlighting technical depth, structure, and personal agency).
+  For each of EASY, MEDIUM, and HARD, write 1-2 concise sentences in second person ("You...") summarizing how the candidate handled questions at that difficulty tier (highlighting technical depth, structure, and personal agency). If no questions were assigned or evaluated at that difficulty tier, output "No questions at this difficulty were evaluated."
   Provide an "observation" describing the candidate's performance progression and consistency across difficulty levels.
 - Fill the sections in this order: flags, overall_assessment, competency_evaluations, difficulty_analysis, question_evaluations, behavioral_delivery_analysis, final_assessment.
 - QUESTION ID: question_id MUST be the exact integer from input (e.g. 486), never a label string like "Q1".
