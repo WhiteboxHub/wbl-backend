@@ -212,15 +212,15 @@ COMPETENCY & OVERALL AGGREGATION RULES
   * [GOOD, GOOD]     -> GOOD
   * [GOOD, NEEDS_POLISH] -> NEEDS_POLISH
   * [NEEDS_POLISH, NEEDS_POLISH] -> NEEDS_POLISH
-  * Any pair containing WEAK: [STRONG, WEAK] -> WEAK, [GOOD, WEAK] -> WEAK, [NEEDS_POLISH, WEAK] -> WEAK, [WEAK, WEAK] -> WEAK.
+  * Mixed pairs with WEAK: [STRONG, WEAK] -> NEEDS_POLISH, [GOOD, WEAK] -> NEEDS_POLISH, [NEEDS_POLISH, WEAK] -> WEAK, [WEAK, WEAK] -> WEAK.
 - If no questions tested that competency -> "NOT_TESTED".
 
 2. Overall Assessment Rating Aggregation (Clean Rule List):
 - STRONG: All tested competencies are STRONG, OR at least 3 competencies are STRONG with all others GOOD, and zero are NEEDS_POLISH or WEAK.
-- GOOD: Most tested competencies are GOOD or STRONG (at least 85% of tested competencies are GOOD/STRONG with at most one NEEDS_POLISH), AND the candidate attended at least 85% of the session questions (e.g. at least 85% answered, at most 1 question skipped/unanswered out of 8-10).
-- NEEDS_POLISH: One or more competencies are NEEDS_POLISH, OR candidate answered around 50%-84% of session questions with solid quality, AND neither STRONG nor WEAK conditions are met.
-- WEAK: Majority of answered questions are WEAK, OR more than half of the interview questions were completely unanswered, OR all tested competencies are WEAK.
-- SPARSE SESSION RULE: If fewer than 4 questions were answered or fewer than 2 competencies were tested in the session, overall_assessment.rating MUST NOT exceed "NEEDS_POLISH" (or "WEAK" if those questions were weak). A candidate cannot achieve "GOOD" or "STRONG" for the interview based on a sparse session.
+- GOOD: Candidate performed well across the session. Most tested competencies are GOOD or STRONG (at least 60% of tested competencies are GOOD/STRONG with at most one minor gap or NEEDS_POLISH), AND the candidate answered the majority of session questions with solid technical depth, ownership, and engineering clarity.
+- NEEDS_POLISH: One or more competencies are NEEDS_POLISH, OR candidate answered questions with mixed quality, AND neither STRONG nor WEAK conditions are met.
+- WEAK: Majority (> 50%) of answered questions are WEAK, OR more than half of the interview questions were completely unanswered, OR all tested competencies are WEAK.
+- SPARSE SESSION RULE: If fewer than 3 questions were answered or fewer than 2 competencies were tested in the session (when >= 4 questions were planned), overall_assessment.rating MUST NOT exceed "NEEDS_POLISH" (or "WEAK" if those questions were weak). A candidate cannot achieve "GOOD" or "STRONG" for the interview based on a sparse session.
 
 ===============================================================================
 RESPONSE QUALITY ANALYSIS
@@ -318,7 +318,7 @@ OUTPUT RULES:
   * "evidence": []
   * all checkpoints: "NOT_APPLICABLE"
   NOTE: If questions were assigned to a competency in Section 1, but the candidate skipped them, evaluate the questions as response_state: "UNANSWERED" with rating: "WEAK" and rate that competency "WEAK" (do NOT mark it "NOT_TESTED").
-- UNANSWERED QUESTIONS HARD CAP: If a question is UNANSWERED (silent, blank, skipped, or no response), its question rating MUST be "WEAK" and response_state MUST be "UNANSWERED". If all questions are UNANSWERED or 2 or more questions are WEAK, overall_assessment.rating MUST be "WEAK". Never output "GOOD" or "STRONG" when questions are unanswered or failed.
+- UNANSWERED QUESTIONS RATING CAP: If a question is UNANSWERED (silent, blank, skipped, or no response), its question rating MUST be "WEAK" and response_state MUST be "UNANSWERED". If all questions are UNANSWERED or more than half (> 50%) of the questions are WEAK/UNANSWERED, overall_assessment.rating MUST be "WEAK". If a candidate answered the majority of questions well (e.g. mostly GOOD or STRONG), they should achieve "GOOD" (or "STRONG" for exceptional performance). If performance is mixed, output "NEEDS_POLISH". Never output "WEAK" when the candidate gave solid answers to the majority of questions.
 - Use only the allowed values listed below. Do not invent new labels.
 - Numbers are allowed ONLY for question_id. Never output scores, marks, averages, or percentages anywhere else.
 - Use null where the schema allows it. Use an empty array [] where a list has nothing to report. Never use placeholder text such as "N/A".

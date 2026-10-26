@@ -679,8 +679,10 @@ def _build_hiring_manager_eval_dict(
 
     # 2. Enforce deterministic overall rating caps based on question evaluations
     if isinstance(q_evals, list) and q_evals:
+        total_q = len(q_evals)
         weak_count = 0
         answered_count = 0
+        good_strong_count = 0
         for q in q_evals:
             if isinstance(q, dict):
                 state = str(q.get("response_state") or "").upper().strip()
@@ -693,31 +695,46 @@ def _build_hiring_manager_eval_dict(
                 )
                 if is_unanswered or q_rating in ("POOR", "WEAK"):
                     weak_count += 1
-                if not is_unanswered and q_rating not in ("POOR", "WEAK") and (
-                    state == "ANSWERED" or q_rating or q.get("covered_points") or q.get("evidence")
-                ):
+                else:
                     answered_count += 1
+                    if q_rating in ("GOOD", "EXCELLENT", "STRONG"):
+                        good_strong_count += 1
 
         current_rating = str(oa.get("readiness") or oa.get("rating") or "").upper().strip()
         is_canonical = current_rating in ("STRONG", "NEEDS_POLISH", "WEAK") or "readiness" in oa
-        target_weak = "WEAK" if is_canonical else "POOR"
+        target_good = "GOOD"
         target_avg = "NEEDS_POLISH" if is_canonical else "AVERAGE"
+        target_weak = "WEAK" if is_canonical else "POOR"
 
         def _set_overall(r: str):
             oa["rating"] = r
             if "readiness" in oa or is_canonical:
                 oa["readiness"] = r
 
-        if answered_count == 0 or weak_count >= 2:
+        # 1. Zero answers provided -> Always WEAK
+        if answered_count == 0:
             _set_overall(target_weak)
-            if answered_count == 0 and not oa.get("executive_summary"):
+            if not oa.get("executive_summary"):
                 oa["executive_summary"] = "Candidate did not provide substantive spoken answers to the interview questions."
-        elif weak_count == 1:
+        # 2. Majority of questions failed or unanswered (> 50%) -> WEAK
+        elif weak_count > (total_q / 2):
+            _set_overall(target_weak)
+        # 3. Candidate performed well:
+        #    - If current rating is already GOOD or STRONG, preserve it if at least half of answered questions were GOOD/STRONG
+        #    - Or lift to GOOD if candidate answered >= 65% of questions with GOOD/STRONG
+        elif good_strong_count >= max(1, (answered_count + 1) // 2) and weak_count <= max(1, total_q // 3):
             if current_rating in ("GOOD", "EXCELLENT", "STRONG"):
+                pass  # Candidate performed well, keep GOOD/STRONG!
+            elif good_strong_count >= max(2, int(total_q * 0.65)):
+                _set_overall(target_good)
+            elif current_rating in ("WEAK", "POOR"):
                 _set_overall(target_avg)
+        # 4. Mixed performance -> floor at NEEDS_POLISH (AVERAGE), never force to WEAK
+        elif current_rating in ("WEAK", "POOR") and answered_count >= 1:
+            _set_overall(target_avg)
 
-        # Sparse session rule: fewer than 4 answered questions or fewer than 2 competencies tested cannot achieve GOOD or STRONG
-        if len(q_evals) >= 4 and (answered_count < 4 or len(tested_competencies) < 2):
+        # Sparse session rule: fewer than 3 answered questions or fewer than 2 competencies tested cannot achieve GOOD or STRONG
+        if total_q >= 4 and (answered_count < 3 or len(tested_competencies) < 2):
             if str(oa.get("rating") or oa.get("readiness") or "").upper().strip() in ("GOOD", "EXCELLENT", "STRONG"):
                 _set_overall(target_avg)
 
