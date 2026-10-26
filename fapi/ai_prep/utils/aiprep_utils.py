@@ -1252,7 +1252,7 @@ def candidate_get_assessment_detail_logic(
                 fpath = os.path.join(adir, fname)
                 if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
                     has_recording = True
-                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
+                    media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
     # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
@@ -2513,7 +2513,7 @@ async def candidate_submit_assessment_logic(
                 fpath = os.path.join(adir, fname)
                 if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
                     has_recording = True
-                    media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
+                    media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
 
@@ -3536,12 +3536,12 @@ def get_assessment_audio_logic(
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
     candidate_files = [
+        os.path.join(assessment_dir, "assembled.webm"),
         os.path.join(assessment_dir, "audio.wav"),
         os.path.join(assessment_dir, "audio.webm"),
         os.path.join(assessment_dir, "recording.webm"),
         os.path.join(assessment_dir, "audio.mp3"),
         os.path.join(assessment_dir, "audio.ogg"),
-        os.path.join(assessment_dir, "assembled.webm"),
     ]
     target_file = None
     for cf in candidate_files:
