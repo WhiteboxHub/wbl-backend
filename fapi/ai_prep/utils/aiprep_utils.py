@@ -1840,6 +1840,7 @@ async def candidate_submit_assessment_logic(
                             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
                                 logger.info("Using directly uploaded audio file for assessment %s: %s", assessment_id_int, uploaded_audio_path)
                                 target_media = uploaded_audio_path
+                                target_audio = uploaded_audio_path 
                             else:
                                 stream_manager.publish_progress(
                                     assessment_id_int,
