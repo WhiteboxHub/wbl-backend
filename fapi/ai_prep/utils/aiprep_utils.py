@@ -1572,7 +1572,7 @@ async def _process_multi_question_audio_batch(
     consent: Optional[Dict[str, Any]] = None,
 ) -> Optional[Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, Any]]]]:
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
-    if not assessment or (assessment.assessment_type or "").upper() != "TECHNICAL":
+    if not assessment or (assessment.assessment_type or "").upper() not in ("TECHNICAL", "HIRING_MANAGER", "RECRUITER", "SYSTEM_DESIGN"):
         return None
     """
     Checks if this assessment has per-question audio files on disk (Technical Assessment).
