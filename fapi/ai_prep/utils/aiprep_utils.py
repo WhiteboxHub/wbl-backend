@@ -1468,6 +1468,7 @@ def _stitch_question_chunks(
             return video_path
         return ""
 
+    out_container = None
     try:
         os.makedirs(assessment_dir, exist_ok=True)
         out_container = av.open(video_path, mode="w", format="webm")
@@ -1476,33 +1477,47 @@ def _stitch_question_chunks(
 
         sample_offset = 0
         for cf in chunk_files:
+            in_container = None
             try:
-                with av.open(cf) as in_container:
-                    in_audio = next((s for s in in_container.streams if s.type == "audio"), None)
-                    if not in_audio:
-                        continue
-                    resampler = av.AudioResampler(format="fltp", layout="mono", rate=48000)
-                    for packet in in_container.demux(in_audio):
-                        for frame in packet.decode():
-                            for rframe in resampler.resample(frame):
-                                rframe.pts = sample_offset
-                                rframe.time_base = Fraction(1, 48000)
-                                for out_pkt in out_stream.encode(rframe):
-                                    out_container.mux(out_pkt)
-                                sample_offset += rframe.samples
+                in_container = av.open(cf)
+                in_audio = next((s for s in in_container.streams if s.type == "audio"), None)
+                if not in_audio:
+                    continue
+                resampler = av.AudioResampler(format="fltp", layout="mono", rate=48000)
+                for packet in in_container.demux(in_audio):
+                    for frame in packet.decode():
+                        for rframe in resampler.resample(frame):
+                            rframe.pts = sample_offset
+                            rframe.time_base = Fraction(1, 48000)
+                            for out_pkt in out_stream.encode(rframe):
+                                out_container.mux(out_pkt)
+                            sample_offset += rframe.samples
             except Exception as cf_err:
                 logger.warning("Could not decode chunk %s during stitch: %s", cf, cf_err)
+            finally:
+                if in_container is not None:
+                    try:
+                        in_container.close()
+                    except Exception:
+                        pass
 
         # Flush encoder
         for out_pkt in out_stream.encode(None):
             out_container.mux(out_pkt)
         out_container.close()
+        out_container = None
 
         logger.info("[Stitch] Successfully assembled %d question chunks for assessment %s: %s (%d bytes, %.1fs)", len(chunk_files), assessment_id, video_path, os.path.getsize(video_path), sample_offset / 48000 if sample_offset else 0)
         return video_path
     except Exception as asm_err:
         logger.error("Question chunk assembly failed for assessment %s: %s", assessment_id, asm_err)
         return ""
+    finally:
+        if out_container is not None:
+            try:
+                out_container.close()
+            except Exception:
+                pass
 
 
 def resolve_storage_plan(
