@@ -742,8 +742,16 @@ def _build_hiring_manager_eval_dict(
                 da[tier] = "No questions at this difficulty were evaluated."
             else:
                 ans = sum(1 for q in tier_qs if str(q.get("response_state") or "").upper().strip() == "ANSWERED" and str(q.get("rating") or "").upper().strip() not in ("WEAK", "POOR"))
-                unans = len(tier_qs) - ans
-                da[tier] = f"{ans} of {len(tier_qs)} answered adequately; {unans} unanswered." if unans > 0 else f"{ans} of {len(tier_qs)} answered adequately."
+                unans = sum(1 for q in tier_qs if str(q.get("response_state") or "").upper().strip() == "UNANSWERED")
+                weak = len(tier_qs) - ans - unans
+                if weak > 0 and unans > 0:
+                    da[tier] = f"{ans} of {len(tier_qs)} answered adequately; {weak} answered weakly, {unans} unanswered."
+                elif weak > 0:
+                    da[tier] = f"{ans} of {len(tier_qs)} answered adequately; {weak} answered weakly."
+                elif unans > 0:
+                    da[tier] = f"{ans} of {len(tier_qs)} answered adequately; {unans} unanswered."
+                else:
+                    da[tier] = f"{ans} of {len(tier_qs)} answered adequately."
 
     obs_val = str(da.get("observation") or "").strip()
     if not obs_val or obs_val in ("—", "-", "N/A", "null"):

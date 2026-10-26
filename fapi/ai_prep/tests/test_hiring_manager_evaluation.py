@@ -438,6 +438,24 @@ class TestBuildHiringManagerEvalDict(unittest.TestCase):
         )
         self.assertIn("hiring_manager_evaluation", dispatch_result)
 
+    def test_difficulty_analysis_fallback_distinguishes_weak_from_unanswered(self):
+        from fapi.ai_prep.utils.aiprep_utils import _build_hiring_manager_eval_dict
+
+        payload = {
+            "overall_assessment": {"rating": "NEEDS_POLISH", "summary": "Evaluated."},
+            "question_evaluations": [
+                {"question_id": 1, "difficulty_level": "EASY", "response_state": "ANSWERED", "rating": "GOOD"},
+                {"question_id": 2, "difficulty_level": "MEDIUM", "response_state": "ANSWERED", "rating": "POOR"},
+                {"question_id": 3, "difficulty_level": "HARD", "response_state": "UNANSWERED", "rating": "WEAK"},
+            ],
+            "difficulty_analysis": {"easy": "—", "medium": "N/A", "hard": "null", "observation": ""},
+        }
+        res = _build_hiring_manager_eval_dict(payload)
+        da = res["hiring_manager_evaluation"]["difficulty_analysis"]
+        self.assertEqual(da["easy"], "1 of 1 answered adequately.")
+        self.assertEqual(da["medium"], "0 of 1 answered adequately; 1 answered weakly.")
+        self.assertEqual(da["hard"], "0 of 1 answered adequately; 1 unanswered.")
+        self.assertEqual(da["observation"], "Candidate evaluated across 3 difficulty tiers.")
 
 
 class TestHiringManagerEndToEndFlow(unittest.TestCase):
