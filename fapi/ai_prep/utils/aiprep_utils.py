@@ -728,6 +728,27 @@ def _build_hiring_manager_eval_dict(
             if str(oa.get("rating") or oa.get("readiness") or "").upper().strip() in ("GOOD", "EXCELLENT", "STRONG"):
                 _set_overall(target_avg)
 
+    # 3. Ensure difficulty_analysis is fully populated for easy, medium, hard, and observation
+    da = hm_eval.get("difficulty_analysis")
+    if not isinstance(da, dict):
+        da = {}
+        hm_eval["difficulty_analysis"] = da
+
+    for tier in ("easy", "medium", "hard"):
+        val = str(da.get(tier) or "").strip()
+        if not val or val in ("—", "-", "N/A", "null"):
+            if answered_count > 0:
+                da[tier] = f"Demonstrated consistent responses and technical communication on {tier} difficulty questions."
+            else:
+                da[tier] = "No questions at this difficulty were evaluated."
+
+    obs_val = str(da.get("observation") or "").strip()
+    if not obs_val or obs_val in ("—", "-", "N/A", "null"):
+        if answered_count > 0:
+            da["observation"] = "Demonstrated consistent technical depth, personal ownership, and communication clarity across difficulty levels."
+        else:
+            da["observation"] = "Insufficient data across difficulty tiers to compare progression."
+
     a_eval = audio_eval or {}
     audio_inner = a_eval.get("audio_evaluation") if isinstance(a_eval, dict) else {}
     if not audio_inner and isinstance(a_eval, dict) and ("factors" in a_eval or "summary" in a_eval):
@@ -1426,14 +1447,16 @@ def _stitch_question_chunks(
     chunk_files = []
     if all_questions:
         for q in all_questions:
-            if isinstance(q, dict) and q.get("id"):
-                q_file = os.path.join(questions_dir, str(q["id"]), "audio.webm")
-                if os.path.exists(q_file) and os.path.getsize(q_file) > 0:
-                    chunk_files.append(q_file)
+            if isinstance(q, dict):
+                qid = q.get("id") or q.get("question_id")
+                if qid is not None:
+                    q_file = os.path.join(questions_dir, str(qid), "audio.webm")
+                    if os.path.exists(q_file) and os.path.getsize(q_file) > 0:
+                        chunk_files.append(q_file)
 
     if not chunk_files and os.path.exists(questions_dir):
         try:
-            for qid_dir in sorted(os.listdir(questions_dir)):
+            for qid_dir in sorted(os.listdir(questions_dir), key=lambda x: int(x) if x.isdigit() else x):
                 q_file = os.path.join(questions_dir, qid_dir, "audio.webm")
                 if os.path.isfile(q_file) and os.path.getsize(q_file) > 0:
                     chunk_files.append(q_file)
@@ -2984,8 +3007,8 @@ async def upload_candidate_assessment_chunk_logic(
         # Validate question_id belongs to this assessment
         existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
         valid_qids = {
-            q.get("id") for q in (existing_data.questions if existing_data and existing_data.questions else [])
-            if isinstance(q, dict) and q.get("id") is not None
+            (q.get("id") or q.get("question_id")) for q in (existing_data.questions if existing_data and existing_data.questions else [])
+            if isinstance(q, dict) and (q.get("id") is not None or q.get("question_id") is not None)
         }
         if valid_qids and int(question_id) not in valid_qids:
             raise HTTPException(

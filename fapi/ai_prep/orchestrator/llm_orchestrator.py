@@ -258,7 +258,7 @@ async def run_evaluation(
     )
 
     eval_max_tokens = 8192
-    if assessment_type == "TECHNICAL" and questions and len(questions) > 5:
+    if assessment_type in ("TECHNICAL", "HIRING_MANAGER") and questions and len(questions) > 5:
         eval_max_tokens = 16384
 
     call_labels: List[str] = ["transcript_eval"]
