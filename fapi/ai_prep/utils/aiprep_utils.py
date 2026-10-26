@@ -1253,8 +1253,6 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
-<<<<<<< HEAD
-=======
     # Check if a recorded media file exists in storage for direct playback
     has_recording = False
     recording_url = None
@@ -1268,7 +1266,6 @@ def candidate_get_assessment_detail_logic(
                     media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
->>>>>>> 0059f9778564d87659a966d0adac9ee8359e5fd0
     # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
     if assessment.youtube_url and "UF8uR6Z6KLc" in assessment.youtube_url:
         assessment.youtube_url = None
@@ -1290,7 +1287,6 @@ def candidate_get_assessment_detail_logic(
                 # Ensure clean question_id is exposed
                 clean_q["question_id"] = clean_q.get("question_id") or clean_q.get("id")
                 questions_list.append(clean_q)
-<<<<<<< HEAD
 
     # Check if a recorded media file exists in storage for direct playback
     has_recording = False
@@ -1305,8 +1301,6 @@ def candidate_get_assessment_detail_logic(
                     media_type_path = "audio" if str(assessment.media_type or "").upper() == "AUDIO" else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
-=======
->>>>>>> 0059f9778564d87659a966d0adac9ee8359e5fd0
 
     return CandidateAssessmentUnifiedResponse(
         id=assessment.id,
