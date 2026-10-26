@@ -685,9 +685,9 @@ def _build_hiring_manager_eval_dict(
                             comp["checkpoints"][cp_k] = "NOT_APPLICABLE"
 
     # 2. Enforce deterministic overall rating caps based on question evaluations
+    answered_count = 0
     if isinstance(q_evals, list) and q_evals:
         weak_count = 0
-        answered_count = 0
         for q in q_evals:
             if isinstance(q, dict):
                 state = str(q.get("response_state") or "").upper().strip()
