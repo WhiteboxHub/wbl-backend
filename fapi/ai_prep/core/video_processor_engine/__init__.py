@@ -24,6 +24,10 @@ from fapi.ai_prep.core.video_processor_engine.audio_to_video import (
     convert_audio_to_youtube_video,
     MediaConversionError,
 )
+from fapi.ai_prep.core.video_processor_engine.video_to_audio import (
+    extract_audio_from_video,
+    AudioExtractionError,
+)
 
 __all__ = [
     "VideoProcessorEngine",
@@ -36,4 +40,6 @@ __all__ = [
     "inspect_youtube_upload_readiness",
     "convert_audio_to_youtube_video",
     "MediaConversionError",
+    "extract_audio_from_video",
+    "AudioExtractionError",
 ]

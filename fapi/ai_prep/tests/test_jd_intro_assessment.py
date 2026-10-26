@@ -215,7 +215,7 @@ class TestJDIntroPromptCompilation(unittest.TestCase):
             assessment_type="TECHNICAL",
             transcript_text="Technical answer.",
         )
-        self.assertIn("You are an expert Technical interview evaluator", tech_res["system_prompt"])
+        self.assertIn("Technical Interview Evaluator", tech_res["system_prompt"])
 
 
 class TestJDIntroOutputValidation(unittest.TestCase):
