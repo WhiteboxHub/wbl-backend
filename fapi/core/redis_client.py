@@ -3,8 +3,9 @@ try:
 except ImportError:  # pragma: no cover - runtime environment dependent
     redis_lib = None  # type: ignore[assignment]
 
-from fapi.core import config
+import os
 import logging
+from fapi.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,19 @@ class RedisClient:
         if cls._client is not None:
             return cls._client
 
-        if redis_lib is None or not config.REDIS_HOST:
+        if not config.REDIS_HOST:
+            return None
+
+        # Validate that REDIS_PASSWORD is provided in production (OWASP A07 guard)
+        app_env = getattr(config, "APP_ENV", "local").strip().lower()
+        is_test = os.getenv("ENV", "").strip().lower() == "test"
+        if app_env in ("production", "prod") and not is_test:
+            if not config.REDIS_PASSWORD:
+                raise ValueError(
+                    "Insecure configuration: REDIS_PASSWORD must be configured in production when REDIS_HOST is set."
+                )
+
+        if redis_lib is None:
             return None
 
         try:
