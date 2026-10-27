@@ -7,6 +7,7 @@ import uuid
 import json
 import re
 import shutil
+import subprocess
 import logging
 import asyncio
 import time
@@ -1266,8 +1267,8 @@ def candidate_get_assessment_detail_logic(
                     media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                     recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
                     break
-    # Sanitize any accidental hardcoded demo YouTube URLs previously stored in DB
-    if assessment.youtube_url and "UF8uR6Z6KLc" in assessment.youtube_url:
+    # Sanitize any accidental hardcoded demo YouTube URLs or legacy mock URLs previously stored in DB
+    if assessment.youtube_url and ("UF8uR6Z6KLc" in assessment.youtube_url or "aiprep_rec_" in assessment.youtube_url):
         assessment.youtube_url = None
         try:
             crud.update_assessment_media_url(db, assessment.id, None)
@@ -1418,11 +1419,7 @@ def _stitch_question_chunks(
     assessment_id: int,
     all_questions: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
-    """Stitches individual per-question audio.webm files into assembled.webm for YouTube upload and persistent playback."""
-    if not av:
-        logger.warning("PyAV (av) not available for WebM stitching")
-        return ""
-
+    """Stitches individual per-question audio/video chunks into assembled.webm for YouTube upload and persistent playback."""
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
     video_path = os.path.join(assessment_dir, "assembled.webm")
     questions_dir = os.path.join(assessment_dir, "questions")
@@ -1435,17 +1432,22 @@ def _stitch_question_chunks(
     chunk_files = []
     if all_questions:
         for q in all_questions:
-            if isinstance(q, dict) and q.get("id"):
-                q_file = os.path.join(questions_dir, str(q["id"]), "audio.webm")
-                if os.path.exists(q_file) and os.path.getsize(q_file) > 0:
-                    chunk_files.append(q_file)
+            if isinstance(q, dict) and (q.get("id") or q.get("question_id")):
+                qid = str(q.get("id") or q.get("question_id"))
+                q_vfile = os.path.join(questions_dir, qid, "video.webm")
+                q_afile = os.path.join(questions_dir, qid, "audio.webm")
+                target_f = q_vfile if (os.path.exists(q_vfile) and os.path.getsize(q_vfile) > 0) else (q_afile if (os.path.exists(q_afile) and os.path.getsize(q_afile) > 0) else None)
+                if target_f:
+                    chunk_files.append(target_f)
 
     if not chunk_files and os.path.exists(questions_dir):
         try:
             for qid_dir in sorted(os.listdir(questions_dir)):
-                q_file = os.path.join(questions_dir, qid_dir, "audio.webm")
-                if os.path.isfile(q_file) and os.path.getsize(q_file) > 0:
-                    chunk_files.append(q_file)
+                q_vfile = os.path.join(questions_dir, qid_dir, "video.webm")
+                q_afile = os.path.join(questions_dir, qid_dir, "audio.webm")
+                target_f = q_vfile if (os.path.exists(q_vfile) and os.path.getsize(q_vfile) > 0) else (q_afile if (os.path.exists(q_afile) and os.path.getsize(q_afile) > 0) else None)
+                if target_f:
+                    chunk_files.append(target_f)
         except Exception as scan_err:
             logger.warning("Error scanning questions directory %s: %s", questions_dir, scan_err)
 
@@ -1454,8 +1456,72 @@ def _stitch_question_chunks(
             return video_path
         return ""
 
+    # Detect if any chunk contains video
+    has_video = any("video" in os.path.basename(cf) for cf in chunk_files)
+    if not has_video and av:
+        try:
+            with av.open(chunk_files[0]) as probe_c:
+                if any(s.type == "video" for s in probe_c.streams):
+                    has_video = True
+        except Exception:
+            pass
+
+    os.makedirs(assessment_dir, exist_ok=True)
+
+    # 1. Video Concatenation
+    if has_video:
+        ffmpeg_bin = getattr(settings, "FFMPEG_PATH", "ffmpeg")
+        concat_list_path = os.path.join(assessment_dir, f"concat_{assessment_id}.txt")
+        try:
+            with open(concat_list_path, "w") as f:
+                for cf in chunk_files:
+                    f.write(f"file '{os.path.abspath(cf)}'\n")
+
+            cmd = [
+                ffmpeg_bin,
+                "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", concat_list_path,
+                "-c", "copy",
+                video_path,
+            ]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+            if res.returncode == 0 and os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                logger.info("[Stitch] Successfully concatenated %d video question chunks into %s (%d bytes)", len(chunk_files), video_path, os.path.getsize(video_path))
+                return video_path
+            else:
+                logger.warning("[Stitch] FFmpeg copy concat returned %s, trying re-encode concat", res.returncode)
+                re_cmd = [
+                    ffmpeg_bin,
+                    "-y",
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", concat_list_path,
+                    "-c:v", "libvpx",
+                    "-b:v", "1M",
+                    "-c:a", "libopus",
+                    video_path,
+                ]
+                re_res = subprocess.run(re_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
+                if re_res.returncode == 0 and os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                    logger.info("[Stitch] Re-encode concat succeeded for %s", video_path)
+                    return video_path
+        except Exception as v_err:
+            logger.warning("[Stitch] Video concat error: %s, falling back to PyAV audio stitch", v_err)
+        finally:
+            if os.path.exists(concat_list_path):
+                try:
+                    os.remove(concat_list_path)
+                except Exception:
+                    pass
+
+    # 2. Audio-only stitching (PyAV mono libopus)
+    if not av:
+        logger.warning("PyAV (av) not available for WebM stitching")
+        return ""
+
     try:
-        os.makedirs(assessment_dir, exist_ok=True)
         out_container = av.open(video_path, mode="w", format="webm")
         out_stream = out_container.add_stream("libopus", rate=48000)
         out_stream.layout = "mono"
@@ -1594,9 +1660,11 @@ async def _process_multi_question_audio_batch(
     
     has_multi_questions = False
     for q in all_questions:
-        if isinstance(q, dict) and q.get("id"):
-            q_file = os.path.join(base_dir, "questions", str(q["id"]), "audio.webm")
-            if os.path.exists(q_file):
+        if isinstance(q, dict) and (q.get("id") or q.get("question_id")):
+            qid = str(q.get("id") or q.get("question_id"))
+            q_file_v = os.path.join(base_dir, "questions", qid, "video.webm")
+            q_file_a = os.path.join(base_dir, "questions", qid, "audio.webm")
+            if os.path.exists(q_file_v) or os.path.exists(q_file_a):
                 has_multi_questions = True
                 break
 
@@ -1611,25 +1679,27 @@ async def _process_multi_question_audio_batch(
     async def _analyze_single_question(q: Dict[str, Any]) -> None:
         if not isinstance(q, dict):
             return
-        qid = q.get("id")
+        qid = q.get("id") or q.get("question_id")
+        q_video_file = os.path.join(base_dir, "questions", str(qid), "video.webm")
         q_audio_file = os.path.join(base_dir, "questions", str(qid), "audio.webm")
+        q_media_file = q_video_file if os.path.exists(q_video_file) else (q_audio_file if os.path.exists(q_audio_file) else None)
 
-        if os.path.exists(q_audio_file):
+        if q_media_file and os.path.exists(q_media_file):
             # Extract audio from video if question was recorded in VIDEO mode
-            target_q_audio = q_audio_file
-            is_video = str(getattr(assessment, "media_type", None) or "VIDEO").upper() == "VIDEO"
-            if is_video and q_audio_file.endswith((".webm", ".mp4", ".mkv")):
+            target_q_audio = q_media_file
+            is_video = str(getattr(assessment, "media_type", None) or "VIDEO").upper() == "VIDEO" or "video" in q_media_file
+            if is_video and q_media_file.endswith((".webm", ".mp4", ".mkv")):
                 q_wav = os.path.join(base_dir, "questions", str(qid), "audio.wav")
                 try:
                     await asyncio.to_thread(
                         VideoProcessorEngine.extract_audio,
-                        video_path=q_audio_file,
+                        video_path=q_media_file,
                         output_audio_path=q_wav,
                     )
                     target_q_audio = q_wav
                 except Exception as ext_err:
-                    logger.warning("Per-question audio extraction failed (%s), using %s directly", ext_err, q_audio_file)
-                    target_q_audio = q_audio_file
+                    logger.warning("Per-question audio extraction failed (%s), using %s directly", ext_err, q_media_file)
+                    target_q_audio = q_media_file
             try:
                 async with sem:
                     q_audio_res = await asyncio.to_thread(
@@ -1665,7 +1735,10 @@ async def _process_multi_question_audio_batch(
     # Filter attempted questions: if candidate submitted early, evaluate only reached questions
     attempted_questions = [
         q for q in all_questions
-        if isinstance(q, dict) and os.path.exists(os.path.join(base_dir, "questions", str(q.get("id")), "audio.webm"))
+        if isinstance(q, dict) and (
+            os.path.exists(os.path.join(base_dir, "questions", str(q.get("id") or q.get("question_id")), "video.webm")) or
+            os.path.exists(os.path.join(base_dir, "questions", str(q.get("id") or q.get("question_id")), "audio.webm"))
+        )
     ]
     if attempted_questions:
         all_questions = attempted_questions
@@ -1847,7 +1920,7 @@ async def candidate_submit_assessment_logic(
         if hasattr(assessment.status, "value")
         else str(assessment.status or "")
     ).upper()
-    if current_status in ("COMPLETED", "CANCELLED", "FAILED", "EVALUATING"):
+    if current_status in ("COMPLETED", "CANCELLED", "EVALUATING"):
         raise HTTPException(
             status_code=409,
             detail=f"Assessment is already {current_status}. Cannot resubmit or retake an assessment that is closed or currently evaluating.",
@@ -1942,7 +2015,23 @@ async def candidate_submit_assessment_logic(
                                 all_questions=multi_q_questions or [],
                             )
                             if target_media and os.path.exists(target_media):
-                                assessment_media_type = "AUDIO"
+                                if str(getattr(payload, "media_type", None) or assessment_media_type or "").upper() != "VIDEO":
+                                    assessment_media_type = "AUDIO"
+                                else:
+                                    assessment_media_type = "VIDEO"
+                        elif (
+                            existing_data
+                            and existing_data.transcript
+                            and isinstance(existing_data.transcript, dict)
+                            and existing_data.transcript.get("full_text")
+                            and existing_data.questions
+                        ):
+                            logger.info("Reusing existing transcribed data on retry for assessment %s", assessment_id_int)
+                            spoken_content = existing_data.transcript
+                            raw_audio_telemetry = existing_data.audio_telemetry or {}
+                            multi_q_questions = existing_data.questions
+                            assembled_cand = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id_int), "assembled.webm")
+                            target_media = assembled_cand if os.path.exists(assembled_cand) else "assembled.webm"
                         else:
                             # 1. Resolve media source: check for direct multipart audio upload first
                             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
@@ -2057,7 +2146,9 @@ async def candidate_submit_assessment_logic(
                             "text": full_text,
                         }]
 
-                    duration_s = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds", 0.0) or 0.0)
+                    server_audio_duration = float(raw_audio_telemetry.get("total_audio_duration_seconds", 0.0) or 0.0)
+                    client_duration = float(payload.client_duration_seconds or 0.0)
+                    duration_s = max(server_audio_duration, client_duration)
                     insufficient_content = evaluate_gatekeeper_flag(
                         word_count=word_count,
                         duration_seconds=duration_s,
@@ -2274,7 +2365,10 @@ async def candidate_submit_assessment_logic(
                 all_questions=multi_q_questions or [],
             )
             if target_media and os.path.exists(target_media):
-                assessment.media_type = "AUDIO"
+                if str(getattr(payload, "media_type", None) or getattr(assessment, "media_type", None) or "").upper() != "VIDEO":
+                    assessment.media_type = "AUDIO"
+                else:
+                    assessment.media_type = "VIDEO"
         else:
             # 1. Resolve media source: check for direct multipart audio upload first
             if uploaded_audio_path and os.path.exists(uploaded_audio_path):
@@ -2456,11 +2550,9 @@ async def candidate_submit_assessment_logic(
     )
 
     # 6. Evaluate Gatekeeper Flag
-    interview_duration = (
-        float(payload.client_duration_seconds)
-        if payload.client_duration_seconds is not None and payload.client_duration_seconds > 0
-        else float(raw_audio_telemetry.get("total_audio_duration_seconds") or 0.0)
-    )
+    server_audio_duration = float(raw_audio_telemetry.get("total_audio_duration_seconds", 0.0) or 0.0)
+    client_duration = float(payload.client_duration_seconds or 0.0)
+    interview_duration = max(server_audio_duration, client_duration)
 
     formatted_audio_telemetry = {
         "speaking_duration_sec": round(speaking_duration_sec, 1),
@@ -3004,7 +3096,9 @@ async def upload_candidate_assessment_chunk_logic(
 
         # Save directly into dedicated question directory for Technical Assessments
         chunk_dir = os.path.join(base_dir, "questions", str(question_id))
-        chunk_path = os.path.join(chunk_dir, "audio.webm")
+        is_video = str(getattr(assessment, "media_type", None) or "").upper() == "VIDEO"
+        chunk_filename = "video.webm" if is_video else "audio.webm"
+        chunk_path = os.path.join(chunk_dir, chunk_filename)
         last_index_file = os.path.join(chunk_dir, ".last_chunk_index")
 
         # Retry guard: return 200 without appending if this chunk was already written
@@ -3279,7 +3373,7 @@ async def _process_youtube_upload_and_cleanup(
             # skip YouTube upload so the valid assembled.webm is preserved on disk for native serverUrl streaming.
             return None
 
-    # 2. Upload to YouTube
+    # 2. Upload to YouTube (only when real live credentials are configured)
     try:
         from fapi.ai_prep.clients.youtube_client import youtube_client
         upload_res = await asyncio.to_thread(
@@ -3288,15 +3382,23 @@ async def _process_youtube_upload_and_cleanup(
             file_path=youtube_upload_file,
             media_type=media_type,
         )
-        youtube_url = upload_res.get("youtube_url")
-        logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
+        youtube_url = upload_res.get("youtube_url") if isinstance(upload_res, dict) else None
+        if youtube_url:
+            logger.info("Assessment %s successfully uploaded to YouTube: %s", assessment_id, youtube_url)
     except Exception as yt_err:
         logger.warning("YouTube live upload note for assessment %s: %s", assessment_id, yt_err)
         youtube_url = None
 
-    # 3. Persist youtube_url to DB
+    # Filter out any mock/placeholder URLs so they are never saved or treated as valid
+    is_real_youtube = bool(
+        youtube_url 
+        and "aiprep_rec_" not in youtube_url 
+        and "UF8uR6Z6KLc" not in youtube_url
+    )
+
+    # 3. Persist youtube_url to DB only if real YouTube upload succeeded
     youtube_persisted = False
-    if youtube_url:
+    if is_real_youtube:
         try:
             with SessionLocal() as db:
                 crud.update_assessment_media_url(db, assessment_id, youtube_url)
@@ -3305,21 +3407,21 @@ async def _process_youtube_upload_and_cleanup(
         except Exception as db_url_err:
             logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
-    # 4. Storage Cleanup: ONLY once uploaded to YouTube and verified persisted in DB
+    # 4. Storage Cleanup: ONLY once verified uploaded to real YouTube and persisted in DB
     try:
         from fapi.ai_prep.config import settings
         should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
-        if youtube_persisted and should_cleanup and candidate_id:
+        if is_real_youtube and youtube_persisted and should_cleanup and candidate_id:
             assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
             if os.path.exists(assessment_dir):
                 logger.info("Purging server storage for assessment %s at %s following verified YouTube DB update", assessment_id, assessment_dir)
                 shutil.rmtree(assessment_dir, ignore_errors=True)
-        elif not youtube_persisted:
-            logger.info("Retaining local storage for assessment %s (YouTube URL not persisted in DB)", assessment_id)
+        else:
+            logger.info("Retaining local storage for assessment %s (local stitched media available for playback)", assessment_id)
     except Exception as clean_err:
         logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
 
-    return youtube_url
+    return youtube_url if is_real_youtube else None
 
 
 async def process_media_and_upload_pipeline(
