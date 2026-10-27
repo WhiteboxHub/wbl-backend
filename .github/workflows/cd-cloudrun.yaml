@@ -46,12 +46,16 @@ jobs:
             --tag=smoke \
             --vpc-connector wbl-connector \
             --vpc-egress private-ranges-only \
-            --set-env-vars REDIS_HOST=10.128.0.42,REDIS_PORT=6379 \
-            --set-secrets REDIS_PASSWORD=redis-password:latest
+            --update-env-vars REDIS_HOST=10.128.0.42,REDIS_PORT=6379 \
+            --update-secrets REDIS_PASSWORD=redis-password:latest
 
       - name: Retrieve Smoke Revision URL
         run: |
           SMOKE_URL=$(gcloud run services describe fastapi-backend --platform managed --region us-central1 --format=json | jq -r '.status.traffic[] | select(.tag=="smoke") | .url')
+          if [ -z "$SMOKE_URL" ] || [ "$SMOKE_URL" = "null" ]; then
+            echo "ERROR: Failed to retrieve smoke revision URL. Halting deployment to prevent unverified promotion."
+            exit 1
+          fi
           echo "SMOKE_URL=$SMOKE_URL" >> $GITHUB_ENV
 
       - name: Run Smoke Tests
