@@ -28,9 +28,8 @@ class RedisClient:
             return None
 
         # Validate that REDIS_PASSWORD is provided in production (OWASP A07 guard)
-        app_env = getattr(config, "APP_ENV", "local").strip().lower()
-        is_test = os.getenv("ENV", "").strip().lower() == "test"
-        if app_env in ("production", "prod") and not is_test:
+        app_env = (getattr(config, "APP_ENV", None) or os.getenv("APP_ENV", "local")).strip().lower()
+        if app_env in ("production", "prod"):
             if not config.REDIS_PASSWORD:
                 raise ValueError(
                     "Insecure configuration: REDIS_PASSWORD must be configured in production when REDIS_HOST is set."
