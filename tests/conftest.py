@@ -11,8 +11,8 @@ logging.raiseExceptions = False
 # 1. Set Mock Environment Variables BEFORE any imports happen
 os.environ["SECRET_KEY"] = "mock_test_secret_key_12345"  # pragma: allowlist secret
 os.environ["ALGORITHM"] = "HS256"
-os.environ["UPSTASH_REDIS_REST_URL"] = "https://mock-redis.upstash.io"
-os.environ["UPSTASH_REDIS_REST_TOKEN"] = "mock_token"
+os.environ["REDIS_HOST"] = "localhost"          # mock — never connects in unit tests
+os.environ["REDIS_PORT"] = "6379"
 os.environ["DB_PASSWORD"] = "mock_password"  # pragma: allowlist secret
 os.environ["DB_HOST"] = "localhost"
 os.environ["DB_NAME"] = "wbl_test"
@@ -103,7 +103,7 @@ def override_db_dependency(db_session):
     yield
     app.dependency_overrides.clear()
 
-# 5. Mock the Upstash Redis Client so it never hits the actual internet
+# 5. Mock the Redis Client so it never dials a real server during unit tests
 @pytest.fixture(autouse=True)
 def mock_redis():
     mock_client = MagicMock()

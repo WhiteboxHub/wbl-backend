@@ -200,7 +200,8 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    pass  # Upstash Redis is HTTP-based; no persistent connection to close
+    from fapi.core.redis_client import RedisClient
+    RedisClient.close()  # Close Redis connection pool gracefully on shutdown
 
 @app.get("/api/redis-health", tags=["Health"])
 async def redis_health():
