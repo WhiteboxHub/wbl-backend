@@ -1351,7 +1351,7 @@ def _stitch_assessment_chunks(
     """Stitches chunks from chunks/ into assembled.webm, or returns existing assembled media."""
     from fapi.ai_prep.core.video_processor_engine import validate_chunk_sequence
 
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    assessment_dir = os.path.abspath(os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id)))
     video_path = os.path.join(assessment_dir, "assembled.webm")
     audio_path = os.path.join(assessment_dir, "audio.wav")
     chunk_dir = os.path.join(assessment_dir, "chunks")
@@ -1402,6 +1402,20 @@ def _stitch_assessment_chunks(
                             raise FileNotFoundError(f"Chunk file missing: {cf}")
                         with open(cf, "rb") as infile:
                             shutil.copyfileobj(infile, outfile, length=1024 * 1024)
+                # Remux with -c copy to ensure WebM has proper Duration and Cues for seeking
+                remux_video = os.path.join(assessment_dir, "assembled_indexed.webm")
+                try:
+                    ffmpeg_bin = getattr(settings, "FFMPEG_PATH", "ffmpeg")
+                    subprocess.run(
+                        [ffmpeg_bin, "-y", "-i", video_path, "-c", "copy", remux_video],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=30,
+                    )
+                    if os.path.exists(remux_video) and os.path.getsize(remux_video) > 0:
+                        os.replace(remux_video, video_path)
+                except Exception as rx_err:
+                    logger.warning("Fast remux for chunk assembly seek indexing failed: %s", rx_err)
             except Exception as asm_err:
                 logger.error("Chunk assembly failed for assessment %s: %s", assessment_id, asm_err)
                 raise HTTPException(status_code=500, detail=f"Failed to assemble media chunks: {asm_err}")
@@ -1420,7 +1434,7 @@ def _stitch_question_chunks(
     all_questions: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """Stitches individual per-question audio/video chunks into assembled.webm for YouTube upload and persistent playback."""
-    assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
+    assessment_dir = os.path.abspath(os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id)))
     video_path = os.path.join(assessment_dir, "assembled.webm")
     questions_dir = os.path.join(assessment_dir, "questions")
 
@@ -1438,7 +1452,7 @@ def _stitch_question_chunks(
                 q_afile = os.path.join(questions_dir, qid, "audio.webm")
                 target_f = q_vfile if (os.path.exists(q_vfile) and os.path.getsize(q_vfile) > 0) else (q_afile if (os.path.exists(q_afile) and os.path.getsize(q_afile) > 0) else None)
                 if target_f:
-                    chunk_files.append(target_f)
+                    chunk_files.append(os.path.abspath(target_f))
 
     if not chunk_files and os.path.exists(questions_dir):
         try:
@@ -1447,7 +1461,7 @@ def _stitch_question_chunks(
                 q_afile = os.path.join(questions_dir, qid_dir, "audio.webm")
                 target_f = q_vfile if (os.path.exists(q_vfile) and os.path.getsize(q_vfile) > 0) else (q_afile if (os.path.exists(q_afile) and os.path.getsize(q_afile) > 0) else None)
                 if target_f:
-                    chunk_files.append(target_f)
+                    chunk_files.append(os.path.abspath(target_f))
         except Exception as scan_err:
             logger.warning("Error scanning questions directory %s: %s", questions_dir, scan_err)
 
@@ -1471,11 +1485,27 @@ def _stitch_question_chunks(
     # 1. Video Concatenation
     if has_video:
         ffmpeg_bin = getattr(settings, "FFMPEG_PATH", "ffmpeg")
-        concat_list_path = os.path.join(assessment_dir, f"concat_{assessment_id}.txt")
+        concat_list_path = os.path.abspath(os.path.join(assessment_dir, f"concat_{assessment_id}.txt"))
+        temp_indexed_files = []
         try:
+            # Pre-index each question chunk with FFmpeg (-c copy) to populate exact Duration and Cues header
+            indexed_chunks = []
+            for idx, cf in enumerate(chunk_files):
+                abs_cf = os.path.abspath(cf)
+                indexed_target = os.path.abspath(os.path.join(assessment_dir, f"_idx_{idx}_{os.path.basename(cf)}"))
+                remux_cmd = [
+                    ffmpeg_bin, "-y", "-i", abs_cf, "-c", "copy", indexed_target
+                ]
+                r = subprocess.run(remux_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+                if r.returncode == 0 and os.path.exists(indexed_target) and os.path.getsize(indexed_target) > 0:
+                    indexed_chunks.append(indexed_target)
+                    temp_indexed_files.append(indexed_target)
+                else:
+                    indexed_chunks.append(abs_cf)
+
             with open(concat_list_path, "w") as f:
-                for cf in chunk_files:
-                    f.write(f"file '{os.path.abspath(cf)}'\n")
+                for icf in indexed_chunks:
+                    f.write(f"file '{os.path.abspath(icf)}'\n")
 
             cmd = [
                 ffmpeg_bin,
@@ -1491,7 +1521,8 @@ def _stitch_question_chunks(
                 logger.info("[Stitch] Successfully concatenated %d video question chunks into %s (%d bytes)", len(chunk_files), video_path, os.path.getsize(video_path))
                 return video_path
             else:
-                logger.warning("[Stitch] FFmpeg copy concat returned %s, trying re-encode concat", res.returncode)
+                err_msg = res.stderr.decode(errors="ignore") if res.stderr else ""
+                logger.warning("[Stitch] FFmpeg copy concat returned %s (%s), trying re-encode concat", res.returncode, err_msg[:300])
                 re_cmd = [
                     ffmpeg_bin,
                     "-y",
@@ -1499,6 +1530,9 @@ def _stitch_question_chunks(
                     "-safe", "0",
                     "-i", concat_list_path,
                     "-c:v", "libvpx",
+                    "-deadline", "realtime",
+                    "-cpu-used", "8",
+                    "-crf", "32",
                     "-b:v", "1M",
                     "-c:a", "libopus",
                     video_path,
@@ -1507,6 +1541,9 @@ def _stitch_question_chunks(
                 if re_res.returncode == 0 and os.path.exists(video_path) and os.path.getsize(video_path) > 0:
                     logger.info("[Stitch] Re-encode concat succeeded for %s", video_path)
                     return video_path
+                else:
+                    re_err = re_res.stderr.decode(errors="ignore") if re_res.stderr else ""
+                    logger.warning("[Stitch] FFmpeg re-encode concat returned %s (%s)", re_res.returncode, re_err[:300])
         except Exception as v_err:
             logger.warning("[Stitch] Video concat error: %s, falling back to PyAV audio stitch", v_err)
         finally:
@@ -1515,6 +1552,14 @@ def _stitch_question_chunks(
                     os.remove(concat_list_path)
                 except Exception:
                     pass
+            for tif in temp_indexed_files:
+                if os.path.exists(tif):
+                    try:
+                        os.remove(tif)
+                    except Exception:
+                        pass
+        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            return video_path
 
     # 2. Audio-only stitching (PyAV mono libopus)
     if not av:
@@ -1833,13 +1878,15 @@ async def candidate_submit_assessment_logic(
     if assessment.candidate_id != resolved_cand_id:
         raise HTTPException(status_code=403, detail="Candidates can only submit their own assessments")
 
-    # Support both multipart/form-data (direct audio file upload + assessment_data JSON) and application/json
+    # Support both multipart/form-data (direct audio/video file upload + assessment_data JSON) and application/json
     uploaded_audio_path: Optional[str] = None
+    uploaded_video_path: Optional[str] = None
     if payload is None and request is not None:
         ct = (request.headers.get("content-type") or "").lower()
         if "multipart/form-data" in ct:
             form = await request.form()
             audio_upload = form.get("audio")
+            video_upload = form.get("video") or form.get("media")
             raw_data = form.get("assessment_data")
             if raw_data:
                 try:
@@ -1851,7 +1898,35 @@ async def candidate_submit_assessment_logic(
             else:
                 payload = CandidateSubmitAssessmentRequest()
 
-            # Handle direct audio upload file
+            # Handle direct video upload file (INTRO / JD_INTRO video mode)
+            if video_upload and hasattr(video_upload, "filename") and video_upload.filename:
+                assessment_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment.id))
+                os.makedirs(assessment_dir, exist_ok=True)
+                saved_video = os.path.join(assessment_dir, "assembled.webm")
+                with open(saved_video, "wb") as f_out:
+                    if hasattr(video_upload, "file"):
+                        shutil.copyfileobj(video_upload.file, f_out)
+                    elif hasattr(video_upload, "read"):
+                        content = await video_upload.read() if asyncio.iscoroutinefunction(video_upload.read) else video_upload.read()
+                        f_out.write(content)
+                if os.path.exists(saved_video) and os.path.getsize(saved_video) > 0:
+                    remux_video = os.path.join(assessment_dir, "assembled_indexed.webm")
+                    try:
+                        ffmpeg_bin = getattr(settings, "FFMPEG_PATH", "ffmpeg")
+                        subprocess.run(
+                            [ffmpeg_bin, "-y", "-i", saved_video, "-c", "copy", remux_video],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=30,
+                        )
+                        if os.path.exists(remux_video) and os.path.getsize(remux_video) > 0:
+                            os.replace(remux_video, saved_video)
+                    except Exception as rx_err:
+                        logger.warning("Fast remux for seek indexing failed: %s", rx_err)
+                    uploaded_video_path = saved_video
+                    logger.info("Successfully received direct multipart video upload: %s (%d bytes)", saved_video, os.path.getsize(saved_video))
+
+            # Handle direct audio upload file (AUDIO mode)
             if audio_upload and hasattr(audio_upload, "filename") and audio_upload.filename:
                 assessment_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment.id))
                 os.makedirs(assessment_dir, exist_ok=True)
@@ -1984,6 +2059,7 @@ async def candidate_submit_assessment_logic(
             async def run_pipeline():
                 try:
                     nonlocal assessment_media_type
+                    existing_data = None
                     if payload.transcript:
                         direct_text = payload.transcript if isinstance(payload.transcript, str) else str(payload.transcript.get("full_text") or "")
                         spoken_content = {"full_text": direct_text, "word_count": len(direct_text.split()), "segments": []}
@@ -2005,6 +2081,7 @@ async def candidate_submit_assessment_logic(
                                 audio_kwargs=audio_kwargs,
                                 consent=resolved_consent,
                             )
+                            existing_data = crud.get_assessment_data_by_assessment_id(worker_db, assessment_id_int)
                         multi_q_questions: Optional[List[Dict[str, Any]]] = None
                         if multi_q_res:
                             spoken_content, raw_audio_telemetry, multi_q_questions = multi_q_res
@@ -2033,8 +2110,22 @@ async def candidate_submit_assessment_logic(
                             assembled_cand = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id_int), "assembled.webm")
                             target_media = assembled_cand if os.path.exists(assembled_cand) else "assembled.webm"
                         else:
-                            # 1. Resolve media source: check for direct multipart audio upload first
-                            if uploaded_audio_path and os.path.exists(uploaded_audio_path):
+                            # 1. Resolve media source: check for direct multipart upload first
+                            if uploaded_video_path and os.path.exists(uploaded_video_path):
+                                logger.info("Using directly uploaded video file for assessment %s: %s", assessment_id_int, uploaded_video_path)
+                                target_media = uploaded_video_path
+                                assessment_dir = os.path.dirname(target_media)
+                                target_audio = os.path.join(assessment_dir, "audio.wav")
+                                try:
+                                    await asyncio.to_thread(
+                                        VideoProcessorEngine.extract_audio,
+                                        video_path=target_media,
+                                        output_audio_path=target_audio,
+                                    )
+                                except Exception as ext_err:
+                                    logger.warning("Audio extraction failed (%s), using target_media directly", ext_err)
+                                    target_audio = target_media
+                            elif uploaded_audio_path and os.path.exists(uploaded_audio_path):
                                 logger.info("Using directly uploaded audio file for assessment %s: %s", assessment_id_int, uploaded_audio_path)
                                 target_media = uploaded_audio_path
                                 target_audio = uploaded_audio_path 
@@ -2202,6 +2293,8 @@ async def candidate_submit_assessment_logic(
                     }
                     formatted_video_telemetry = dict(payload.video_telemetry or {})
                     formatted_video_telemetry["duration_seconds"] = round(duration_s, 1)
+                    if str(assessment_media_type or "").upper() == "VIDEO":
+                        formatted_video_telemetry["is_video_mode"] = True
 
                     # 5. Save assessment data to DB with worker SessionLocal
                     plan = resolve_storage_plan(
@@ -2577,6 +2670,8 @@ async def candidate_submit_assessment_logic(
     # 5. Format Video Telemetry
     formatted_video_telemetry = dict(payload.video_telemetry or {})
     formatted_video_telemetry["duration_seconds"] = round(interview_duration, 1)
+    if (str(getattr(assessment, "media_type", None) or "VIDEO")).upper() == "VIDEO":
+        formatted_video_telemetry["is_video_mode"] = True
 
     insufficient_content = evaluate_gatekeeper_flag(
         word_count=word_count,
@@ -2806,6 +2901,13 @@ async def _run_evaluation_background(assessment_id: int, candidate_id: int) -> N
 
             audio_telemetry = (data_rec.audio_telemetry if data_rec else {}) or {}
             video_telemetry = (data_rec.video_telemetry if data_rec else {}) or {}
+            media_type_str = (
+                assessment.media_type.value
+                if hasattr(assessment.media_type, "value")
+                else str(assessment.media_type or "VIDEO")
+            ).upper()
+            if "is_video_mode" not in video_telemetry:
+                video_telemetry["is_video_mode"] = (media_type_str == "VIDEO")
             raw_questions = (data_rec.questions if data_rec else []) or []
             resume_json = crud.get_candidate_resume_json(db, candidate_id)
 
@@ -3745,6 +3847,19 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
                             shutil.copyfileobj(infile, outfile, length=1024 * 1024)
                 if os.path.exists(temp_assembled) and os.path.getsize(temp_assembled) > 0:
                     os.replace(temp_assembled, assembled_path)
+                    remux_video = os.path.join(assessment_dir, "assembled_indexed.webm")
+                    try:
+                        ffmpeg_bin = getattr(settings, "FFMPEG_PATH", "ffmpeg")
+                        subprocess.run(
+                            [ffmpeg_bin, "-y", "-i", assembled_path, "-c", "copy", remux_video],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            timeout=30,
+                        )
+                        if os.path.exists(remux_video) and os.path.getsize(remux_video) > 0:
+                            os.replace(remux_video, assembled_path)
+                    except Exception:
+                        pass
                     logger.info("Atomically auto-assembled %d chunks into %s", len(chunk_files), assembled_path)
                     return assembled_path
             finally:
