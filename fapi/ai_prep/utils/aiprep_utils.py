@@ -1777,17 +1777,6 @@ async def _process_multi_question_audio_batch(
     # Analyze all questions concurrently in parallel
     await asyncio.gather(*[_analyze_single_question(q) for q in all_questions if isinstance(q, dict)])
     
-    # Filter attempted questions: if candidate submitted early, evaluate only reached questions
-    attempted_questions = [
-        q for q in all_questions
-        if isinstance(q, dict) and (
-            os.path.exists(os.path.join(base_dir, "questions", str(q.get("id") or q.get("question_id")), "video.webm")) or
-            os.path.exists(os.path.join(base_dir, "questions", str(q.get("id") or q.get("question_id")), "audio.webm"))
-        )
-    ]
-    if attempted_questions:
-        all_questions = attempted_questions
-
     # Consolidate structured Q&A blocks for LLM Context
     qa_blocks = []
     for idx, q in enumerate(all_questions, start=1):
