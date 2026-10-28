@@ -59,25 +59,27 @@ async def _invoke_llm(
     provider: Optional[str],
     model: Optional[str],
     max_tokens: int = 8192,
+    timeout_seconds: float = 240.0,
 ) -> str:
     """
     Fire one LLM request and return the raw response string.
 
     Args:
-        call_label:    Human-readable label for logging (e.g. "audio_eval").
-        system_prompt: System instruction block.
-        user_prompt:   Candidate-specific user message.
-        api_key:       Plain-text decrypted API key.
-        provider:      Provider hint (e.g. "openai"). None → auto-detected from key prefix.
-        model:         Model override. None → llm_client uses provider default.
-        max_tokens:    Max output tokens (defaults to 8192 for large evaluation reports).
+        call_label:      Human-readable label for logging (e.g. "audio_eval").
+        system_prompt:   System instruction block.
+        user_prompt:     Candidate-specific user message.
+        api_key:         Plain-text decrypted API key.
+        provider:        Provider hint (e.g. "openai"). None → auto-detected from key prefix.
+        model:           Model override. None → llm_client uses provider default.
+        max_tokens:      Max output tokens (defaults to 8192 for large evaluation reports).
+        timeout_seconds: Network request timeout in seconds (default 240.0).
 
     Returns:
         Raw LLM text response string.
     """
     logger.info(
-        "[LLMOrchestrator] Invoking LLM: call=%s provider=%s model=%s max_tokens=%d",
-        call_label, provider, model, max_tokens,
+        "[LLMOrchestrator] Invoking LLM: call=%s provider=%s model=%s max_tokens=%d timeout=%ds",
+        call_label, provider, model, max_tokens, int(timeout_seconds),
     )
 
     response_text = await call_llm(
@@ -87,6 +89,7 @@ async def _invoke_llm(
         provider=provider,
         model=model,
         max_tokens=max_tokens,
+        timeout_seconds=timeout_seconds,
     )
 
     logger.info(
@@ -258,8 +261,10 @@ async def run_evaluation(
     )
 
     eval_max_tokens = 8192
+    eval_timeout_seconds = 240.0
     if assessment_type == "TECHNICAL" and questions and len(questions) > 5:
         eval_max_tokens = 16384
+        eval_timeout_seconds = 300.0  # 5 minutes for large multi-question technical evaluation
 
     call_labels: List[str] = ["transcript_eval"]
     coroutines = [
@@ -271,6 +276,7 @@ async def run_evaluation(
             provider=provider,
             model=model,
             max_tokens=eval_max_tokens,
+            timeout_seconds=eval_timeout_seconds,
         )
     ]
 
