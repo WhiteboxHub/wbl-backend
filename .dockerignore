@@ -7,7 +7,6 @@ __pycache__
 *.db
 .DS_Store
 myvenv/
-*.json
-*creds*
-*credentials*
-.gcloudignore
+venv/
+.venv/
+gha-creds-*.json
