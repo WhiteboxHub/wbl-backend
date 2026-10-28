@@ -5,7 +5,7 @@ import os
 import re
 import uuid
 import json
-import re
+import base64
 import shutil
 import subprocess
 import logging
@@ -1254,19 +1254,6 @@ def candidate_get_assessment_detail_logic(
 
     assessment_eval_obj = AssessmentEvalData(**assessment_eval_dict)
 
-    # Check if a recorded media file exists in storage for direct playback
-    has_recording = False
-    recording_url = None
-    if assessment.candidate_id and assessment.id:
-        adir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id))
-        if os.path.exists(adir):
-            for fname in os.listdir(adir):
-                fpath = os.path.join(adir, fname)
-                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
-                    has_recording = True
-                    media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
-                    recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
-                    break
     # Sanitize any accidental hardcoded demo YouTube URLs or legacy mock URLs previously stored in DB
     if assessment.youtube_url and ("UF8uR6Z6KLc" in assessment.youtube_url or "aiprep_rec_" in assessment.youtube_url):
         assessment.youtube_url = None
@@ -1274,6 +1261,61 @@ def candidate_get_assessment_detail_logic(
             crud.update_assessment_media_url(db, assessment.id, None)
         except Exception:
             pass
+
+    has_valid_youtube = bool(
+        assessment.youtube_url and
+        "UF8uR6Z6KLc" not in assessment.youtube_url and
+        "aiprep_rec_" not in assessment.youtube_url
+    )
+
+    # Check if a recorded media file exists in storage for direct playback
+    has_recording = False
+    recording_url = None
+    assembled_media = None
+    if assessment.candidate_id and assessment.id:
+        adir = os.path.join(STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id))
+        if os.path.exists(adir):
+            candidate_files = []
+            for fname in os.listdir(adir):
+                fpath = os.path.join(adir, fname)
+                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(ext) for ext in (".webm", ".mp4", ".wav", ".mp3", ".ogg")):
+                    candidate_files.append((fname, fpath))
+            if candidate_files:
+                has_recording = True
+                media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
+                recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
+
+                # Only embed assembled media data URI when real YouTube URL is not ready / taking time
+                if not has_valid_youtube:
+                    candidate_files.sort(
+                        key=lambda x: (
+                            0 if any(tag in x[0].lower() for tag in ("assembled", "stitched", "combined", "final")) else
+                            1 if not x[0].lower().startswith("chunk_") else 2,
+                            -os.path.getsize(x[1])
+                        )
+                    )
+                    best_fname, best_fpath = candidate_files[0]
+                    mime_type = "audio/webm"
+                    ext = os.path.splitext(best_fname)[1].lower()
+                    if ext == ".wav":
+                        mime_type = "audio/wav"
+                    elif ext == ".mp3":
+                        mime_type = "audio/mpeg"
+                    elif ext == ".ogg":
+                        mime_type = "audio/ogg"
+                    elif ext == ".mp4":
+                        mime_type = "video/mp4"
+                    elif ext == ".webm":
+                        mime_type = "audio/webm" if "AUDIO" in str(assessment.media_type or "").upper() else "video/webm"
+                    try:
+                        file_sz = os.path.getsize(best_fpath)
+                        # Limit to 35MB to prevent memory exhaustion
+                        if file_sz <= 35 * 1024 * 1024:
+                            with open(best_fpath, "rb") as mf:
+                                media_bytes = mf.read()
+                            assembled_media = f"data:{mime_type};base64,{base64.b64encode(media_bytes).decode('utf-8')}"
+                    except Exception as err:
+                        logger.warning("Failed to encode assembled_media for assessment %s: %s", assessment.id, err)
 
     # Extract questions list from assessment data record
     questions_list = []
@@ -1303,6 +1345,7 @@ def candidate_get_assessment_detail_logic(
         job_description=assessment.job_description,
         has_recording=has_recording,
         recording_url=recording_url,
+        assembled_media=assembled_media,
         questions=assessment.data_record.questions if assessment.data_record and assessment.data_record.questions else [],
         data=CandidateAssessmentUnifiedData(
             questions=questions_list, 
@@ -1310,6 +1353,7 @@ def candidate_get_assessment_detail_logic(
             audio_telemetry=audio_telemetry,
             video_telemetry=video_telemetry,
             assessment_eval=assessment_eval_obj,
+            assembled_media=assembled_media,
         ),
     )
 
