@@ -14,7 +14,6 @@ from typing import Optional, Dict, Any, List
 from datetime import date
 from fapi.db.models import CandidateORM, AuthUserORM
 from fapi.db.models import CandidateInterview
-from fapi.api.routes import login
 from datetime import datetime
 from sqlalchemy import func
 from fapi.db.database import get_db
