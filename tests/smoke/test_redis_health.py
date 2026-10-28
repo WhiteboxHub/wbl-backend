@@ -14,8 +14,10 @@ def test_redis_health_endpoint(client):
     assert data["status"] == "connected"
 
 
-def test_redis_client_production_missing_password_raises(monkeypatch):
-    """Verifies that RedisClient raises ValueError in production if REDIS_PASSWORD is missing."""
+def test_redis_client_production_missing_password_returns_none(monkeypatch):
+    """Verifies that RedisClient returns None (graceful cache disable) in production if REDIS_PASSWORD is missing.
+    This ensures the web server never crashes due to Redis misconfiguration.
+    """
     from fapi.core.redis_client import RedisClient
     from fapi.core import config
 
@@ -28,8 +30,9 @@ def test_redis_client_production_missing_password_raises(monkeypatch):
     monkeypatch.delenv("ENV", raising=False)
 
     try:
-        with pytest.raises(ValueError, match="REDIS_PASSWORD must be configured in production"):
-            RedisClient.get_client()
+        # Must NOT raise — server should stay up, cache disabled gracefully
+        result = RedisClient.get_client()
+        assert result is None, "Expected None when REDIS_PASSWORD is missing in production"
     finally:
         RedisClient._client = orig_client
 
