@@ -3219,19 +3219,33 @@ async def upload_candidate_assessment_chunk_logic(
     if question_id is not None:
         # Validate question_id belongs to this assessment
         existing_data = crud.get_assessment_data_by_assessment_id(db, assessment.id)
-        valid_qids = {
-            q.get("id") for q in (existing_data.questions if existing_data and existing_data.questions else [])
-            if isinstance(q, dict) and q.get("id") is not None
-        }
-        if valid_qids and int(question_id) not in valid_qids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Question ID {question_id} does not belong to assessment {assessment.id}",
-            )
+        raw_questions = existing_data.questions if existing_data and existing_data.questions else []
+        valid_qids = set()
+        for q in raw_questions:
+            if isinstance(q, dict):
+                raw_qid = q.get("id") if q.get("id") is not None else q.get("question_id")
+                if raw_qid is not None:
+                    try:
+                        valid_qids.add(int(raw_qid))
+                    except (ValueError, TypeError):
+                        pass
+                    valid_qids.add(str(raw_qid))
+
+        if valid_qids:
+            try:
+                parsed_qid = int(question_id)
+            except (ValueError, TypeError):
+                parsed_qid = question_id
+
+            if parsed_qid not in valid_qids and str(question_id) not in valid_qids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Question ID {question_id} does not belong to assessment {assessment.id}",
+                )
 
         # Save directly into dedicated question directory for Technical Assessments
         chunk_dir = os.path.join(base_dir, "questions", str(question_id))
-        is_video = str(getattr(assessment, "media_type", None) or "").upper() == "VIDEO"
+        is_video = "VIDEO" in str(getattr(assessment, "media_type", None) or "").upper()
         chunk_filename = "video.webm" if is_video else "audio.webm"
         chunk_path = os.path.join(chunk_dir, chunk_filename)
         last_index_file = os.path.join(chunk_dir, ".last_chunk_index")
