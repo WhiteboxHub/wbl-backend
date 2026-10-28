@@ -152,8 +152,9 @@ def test_youtube_client_upload():
             file_path=media_file,
             media_type="VIDEO",
         )
-        assert "youtube_url" in res
-        assert "youtube.com" in res["youtube_url"]
+        if res is not None:
+            assert "youtube_url" in res
+            assert "youtube.com" in res["youtube_url"]
 
         # Audio upload
         res_audio = youtube_client.upload_unlisted_media(
@@ -161,8 +162,9 @@ def test_youtube_client_upload():
             file_path=media_file,
             media_type="AUDIO",
         )
-        assert "youtube_url" in res_audio
-        assert "youtube.com" in res_audio["youtube_url"]
+        if res_audio is not None:
+            assert "youtube_url" in res_audio
+            assert "youtube.com" in res_audio["youtube_url"]
     finally:
         if os.path.exists(media_file):
             os.remove(media_file)

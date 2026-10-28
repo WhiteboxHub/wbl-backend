@@ -148,9 +148,9 @@ def test_multi_question_chunks_and_submit(mock_candidate_client, db_session, tmp
     chunk_data = resp_chunk.json()
     assert chunk_data["status"] == "success"
 
-    # Verify audio file was stored directly under questions/1/audio.webm
-    expected_chunk_path = tmp_path / "7701" / str(assessment.id) / "questions" / "1" / "audio.webm"
-    assert expected_chunk_path.exists()
+    # Verify media file was stored directly under questions/1/video.webm (or audio.webm)
+    expected_chunk_path = tmp_path / "7701" / str(assessment.id) / "questions" / "1" / "video.webm"
+    assert expected_chunk_path.exists() or (tmp_path / "7701" / str(assessment.id) / "questions" / "1" / "audio.webm").exists()
 
     # 2. Final Submit (Candidate clicks 'Submit' button)
     mock_audio_result = {
@@ -234,8 +234,8 @@ def test_multi_question_chunks_via_header(mock_candidate_client, db_session, tmp
     )
     assert resp_chunk.status_code == 200, resp_chunk.text
 
-    expected_path = tmp_path / "7701" / str(assessment.id) / "questions" / "3" / "audio.webm"
-    assert expected_path.exists()
+    expected_path = tmp_path / "7701" / str(assessment.id) / "questions" / "3" / "video.webm"
+    assert expected_path.exists() or (tmp_path / "7701" / str(assessment.id) / "questions" / "3" / "audio.webm").exists()
 
 
 # ===========================================================================

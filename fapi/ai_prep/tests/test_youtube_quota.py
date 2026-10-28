@@ -99,7 +99,10 @@ def test_commit_and_release_idempotency():
     assert status2["units_used"] == 1600  # released exactly once, not twice
 
 
-def test_quota_manager_exhaustion():
+def test_quota_manager_exhaustion(monkeypatch):
+    from fapi.ai_prep.config import settings
+    monkeypatch.setattr(settings, "YOUTUBE_DAILY_QUOTA_LIMIT", 10000, raising=False)
+    monkeypatch.setattr(settings, "AIPREP_YOUTUBE_DAILY_QUOTA_LIMIT", 10000, raising=False)
     mgr = YouTubeQuotaManager()
     # Consume 6 uploads (6 * 1600 = 9600 units)
     for _ in range(6):
@@ -154,7 +157,7 @@ def test_mock_test_upload_does_not_consume_quota():
                 file_path=media_file,
                 media_type="VIDEO",
             )
-            assert "youtube_url" in res
+            assert res is None
             assert mock_reserve.call_count == 0
             assert mock_commit.call_count == 0
             assert mgr.get_quota_status()["units_used"] == 0

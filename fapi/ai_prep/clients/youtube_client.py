@@ -89,10 +89,10 @@ class YouTubeClient:
         title: Optional[str] = None,
         description: Optional[str] = None,
         quota_cost: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Uploads a video or packaged audio recording to YouTube as Unlisted.
-        If live credentials are not set or in test mode, returns a deterministic mock YouTube URL without consuming quota.
+        If live credentials are not set or in test mode, returns None without consuming quota.
         Atomically reserves daily quota before starting live upload.
         """
         if not os.path.exists(file_path):
@@ -103,16 +103,10 @@ class YouTubeClient:
         target_title = title or default_title
         target_desc = description or default_desc
 
-        # 1. Fast Mock / Test Check: Never touch quota in test/mock mode
+        # 1. Credentials Check: If live credentials are not set or mock mode active, skip cloud upload
         if self._should_use_mock():
-            logger.info("No live YouTube credentials or test mode active. Using generated YouTube URL for assessment %s", assessment_id)
-            mock_id = f"aiprep_rec_{assessment_id}"
-            mock_url = f"https://youtube.com/watch?v={mock_id}"
-            return {
-                "video_id": mock_id,
-                "youtube_url": mock_url,
-                "status": self.privacy_status,
-            }
+            logger.info("No live YouTube credentials configured. Skipping cloud upload for assessment %s (local stitched media will be used).", assessment_id)
+            return None
 
         # 2. Live API Quota Reservation
         reservation_token = self.quota_mgr.reserve_quota(cost=quota_cost)
