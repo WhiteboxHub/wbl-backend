@@ -27,13 +27,20 @@ class RedisClient:
         if not config.REDIS_HOST:
             return None
 
-        # Validate that REDIS_PASSWORD is provided in production (OWASP A07 guard)
+        # Guard: REDIS_PASSWORD must be set in production (OWASP A07).
+        # We log a critical error but do NOT raise — crashing the server over a
+        # missing cache config would cause a full production outage, which is
+        # far worse than running temporarily without Redis cache.
         app_env = (getattr(config, "APP_ENV", None) or os.getenv("APP_ENV", "local")).strip().lower()
         if app_env in ("production", "prod"):
             if not config.REDIS_PASSWORD:
-                raise ValueError(
-                    "Insecure configuration: REDIS_PASSWORD must be configured in production when REDIS_HOST is set."
+                logger.error(
+                    "CRITICAL: REDIS_PASSWORD is not configured in production. "
+                    "Redis cache is disabled. Set the 'redis-password' secret in "
+                    "GCP Secret Manager and grant the Cloud Run service account "
+                    "'Secret Manager Secret Accessor' access."
                 )
+                return None
 
         if redis_lib is None:
             return None
