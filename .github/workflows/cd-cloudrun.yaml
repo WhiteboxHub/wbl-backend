@@ -35,19 +35,20 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Deploy to Cloud Run
-        run: |
+        run: |  # pragma: allowlist secret
           gcloud run deploy fastapi-backend \
             --source . \
             --region us-central1 \
             --platform managed \
             --allow-unauthenticated \
             --port 8080 \
+            --use-http2 \
             --no-traffic \
             --tag=smoke \
             --vpc-connector wbl-connector \
             --vpc-egress private-ranges-only \
-            --update-env-vars REDIS_HOST=10.128.0.42,REDIS_PORT=6379 \
-            --update-secrets REDIS_PASSWORD=redis-password:latest
+            --update-env-vars REDIS_HOST=10.128.0.42,REDIS_PORT=6379,AIPREP_MAX_CHUNK_SIZE_MB=200 \
+            --update-secrets REDIS_PASSWORD=redis-password:latest  # pragma: allowlist secret
 
       - name: Retrieve Smoke Revision URL
         run: |
