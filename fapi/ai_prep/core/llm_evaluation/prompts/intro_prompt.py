@@ -447,7 +447,7 @@ STATUS CONSISTENCY INVARIANTS (MANDATORY):
 8. MANDATORY NON-EMPTY OBSERVATION (ALL SECTIONS): The "observation" field MUST NEVER be left as an empty string (""), null, or a one-word placeholder for ANY section.
    - For COVERED / PARTIAL sections: Address the candidate with "You". Name what was done well, name what was missing or shallow, and end with a concrete 1-sentence example of what they could say next time to strengthen the area.
    - For NOT_MENTIONED sections: Address the candidate with "You". Clearly state the domain was not covered in the introduction and briefly explain why omitting it weakens an AI Engineer profile. Do NOT simply write "not mentioned" — explain the impact and what they should add.
-   - Every observation must be 2-4 sentences minimum. Begin with its area label (e.g. "Software engineering:", "Cloud:", "CI/CD:", "RAG:", "Agentic AI:") so observations stay identifiable when combined on one card.
+   - Every observation must be 2-4 sentences minimum. Write the evaluative description directly without prefixing an area label (do NOT write "Software engineering:", "Cloud:", "CI/CD:", "RAG:", or "Agentic AI:", as section titles are already displayed by the UI).
 
 IMPORTANT:
 
@@ -507,7 +507,7 @@ TWO DISTINCT FIELDS PER TECHNICAL SECTION — READ CAREFULLY:
   - State plainly whether the area was strong, average, or weak.
   - Name what worked and what was missing, with why it matters.
   - When average or weak, end with a 1-sentence example of what they could say next time.
-  - Begin with the area label (e.g. "Software engineering:", "Cloud:", "CI/CD:", "RAG:", "Agentic AI:").
+  - Do NOT prefix with an area label (e.g. do not write "Software engineering:", "Cloud:", "CI/CD:", "RAG:", or "Agentic AI:"); begin directly with your evaluative feedback addressed to "You".
 
 "key_observations" (array of strings) — Distinct actionable bullet points shown BELOW the description.
   - 2-3 short bullets, each on a different specific point NOT already said in "observation".

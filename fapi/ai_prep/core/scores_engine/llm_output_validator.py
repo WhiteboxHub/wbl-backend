@@ -342,7 +342,7 @@ class ScoresEngine:
                         tech_str = f", mentioning {', '.join(techs)}" if techs else ""
                         label = sec_key.replace("_", " ").title()
                         sec["observation"] = (
-                            f"{label}: Your performance was evaluated as {status_val}{tech_str}. "
+                            f"Your performance was evaluated as {status_val}{tech_str}. "
                             "Expand on your production architecture, the operational tradeoffs you "
                             "navigated, and your specific ownership of implementation decisions."
                         )
