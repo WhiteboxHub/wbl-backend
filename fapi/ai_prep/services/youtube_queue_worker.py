@@ -206,12 +206,25 @@ def drain_youtube_queue(
                         yt_url,
                     )
 
-                    # Optional storage purge after verified DB persistence
+                    # Storage purge: 5-minute grace period before purging to allow active candidate viewers to finish watching
                     if getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True):
                         assessment_dir = os.path.join(
                             STORAGE_BASE_DIR, str(assessment.candidate_id), str(assessment.id)
                         )
-                        shutil.rmtree(assessment_dir, ignore_errors=True)
+                        if os.path.exists(assessment_dir):
+                            import threading
+                            import time
+                            def _delayed_worker_purge(target_dir: str, a_id: int):
+                                try:
+                                    time.sleep(300)  # 5-minute grace period
+                                    if os.path.exists(target_dir):
+                                        shutil.rmtree(target_dir, ignore_errors=True)
+                                        logger.info("[YouTubeQueueWorker] Purged server storage for assessment %s after 5-minute grace period", a_id)
+                                except Exception as w_err:
+                                    logger.warning("[YouTubeQueueWorker] Delayed purge error for %s: %s", a_id, w_err)
+
+                            threading.Thread(target=_delayed_worker_purge, args=(assessment_dir, assessment.id), daemon=True).start()
+                            logger.info("[YouTubeQueueWorker] Scheduled 5-minute delayed purge for assessment %s", assessment.id)
             except YouTubeQuotaExceededError as q_err:
                 logger.warning(
                     "[YouTubeQueueWorker] Quota exceeded while uploading assessment %s: %s",
