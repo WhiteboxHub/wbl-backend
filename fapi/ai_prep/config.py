@@ -31,7 +31,7 @@ class AiPrepSettings(BaseSettings):
         description="Duration of each recorded video chunk in seconds",
     )
     MAX_CHUNK_SIZE_MB: int = Field(
-        default_factory=lambda: int(os.getenv("AIPREP_MAX_CHUNK_SIZE_MB", "50")),
+        default_factory=lambda: int(os.getenv("AIPREP_MAX_CHUNK_SIZE_MB", "200")),
         description="Maximum allowed chunk upload size in megabytes",
     )
     MAX_MEDIA_UPLOAD_MB: int = Field(
