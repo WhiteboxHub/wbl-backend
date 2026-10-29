@@ -1148,6 +1148,14 @@ def candidate_get_assessment_detail_logic(
         audio_telemetry = dict(raw_audio_tel) if isinstance(raw_audio_tel, dict) else {}
 
         # Ensure duration, pace, and fillers are populated if missing in older assessment records
+        if not audio_telemetry.get("duration_seconds") and not audio_telemetry.get("total_audio_duration_seconds"):
+            dur_total = None
+            if assessment.completed_at and assessment.started_at:
+                dur_total = (assessment.completed_at - assessment.started_at).total_seconds()
+            if dur_total and dur_total > 0:
+                audio_telemetry["duration_seconds"] = round(dur_total, 1)
+                audio_telemetry["total_audio_duration_seconds"] = round(dur_total, 1)
+
         if not audio_telemetry.get("speaking_duration_sec") and not audio_telemetry.get("speaking_duration_seconds"):
             dur = None
             if assessment.completed_at and assessment.started_at:
@@ -2289,7 +2297,7 @@ async def candidate_submit_assessment_logic(
 
                     silence_ratio = float(raw_audio_telemetry.get("silence_ratio") or 0.0)
                     silence_pct = float(raw_audio_telemetry["silence_percentage"]) if "silence_percentage" in raw_audio_telemetry else round(silence_ratio * 100, 1)
-                    total_audio_duration_s = float(raw_audio_telemetry.get("total_audio_duration_seconds") or payload.client_duration_seconds or duration_s or 0.0)
+                    total_audio_duration_s = float(payload.client_duration_seconds or raw_audio_telemetry.get("total_audio_duration_seconds") or duration_s or 0.0)
 
                     wpm_val = int(raw_audio_telemetry.get("wpm") or raw_audio_telemetry.get("words_per_minute") or 0)
                     if wpm_val <= 0 and word_count > 0 and speaking_duration_sec > 0.0:
@@ -2670,8 +2678,8 @@ async def candidate_submit_assessment_logic(
     )
 
     total_audio_duration = float(
-        raw_audio_telemetry.get("total_audio_duration_seconds")
-        or payload.client_duration_seconds
+        payload.client_duration_seconds
+        or raw_audio_telemetry.get("total_audio_duration_seconds")
         or 0.0
     )
 
