@@ -1285,38 +1285,6 @@ def candidate_get_assessment_detail_logic(
                 media_type_path = "audio" if "AUDIO" in str(assessment.media_type or "").upper() else "video"
                 recording_url = f"/api/aiprep/assessments/{assessment.id}/{media_type_path}"
 
-                # Only embed assembled media data URI when real YouTube URL is not ready / taking time
-                if not has_valid_youtube:
-                    candidate_files.sort(
-                        key=lambda x: (
-                            0 if any(tag in x[0].lower() for tag in ("assembled", "stitched", "combined", "final")) else
-                            1 if not x[0].lower().startswith("chunk_") else 2,
-                            -os.path.getsize(x[1])
-                        )
-                    )
-                    best_fname, best_fpath = candidate_files[0]
-                    mime_type = "audio/webm"
-                    ext = os.path.splitext(best_fname)[1].lower()
-                    if ext == ".wav":
-                        mime_type = "audio/wav"
-                    elif ext == ".mp3":
-                        mime_type = "audio/mpeg"
-                    elif ext == ".ogg":
-                        mime_type = "audio/ogg"
-                    elif ext == ".mp4":
-                        mime_type = "video/mp4"
-                    elif ext == ".webm":
-                        mime_type = "audio/webm" if "AUDIO" in str(assessment.media_type or "").upper() else "video/webm"
-                    try:
-                        file_sz = os.path.getsize(best_fpath)
-                        # Limit to 35MB to prevent memory exhaustion
-                        if file_sz <= 35 * 1024 * 1024:
-                            with open(best_fpath, "rb") as mf:
-                                media_bytes = mf.read()
-                            assembled_media = f"data:{mime_type};base64,{base64.b64encode(media_bytes).decode('utf-8')}"
-                    except Exception as err:
-                        logger.warning("Failed to encode assembled_media for assessment %s: %s", assessment.id, err)
-
     # Extract questions list from assessment data record
     questions_list = []
     ALLOWED_QUESTION_FIELDS = {
@@ -3556,15 +3524,25 @@ async def _process_youtube_upload_and_cleanup(
         except Exception as db_url_err:
             logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
-    # 4. Storage Cleanup: ONLY once verified uploaded to real YouTube and persisted in DB
+    # 4. Storage Cleanup: 5-minute grace period before purging to allow active candidate viewers to finish watching
     try:
         from fapi.ai_prep.config import settings
         should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
         if is_real_youtube and youtube_persisted and should_cleanup and candidate_id:
             assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
             if os.path.exists(assessment_dir):
-                logger.info("Purging server storage for assessment %s at %s following verified YouTube DB update", assessment_id, assessment_dir)
-                shutil.rmtree(assessment_dir, ignore_errors=True)
+                import threading
+                def _delayed_purge(target_dir: str, a_id: int):
+                    try:
+                        time.sleep(300)  # 5-minute grace period for active viewers
+                        if os.path.exists(target_dir):
+                            shutil.rmtree(target_dir, ignore_errors=True)
+                            logger.info("Purged server storage for assessment %s after 5-minute grace period", a_id)
+                    except Exception as p_err:
+                        logger.warning("Delayed storage purge error for %s: %s", a_id, p_err)
+
+                threading.Thread(target=_delayed_purge, args=(assessment_dir, assessment_id), daemon=True).start()
+                logger.info("Scheduled 5-minute delayed purge of server storage for assessment %s", assessment_id)
         else:
             logger.info("Retaining local storage for assessment %s (local stitched media available for playback)", assessment_id)
     except Exception as clean_err:
