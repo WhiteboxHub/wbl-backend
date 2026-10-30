@@ -1,7 +1,8 @@
 import json
 import hashlib
 import functools
-from typing import Any, Callable, Optional
+import inspect
+from typing import Any, Callable, Optional, List
 from fastapi import Request
 from fapi.core.redis_client import redis_client
 from fapi.core import config
@@ -20,6 +21,10 @@ def alchemy_encoder(obj: Any) -> Any:
         return float(obj)
     if isinstance(obj, set):
         return list(obj)
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    if hasattr(obj, "dict"):
+        return obj.dict()
     if hasattr(obj, "__dict__"):
         # For SQLAlchemy ORM objects
         data = dict(obj.__dict__)
@@ -45,43 +50,54 @@ def generate_cache_key(prefix: str, path: str, params: dict) -> str:
     # Use APP_ENV to isolate local dev from production
     return f"{config.APP_ENV}:cache:{prefix}:{path}:{params_hash}"
 
+def _format_cache_arg(key: Optional[str], val: Any) -> Optional[str]:
+    """Formats an argument for cache key generation or returns None if it should be skipped."""
+    if key and key.lower() in ("db", "request", "background_tasks", "response"):
+        return None
+    if hasattr(val, "__class__"):
+        class_name = val.__class__.__name__
+        if any(skip in class_name for skip in ("Session", "Request", "BackgroundTasks", "Response", "StreamingResponse", "UploadFile")):
+            return None
+        if "AuthUser" in class_name or "User" in class_name:
+            user_id = getattr(val, "id", None) or getattr(val, "uname", None)
+            return f"user_{user_id}"
+    return str(val)
+
+
 def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
     """
     Decorator to cache the result of any function.
     Keys are generated based on function name and its relevant arguments.
-    Skips 'db' (Session) and 'request' (Request) arguments.
+    Skips 'db' (Session), 'request' (Request), and other non-cacheable context arguments.
+    Supports both synchronous and asynchronous functions.
     """
     def decorator(func: Callable):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            # Check if Redis is enabled/connected
-            client = redis_client.get_client()
-            if not client:
-                return func(*args, **kwargs)
+        is_async = inspect.iscoroutinefunction(func)
 
-            # Build a list of relevant arguments for the cache key
+        # Inspect return type once at decoration time
+        return_type = None
+        try:
+            sig = inspect.signature(func)
+            if sig.return_annotation is not inspect.Signature.empty:
+                return_type = sig.return_annotation
+        except Exception:
+            pass
+
+        def _build_cache_key(*args, **kwargs) -> str:
             key_params = {}
             for i, arg in enumerate(args):
-                # Skip db sessions, requests, etc.
-                if hasattr(arg, "__class__"):
-                    class_name = arg.__class__.__name__
-                    if "Session" in class_name or "Request" in class_name:
-                        continue
-                key_params[f"arg_{i}"] = str(arg)
-            
+                formatted = _format_cache_arg(None, arg)
+                if formatted is not None:
+                    key_params[f"arg_{i}"] = formatted
+
             for k, v in kwargs.items():
-                if k in ("db", "request"):
-                    continue
-                if hasattr(v, "__class__"):
-                    class_name = v.__class__.__name__
-                    if "Session" in class_name or "Request" in class_name:
-                        continue
-                key_params[k] = str(v)
+                formatted = _format_cache_arg(k, v)
+                if formatted is not None:
+                    key_params[k] = formatted
 
-            # Generate cache key using function name as path
-            cache_key = generate_cache_key(prefix, func.__name__, key_params)
+            return generate_cache_key(prefix, func.__name__, key_params)
 
-            # Try to get data from cache
+        def _get_from_cache(client, cache_key: str):
             try:
                 cached_data = client.get(cache_key)
                 if cached_data:
@@ -89,15 +105,33 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
                         cached_data = cached_data.decode()
                     msg = f"[REDIS CACHE HIT] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
-                    print(msg) # Ensure visibility in terminal
-                    return json.loads(cached_data)
+                    val = json.loads(cached_data)
+
+                    # Reconstruct Pydantic model instance if declared
+                    if return_type:
+                        try:
+                            if isinstance(val, dict):
+                                if hasattr(return_type, "model_validate"):
+                                    val = return_type.model_validate(val)
+                                elif hasattr(return_type, "parse_obj"):
+                                    val = return_type.parse_obj(val)
+                            elif isinstance(val, list):
+                                origin = getattr(return_type, "__origin__", None)
+                                if origin in (list, List):
+                                    args = getattr(return_type, "__args__", None)
+                                    if args and hasattr(args[0], "model_validate"):
+                                        val = [args[0].model_validate(item) if isinstance(item, dict) else item for item in val]
+                                    elif args and hasattr(args[0], "parse_obj"):
+                                        val = [args[0].parse_obj(item) if isinstance(item, dict) else item for item in val]
+                        except Exception as val_err:
+                            logger.debug("Failed reconstructing %s from cache: %s", getattr(return_type, "__name__", return_type), val_err)
+
+                    return True, val
             except Exception as e:
                 logger.error(f"Error fetching from Redis: {e}")
+            return False, None
 
-            # Cache miss: execute function
-            result = func(*args, **kwargs)
-
-            # Store result in cache
+        def _store_in_cache(client, cache_key: str, result: Any):
             try:
                 if result is not None:
                     client.set(
@@ -107,12 +141,44 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
                     )
                     msg = f"[REDIS CACHE MISS] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
-                    print(msg) # Ensure visibility in terminal
             except Exception as e:
                 logger.error(f"Error storing in Redis: {e}")
 
-            return result
-        return wrapper
+        if is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                client = redis_client.get_client()
+                if not client:
+                    return await func(*args, **kwargs)
+
+                cache_key = _build_cache_key(*args, **kwargs)
+                hit, cached_val = _get_from_cache(client, cache_key)
+                if hit:
+                    return cached_val
+
+                result = await func(*args, **kwargs)
+                _store_in_cache(client, cache_key, result)
+                return result
+
+            return async_wrapper
+        else:
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                client = redis_client.get_client()
+                if not client:
+                    return func(*args, **kwargs)
+
+                cache_key = _build_cache_key(*args, **kwargs)
+                hit, cached_val = _get_from_cache(client, cache_key)
+                if hit:
+                    return cached_val
+
+                result = func(*args, **kwargs)
+                _store_in_cache(client, cache_key, result)
+                return result
+
+            return sync_wrapper
+
     return decorator
 
 def cache_response(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):

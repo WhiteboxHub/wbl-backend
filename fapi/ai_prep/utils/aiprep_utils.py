@@ -45,6 +45,7 @@ def SessionLocal():
     return db_database.SessionLocal()
 
 
+from fapi.core.cache import cache_result, invalidate_cache
 from fapi.ai_prep import crud
 from fapi.ai_prep.config import settings
 from fapi.ai_prep.orchestrator import assessment_orchestrator, llm_orchestrator
@@ -349,6 +350,7 @@ def _verify_prerequisites(db: Session, candidate_id: int):
 # 1. Candidate Business Logic Functions
 # ---------------------------------------------------------------------------
 
+@cache_result(ttl=120, prefix="aiprep")
 def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM) -> LLMKeyStatusResponse:
     """Candidate self-check for configured LLM key dynamically from DB."""
     try:
@@ -369,6 +371,7 @@ def candidate_check_llm_keys_logic(db: Session, current_user: AuthUserORM) -> LL
         raise
 
 
+@cache_result(ttl=120, prefix="aiprep")
 def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) -> ResumeStatusResponse:
     """Candidate self-check for parsed resume status dynamically from DB."""
     try:
@@ -390,6 +393,7 @@ def candidate_check_resume_status_logic(db: Session, current_user: AuthUserORM) 
         raise
 
 
+@cache_result(ttl=120, prefix="aiprep")
 def assessment_readiness_precheck_logic(
     db: Session, current_user: AuthUserORM, candidate_id: Union[int, str]
 ) -> PreAssessmentCheckResponse:
@@ -585,6 +589,11 @@ def candidate_create_assessment_logic(
             "time_limit_seconds": q.get("time_limit_seconds"),
         })
 
+    try:
+        invalidate_cache("aiprep")
+    except Exception:
+        pass
+
     return CreateAssessmentResponse(
         status="success",
         data=CreateAssessmentData(
@@ -600,6 +609,7 @@ def candidate_create_assessment_logic(
     )
 
 
+@cache_result(ttl=300, prefix="aiprep")
 def candidate_list_assessments_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -1080,6 +1090,7 @@ def build_assessment_eval_dict(
     return result
 
 
+@cache_result(ttl=300, prefix="aiprep")
 def candidate_get_assessment_detail_logic(
     db: Session,
     current_user: AuthUserORM,
@@ -3032,6 +3043,7 @@ def employee_check_candidate_pre_check_logic(db: Session, candidate_id: int) -> 
     )
 
 
+@cache_result(ttl=60, prefix="aiprep")
 def employee_list_assessments_table_logic(
     db: Session,
     candidate_id: Optional[int] = None,
@@ -4268,6 +4280,7 @@ def stream_assessment_processing_sse_logic(
 # 4. Question Bank & Catalog Logic
 # ---------------------------------------------------------------------------
 
+@cache_result(ttl=3600, prefix="aiprep")
 def list_available_assessment_types_logic() -> AssessmentTypeListResponse:
     """Fetches all active assessment types from the hardcoded catalog."""
     catalog = get_default_assessment_types()

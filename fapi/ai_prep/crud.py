@@ -367,6 +367,11 @@ def update_assessment_status(db: Session, assessment_id: Union[int, str], status
     assessment.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(assessment)
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("aiprep")
+    except Exception:
+        pass
     return assessment
 
 
@@ -429,6 +434,11 @@ def save_assessment_report(
 
     db.commit()
     db.refresh(db_obj)
+    try:
+        from fapi.core.cache import invalidate_cache
+        invalidate_cache("aiprep")
+    except Exception:
+        pass
     return db_obj
 
 
