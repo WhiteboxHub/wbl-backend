@@ -647,6 +647,11 @@ async def upload_assessment_audio(
 
 
 @router.get(
+    "/candidate/assessments/{assessment_id}/media",
+    tags=["AI Prep - Media & Streaming"],
+    summary="Candidate: Stream Assessment Assembled Media (Audio or Video) from Storage",
+)
+@router.get(
     "/candidate/assessments/{assessment_id}/audio",
     tags=["AI Prep - Media & Streaming"],
     summary="Candidate: Stream Assessment Audio from Storage",
@@ -656,20 +661,24 @@ async def upload_assessment_audio(
     tags=["AI Prep - Media & Streaming"],
     summary="Stream Assessment Audio from Storage",
 )
-def get_assessment_audio(
+def get_assessment_media(
     assessment_id: Union[int, str],
     request: Request,
     current_user: AuthUserORM = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
+    """Retrieves and streams stored media (audio or video) binary from server storage with range seeking support."""
     range_header = request.headers.get("range")
-    return aiprep_utils.get_assessment_audio_logic(
+    return aiprep_utils.get_assessment_media_logic(
         db=db,
         current_user=current_user,
         assessment_id=assessment_id,
         range_header=range_header,
     )
+
+
+# Backward-compatibility alias
+get_assessment_audio = get_assessment_media
 
 
 @router.get(

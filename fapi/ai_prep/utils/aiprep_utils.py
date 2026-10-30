@@ -3532,29 +3532,25 @@ async def _process_youtube_upload_and_cleanup(
         except Exception as db_url_err:
             logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
-    # 4. Storage Cleanup: 5-minute grace period before purging to allow active candidate viewers to finish watching
+    # 4. Storage Cleanup: Clean raw chunks once YouTube upload is confirmed, but preserve assembled media for fallback
     try:
         from fapi.ai_prep.config import settings
         should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
         if is_real_youtube and youtube_persisted and should_cleanup and candidate_id:
             assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
             if os.path.exists(assessment_dir):
-                import threading
-                def _delayed_purge(target_dir: str, a_id: int):
+                # Clean up raw chunk parts to free disk space immediately, but preserve assembled.webm for persistent candidate playback
+                chunks_dir = os.path.join(assessment_dir, "chunks")
+                if os.path.exists(chunks_dir):
                     try:
-                        time.sleep(300)  # 5-minute grace period for active viewers
-                        if os.path.exists(target_dir):
-                            shutil.rmtree(target_dir, ignore_errors=True)
-                            logger.info("Purged server storage for assessment %s after 5-minute grace period", a_id)
-                    except Exception as p_err:
-                        logger.warning("Delayed storage purge error for %s: %s", a_id, p_err)
-
-                threading.Thread(target=_delayed_purge, args=(assessment_dir, assessment_id), daemon=True).start()
-                logger.info("Scheduled 5-minute delayed purge of server storage for assessment %s", assessment_id)
+                        shutil.rmtree(chunks_dir, ignore_errors=True)
+                        logger.info("Purged raw chunks storage for assessment %s after confirmed YouTube ingestion", assessment_id)
+                    except Exception as c_err:
+                        logger.warning("Error cleaning chunks for %s: %s", assessment_id, c_err)
         else:
             logger.info("Retaining local storage for assessment %s (local stitched media available for playback)", assessment_id)
     except Exception as clean_err:
-        logger.warning("Storage cleanup note for assessment %s: %s", assessment_id, clean_err)
+        logger.warning("Storage cleanup handling note for assessment %s: %s", assessment_id, clean_err)
 
     return youtube_url if is_real_youtube else None
 
@@ -3906,49 +3902,97 @@ def _auto_assemble_chunks_if_present(assessment_dir: str, total_expected: Option
     return None
 
 
-def get_assessment_audio_logic(
+def get_assessment_media_logic(
     db: Session,
     current_user: AuthUserORM,
     assessment_id: Union[int, str],
     range_header: Optional[str] = None,
 ) -> FileResponse:
-    """Retrieves and streams stored audio recording binary from server storage with range seeking support."""
+    """
+    Unified Media Endpoint (GET /api/aiprep/assessments/{assessment_id}/media):
+    Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.
+    Automatically serves assembled audio for audio assessments, and assembled video for video assessments.
+    """
     assessment = crud.get_assessment_by_id_or_uuid(db, assessment_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
-    candidate_files = [
-        os.path.join(assessment_dir, "assembled.webm"),
-        os.path.join(assessment_dir, "audio.wav"),
-        os.path.join(assessment_dir, "audio.webm"),
-        os.path.join(assessment_dir, "recording.webm"),
-        os.path.join(assessment_dir, "audio.mp3"),
-        os.path.join(assessment_dir, "audio.ogg"),
-    ]
-    target_file = None
-    for cf in candidate_files:
-        if os.path.exists(cf) and os.path.getsize(cf) > 0:
-            target_file = cf
-            break
+    
+    # Fallback search if directory not in candidate_id path
+    if not os.path.exists(assessment_dir) and os.path.exists(STORAGE_BASE_DIR):
+        for entry in os.listdir(STORAGE_BASE_DIR):
+            cand_path = os.path.join(STORAGE_BASE_DIR, entry)
+            if os.path.isdir(cand_path):
+                potential_dir = os.path.join(cand_path, str(assessment.id))
+                if os.path.exists(potential_dir):
+                    assessment_dir = potential_dir
+                    break
 
-    if not target_file and os.path.exists(assessment_dir):
-        for fname in os.listdir(assessment_dir):
-            fpath = os.path.join(assessment_dir, fname)
-            if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(s) for s in (".wav", ".webm", ".mp3", ".ogg")):
-                target_file = fpath
+    media_type = (getattr(assessment, "media_type", None) or "VIDEO").upper()
+    is_audio = media_type in ["AUDIO", "AUDIO_ONLY"]
+
+    if is_audio:
+        candidate_files = [
+            os.path.join(assessment_dir, "assembled.webm"),
+            os.path.join(assessment_dir, "audio.wav"),
+            os.path.join(assessment_dir, "audio.webm"),
+            os.path.join(assessment_dir, "recording.webm"),
+            os.path.join(assessment_dir, "audio.mp3"),
+            os.path.join(assessment_dir, "audio.ogg"),
+        ]
+        target_file = None
+        for cf in candidate_files:
+            if os.path.exists(cf) and os.path.getsize(cf) > 0:
+                target_file = cf
                 break
 
-    if not target_file and os.path.exists(assessment_dir):
-        target_file = _auto_assemble_chunks_if_present(assessment_dir)
+        if not target_file and os.path.exists(assessment_dir):
+            for fname in os.listdir(assessment_dir):
+                fpath = os.path.join(assessment_dir, fname)
+                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and any(fname.endswith(s) for s in (".wav", ".webm", ".mp3", ".ogg")):
+                    target_file = fpath
+                    break
 
-    if not target_file or not os.path.exists(target_file):
-        if getattr(assessment, "youtube_url", None):
-            return RedirectResponse(url=assessment.youtube_url)
-        raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
+        if not target_file and os.path.exists(assessment_dir):
+            target_file = _auto_assemble_chunks_if_present(assessment_dir)
 
-    mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mp3" if target_file.endswith(".mp3") else "audio/webm")
+        if not target_file or not os.path.exists(target_file):
+            if getattr(assessment, "youtube_url", None):
+                return RedirectResponse(url=assessment.youtube_url)
+            raise HTTPException(status_code=404, detail="Assessment audio recording not found in server storage")
+
+        mime_type = "audio/wav" if target_file.endswith(".wav") else ("audio/mpeg" if target_file.endswith(".mp3") else "audio/webm")
+    else:
+        # Video Assessment: Serve assembled video media
+        candidate_files = [
+            os.path.join(assessment_dir, "assembled.webm"),
+            os.path.join(assessment_dir, "video.mp4"),
+            os.path.join(assessment_dir, "recording.webm"),
+        ]
+        target_file = None
+        for cf in candidate_files:
+            if os.path.exists(cf) and os.path.getsize(cf) > 0:
+                target_file = cf
+                break
+
+        if not target_file and os.path.exists(assessment_dir):
+            for fname in os.listdir(assessment_dir):
+                fpath = os.path.join(assessment_dir, fname)
+                if os.path.isfile(fpath) and os.path.getsize(fpath) > 0 and (fname.endswith(".webm") or fname.endswith(".mp4") or fname.endswith(".mkv")):
+                    target_file = fpath
+                    break
+
+        if not target_file and os.path.exists(assessment_dir):
+            target_file = _auto_assemble_chunks_if_present(assessment_dir)
+
+        if not target_file or not os.path.exists(target_file):
+            if getattr(assessment, "youtube_url", None):
+                return RedirectResponse(url=assessment.youtube_url)
+            raise HTTPException(status_code=404, detail="Assessment video recording not found in server storage")
+
+        mime_type = "video/mp4" if target_file.endswith(".mp4") else "video/webm"
 
     return FileResponse(
         path=target_file,
@@ -3957,6 +4001,10 @@ def get_assessment_audio_logic(
         content_disposition_type="inline",
         headers={"Accept-Ranges": "bytes"},
     )
+
+
+# Backward-compatibility alias
+get_assessment_audio_logic = get_assessment_media_logic
 
 
 def get_assessment_video_logic(
