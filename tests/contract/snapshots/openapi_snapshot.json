@@ -24000,6 +24000,59 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Assembled Media (Audio or Video) from Storage",
+        "description": "Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.",
+        "operationId": "get_assessment_media_api_aiprep_candidate_assessments__assessment_id__media_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/aiprep/assessment-types": {
@@ -25565,8 +25618,8 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
-        "operationId": "get_assessment_audio_api_aiprep_assessments__assessment_id__audio_get",
+        "description": "Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.",
+        "operationId": "get_assessment_media_api_aiprep_assessments__assessment_id__audio_get",
         "security": [
           {
             "HTTPBearer": []
@@ -25685,8 +25738,8 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Candidate: Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
-        "operationId": "get_assessment_audio_api_aiprep_candidate_assessments__assessment_id__audio_get",
+        "description": "Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.",
+        "operationId": "get_assessment_media_api_aiprep_candidate_assessments__assessment_id__audio_get",
         "security": [
           {
             "HTTPBearer": []
@@ -26516,6 +26569,59 @@
                 "schema": {
                   "$ref": "#/components/schemas/UpdateMediaURLResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "AI Prep Tool Alias",
+          "AI Prep Tool",
+          "AI Prep - Media & Streaming"
+        ],
+        "summary": "Candidate: Stream Assessment Assembled Media (Audio or Video) from Storage",
+        "description": "Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.",
+        "operationId": "get_assessment_media_aiprep_candidate_assessments__assessment_id__media_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -28095,8 +28201,8 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
-        "operationId": "get_assessment_audio_aiprep_assessments__assessment_id__audio_get",
+        "description": "Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.",
+        "operationId": "get_assessment_media_aiprep_assessments__assessment_id__audio_get",
         "security": [
           {
             "HTTPBearer": []
@@ -28215,8 +28321,8 @@
           "AI Prep - Media & Streaming"
         ],
         "summary": "Candidate: Stream Assessment Audio from Storage",
-        "description": "Retrieves and streams stored audio recording binary from server storage with range seeking support.",
-        "operationId": "get_assessment_audio_aiprep_candidate_assessments__assessment_id__audio_get",
+        "description": "Retrieves and streams stored media (audio or video) binary from server storage with range seeking support.",
+        "operationId": "get_assessment_media_aiprep_candidate_assessments__assessment_id__audio_get",
         "security": [
           {
             "HTTPBearer": []
