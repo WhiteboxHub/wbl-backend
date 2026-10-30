@@ -122,9 +122,10 @@ def test_aiprep_list_assessments_cache_miss_and_hit(mock_redis):
         # Should not call crud again on cache hit
         assert mock_crud_list.call_count == 1
 
-        # Check returned items
-        items = res2["items"] if isinstance(res2, dict) else res2.items
-        assert len(items) == 1
+        # Check returned items and verify Pydantic model type preservation on cache hit
+        assert type(res2) is type(res1)
+        assert hasattr(res2, "items")
+        assert len(res2.items) == 1
 
 
 def test_aiprep_cache_invalidation_clears_keys(mock_redis):

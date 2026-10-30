@@ -2,7 +2,7 @@ import json
 import hashlib
 import functools
 import inspect
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, List
 from fastapi import Request
 from fapi.core.redis_client import redis_client
 from fapi.core import config
@@ -74,6 +74,15 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
     def decorator(func: Callable):
         is_async = inspect.iscoroutinefunction(func)
 
+        # Inspect return type once at decoration time
+        return_type = None
+        try:
+            sig = inspect.signature(func)
+            if sig.return_annotation is not inspect.Signature.empty:
+                return_type = sig.return_annotation
+        except Exception:
+            pass
+
         def _build_cache_key(*args, **kwargs) -> str:
             key_params = {}
             for i, arg in enumerate(args):
@@ -96,7 +105,28 @@ def cache_result(ttl: int = config.REDIS_TTL_DEFAULT, prefix: str = "general"):
                         cached_data = cached_data.decode()
                     msg = f"[REDIS CACHE HIT] Function: {func.__name__} | Key: {cache_key}"
                     logger.info(msg)
-                    return True, json.loads(cached_data)
+                    val = json.loads(cached_data)
+
+                    # Reconstruct Pydantic model instance if declared
+                    if return_type:
+                        try:
+                            if isinstance(val, dict):
+                                if hasattr(return_type, "model_validate"):
+                                    val = return_type.model_validate(val)
+                                elif hasattr(return_type, "parse_obj"):
+                                    val = return_type.parse_obj(val)
+                            elif isinstance(val, list):
+                                origin = getattr(return_type, "__origin__", None)
+                                if origin in (list, List):
+                                    args = getattr(return_type, "__args__", None)
+                                    if args and hasattr(args[0], "model_validate"):
+                                        val = [args[0].model_validate(item) if isinstance(item, dict) else item for item in val]
+                                    elif args and hasattr(args[0], "parse_obj"):
+                                        val = [args[0].parse_obj(item) if isinstance(item, dict) else item for item in val]
+                        except Exception as val_err:
+                            logger.debug("Failed reconstructing %s from cache: %s", getattr(return_type, "__name__", return_type), val_err)
+
+                    return True, val
             except Exception as e:
                 logger.error(f"Error fetching from Redis: {e}")
             return False, None
