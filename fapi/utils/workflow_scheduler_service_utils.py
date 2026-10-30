@@ -20,7 +20,7 @@ from fapi.db.models import (
     AutomationWorkflowLogORM,
     AutomationWorkflowORM
 )
-from fapi.utils.dynamic_weekly_report_utils import send_weekly_marketing_report
+
 
 logger = logging.getLogger(__name__)
 
@@ -173,15 +173,35 @@ def execute_scheduled_workflow(db: Session, schedule: AutomationWorkflowSchedule
         db.commit()
 
         result = None
-        if workflow.workflow_key == "weekly_marketing_report":
-            # Handled by the standalone wbl-marketing-report service.
-            # That service polls this scheduler, picks up the "due" schedule,
-            # fetches data from the production API, and sends the email.
-            result = {"status": "success", "records_processed": 0, "message": "Handed off to report service."}
-            logger.info("Weekly marketing report: marked as due for the report service to pick up.")
+        if workflow.workflow_type in ("email_sender", "extractor"):
+            # Workflows of these types are owned by the external outreach service.
+            # It polls /orchestrator/schedules/due, locks the schedule itself,
+            # sends emails, and updates the log.
+            # The internal scheduler must NOT execute them — it only acts as a
+            # "due marker" so the external service can discover them.
+            logger.info(
+                "Workflow '%s' (type='%s') belongs to the external service — skipping.",
+                workflow.workflow_key, workflow.workflow_type,
+            )
+            result = {
+                "status": "skipped",
+                "records_processed": 0,
+                "message": f"Delegated to external service (workflow_type='{workflow.workflow_type}').",
+            }
 
         else:
-            raise ValueError(f"Unknown workflow: {workflow.workflow_key}")
+            # No internal handler registered for this workflow_type.
+            # Log a warning but do not crash — a bad DB row should never
+            # kill the entire scheduler loop.
+            logger.warning(
+                "No internal handler for workflow '%s' (type='%s'). Skipping.",
+                workflow.workflow_key, workflow.workflow_type,
+            )
+            result = {
+                "status": "skipped",
+                "records_processed": 0,
+                "message": f"No internal handler for workflow_type='{workflow.workflow_type}'.",
+            }
 
         log_entry.status = 'success'
         log_entry.records_processed = result.get('records_processed', 0)
@@ -223,12 +243,15 @@ def check_and_execute_due_workflows(db: Session) -> list:
     try:
         now = datetime.now(timezone.utc)
         
-        # Step 1: Identify candidate IDs that are due (non-locking first pass)
+        # Step 1: Identify candidate IDs that are due (non-locking first pass).
+        # Exclude workflow types owned by the external outreach service
+        # (email_sender, extractor) — they are dispatched via
+        # GET /orchestrator/schedules/due and must not run here.
         candidates = db.query(AutomationWorkflowScheduleORM.id).join(AutomationWorkflowORM).filter(
             AutomationWorkflowScheduleORM.enabled == True,
             AutomationWorkflowScheduleORM.is_running == False,
             AutomationWorkflowScheduleORM.next_run_at <= now,
-            AutomationWorkflowORM.workflow_key != "weekly_marketing_report"
+            ~AutomationWorkflowORM.workflow_type.in_(["email_sender", "extractor"])
         ).all()
 
         if candidates:
