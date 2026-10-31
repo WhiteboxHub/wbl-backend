@@ -3544,21 +3544,41 @@ async def _process_youtube_upload_and_cleanup(
         except Exception as db_url_err:
             logger.error("DB update youtube_url error for assessment %s: %s", assessment_id, db_url_err)
 
-    # 4. Storage Cleanup: Clean raw chunks once YouTube upload is confirmed, but preserve assembled media for fallback
+    # 4. Storage Cleanup: Clean raw chunks once YouTube upload is confirmed, and schedule delayed purge of assembled media after grace period
     try:
         from fapi.ai_prep.config import settings
         should_cleanup = getattr(settings, "CLEANUP_STORAGE_AFTER_UPLOAD", True)
         if is_real_youtube and youtube_persisted and should_cleanup and candidate_id:
             assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment_id))
             if os.path.exists(assessment_dir):
-                # Clean up raw chunk parts to free disk space immediately, but preserve assembled.webm for persistent candidate playback
-                chunks_dir = os.path.join(assessment_dir, "chunks")
-                if os.path.exists(chunks_dir):
+                # 1. Immediate: Clean up raw chunks and question fragments to free disk space immediately
+                for sub_dir in ["chunks", "questions"]:
+                    sub_path = os.path.join(assessment_dir, sub_dir)
+                    if os.path.exists(sub_path):
+                        try:
+                            shutil.rmtree(sub_path, ignore_errors=True)
+                            logger.info("Purged raw %s storage for assessment %s after confirmed YouTube ingestion", sub_dir, assessment_id)
+                        except Exception as c_err:
+                            logger.warning("Error cleaning %s for %s: %s", sub_dir, assessment_id, c_err)
+
+                # 2. 15-Minute Grace Period: Retain assembled media for local candidate playback while YouTube encodes, then safely purge
+                async def _delayed_purge_assembled_media(target_dir: str, a_id: int):
                     try:
-                        shutil.rmtree(chunks_dir, ignore_errors=True)
-                        logger.info("Purged raw chunks storage for assessment %s after confirmed YouTube ingestion", assessment_id)
-                    except Exception as c_err:
-                        logger.warning("Error cleaning chunks for %s: %s", assessment_id, c_err)
+                        await asyncio.sleep(15 * 60)  # 15 minute grace period
+                        for media_name in ["assembled.webm", "assembled_indexed.webm", "audio.wav", "audio.webm"]:
+                            mf = os.path.join(target_dir, media_name)
+                            if os.path.exists(mf):
+                                try:
+                                    os.remove(mf)
+                                    logger.info("Grace period elapsed (15m): Purged local playback file %s for assessment %s", media_name, a_id)
+                                except Exception as rm_err:
+                                    logger.warning("Error purging %s after grace period: %s", mf, rm_err)
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as purge_err:
+                        logger.warning("Delayed media purge error for assessment %s: %s", a_id, purge_err)
+
+                _track_background_task(asyncio.create_task(_delayed_purge_assembled_media(assessment_dir, assessment_id)))
         else:
             logger.info("Retaining local storage for assessment %s (local stitched media available for playback)", assessment_id)
     except Exception as clean_err:
