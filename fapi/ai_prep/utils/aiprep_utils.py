@@ -4019,6 +4019,25 @@ def get_assessment_media_logic(
         if not target_file and os.path.exists(assessment_dir):
             target_file = _auto_assemble_chunks_if_present(assessment_dir)
 
+        # Multi-question questions/ fallback if assembled.webm is not present
+        if not target_file and os.path.exists(assessment_dir):
+            questions_dir = os.path.join(assessment_dir, "questions")
+            if os.path.exists(questions_dir):
+                try:
+                    actual_cand_id = os.path.basename(os.path.dirname(assessment_dir))
+                    stitched = _stitch_question_chunks(candidate_id=actual_cand_id, assessment_id=assessment.id)
+                    if stitched and os.path.exists(stitched) and os.path.getsize(stitched) > 0:
+                        target_file = stitched
+                except Exception as st_err:
+                    logger.warning("On-demand question stitching failed in get_assessment_media_logic for %s: %s", assessment.id, st_err)
+
+                if not target_file:
+                    for qid in sorted(os.listdir(questions_dir)):
+                        qv = os.path.join(questions_dir, qid, "video.webm")
+                        if os.path.exists(qv) and os.path.getsize(qv) > 0:
+                            target_file = qv
+                            break
+
         if not target_file or not os.path.exists(target_file):
             if getattr(assessment, "youtube_url", None):
                 return RedirectResponse(url=assessment.youtube_url)
@@ -4089,7 +4108,8 @@ def get_assessment_video_logic(
         questions_dir = os.path.join(assessment_dir, "questions")
         if os.path.exists(questions_dir):
             try:
-                stitched = _stitch_question_chunks(candidate_id=candidate_id, assessment_id=assessment.id)
+                actual_cand_id = os.path.basename(os.path.dirname(assessment_dir))
+                stitched = _stitch_question_chunks(candidate_id=actual_cand_id, assessment_id=assessment.id)
                 if stitched and os.path.exists(stitched) and os.path.getsize(stitched) > 0:
                     target_file = stitched
             except Exception as st_err:
