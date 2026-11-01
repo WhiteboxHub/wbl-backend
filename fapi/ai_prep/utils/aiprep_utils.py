@@ -2371,9 +2371,9 @@ async def candidate_submit_assessment_logic(
                                     )
                                 )
                             )
-                        # Purge temporary per-question media chunks from disk
+                        # Purge temporary per-question media chunks from disk only if assembled media was successfully generated
                         q_storage_dir = os.path.join(STORAGE_BASE_DIR, str(resolved_cand_id), str(assessment_id_int), "questions")
-                        if os.path.exists(q_storage_dir):
+                        if os.path.exists(q_storage_dir) and target_media and os.path.exists(target_media) and os.path.getsize(target_media) > 0:
                             shutil.rmtree(q_storage_dir, ignore_errors=True)
 
                         if insufficient_content:
@@ -4019,6 +4019,25 @@ def get_assessment_media_logic(
         if not target_file and os.path.exists(assessment_dir):
             target_file = _auto_assemble_chunks_if_present(assessment_dir)
 
+        # Multi-question questions/ fallback if assembled.webm is not present
+        if not target_file and os.path.exists(assessment_dir):
+            questions_dir = os.path.join(assessment_dir, "questions")
+            if os.path.exists(questions_dir):
+                try:
+                    actual_cand_id = os.path.basename(os.path.dirname(assessment_dir))
+                    stitched = _stitch_question_chunks(candidate_id=actual_cand_id, assessment_id=assessment.id)
+                    if stitched and os.path.exists(stitched) and os.path.getsize(stitched) > 0:
+                        target_file = stitched
+                except Exception as st_err:
+                    logger.warning("On-demand question stitching failed in get_assessment_media_logic for %s: %s", assessment.id, st_err)
+
+                if not target_file:
+                    for qid in sorted(os.listdir(questions_dir)):
+                        qv = os.path.join(questions_dir, qid, "video.webm")
+                        if os.path.exists(qv) and os.path.getsize(qv) > 0:
+                            target_file = qv
+                            break
+
         if not target_file or not os.path.exists(target_file):
             if getattr(assessment, "youtube_url", None):
                 return RedirectResponse(url=assessment.youtube_url)
@@ -4052,6 +4071,17 @@ def get_assessment_video_logic(
     candidate_id = _resolve_candidate_id(db, current_user, assessment.candidate_id)
 
     assessment_dir = os.path.join(STORAGE_BASE_DIR, str(candidate_id), str(assessment.id))
+    
+    # Fallback search if directory not in candidate_id path (matching audio logic)
+    if not os.path.exists(assessment_dir) and os.path.exists(STORAGE_BASE_DIR):
+        for entry in os.listdir(STORAGE_BASE_DIR):
+            cand_path = os.path.join(STORAGE_BASE_DIR, entry)
+            if os.path.isdir(cand_path):
+                potential_dir = os.path.join(cand_path, str(assessment.id))
+                if os.path.exists(potential_dir):
+                    assessment_dir = potential_dir
+                    break
+
     candidate_files = [
         os.path.join(assessment_dir, "assembled.webm"),
         os.path.join(assessment_dir, "video.mp4"),
@@ -4072,6 +4102,25 @@ def get_assessment_video_logic(
 
     if not target_file and os.path.exists(assessment_dir):
         target_file = _auto_assemble_chunks_if_present(assessment_dir)
+
+    # Multi-question questions/ fallback if assembled.webm is not present
+    if not target_file and os.path.exists(assessment_dir):
+        questions_dir = os.path.join(assessment_dir, "questions")
+        if os.path.exists(questions_dir):
+            try:
+                actual_cand_id = os.path.basename(os.path.dirname(assessment_dir))
+                stitched = _stitch_question_chunks(candidate_id=actual_cand_id, assessment_id=assessment.id)
+                if stitched and os.path.exists(stitched) and os.path.getsize(stitched) > 0:
+                    target_file = stitched
+            except Exception as st_err:
+                logger.warning("On-demand question stitching failed in get_assessment_video_logic for %s: %s", assessment.id, st_err)
+
+            if not target_file:
+                for qid in sorted(os.listdir(questions_dir)):
+                    qv = os.path.join(questions_dir, qid, "video.webm")
+                    if os.path.exists(qv) and os.path.getsize(qv) > 0:
+                        target_file = qv
+                        break
 
     if not target_file or not os.path.exists(target_file):
         if getattr(assessment, "youtube_url", None):
