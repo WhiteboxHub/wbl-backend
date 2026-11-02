@@ -12,6 +12,8 @@ import logging
 import asyncio
 import time
 import tempfile
+import urllib.request
+import urllib.error
 from pathlib import Path
 from datetime import datetime
 import copy
@@ -322,6 +324,129 @@ def _check_candidate_resume_db(db: Session, candidate_id: int) -> Dict[str, Any]
     }
 
 
+# In-memory probe cache: {api_key_hash: (has_credits: bool, error_message: str, timestamp: float)}
+_LLM_KEY_PROBE_CACHE: Dict[str, Tuple[bool, str, float]] = {}
+_LLM_KEY_PROBE_TTL_SECONDS = 300.0  # 5 minutes
+
+
+def _probe_llm_key_credits(api_key: str, provider: Optional[str] = None) -> Tuple[bool, str]:
+    """Probes the configured LLM API key with a minimal single-token request to verify token/quota availability.
+
+    Returns:
+        (has_credits: bool, message: str)
+        If has_credits is False, message contains details for the candidate.
+    """
+    clean_key = (api_key or "").strip()
+    if not clean_key:
+        return False, "Active LLM API Key is missing or invalid in 'My LLM Setup'."
+
+    # Hash key for safe in-memory cache lookup
+    cache_key = f"{clean_key[:8]}...{clean_key[-4:]}:{provider or 'openai'}"
+    now = time.time()
+    cached = _LLM_KEY_PROBE_CACHE.get(cache_key)
+    if cached and (now - cached[2]) < _LLM_KEY_PROBE_TTL_SECONDS:
+        return cached[0], cached[1]
+
+    norm_provider = (provider or "").strip().lower()
+    if not norm_provider:
+        norm_provider = "openai" if clean_key.startswith("sk-") else "gemini"
+
+    # Minimal probe payload: single user token
+    has_credits = True
+    msg = ""
+
+    if norm_provider in ("openai", "gpt"):
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {clean_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "AIPrep-Backend/2.0",
+        }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": "1"}],
+            "max_tokens": 1,
+            "temperature": 0.0,
+        }
+        try:
+            data_bytes = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=8.0) as resp:
+                _ = resp.read()
+                has_credits = True
+                msg = "Key is active and has available quota."
+        except urllib.error.HTTPError as http_err:
+            status_code = http_err.code
+            try:
+                err_text = http_err.read().decode("utf-8", errors="ignore")
+            except Exception:
+                err_text = str(http_err)
+
+            lower_err = err_text.lower()
+            if status_code == 429 and ("insufficient_quota" in lower_err or "quota" in lower_err or "exceeded your current quota" in lower_err):
+                has_credits = False
+                msg = "Your OpenAI API key has zero credits/tokens remaining. Please recharge your account to attempt the assessments."
+            elif status_code in (401, 403):
+                has_credits = False
+                msg = "Your OpenAI API key is invalid or has expired. Please check your credentials in 'My LLM Setup'."
+            else:
+                logger.warning("OpenAI probe returned unexpected status %s: %s", status_code, err_text)
+                # For non-quota transient errors (e.g., standard rate-limit 429 concurrency, 500s), do not lock the user out
+                has_credits = True
+                msg = "Quota probe skipped due to upstream response."
+        except Exception as exc:
+            logger.warning("OpenAI credit probe network exception: %s", exc)
+            # On transient network timeouts, allow candidate through to avoid blocking on network glitches
+            has_credits = True
+            msg = "Quota probe skipped due to timeout."
+
+    elif norm_provider in ("gemini", "google"):
+        # For Gemini, ping generateContent with 1 token
+        from urllib.parse import quote
+        sanitized_key = quote(clean_key, safe="")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={sanitized_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": "1"}]}],
+            "generationConfig": {"maxOutputTokens": 1, "temperature": 0.0},
+        }
+        try:
+            data_bytes = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=8.0) as resp:
+                _ = resp.read()
+                has_credits = True
+                msg = "Key is active and has available quota."
+        except urllib.error.HTTPError as http_err:
+            status_code = http_err.code
+            try:
+                err_text = http_err.read().decode("utf-8", errors="ignore")
+            except Exception:
+                err_text = str(http_err)
+            lower_err = err_text.lower()
+            if status_code in (400, 403) and ("api_key_invalid" in lower_err or "key not valid" in lower_err):
+                has_credits = False
+                msg = "Your Gemini API key is invalid. Please update your key in 'My LLM Setup'."
+            elif status_code == 429 and ("resource_exhausted" in lower_err or "quota" in lower_err):
+                has_credits = False
+                msg = "Your Gemini API key quota is exhausted. Please recharge your account to attempt the assessments."
+            else:
+                has_credits = True
+                msg = "Quota probe passed."
+        except Exception as exc:
+            logger.warning("Gemini credit probe network exception: %s", exc)
+            has_credits = True
+            msg = "Quota probe skipped."
+
+    else:
+        # Other OpenAI-compatible providers
+        has_credits = True
+        msg = "Key is configured."
+
+    _LLM_KEY_PROBE_CACHE[cache_key] = (has_credits, msg, now)
+    return has_credits, msg
+
+
 def _verify_prerequisites(db: Session, candidate_id: int):
     """Enforces prerequisite checks before starting an assessment."""
     llm_status = _check_candidate_llm_db(db, candidate_id)
@@ -330,6 +455,17 @@ def _verify_prerequisites(db: Session, candidate_id: int):
     errors = []
     if not llm_status["is_configured"]:
         errors.append("Active LLM API Key is missing or invalid in 'My LLM Setup'.")
+    else:
+        # Check if the active key has tokens/quota remaining
+        llm_cfg = crud.get_candidate_llm_config(db, candidate_id)
+        raw_key = llm_cfg.get("api_key")
+        if raw_key:
+            has_credits, probe_msg = _probe_llm_key_credits(raw_key, provider=llm_status.get("provider"))
+            if not has_credits:
+                llm_status["has_credits"] = False
+                llm_status["message"] = probe_msg
+                errors.append(probe_msg)
+
     if not resume_status["has_resume"] and not resume_status["has_parsed_json"]:
         errors.append("Resume has not been uploaded or parsed in 'My Resume'.")
 
@@ -415,8 +551,24 @@ def assessment_readiness_precheck_logic(
     resume_check = _check_candidate_resume_db(db, resolved_id)
 
     has_active_llm = bool(llm_check.get("is_configured"))
+    has_credits = True
+    llm_quota_error = None
+
+    if has_active_llm:
+        # Probe candidate's active key to verify available token quota
+        llm_cfg = crud.get_candidate_llm_config(db, resolved_id)
+        raw_key = llm_cfg.get("api_key")
+        if raw_key:
+            has_credits, probe_msg = _probe_llm_key_credits(raw_key, provider=llm_check.get("provider"))
+            llm_check["has_credits"] = has_credits
+            if not has_credits:
+                llm_check["message"] = probe_msg
+                llm_quota_error = probe_msg
+        else:
+            llm_check["has_credits"] = True
+
     has_resume = bool(resume_check.get("has_resume") or resume_check.get("has_parsed_json"))
-    eligible = bool(has_active_llm and has_resume)
+    eligible = bool(has_active_llm and has_credits and has_resume)
     allowed_to_proceed = eligible
 
     if eligible:
@@ -428,6 +580,9 @@ def assessment_readiness_precheck_logic(
     elif not has_active_llm:
         message = "Cannot proceed with assessment. Please configure an active LLM key in 'My LLM Setup'."
         action_required = "my-llm-setup"
+    elif not has_credits:
+        message = llm_quota_error or "Cannot proceed with assessment. Please recharge your account to attempt the assessments."
+        action_required = "recharge-llm-key"
     else:
         message = "Cannot proceed with assessment. Please upload or sync your resume in 'My Resume'."
         action_required = "my-resume"
