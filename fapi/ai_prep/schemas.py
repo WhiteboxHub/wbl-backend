@@ -163,6 +163,7 @@ class AssessmentTypeListResponse(BaseModel):
 class LLMKeyStatusResponse(BaseModel):
     status: str = Field(..., description="'valid' or 'failure'")
     is_configured: bool = Field(..., description="True if a valid LLM key is ready")
+    has_credits: Optional[bool] = Field(default=None, description="True if the key has available quota/tokens; False if quota is 0/exhausted")
     provider: Optional[str] = None
     model: Optional[str] = None
     voice_enabled: bool = False
