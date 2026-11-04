@@ -1971,7 +1971,7 @@ async def _process_multi_question_audio_batch(
             ans_txt = "[Audio processing failed for this question]"
         else:
             ans_txt = q.get("transcript") or "[No response or skipped by candidate]"
-        qa_blocks.append(f"[Question {idx}: {q_txt}]\nCandidate Answer: {ans_txt}")
+        qa_blocks.append(f"[Question {idx}: {q_txt}]\nYour Answer: {ans_txt}")
 
     combined_text = "\n\n".join(qa_blocks)
     total_words = sum(q.get("word_count", 0) for q in all_questions if isinstance(q, dict))

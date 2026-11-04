@@ -47632,6 +47632,18 @@
             "title": "Is Configured",
             "description": "True if a valid LLM key is ready"
           },
+          "has_credits": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Credits",
+            "description": "True if the key has available quota/tokens; False if quota is 0/exhausted"
+          },
           "provider": {
             "anyOf": [
               {
